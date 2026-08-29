@@ -1386,8 +1386,14 @@ function ToolChipList({ tools }: { tools: ToolActivity[] }) {
 function ModelSelectorDropdown() {
   return (
     <QuickModelSelector
-      getSettings={() => window.desktop.getAiSettings()}
-      setSettings={(s) => window.desktop.setAiSettings(s as any)}
+      getSettings={() =>
+        window.desktop?.getAiSettings
+          ? window.desktop.getAiSettings()
+          : Promise.resolve({ provider: 'lmstudio', providers: {} })
+      }
+      setSettings={(s) =>
+        window.desktop?.setAiSettings ? window.desktop.setAiSettings(s as any) : Promise.resolve()
+      }
     />
   )
 }

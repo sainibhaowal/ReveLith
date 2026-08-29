@@ -32,19 +32,30 @@ export function QuickModelSelector({
   const menuRef = useRef<HTMLDivElement>(null)
 
   const reloadSettings = () => {
-    return Promise.resolve(getSettings())
-      .then((s) => {
-        if (s) setLocalSettings(s)
-        return s
-      })
-      .catch(() => {
-        try {
-          const stored =
-            localStorage.getItem('revelith.aiSettings') ||
-            (typeof window !== 'undefined' && window.parent?.localStorage?.getItem?.('revelith.aiSettings'))
-          if (stored) setLocalSettings(JSON.parse(stored))
-        } catch {}
-      })
+    try {
+      const p = getSettings?.()
+      return Promise.resolve(p)
+        .then((s) => {
+          if (s) setLocalSettings(s)
+          return s
+        })
+        .catch(() => {
+          try {
+            const stored =
+              (typeof localStorage !== 'undefined' && localStorage.getItem('revelith.aiSettings')) ||
+              (typeof window !== 'undefined' && window.parent?.localStorage?.getItem?.('revelith.aiSettings'))
+            if (stored) setLocalSettings(JSON.parse(stored))
+          } catch {}
+        })
+    } catch {
+      try {
+        const stored =
+          (typeof localStorage !== 'undefined' && localStorage.getItem('revelith.aiSettings')) ||
+          (typeof window !== 'undefined' && window.parent?.localStorage?.getItem?.('revelith.aiSettings'))
+        if (stored) setLocalSettings(JSON.parse(stored))
+      } catch {}
+      return Promise.resolve()
+    }
   }
 
   useEffect(() => {

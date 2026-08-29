@@ -2663,8 +2663,14 @@ function ClarifyCard({
 function ModelSelectorDropdown() {
   return (
     <QuickModelSelector
-      getSettings={() => window.slidesApi.getAiSettings()}
-      setSettings={(s) => window.slidesApi.setAiSettings(s as any)}
+      getSettings={() =>
+        window.slidesApi?.getAiSettings
+          ? window.slidesApi.getAiSettings()
+          : Promise.resolve({ provider: 'lmstudio', providers: {} })
+      }
+      setSettings={(s) =>
+        window.slidesApi?.setAiSettings ? window.slidesApi.setAiSettings(s as any) : Promise.resolve()
+      }
     />
   )
 }
