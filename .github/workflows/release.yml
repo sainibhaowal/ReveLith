@@ -194,7 +194,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}
         run: |
-          echo "RELEASE_ASSETS=$(gh release view \"$TAG\" --repo \"$GITHUB_REPOSITORY\" --json assets --jq '[.assets[].name]')" >> "$GITHUB_ENV"
+          mkdir -p /tmp/revelith-build
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name]' > /tmp/revelith-build/assets.json || echo "[]" > /tmp/revelith-build/assets.json
 
       - name: Build website with current release manifest
         env:
@@ -204,7 +205,12 @@ jobs:
           npm ci --prefix apps/web
           node - <<'NODE'
           const fs = require('fs')
-          const assets = JSON.parse(process.env.RELEASE_ASSETS)
+          let assets = []
+          try {
+            assets = JSON.parse(fs.readFileSync('/tmp/revelith-build/assets.json', 'utf8'))
+          } catch (e) {
+            assets = []
+          }
           const releaseTag = process.env.TAG
           const repo = process.env.GITHUB_REPOSITORY
           const downloads = assets.map((format) => {
