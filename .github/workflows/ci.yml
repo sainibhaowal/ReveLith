@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm install --save-optional --include=optional @rollup/rollup-linux-x64-gnu || true
+        shell: bash
+      - name: Theme colors (CI enforced)
+        run: npm run check:theme-colors
+      - name: Typecheck
+        run: npm run typecheck
+
+  tests:
+    name: Tests (${{ matrix.group }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: "Core Engines (Word & Presentation)"
+            packages: "@revelith/docx-engine @revelith/pptx-engine @revelith/pptx-render"
+          - group: "Spreadsheet & Calculation"
+            packages: "@revelith/sheets"
+          - group: "Editors (Docs & Slides)"
+            packages: "@revelith/docs @revelith/slides"
+          - group: "PDF & Markdown"
+            packages: "@revelith/pdf @revelith/markdown"
+          - group: "Shell & Desktop Windowing"
+            packages: "@revelith/shell"
+          - group: "Utilities, AI & Infrastructure"
+            packages: "@revelith/i18n @revelith/electron-utils @revelith/font-metrics @revelith/file-parse @revelith/ai-search @revelith/agent-core @revelith/ai-provider @revelith/project-store"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        if: matrix.group == 'Spreadsheet & Calculation'
+        with:
+          workspaces: "apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target"
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm install --save-optional --include=optional @rollup/rollup-linux-x64-gnu || true
+        shell: bash
+      - name: Run Test Suite Partition
+        run: |
+          for pkg in ${{ matrix.packages }}; do
+            npm run test -w "$pkg"
+          done
+        shell: bash

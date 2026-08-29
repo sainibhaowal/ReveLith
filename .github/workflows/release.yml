@@ -1,0 +1,235 @@
+name: Release & Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_version:
+        description: 'Optional: Force specific version (e.g. 1.1.5). Leave empty for auto-semantic bump'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  semantic-release:
+    name: Semantic Release & Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published == 'true' || steps.custom_tag.outputs.published == 'true' }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version || steps.custom_tag.outputs.version }}
+      new_release_git_tag: ${{ steps.semantic.outputs.new_release_git_tag || steps.custom_tag.outputs.git_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine fallback version
+        id: custom_tag
+        if: steps.semantic.outputs.new_release_published != 'true'
+        run: |
+          if [ -n "${{ inputs.force_version }}" ]; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "version=${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
+            echo "git_tag=v${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
+          else
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.1.0")
+            echo "Latest tag: $LATEST_TAG"
+            CLEAN_VER="${LATEST_TAG#v}"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "version=$CLEAN_VER" >> "$GITHUB_OUTPUT"
+            echo "git_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
+  build-desktop:
+    name: Build Desktop (${{ matrix.os }})
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target"
+
+      - name: Install Linux Build Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libarchive-tools libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2t64 || sudo apt-get install -y libarchive-tools libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2 || true
+
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            npm install --save-optional --include=optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64
+            npm install --prefix apps/docs --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
+            npm install --prefix apps/sheets --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
+            npm install --prefix apps/slides --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
+            npm install --prefix apps/pdf --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
+            npm install --prefix apps/markdown --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
+            npm install --prefix apps/shell --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
+          elif [ "${{ runner.os }}" = "Linux" ]; then
+            npm install --save-optional --include=optional @rollup/rollup-linux-x64-gnu
+            npm install --prefix apps/docs --save-optional @rollup/rollup-linux-x64-gnu || true
+            npm install --prefix apps/sheets --save-optional @rollup/rollup-linux-x64-gnu || true
+            npm install --prefix apps/slides --save-optional @rollup/rollup-linux-x64-gnu || true
+            npm install --prefix apps/pdf --save-optional @rollup/rollup-linux-x64-gnu || true
+            npm install --prefix apps/markdown --save-optional @rollup/rollup-linux-x64-gnu || true
+            npm install --prefix apps/shell --save-optional @rollup/rollup-linux-x64-gnu || true
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            npm install --save-optional --include=optional @rollup/rollup-win32-x64-msvc
+          fi
+        shell: bash
+
+      - name: Sync Semantic Release Version
+        if: needs.semantic-release.outputs.new_release_version != ''
+        run: |
+          VERSION="${{ needs.semantic-release.outputs.new_release_version }}"
+          echo "Setting release version to: $VERSION"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version -w @revelith/shell
+        shell: bash
+
+      - name: Run Workspace Typecheck
+        run: npm run typecheck
+
+      - name: Build Native Rust Sidecars
+        run: |
+          if [ "${{ matrix.platform }}" = "win" ]; then
+            rustup target add x86_64-pc-windows-gnu || true
+            cargo build --release --target x86_64-pc-windows-gnu --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml || cargo build --release --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml
+          elif [ "${{ matrix.platform }}" = "mac" ]; then
+            rustup target add x86_64-apple-darwin aarch64-apple-darwin
+            npm run native:build:universal -w @revelith/sheets
+          else
+            npm run native:build -w @revelith/sheets
+          fi
+        shell: bash
+
+      - name: Build All Workspaces
+        run: npm run build:all
+
+      - name: Package Desktop Artifacts (${{ matrix.platform }})
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVELITH_UPDATE_URL: ${{ secrets.REVELITH_UPDATE_URL }}
+        run: |
+          if [ "${{ matrix.platform }}" = "win" ]; then
+            npm run dist:win
+          elif [ "${{ matrix.platform }}" = "linux" ]; then
+            npm run dist:linux
+          elif [ "${{ matrix.platform }}" = "mac" ]; then
+            npm run dist:mac
+          fi
+        shell: bash
+
+      - name: Upload Release Binaries to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.semantic-release.outputs.new_release_git_tag }}
+          files: |
+            apps/shell/release/*.exe
+            apps/shell/release/*.deb
+            apps/shell/release/*.AppImage
+            apps/shell/release/*.rpm
+            apps/shell/release/*.dmg
+            apps/shell/release/*.zip
+            apps/shell/dist/*.exe
+            apps/shell/dist/*.deb
+            apps/shell/dist/*.AppImage
+            apps/shell/dist/*.rpm
+            apps/shell/dist/*.dmg
+            apps/shell/dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-web:
+    name: Deploy website with GitHub-hosted downloads
+    needs: [semantic-release, build-desktop]
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Read this release's desktop installer names
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}
+        run: |
+          echo "RELEASE_ASSETS=$(gh release view \"$TAG\" --repo \"$GITHUB_REPOSITORY\" --json assets --jq '[.assets[].name]')" >> "$GITHUB_ENV"
+
+      - name: Build website with current release manifest
+        env:
+          VERSION: ${{ needs.semantic-release.outputs.new_release_version }}
+          TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}
+        run: |
+          npm ci --prefix apps/web
+          node - <<'NODE'
+          const fs = require('fs')
+          const assets = JSON.parse(process.env.RELEASE_ASSETS)
+          const releaseTag = process.env.TAG
+          const repo = process.env.GITHUB_REPOSITORY
+          const downloads = assets.map((format) => {
+            const lower = format.toLowerCase()
+            const os = lower.endsWith('.exe') ? 'Windows 10 / 11' : lower.endsWith('.dmg') ? 'macOS' : lower.endsWith('.appimage') || lower.endsWith('.deb') || lower.endsWith('.rpm') ? 'Linux' : 'Desktop archive'
+            const url = `https://github.com/${repo}/releases/download/${encodeURIComponent(releaseTag)}/${encodeURIComponent(format)}`
+            return { os, format, tag: 'Direct installer', emoji: '↓', url, recommended: lower.endsWith('.exe') }
+          })
+          fs.writeFileSync('apps/web/public/release.json', JSON.stringify({ version: `v${process.env.VERSION}`, downloads }, null, 2))
+          NODE
+          npm run build --prefix apps/web
+
+      - name: Configure VPS SSH access
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Publish site to revelith.averqel.com
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_WEB_PATH: /opt/revelith_web
+        run: |
+          test -n "$VPS_HOST" && test -n "$VPS_USER" && test -n "$VPS_WEB_PATH"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          ssh "$VPS_USER@$VPS_HOST" "if [ -d '/var/www/revelith.averqel.com' ]; then rm -rf '/var/www/revelith.averqel.com'; fi; mkdir -p '$VPS_WEB_PATH'"
+          rsync -az --delete apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"

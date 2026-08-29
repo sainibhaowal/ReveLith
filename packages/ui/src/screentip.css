@@ -1,0 +1,30 @@
+/* Office-style ScreenTip — themed via the shared tokens (light/dark automatic).
+ * The element is a singleton created by installScreenTips(); visibility is
+ * driven inline by the script, everything visual lives here. */
+
+.ui-screentip {
+  position: fixed;
+  z-index: 100000;
+  max-width: 280px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  background: var(--surface, #1e1e22);
+  color: var(--text-primary, #ffffff);
+  font: 500 12px/1.4 var(--gs-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  visibility: hidden;
+  /* some tips carry embedded newlines (e.g. pdf note pins: contents + hint) */
+  white-space: pre-line;
+}
+
+.ui-screentip-kbd {
+  margin-left: 6px;
+  color: var(--text-tertiary);
+}
+
+.ui-screentip-detail {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
