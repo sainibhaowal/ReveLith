@@ -1963,9 +1963,7 @@ export interface DesktopApi {
   /// start a streaming AI call; deltas arrive via onAiStream with the same requestId
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
-  /// ReveLith account status (account login state); withEmail also returns the email
-  /// (needs a network request, slower)\r\n  /// becomes signed-in on completion)
-  /// Web search (main-process Serper/DuckDuckGo, shared with docs/slides)
+    /// Web search (main-process Serper/DuckDuckGo, shared with docs/slides)
   webSearch(query: string, maxResults?: number): Promise<WebSearchResult>
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
   /// Chat attachments: multi-select file dialog (returns null on cancel)
