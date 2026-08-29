@@ -61,6 +61,8 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_WEB_PATH: /opt/revelith_web
         run: |
+          VPS_HOST="$(echo "$VPS_HOST" | tr -d '\r\n[:space:]')"
+          VPS_USER="$(echo "$VPS_USER" | tr -d '\r\n[:space:]')"
           test -n "$VPS_HOST" && test -n "$VPS_USER"
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
