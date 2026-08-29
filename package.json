@@ -1,0 +1,76 @@
+{
+  "name": "revelith",
+  "version": "1.1.4",
+  "private": true,
+  "description": "AI-native office suite (docs, sheets, slides, pdf)",
+  "license": "Apache-2.0",
+  "author": "ReveLith Contributors",
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sainibhaowal/ReveLith.git"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "postinstall": "install-electron",
+    "format": "node tools/format-changed.mjs --write",
+    "format:check": "node tools/format-changed.mjs --check",
+    "check:theme-colors": "node tools/check-theme-colors.mjs",
+    "lint": "eslint .",
+    "fixtures": "npm run fixtures -w @revelith/docx-engine",
+    "test": "npm run test -w @revelith/i18n && npm run test -w @revelith/electron-utils && npm run test -w @revelith/font-metrics && npm run test -w @revelith/docx-engine && npm run test -w @revelith/file-parse && npm run test -w @revelith/pptx-engine && npm run test -w @revelith/pptx-render && npm run test -w @revelith/ai-search && npm run test -w @revelith/agent-core && npm run test -w @revelith/ai-provider && npm run test -w @revelith/project-store && npm run test -w @revelith/docs && npm run test -w @revelith/sheets && npm run test -w @revelith/shell && npm run test -w @revelith/slides && npm run test -w @revelith/pdf && npm run test -w @revelith/markdown",
+    "typecheck": "npm run typecheck -w @revelith/i18n && npm run typecheck -w @revelith/electron-utils && npm run typecheck -w @revelith/font-metrics && npm run typecheck -w @revelith/docx-engine && npm run typecheck -w @revelith/file-parse && npm run typecheck -w @revelith/pptx-engine && npm run typecheck -w @revelith/pptx-render && npm run typecheck -w @revelith/ai-search && npm run typecheck -w @revelith/agent-core && npm run typecheck -w @revelith/ai-provider && npm run typecheck -w @revelith/project-store && npm run typecheck -w @revelith/ui && npm run typecheck -w @revelith/docs && npm run typecheck -w @revelith/sheets && npm run typecheck -w @revelith/shell && npm run typecheck -w @revelith/slides && npm run typecheck -w @revelith/pdf && npm run typecheck -w @revelith/markdown",
+    "dev": "concurrently -k -n docs,sheets,slides,pdf,markdown,shell -c blue,green,yellow,red,cyan,magenta \"npm run dev:renderer -w @revelith/docs\" \"npm run dev:renderer -w @revelith/sheets\" \"npm run dev:renderer -w @revelith/slides\" \"npm run dev:renderer -w @revelith/pdf\" \"npm run dev:renderer -w @revelith/markdown\" \"npx cross-env DOCS_RENDERER_URL=http://localhost:5173 SHEETS_RENDERER_URL=http://localhost:5174 SLIDES_RENDERER_URL=http://localhost:5175 PDF_RENDERER_URL=http://localhost:5176 MARKDOWN_RENDERER_URL=http://localhost:5177 npm run dev -w @revelith/shell\"",
+    "dev:shell": "npm run dev:renderer -w @revelith/shell",
+    "dev:browser": "concurrently -k -n docs,sheets,slides,pdf,markdown,shell -c blue,green,yellow,red,cyan,magenta \"npm run dev:renderer -w @revelith/docs\" \"npm run dev:renderer -w @revelith/sheets\" \"npm run dev:renderer -w @revelith/slides\" \"npm run dev:renderer -w @revelith/pdf\" \"npm run dev:renderer -w @revelith/markdown\" \"npm run dev:renderer -w @revelith/shell\"",
+    "dev:docs": "npm run dev -w @revelith/docs",
+    "build": "npm run build -w @revelith/docs",
+    "build:all": "npm run build -w @revelith/docs && npm run build -w @revelith/sheets && npm run build -w @revelith/slides && npm run build -w @revelith/pdf && npm run build -w @revelith/markdown && npm run build -w @revelith/shell",
+    "shell": "npm run build:all && electron apps/shell",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "notices": "node tools/gen-third-party-notices.mjs",
+    "licenses": "node tools/check-licenses.mjs",
+    "dist:mac": "npm run notices && npm run build:all && npm run native:build:universal -w @revelith/sheets && npm run dist:mac -w @revelith/shell",
+    "dist:win": "npm run notices && npm run build:all && npm run dist:win -w @revelith/shell",
+    "dist:linux": "npm run notices && npm run build:all && npm run dist:linux -w @revelith/shell"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "concurrently": "^9.2.4",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.8.0",
+    "pixelmatch": "^7.2.0",
+    "playwright-core": "^1.61.1",
+    "pngjs": "^7.0.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.65.0"
+  },
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "tagFormat": "v${version}",
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/github",
+        {
+          "assets": [],
+          "releaseName": "ReveLith v${version}"
+        }
+      ]
+    ]
+  }
+}

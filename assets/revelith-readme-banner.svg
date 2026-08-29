@@ -1,0 +1,53 @@
+<svg width="1280" height="360" viewBox="0 0 1280 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
+  <title id="title">ReveLith</title>
+  <desc id="description">ReveLith, an offline-first intelligent office suite.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1280" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071426"/>
+      <stop offset="0.5" stop-color="#102A4D"/>
+      <stop offset="1" stop-color="#0A1830"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(198 180) rotate(90) scale(210)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#38BDF8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="line" x1="430" y1="0" x2="1260" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#818CF8" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#020617" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="360" rx="24" fill="url(#background)"/>
+  <rect width="1280" height="360" rx="24" fill="url(#glow)"/>
+  <path d="M402 0H1280V360H526C600 276 593 121 402 0Z" fill="url(#line)" fill-opacity="0.12"/>
+  <path d="M526 0C696 134 696 235 526 360" stroke="url(#line)" stroke-width="1.5" opacity="0.7"/>
+  <path d="M600 0C770 112 770 248 600 360" stroke="url(#line)" stroke-width="1" opacity="0.35"/>
+
+  <g opacity="0.72" fill="#BAE6FD">
+    <circle cx="852" cy="72" r="2"/><circle cx="1001" cy="116" r="1.5"/><circle cx="1162" cy="68" r="2"/>
+    <circle cx="1096" cy="266" r="2"/><circle cx="1212" cy="205" r="1.5"/><circle cx="759" cy="291" r="1.5"/>
+  </g>
+
+  <!-- Official ReveLith orbital icon -->
+  <g transform="translate(78 78) scale(2.04)" filter="url(#shadow)">
+    <g transform="translate(10 10)">
+      <circle cx="50" cy="50" r="7.5" fill="#38BDF8"/>
+      <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#38BDF8" stroke-width="6.5"/>
+      <circle cx="88" cy="50" r="6.5" fill="#67E8F9"/>
+      <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#60A5FA" stroke-width="6.5" transform="rotate(60 50 50)"/>
+      <circle cx="31" cy="17" r="6.5" fill="#93C5FD"/>
+      <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#818CF8" stroke-width="6.5" transform="rotate(120 50 50)"/>
+      <circle cx="31" cy="83" r="6.5" fill="#C7D2FE"/>
+    </g>
+  </g>
+
+  <g fill="#F8FAFC">
+    <text x="390" y="145" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700" letter-spacing="-2">ReveLith</text>
+    <text x="394" y="194" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="600" fill="#7DD3FC" letter-spacing="4">OFFLINE-FIRST INTELLIGENT OFFICE SUITE</text>
+    <text x="394" y="246" font-family="Arial, Helvetica, sans-serif" font-size="23" fill="#C7D2FE">Private by design. Powerful by default.</text>
+  </g>
+  <rect x="394" y="276" width="354" height="2" rx="1" fill="#38BDF8" fill-opacity="0.75"/>
+</svg>
