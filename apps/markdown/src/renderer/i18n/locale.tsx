@@ -35,7 +35,7 @@ export function aiLangDirective(lang: Lang): string {
   return AI_LANG_DIRECTIVES[lang]
 }
 
-const LocaleContext = createContext<Lang>('zh')
+const LocaleContext = createContext<Lang>('en')
 
 /** Module-level current language: for code outliving render closures, kept in sync with the Provider */
 let moduleLang: Lang = 'zh'

@@ -14,3 +14,9 @@ dist/
 
 # Ignore prompt template
 docs/TASK_PROMPT_TEMPLATE.md
+# Ignore SSH keys & credentials
+*.pub
+revelith_vps*
+id_*
+*.pem
+*.key

@@ -253,7 +253,7 @@ async function oursExport(docxPath, pdfPath, index) {
       env: {
         ...process.env,
         NODE_ENV: 'production',
-        REVELITH_LANG: 'zh',
+        REVELITH_LANG: 'en',
         REVELITH_TEST_EXPORT_DIR: OURS_PDF_DIR,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
