@@ -287,6 +287,7 @@ const api: SlidesApi = {
     ipcRenderer.invoke('ai:web-search', query, maxResults),
   imageSearch: (query: string, maxResults?: number) =>
     ipcRenderer.invoke('ai:image-search', query, maxResults),
+  accountStatus: () => ipcRenderer.invoke('account:status').catch(() => ({ available: false })),
   insertImageUrl: (op: {
     slideIndex: number
     url: string

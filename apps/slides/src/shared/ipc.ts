@@ -1367,7 +1367,7 @@ export interface SlidesApi {
     requirements: string
   }) => Promise<{ text?: string; error?: string }>
   /** account availability: installed and logged in (for UI/tools to prompt login) */
-  accountStatus: () => Promise<{ available: boolean; email?: string }>
+  accountStatus?: () => Promise<{ available: boolean; email?: string }>
   onAiStream: (handler: (chunk: AiStreamChunk) => void) => () => void
   /** Style Skill sidecar: write styleSkill to a same-named .styleskill.json next to the draft */
   saveStyleSidecar: (data: {

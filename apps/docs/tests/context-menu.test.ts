@@ -5,6 +5,7 @@ import { act } from 'react'
 import { Editor } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import { editorExtensions } from '../src/renderer/editor/extensions'
+import { LocaleProvider } from '../src/renderer/i18n/locale'
 import {
   EditorContextMenu,
   FontDialog,
@@ -38,7 +39,7 @@ function render(element: React.ReactElement): { container: HTMLElement; unmount:
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
-  act(() => root.render(element))
+  act(() => root.render(createElement(LocaleProvider, { initial: 'zh' }, element)))
   return {
     container,
     unmount: () => {
