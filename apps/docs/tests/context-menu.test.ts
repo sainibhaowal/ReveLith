@@ -5,7 +5,6 @@ import { act } from 'react'
 import { Editor } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import { editorExtensions } from '../src/renderer/editor/extensions'
-import { LocaleProvider } from '../src/renderer/i18n/locale'
 import {
   EditorContextMenu,
   FontDialog,
@@ -39,7 +38,7 @@ function render(element: React.ReactElement): { container: HTMLElement; unmount:
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
-  act(() => root.render(createElement(LocaleProvider, { initial: 'zh' }, element)))
+  act(() => root.render(element))
   return {
     container,
     unmount: () => {
@@ -69,16 +68,17 @@ describe('EditorContextMenu', () => {
   it('disables selection-dependent items when nothing is selected', () => {
     const editor = createEditor()
     const { container, unmount } = render(createElement(EditorContextMenu, menuProps(editor)))
-    const byLabel = (label: string) =>
-      [...container.querySelectorAll<HTMLButtonElement>('.ctx-item')].find(
-        (b) => b.querySelector('.ctx-label')?.textContent === label,
-      )!
-    expect(byLabel('剪切').disabled).toBe(true)
-    expect(byLabel('复制').disabled).toBe(true)
-    expect(byLabel('粘贴').disabled).toBe(false)
-    expect(byLabel('字体…').disabled).toBe(false)
-    expect(byLabel('段落…').disabled).toBe(false)
-    expect(byLabel('新建批注').disabled).toBe(true)
+    const byLabel = (...labels: string[]) =>
+      [...container.querySelectorAll<HTMLButtonElement>('.ctx-item')].find((b) => {
+        const text = b.querySelector('.ctx-label')?.textContent
+        return labels.includes(text ?? '')
+      })!
+    expect(byLabel('Cut', '剪切').disabled).toBe(true)
+    expect(byLabel('Copy', '复制').disabled).toBe(true)
+    expect(byLabel('Paste', '粘贴').disabled).toBe(false)
+    expect(byLabel('Font…', '字体…').disabled).toBe(false)
+    expect(byLabel('Paragraph…', '段落…').disabled).toBe(false)
+    expect(byLabel('New Comment', '新建批注').disabled).toBe(true)
     unmount()
     editor.destroy()
   })
@@ -92,16 +92,17 @@ describe('EditorContextMenu', () => {
     const { container, unmount } = render(
       createElement(EditorContextMenu, menuProps(editor, { onNewComment, onFontDialog, onClose })),
     )
-    const byLabel = (label: string) =>
-      [...container.querySelectorAll<HTMLButtonElement>('.ctx-item')].find(
-        (b) => b.querySelector('.ctx-label')?.textContent === label,
-      )!
-    expect(byLabel('剪切').disabled).toBe(false)
-    expect(byLabel('新建批注').disabled).toBe(false)
-    act(() => byLabel('新建批注').click())
+    const byLabel = (...labels: string[]) =>
+      [...container.querySelectorAll<HTMLButtonElement>('.ctx-item')].find((b) => {
+        const text = b.querySelector('.ctx-label')?.textContent
+        return labels.includes(text ?? '')
+      })!
+    expect(byLabel('Cut', '剪切').disabled).toBe(false)
+    expect(byLabel('New Comment', '新建批注').disabled).toBe(false)
+    act(() => byLabel('New Comment', '新建批注').click())
     expect(onNewComment).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalled()
-    act(() => byLabel('字体…').click())
+    act(() => byLabel('Font…', '字体…').click())
     expect(onFontDialog).toHaveBeenCalledOnce()
     unmount()
     editor.destroy()
@@ -115,7 +116,7 @@ describe('EditorContextMenu', () => {
       createElement(EditorContextMenu, menuProps(editor, { onAiPreset })),
     )
     const synonym = [...container.querySelectorAll<HTMLButtonElement>('.ctx-item')].find(
-      (b) => b.querySelector('.ctx-label')?.textContent === '同义词',
+      (b) => ['Synonyms', '同义词'].includes(b.querySelector('.ctx-label')?.textContent ?? ''),
     )!
     expect(synonym.disabled).toBe(false)
     act(() => synonym.click())
@@ -132,8 +133,8 @@ describe('EditorContextMenu', () => {
     const badged = [...container.querySelectorAll<HTMLButtonElement>('.ctx-item')]
       .filter((b) => b.querySelector('.copilot-badge'))
       .map((b) => b.querySelector('.ctx-label')?.textContent)
-    expect(badged).toContain('同义词')
-    expect(badged).toContain('翻译')
+    expect(badged.some((b) => b === 'Synonyms' || b === '同义词')).toBe(true)
+    expect(badged.some((b) => b === 'Translate' || b === '翻译')).toBe(true)
     unmount()
     editor.destroy()
   })
@@ -150,7 +151,7 @@ describe('FontDialog', () => {
       selects[1].value = 'bold'
       selects[1].dispatchEvent(new Event('change', { bubbles: true }))
     })
-    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === '确定')!
+    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === 'OK' || b.textContent === '确定')!
     act(() => ok.click())
     expect(editor.isActive('bold')).toBe(true)
     expect(editor.getAttributes('docTextStyle').sizeHalfPoints).toBe(22)
@@ -169,7 +170,7 @@ describe('ParagraphDialog', () => {
       selects[0].value = 'center'
       selects[0].dispatchEvent(new Event('change', { bubbles: true }))
     })
-    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === '确定')!
+    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === 'OK' || b.textContent === '确定')!
     act(() => ok.click())
     expect(editor.getAttributes('docParagraph').align).toBe('center')
     unmount()
@@ -186,7 +187,7 @@ describe('ParagraphDialog', () => {
       alignSelect.value = 'left'
       alignSelect.dispatchEvent(new Event('change', { bubbles: true }))
     })
-    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === '确定')!
+    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === 'OK' || b.textContent === '确定')!
     act(() => ok.click())
     // visual left is the start side in LTR → stored as null
     expect(editor.getAttributes('docParagraph').align).toBeNull()
@@ -205,7 +206,7 @@ describe('ParagraphDialog', () => {
       alignSelect.value = 'left'
       alignSelect.dispatchEvent(new Event('change', { bubbles: true }))
     })
-    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === '确定')!
+    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === 'OK' || b.textContent === '确定')!
     act(() => ok.click())
     // visual left is the end side in RTL → stored explicitly
     expect(editor.getAttributes('docParagraph').align).toBe('left')
@@ -223,7 +224,7 @@ describe('ParagraphDialog', () => {
       alignSelect.value = 'right'
       alignSelect.dispatchEvent(new Event('change', { bubbles: true }))
     })
-    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === '确定')!
+    const ok = [...container.querySelectorAll('button')].find((b) => b.textContent === 'OK' || b.textContent === '确定')!
     act(() => ok.click())
     expect(editor.getAttributes('docParagraph').align).toBeNull()
     unmount()
