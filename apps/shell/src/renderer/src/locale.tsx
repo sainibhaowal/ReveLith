@@ -13,7 +13,7 @@ interface LocaleValue {
   setLang: (lang: Lang) => void
 }
 
-const LocaleContext = createContext<LocaleValue>({ lang: 'zh', setLang: () => {} })
+const LocaleContext = createContext<LocaleValue>({ lang: 'en', setLang: () => {} })
 
 export function LocaleProvider({ initial, children }: { initial: Lang; children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(initial)

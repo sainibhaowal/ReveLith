@@ -68,7 +68,7 @@ export const DATE_LOCALES: Record<Lang, string> = {
   'zh-TW': 'zh-TW',
 }
 
-const LocaleContext = createContext<Lang>('zh')
+const LocaleContext = createContext<Lang>('en')
 
 export function LocaleProvider({ initial, children }: { initial: Lang; children: ReactNode }) {
   const [lang, setLang] = useState<Lang>(initial)
