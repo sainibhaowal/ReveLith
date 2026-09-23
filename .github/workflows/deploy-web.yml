@@ -1,0 +1,62 @@
+name: Deploy Website
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy React website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Read the latest published installer names
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName')"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_ASSETS=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name]')" >> "$GITHUB_ENV"
+
+      - name: Build website with the current release manifest
+        run: |
+          npm ci --prefix apps/web
+          node - <<'NODE'
+          const fs = require('fs')
+          const assets = JSON.parse(process.env.RELEASE_ASSETS)
+          const repo = process.env.GITHUB_REPOSITORY
+          const releaseTag = process.env.RELEASE_TAG
+          const downloads = assets.map((format) => {
+            const lower = format.toLowerCase()
+            const os = lower.endsWith('.exe') ? 'Windows 10 / 11' : lower.endsWith('.dmg') ? 'macOS Apple Silicon' : lower.endsWith('.deb') ? 'Debian / Ubuntu' : lower.endsWith('.rpm') ? 'Fedora / RPM Linux' : lower.endsWith('.appimage') ? 'Linux' : 'Desktop archive'
+            const tag = lower.endsWith('.exe') ? 'Installer' : lower.endsWith('.dmg') ? 'DMG installer' : lower.endsWith('.deb') ? 'DEB package' : lower.endsWith('.rpm') ? 'RPM package' : lower.endsWith('.appimage') ? 'AppImage' : 'Archive'
+            const url = `https://github.com/${repo}/releases/download/${encodeURIComponent(releaseTag)}/${encodeURIComponent(format)}`
+            return { os, format, tag, emoji: '↓', url, recommended: lower.endsWith('.exe') }
+          })
+          fs.writeFileSync('apps/web/public/release.json', JSON.stringify({ version: process.env.RELEASE_TAG, downloads }, null, 2))
+          NODE
+          npm run build --prefix apps/web
+
+      - name: Configure VPS SSH access
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Publish revelith.averqel.com
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_WEB_PATH: /opt/revelith_web
+        run: |
+          test -n "$VPS_HOST" && test -n "$VPS_USER"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          ssh "$VPS_USER@$VPS_HOST" "if [ -d '/var/www/revelith.averqel.com' ]; then rm -rf '/var/www/revelith.averqel.com'; fi; mkdir -p '$VPS_WEB_PATH'"
+          rsync -az --delete apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"

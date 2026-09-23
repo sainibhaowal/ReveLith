@@ -1,0 +1,20 @@
+# Ignore Electron & build artifacts
+node_modules
+out/
+dist/
+release/
+target/
+coverage/
+*.tsbuildinfo
+*.db
+*.sqlite
+
+# Ignore IDE & log files
+.vscode/
+*.log
+
+# Ignore generated test reports
+.task/
+
+# Ignore prompt template
+docs/TASK_PROMPT_TEMPLATE.md
