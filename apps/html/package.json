@@ -1,10 +1,10 @@
 {
   "name": "@revelith/html",
-  "productName": "GenOffice HTML",
+  "productName": "ReveLith HTML",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
-  "description": "GenOffice HTML: AI Design and AI Document builder for .html files with live interactive preview, layer tree, and Word export",
+  "description": "ReveLith HTML: AI Design and AI Document builder for .html files with live interactive preview, layer tree, and Word export",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

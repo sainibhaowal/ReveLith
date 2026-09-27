@@ -2,7 +2,7 @@ import type { AiDesignRequest } from '../components/AiDesignModal'
 import type { AiDocumentRequest } from '../components/AiDocumentModal'
 
 export function buildDesignPrompt(req: AiDesignRequest): string {
-  return `You are GenOffice HTML's expert AI Design engine. Generate a complete, standalone, production-ready single-file HTML document (with internal <style> tag) based on the user's brief.
+  return `You are ReveLith HTML's expert AI Design engine. Generate a complete, standalone, production-ready single-file HTML document (with internal <style> tag) based on the user's brief.
 
 Page Type: ${req.layoutType}
 Style Direction: ${req.styleDirection}
@@ -27,7 +27,7 @@ Design & Architecture Requirements:
 }
 
 export function buildDocumentPrompt(req: AiDocumentRequest): string {
-  return `You are GenOffice HTML's expert AI Document engine. Write an extensive, beautifully formatted, long-form document in clean semantic HTML.
+  return `You are ReveLith HTML's expert AI Document engine. Write an extensive, beautifully formatted, long-form document in clean semantic HTML.
 
 Document Type: ${req.docType}
 Tone: ${req.tone}
@@ -52,7 +52,7 @@ Document & Formatting Requirements:
 }
 
 export function buildElementRefinePrompt(outerHtml: string, instruction: string): string {
-  return `You are GenOffice HTML's targeted element restyler.
+  return `You are ReveLith HTML's targeted element restyler.
 The user clicked an element in the live preview and wants to refine just this part.
 
 Target Element:

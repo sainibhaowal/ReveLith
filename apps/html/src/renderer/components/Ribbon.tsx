@@ -57,7 +57,7 @@ export function Ribbon({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
           <span style={{ fontSize: 18 }}>🌐</span>
           <span style={{ fontWeight: 700, fontSize: 13, color: '#f43f5e', letterSpacing: '-0.2px' }}>
-            GenOffice HTML
+            ReveLith HTML
           </span>
         </div>
 

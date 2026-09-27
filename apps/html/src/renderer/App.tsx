@@ -12,7 +12,7 @@ const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>GenOffice HTML</title>
+  <title>ReveLith HTML</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -80,7 +80,7 @@ const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
 </head>
 <body>
   <div class="hero">
-    <h1>GenOffice HTML</h1>
+    <h1>ReveLith HTML</h1>
     <p class="lead">Create and edit interactive HTML files with AI in two modes: AI Design for visual pages and AI Document for long-form reading.</p>
   </div>
   <div class="cards-grid">
@@ -301,7 +301,7 @@ export default function App() {
     const res = await window.htmlApi.save({
       html,
       mode,
-      suggestedName: filePath ? undefined : 'GenOffice_Document',
+      suggestedName: filePath ? undefined : 'ReveLith_Document',
     })
     if (res.ok && 'path' in res) {
       setFilePath(res.path)
@@ -370,7 +370,7 @@ export default function App() {
         }, '*')
       }
     } catch (err) {
-      console.error('[GenOffice HTML] AI Element Refine error:', err)
+      console.error('[ReveLith HTML] AI Element Refine error:', err)
     } finally {
       setIsGenerating(false)
     }
@@ -404,7 +404,7 @@ export default function App() {
         setDesignModalOpen(false)
       }
     } catch (err) {
-      console.error('[GenOffice HTML] AI Design Generation error:', err)
+      console.error('[ReveLith HTML] AI Design Generation error:', err)
     } finally {
       setIsGenerating(false)
     }
@@ -438,7 +438,7 @@ export default function App() {
         setDocumentModalOpen(false)
       }
     } catch (err) {
-      console.error('[GenOffice HTML] AI Document Generation error:', err)
+      console.error('[ReveLith HTML] AI Document Generation error:', err)
     } finally {
       setIsGenerating(false)
     }
@@ -449,26 +449,26 @@ export default function App() {
     try {
       const bytes = await exportHtmlToDocxBytes(html)
       const base64 = bytesToBase64(bytes)
-      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'GenOffice_Document'
+      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'ReveLith_Document'
       await window.htmlApi?.exportDocx({
         base64,
         suggestedName,
       })
     } catch (err) {
-      console.error('[GenOffice HTML] Word Export error:', err)
+      console.error('[ReveLith HTML] Word Export error:', err)
     }
   }
 
   // PDF export
   const handleExportPdf = async () => {
     try {
-      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'GenOffice_Document'
+      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'ReveLith_Document'
       await window.htmlApi?.exportPdf({
         html,
         suggestedName,
       })
     } catch (err) {
-      console.error('[GenOffice HTML] PDF Export error:', err)
+      console.error('[ReveLith HTML] PDF Export error:', err)
     }
   }
 

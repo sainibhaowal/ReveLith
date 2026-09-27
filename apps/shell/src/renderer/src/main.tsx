@@ -55,7 +55,7 @@ if (!window.aiOffice) {
     newSheet: async () => openMockTab('sheets', 'Untitled Spreadsheet'),
     newSlide: async () => openMockTab('slides', 'Untitled Presentation'),
     newMarkdown: async () => openMockTab('markdown', 'Untitled Markdown'),
-    newHtml: async () => openMockTab('html', 'GenOffice HTML'),
+    newHtml: async () => openMockTab('html', 'ReveLith HTML'),
     removeRecent: async () => {},
     revealPath: async () => {},
     renameFile: async () => ({ ok: true }),

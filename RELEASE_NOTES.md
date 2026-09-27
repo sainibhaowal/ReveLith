@@ -14,7 +14,7 @@ ReveLith is an **offline-first, intelligent office suite** engineered from the g
 This document provides a comprehensive, transparent inventory of **all features implemented, integrated, and verified end-to-end** across the suite for public review, technical evaluation, and security auditing.
 
 ### Summary Metrics at a Glance
-- **Applications:** 6 Core Apps (**Slides**, **Sheets**, **Docs**, **PDF**, **Markdown**, **GenOffice HTML**) + **Desktop Shell**
+- **Applications:** 6 Core Apps (**Slides**, **Sheets**, **Docs**, **PDF**, **Markdown**, **ReveLith HTML**) + **Desktop Shell**
 - **Test Suite Pass Rate:** **100%** (2,300+ automated tests passing, 0 failures, 0 regressions)
 - **TypeScript Static Verification:** **0 errors** across all 19 workspace packages under strict mode
 - **Privacy & Telemetry:** **0 bytes uploaded to external clouds** for OCR, document rendering, or local editing
@@ -99,7 +99,7 @@ This document provides a comprehensive, transparent inventory of **all features 
 
 ---
 
-### 🌐 GenOffice HTML (Interactive HTML Studio & Document Engineering)
+### 🌐 ReveLith HTML (Interactive HTML Studio & Document Engineering)
 
 | Feature | Scope & User Capability | Implementation & Architecture | Status |
 | :--- | :--- | :--- | :--- |

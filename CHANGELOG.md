@@ -4,7 +4,7 @@
 
 ### Features
 
-* **html:** new GenOffice HTML app (`apps/html`) for visual/dashboard/slides AI Design and long-form AI Documents, live preview, element click-to-restyle, targeted AI element refinement, DOM layer tree inspector, fullscreen present mode, and local Word (`.docx`) & PDF export
+* **html:** new ReveLith HTML app (`apps/html`) for visual/dashboard/slides AI Design and long-form AI Documents, live preview, element click-to-restyle, targeted AI element refinement, DOM layer tree inspector, fullscreen present mode, and local Word (`.docx`) & PDF export
 * **ai & byok:** separate BYOK API keys for web search, image generation, and media analysis; new `codex-app-server` provider integration (`http://localhost:8765/v1`, `codex-1`)
 * **docs & ai:** Ask AI quotes selected text and highlights it with yellow mark; export document as clean HTML (`.html`); in-place comment editing mode; global spellcheck preference synchronization
 * **shell:** Global AutoSave settings toggle with configurable interval (1-60 min); AI panel font size and spellcheck configuration; Czech UI (`cs` / `cs-CZ`) localized across Desktop Shell, PDF, Markdown, and core apps

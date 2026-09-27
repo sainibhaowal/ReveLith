@@ -916,7 +916,7 @@ export function Home() {
     { ext: 'xlsx', title: t('newSheet'), sub: '.xlsx', action: handleNewSheet },
     { ext: 'pptx', title: t('newSlide'), sub: '.pptx', action: handleNewSlide },
     { ext: 'md', title: t('newMarkdown'), sub: '.md', action: handleNewMarkdown },
-    { ext: 'html', title: 'GenOffice HTML', sub: '.html', action: handleNewHtml },
+    { ext: 'html', title: 'ReveLith HTML', sub: '.html', action: handleNewHtml },
   ]
 
   function renderQuickCards() {

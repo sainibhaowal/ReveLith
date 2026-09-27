@@ -65,7 +65,7 @@ export function PresentMode({ html, onClose }: PresentModeProps) {
       </div>
 
       <iframe
-        title="GenOffice Presenter View"
+        title="ReveLith Presenter View"
         srcDoc={html}
         sandbox="allow-scripts allow-same-origin"
         style={{

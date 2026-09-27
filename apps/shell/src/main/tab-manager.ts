@@ -227,7 +227,7 @@ export class TabManager {
       id,
       kind: 'html',
       view,
-      title: openPath ? basename(openPath) : this.untitled('html', 'GenOffice HTML'),
+      title: openPath ? basename(openPath) : this.untitled('html', 'ReveLith HTML'),
       filePath: openPath,
     })
     this.activateTab(id)

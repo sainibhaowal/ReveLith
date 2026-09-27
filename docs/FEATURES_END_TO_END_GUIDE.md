@@ -437,7 +437,7 @@ This document is the master technical reference and verification guide for all n
 
 ---
 
-### 4.12 GenOffice HTML (Interactive HTML Studio & Document Engineering)
+### 4.12 ReveLith HTML (Interactive HTML Studio & Document Engineering)
 - **Scope:** Full-featured `.html` document creator & editor with AI Design, AI Document generation, interactive element click-to-restyle, targeted element AI refinement, DOM layer tree inspector, fullscreen presentation mode, and local Word (`.docx`) & PDF export.
 - **Architecture & Implementation:**
   - **App & Layout:** [apps/html/src/renderer/App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/html/src/renderer/App.tsx) hosts the sandboxed live preview iframe, ribbon controls, and sidebars.

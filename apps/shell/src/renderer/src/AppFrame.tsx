@@ -77,7 +77,7 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
     slides: 'AI Slides',
     pdf: 'AI PDF',
     markdown: 'AI Markdown',
-    html: 'GenOffice HTML',
+    html: 'ReveLith HTML',
   }
 
   const currentTheme = document.documentElement.getAttribute('data-theme') || 'system'
