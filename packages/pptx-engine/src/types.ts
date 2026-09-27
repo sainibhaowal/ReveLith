@@ -1,4 +1,4 @@
-﻿/**
+/**
  * pptx-engine data model
  *
  * Design principles:
@@ -99,6 +99,15 @@ export interface ShadowEffect {
   dirDeg: number
 }
 
+/** Reflection <a:reflection> */
+export interface ReflectionEffect {
+  blurRad?: number
+  stA?: number
+  endA?: number
+  dist?: number
+  dirDeg?: number
+}
+
 // ── Text ───────────────────────────────────────────────────────────────
 
 /** A run of contiguous same-format text (maps to <a:r>); line breaks/soft returns split into separate runs or paragraphs */
@@ -109,6 +118,8 @@ export interface TextRun {
   underline?: boolean
   /** Original underline style (sng/dbl/wavy…); underline is the display boolean, write-back restores from this */
   underlineStyle?: string
+  /** Complex-script run marker (<a:rtl/>): write-back re-emits it */
+  rtl?: boolean
   strike?: boolean
   /** Original strikethrough style (sngStrike/dblStrike); strike is the display boolean, write-back restores from this */
   strikeStyle?: string
@@ -162,6 +173,8 @@ export type TextAlign = 'left' | 'center' | 'right' | 'justify'
 export interface Paragraph {
   runs: TextRun[]
   align?: TextAlign
+  /** Right-to-left paragraph (<a:pPr rtl="1">): base direction + mirrored layout */
+  rtl?: boolean
   /** Indent level (bullet level) */
   level?: number
   /** Line spacing (%, 100 = single) or absolute (pt, via lineExact) */
@@ -196,6 +209,7 @@ export interface Paragraph {
    */
   pPrExplicit?: {
     align?: boolean
+    rtl?: boolean
     lnSpc?: boolean
     spcBef?: boolean
     spcAft?: boolean
@@ -219,6 +233,9 @@ export interface TextBody {
   /** <a:normAutofit lnSpcReduction>: line-spacing reduction ratio (0-1, at most 0.2) */
   lnSpcReduction?: number
   wrap?: boolean
+  /** <a:bodyPr rtlCol="1">: table columns inside this body run right to left.
+   * Read-only display : write-back keeps original bodyPr bytes */
+  rtlCol?: boolean
   /** <a:bodyPr vert>: vertical text (Japanese tategaki etc.). Read-only display : write-back keeps original bodyPr bytes */
   vert?: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert'
 }
@@ -255,6 +272,8 @@ export interface PPrDirty {
   spcBef?: boolean
   spcAft?: boolean
   align?: boolean
+  /** Right-to-left base direction (<a:pPr rtl>) */
+  rtl?: boolean
   /** marL + indent as a pair (bullet indent linkage) */
   indents?: boolean
   /** Restrict the patch to these paragraph indices; absent = all paragraphs */
@@ -327,6 +346,8 @@ export interface TextElement extends ElementBase {
   stroke?: Stroke
   shadow?: ShadowEffect
   glow?: GlowEffect
+  softEdge?: number
+  reflection?: ReflectionEffect
   text?: TextBody
 }
 
@@ -342,6 +363,7 @@ export interface PictureElement extends ElementBase {
   opacity?: number
   /** Soft edges <a:softEdge rad> (EMU feather radius) */
   softEdge?: number
+  reflection?: ReflectionEffect
   /**
    * Audio/video (a:videoFile/a:audioFile under p:nvPr): blipFill is the poster
    * frame; target is the media file's zip path or an external URL (external).
@@ -411,6 +433,8 @@ export interface TableElement extends ElementBase {
   rows: TableCell[][]
   /** tblPr's header-row/banded-rows toggles (echoed in the Ribbon's "Table Design") */
   styleFlags?: { firstRow: boolean; bandRow: boolean }
+  /** Table reading direction (<a:tblPr rtl="1">): columns mirror right to left */
+  rtl?: boolean
 }
 
 // ── Chart (p:graphicFrame → c:chart reference) ───────────────────────

@@ -179,6 +179,15 @@ describe('applyPageSetupState headerFooter', () => {
     // No element to remove is a no-op, not an insertion of an empty one.
     expect(applyPageSetupState(BARE, { sheetName: 'S', header: null, footer: null })).toBe(BARE)
   })
+
+  it('$ in headers/footers does not corrupt page setup', () => {
+    const xml =
+      '<worksheet><sheetData/><headerFooter>' +
+      '<oddHeader>&amp;LOld</oddHeader>' +
+      '</headerFooter></worksheet>'
+    const patched = applyPageSetupState(xml, { sheetName: 'S', header: { center: '$100 & $& $$' } })
+    expect(patched).toContain('<oddHeader>&amp;C$100 &amp; $&amp; $$</oddHeader>')
+  })
 })
 
 const WORKBOOK =

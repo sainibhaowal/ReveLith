@@ -1315,36 +1315,11 @@ export function Home() {
           aria-label={view === 'recent' ? t('secRecent') : t('secStarred')}
         >
           <div className="recents-toolbar">
-            {/* Search bar */}
-            <div className="search-bar-wrapper">
-              <div className="search-input-wrapper">
-                <svg className="search-icon" width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                <input
-                  type="search"
-                  className="search-input"
-                  placeholder={t('searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  onFocus={() => handleSearch(searchQuery)}
-                  aria-label={t('searchAriaLabel')}
-                  autoComplete="off"
-                />
-                {searchQuery && (
-                  <button
-                    className="search-clear"
-                    onClick={clearSearch}
-                    aria-label={t('searchClear')}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                )}
-                {searchLoading && <span className="search-spinner" aria-hidden="true" />}
-              </div>
+            <div className="recents-heading">
+              <span className="section-label">
+                {view === 'recent' ? t('secRecent') : t('secStarred')}
+              </span>
+              <span className="file-count">{t(fileCountKey(listTotal), { n: listTotal })}</span>
             </div>
             {selectedPaths.length > 0 ? (
               <div className="selection-bar">
@@ -1377,11 +1352,36 @@ export function Home() {
                 ))}
               </div>
             )}
-            <div className="recents-heading">
-              <span className="section-label">
-                {view === 'recent' ? t('secRecent') : t('secStarred')}
-              </span>
-              <span className="file-count">{t(fileCountKey(listTotal), { n: listTotal })}</span>
+            {/* Search bar (right side, like .cloud-search) */}
+            <div className="search-bar-wrapper">
+              <div className="search-input-wrapper">
+                <svg className="search-icon" width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="search"
+                  className="search-input"
+                  placeholder={t('searchPlaceholder')}
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  onFocus={() => handleSearch(searchQuery)}
+                  aria-label={t('searchAriaLabel')}
+                  autoComplete="off"
+                />
+                {searchQuery && (
+                  <button
+                    className="search-clear"
+                    onClick={clearSearch}
+                    aria-label={t('searchClear')}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+                {searchLoading && <span className="search-spinner" aria-hidden="true" />}
+              </div>
             </div>
           </div>
 

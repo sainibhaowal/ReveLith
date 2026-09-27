@@ -80,6 +80,10 @@ import {
   editTableCellText,
   editTableStructure,
   editTableStyle,
+  setBodyPrRtlCol,
+  setBodyPrVert,
+  setElementEffects,
+  setTableRtl,
   ensureTableStylePart,
   editChartElement,
   markChartEditable,
@@ -189,6 +193,11 @@ import type {
   EditConnectorEndpointsOp,
   SetElementFontOp,
   SetElementParagraphFormatOp,
+  SetBodyPrRtlColOp,
+  SetVerticalTextOp,
+  SetEffectsOp,
+  InstallFontOp,
+  SetTableRtlOp,
   FindReplaceOp,
   TableMergeIpcOp,
   SetSlideLayoutOp,
@@ -254,6 +263,7 @@ import {
   windowRefs,
   type Session,
 } from './session-state'
+import { detectMissingFonts, installFont } from './fonts'
 import { registerAiIpc, registerSlidesOnlyAiIpc } from './ai-ipc'
 
 /** One slide, copied from any deck open in this process, waiting to be pasted into another. */
@@ -1113,6 +1123,7 @@ export function registerSlidesIpc(): void {
       spaceBeforePt: op.spaceBeforePt,
       spaceAfterPt: op.spaceAfterPt,
       align: op.align,
+      direction: op.direction,
       indentDelta: op.indentDelta,
     }
     let changed = false
@@ -1121,6 +1132,14 @@ export function registerSlidesIpc(): void {
         ? setGroupChildParagraphFormat(slide, op.groupId, id, patch)
         : setElementParagraphFormat(slide, id, patch)
       if (ok) changed = true
+      // A direction change on a text frame pairs paragraph rtl with the
+      // bodyPr rtlCol flag (PowerPoint-complete RTL text frames)
+      if (op.direction && !op.groupId) {
+        const target = slide.elements.find((x) => x.id === id)
+        if (target && (target.type === 'text' || target.type === 'shape')) {
+          if (setBodyPrRtlCol(slide, id, op.direction === 'rtl')) changed = true
+        }
+      }
     }
     if (!changed) {
       session.undoStack.pop()
@@ -1137,6 +1156,86 @@ export function registerSlidesIpc(): void {
       rendered = syncAutofitScale(session, op.slideIndex, id, rendered)
     }
     return rendered
+  })
+
+  ipcMain.handle('slides:set-body-pr-rtl-col', (e, op: SetBodyPrRtlColOp) => {
+    const session = sessions.get(e.sender.id)
+    if (!session) return null
+    const slide = session.opened.deck.slides[op.slideIndex]
+    if (!slide) return null
+    pushHistory(session)
+    const changed = setBodyPrRtlCol(slide, op.sourceId, op.rtl)
+    if (!changed) {
+      session.undoStack.pop()
+      return null
+    }
+    return rebuildSlide(session, op.slideIndex)
+  })
+
+  ipcMain.handle('slides:set-vertical-text', (e, op: SetVerticalTextOp) => {
+    const session = sessions.get(e.sender.id)
+    if (!session) return null
+    const slide = session.opened.deck.slides[op.slideIndex]
+    if (!slide) return null
+    pushHistory(session)
+    const changed = setBodyPrVert(slide, op.sourceId, op.vert)
+    if (!changed) {
+      session.undoStack.pop()
+      return null
+    }
+    return rebuildSlide(session, op.slideIndex)
+  })
+
+  ipcMain.handle('slides:set-effects', (e, op: SetEffectsOp) => {
+    const session = sessions.get(e.sender.id)
+    if (!session) return null
+    const slide = session.opened.deck.slides[op.slideIndex]
+    if (!slide) return null
+    pushHistory(session)
+    const shadowParam =
+      op.shadow === null
+        ? null
+        : op.shadow
+          ? {
+              color: op.shadow.color ?? '#000000',
+              blurRad: op.shadow.blurRad ?? 50800,
+              dist: op.shadow.dist ?? 38100,
+              dirDeg: op.shadow.dirDeg ?? 54,
+            }
+          : undefined
+
+    const glowParam =
+      op.glow === null
+        ? null
+        : op.glow
+          ? {
+              color: op.glow.color ?? '#ffff00',
+              radius: op.glow.radius ?? 101600,
+            }
+          : undefined
+
+    const changed = setElementEffects(slide, op.sourceId, {
+      shadow: shadowParam,
+      glow: glowParam,
+      softEdge: op.softEdge,
+      reflection: op.reflection,
+    })
+    if (!changed) {
+      session.undoStack.pop()
+      return null
+    }
+    return rebuildSlide(session, op.slideIndex)
+  })
+
+  ipcMain.handle('slides:get-missing-fonts', (e) => {
+    const session = sessions.get(e.sender.id)
+    if (!session) return []
+    return detectMissingFonts(session.opened.deck)
+  })
+
+  ipcMain.handle('slides:install-font', async (e, op: InstallFontOp) => {
+    const fileBytes = op.fileBytesBase64 ? Buffer.from(op.fileBytesBase64, 'base64') : undefined
+    return installFont(op.family, fileBytes, op.fileName)
   })
 
   ipcMain.handle('slides:edit-transform', (e, op: EditTransformOp) => {
@@ -1302,6 +1401,7 @@ export function registerSlidesIpc(): void {
   const cloudSlideEnabled = () => false
 
   ipcMain.handle('slides:cloud-gen-status', () => ({ enabled: cloudSlideEnabled() }))
+  ipcMain.handle('slides:account-status', () => ({ available: false }))
 
   ipcMain.handle(
     'slides:cloud-page-generate',
@@ -2466,6 +2566,24 @@ export function registerSlidesIpc(): void {
     return { slide: rebuilt, sourceId: newId }
   })
 
+  ipcMain.handle('slides:set-table-rtl', (e, op: SetTableRtlOp) => {
+    const session = sessions.get(e.sender.id)
+    if (!session) return null
+    const slide = session.opened.deck.slides[op.slideIndex]
+    if (!slide) return null
+    const elIdx = slide.elements.findIndex((el) => el.id === op.sourceId)
+    pushHistory(session)
+    if (!setTableRtl(slide, op.sourceId, op.rtl)) {
+      session.undoStack.pop()
+      return null
+    }
+    // The patch is written on anchor.originalXml; a materialize reparse is needed before it shows in the render model
+    const rebuilt = rebuildSlideWithReparse(session, op.slideIndex)
+    if (!rebuilt) return null
+    const newId = session.opened.deck.slides[op.slideIndex]?.elements[elIdx]?.id ?? null
+    return { slide: rebuilt, sourceId: newId }
+  })
+
   ipcMain.handle('slides:edit-chart', async (e, op: EditChartOp) => {
     const session = sessions.get(e.sender.id)
     if (!session) return null
@@ -2599,17 +2717,41 @@ export function registerSlidesIpc(): void {
       .map((el) => copyElementData(session.opened, slide, el))
     if (items.length) {
       clipboards.set(e.sender.id, { items, pasteCount: 0 })
-      // Write our marker to the OS clipboard: an external copy overwrites it, so at paste time it tells whether internal or external is newer
-      clipboard.writeBuffer('io.revelith.slides.elements', Buffer.from('1'))
+      // Write full serialized items into OS clipboard buffer for cross-window / cross-deck pasting
+      try {
+        const payload = JSON.stringify(items)
+        clipboard.writeBuffer('io.revelith.slides.elements', Buffer.from(payload, 'utf8'))
+      } catch {
+        clipboard.writeBuffer('io.revelith.slides.elements', Buffer.from('1'))
+      }
     }
     return items.length
   })
 
   ipcMain.handle('slides:paste-elements', (e, op: PasteElementsOp) => {
     const session = sessions.get(e.sender.id)
-    const clip = clipboards.get(e.sender.id)
-    if (!session || !clip?.items.length) return null
+    if (!session) return null
     if (!session.opened.deck.slides[op.slideIndex]) return null
+
+    let clip = clipboards.get(e.sender.id)
+
+    // Check system OS clipboard for cross-window / cross-deck copied elements
+    const sysBuffer = clipboard.readBuffer('io.revelith.slides.elements')
+    if (sysBuffer && sysBuffer.length > 1) {
+      try {
+        const sysItems = JSON.parse(sysBuffer.toString('utf8'))
+        if (Array.isArray(sysItems) && sysItems.length > 0) {
+          if (!clip || JSON.stringify(clip.items) !== JSON.stringify(sysItems)) {
+            clip = { items: sysItems, pasteCount: 0 }
+            clipboards.set(e.sender.id, clip)
+          }
+        }
+      } catch {
+        // Fall back to in-memory clip
+      }
+    }
+
+    if (!clip?.items.length) return null
     const baseWidthPx = session.opened.deck.size.cx / EMU_PER_PX_96
     const scale = op.fitWidthPx / baseWidthPx
     // Cascading offset: each paste shifts another 16px relative to the original
@@ -3441,36 +3583,46 @@ export function registerSlidesIpc(): void {
     )
   })
 
+  const saveQueueBySender = new Map<number, Promise<any>>()
+
   ipcMain.handle('slides:save', async (e) => {
     const session = sessions.get(e.sender.id)
     if (!session) return { ok: false, error: 'no file open' }
-    // Untitled (new blank file): the first save lands silently in the drafts folder (Save As keeps its dialog)
-    if (!session.path) {
-      const draftsDir = getDraftsDir()
-      if (!existsSync(draftsDir)) mkdirSync(draftsDir, { recursive: true })
-      session.path = pickDraftPath(draftsDir, tm('untitledDeck'))
-      await pushRecent(session.path)
-      slidesOpenedHook?.(e.sender, session.path)
-    }
-    try {
-      await savePptxToFile(session.opened, session.path)
-      autosaveBackoff.delete(session.path)
-      void rm(autosavePathFor(session.path), { force: true }).catch(() => {})
-      dropUntitledRecovery(e.sender.id)
-      // Bake the saved patches back into the in-memory model (clears dirty, syncs
-      // anchor.originalXml with disk) : a full reopen would re-read and unzip the
-      // whole package, doubling save latency on large decks. Element ids survive,
-      // but the renderer still expects the render tree in the response.
-      commitSaved(session.opened)
-      session.metaDirty = false
-      return {
-        ok: true,
-        path: session.path,
-        slides: buildAllRenderSlides(session.opened, session.fitWidthPx),
+
+    const prior = saveQueueBySender.get(e.sender.id) ?? Promise.resolve()
+    const doSave = async () => {
+      // Untitled (new blank file): the first save lands silently in the drafts folder (Save As keeps its dialog)
+      if (!session.path) {
+        const draftsDir = getDraftsDir()
+        if (!existsSync(draftsDir)) mkdirSync(draftsDir, { recursive: true })
+        session.path = pickDraftPath(draftsDir, tm('untitledDeck'))
+        await pushRecent(session.path)
+        slidesOpenedHook?.(e.sender, session.path)
       }
-    } catch (err) {
-      return { ok: false, error: String(err) }
+      try {
+        await savePptxToFile(session.opened, session.path)
+        autosaveBackoff.delete(session.path)
+        void rm(autosavePathFor(session.path), { force: true }).catch(() => {})
+        dropUntitledRecovery(e.sender.id)
+        // Bake the saved patches back into the in-memory model (clears dirty, syncs
+        // anchor.originalXml with disk) : a full reopen would re-read and unzip the
+        // whole package, doubling save latency on large decks. Element ids survive,
+        // but the renderer still expects the render tree in the response.
+        commitSaved(session.opened)
+        session.metaDirty = false
+        return {
+          ok: true,
+          path: session.path,
+          slides: buildAllRenderSlides(session.opened, session.fitWidthPx),
+        }
+      } catch (err) {
+        return { ok: false, error: String(err) }
+      }
     }
+
+    const currentSave = prior.catch(() => {}).then(doSave)
+    saveQueueBySender.set(e.sender.id, currentSave)
+    return await currentSave
   })
 
   ipcMain.handle('slides:save-as', async (e, defaultName: string) => {

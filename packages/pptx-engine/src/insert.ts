@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Element insertion : synthesizes a raw <p:sp> fragment and hangs it on
  * slide.elements.
  *
@@ -147,8 +147,10 @@ export function nextCNvPrId(slide: Slide): number {
       max = Math.max(max, Number(m[1]))
     }
   }
-  scan(slide.originalXml)
-  for (const el of slide.elements) scan(el.anchor.originalXml)
+  if (slide.originalXml) scan(slide.originalXml)
+  for (const el of slide.elements) {
+    if (el?.anchor?.originalXml) scan(el.anchor.originalXml)
+  }
   return max + 1
 }
 
@@ -183,8 +185,8 @@ export function buildSpXml(slide: Slide, opts: NewElementOptions): string {
 export function addElement(slide: Slide, opts: NewElementOptions): TextElement {
   const lineDef = LINE_KINDS[opts.kind]
   // Auto-size: calculate optimal dimensions for text boxes
-  const autoSize = opts.autoSize && opts.paragraphs && opts.kind === 'textbox'
-  const optimizedSize = autoSize ? calculateOptimalSize(opts.paragraphs) : undefined
+  const autoSize = Boolean(opts.autoSize && opts.paragraphs && opts.paragraphs.length > 0 && opts.kind === 'textbox')
+  const optimizedSize = autoSize && opts.paragraphs ? calculateOptimalSize(opts.paragraphs) : undefined
   const finalOffset = optimizedSize
     ? { ...opts.offset, cx: optimizedSize.cx, cy: optimizedSize.cy }
     : opts.offset

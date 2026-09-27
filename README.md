@@ -8,7 +8,7 @@
 
 An ultra-fast, local-first productivity powerhouse designed for modern engineering, writing, and analysis. Built from the ground up to handle real Microsoft Office formats, PDF, and Markdown without compromising privacy or document fidelity.
 
-[📥 Download ReveLith (.exe / .dmg / .deb)](https://github.com/sainibhaowal/Revelith/releases) • [Features](#key-capabilities) • [Architecture](#architecture--fidelity-model) • [Suite Overview](#applications) • [Build from Source](#building-from-source-for-developers) • [Security](#security--privacy)
+[📥 Download ReveLith (.exe / .dmg / .deb)](https://github.com/sainibhaowal/Revelith/releases) • [🚀 v1.2.0 Release Notes](docs/PUBLIC_RELEASE_NOTES.md) • [📖 End-to-End Guide](docs/FEATURES_END_TO_END_GUIDE.md) • [Features](#key-capabilities) • [Architecture](#architecture--fidelity-model) • [Suite Overview](#applications) • [Build from Source](#building-from-source-for-developers) • [Security](#security--privacy)
 
 </div>
 

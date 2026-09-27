@@ -12,10 +12,10 @@ import { Workbook } from 'exceljs'
 
 export interface PdfImportRequest {
   pdfPath: string
-  options?: ExtractionOptions
+  options?: ExtractionOptions | undefined
 }
 
-export interface PdfImportResult {
+export type PdfImportResult = {
   ok: true
   worksheets: Record<string, {
     cells: Record<string, string>

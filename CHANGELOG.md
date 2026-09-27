@@ -1,6 +1,31 @@
 # Changelog
 
+## [1.2.0] (2026-09-27)
+
+### Features
+
+* **slides:** new Effects inspector pane (Shadow, Reflection, Glow, Soft Edges) in FormatPane and true vertical text direction toggle
+* **slides:** cross-window and cross-deck element copy/paste with base64 binary media bundling via native OS clipboard buffer `io.revelith.slides.elements`
+* **slides:** one-click OS user font installer with deck-wide missing font detection and AI text box autofit
+* **slides:** right-to-left support with paragraph and table direction toggles, mirrored bullets, and bidi complex-script shaping
+* **slides:** chart fidelity with manual plot layout support, RTL-aware legends, and theme-override colors
+* **slides:** dual-window editing allowing the same presentation to be opened and edited across multiple windows
+* **sheets:** CSV export of active worksheet (RFC-4180 with UTF-8 BOM) and direct saving of opened CSV files without XLSX conversion prompt
+* **sheets:** multi-language File menu support for CSV export across all 19 UI languages and Data Ribbon "Export to CSV" button
+* **sheets:** million-cell copies twice as fast with formula coordinate shifting and formula-breaking safety guard
+* **sheets:** reliable AI edits for sort, copy, and fill on raw cell values and standalone sheet export
+* **sheets:** Excel compatibility for charts, column widths, row heights, and filter-hidden find skipping
+* **sheets:** PDF to Excel table converter supporting multi-page spanning, rule-less bands, and label/value grids
+* **docs:** floating-table layout overhaul (`w:tblpPr`), drop caps, hidden text (`w:vanish`), and background shading (`w:shd`)
+* **docs:** live URL auto-linkify as you type, cleaner page breaks, and in-place hyperlink editing
+* **docs:** Word-style ribbon table layout controls and Word-compatible keyboard shortcuts
+* **docs:** image anchoring, WordArt, WMF/EMF metafile rasterization, and cleaner PDF export
+* **pdf & shell:** on-device OCR for scanned PDFs (native Windows Media OCR / macOS Vision Framework) with zero uploads
+* **shell:** per-document file icons (`.docx`, `.pptx`, `.xlsx`, `.pdf`) and code-signed production executables
+* **shell:** window-level drag-and-drop document opening across the entire suite
+
 ## [1.1.4](https://github.com/sainibhaowal/ReveLith/compare/revelith-v1.1.3...revelith-v1.1.4) (2026-08-22)
+
 
 
 ### Bug Fixes

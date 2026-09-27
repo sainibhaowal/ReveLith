@@ -1,4 +1,4 @@
-﻿import { createHash } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { open, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
@@ -1520,8 +1520,20 @@ export function sha256(input: Buffer | string): string {
 async function loadSafeZip(buffer: Buffer): Promise<JSZip> {
   const zip = await JSZip.loadAsync(buffer, { checkCRC32: true })
   const paths = Object.keys(zip.files)
-  if (paths.length > MAX_ENTRY_COUNT) throw new Error('Workbook contains too many ZIP entries.')
-  if (paths.some((path) => path.startsWith('/') || path.split('/').includes('..'))) {
+  for (const path of paths) {
+    if (path.startsWith('/')) {
+      const normalized = path.replace(/^\/+/, '')
+      const fileObj = zip.files[path]
+      delete zip.files[path]
+      if (fileObj) {
+        fileObj.name = normalized
+        zip.files[normalized] = fileObj
+      }
+    }
+  }
+  const cleanPaths = Object.keys(zip.files)
+  if (cleanPaths.length > MAX_ENTRY_COUNT) throw new Error('Workbook contains too many ZIP entries.')
+  if (cleanPaths.some((path) => path.split('/').includes('..'))) {
     throw new Error('Workbook contains an unsafe ZIP path.')
   }
   return zip

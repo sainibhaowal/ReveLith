@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 2.3 Text layout : replicates PPT text-box layout: wrapping / line spacing /
  * paragraph spacing / vertical alignment / autofit.
  *
@@ -157,13 +157,15 @@ let bidiApi: ReturnType<typeof bidiFactory> | null = null
  * Runs UAX#9 over the paragraph token stream: tokens crossing direction levels are
  * split at level boundaries and tagged with their level. Line breaking stays in
  * logical order (UAX#9 requires wrap first, reorder after); visualOrder reorders
- * each line once formed.
+ * each line once formed. An explicit base direction (from <a:pPr rtl>) overrides
+ * content inference, so Latin-only text in an RTL paragraph still resolves
+ * neutrals/numbers per an RTL base level.
  */
-function applyBidi(tokens: Token[]): Token[] {
+function applyBidi(tokens: Token[], baseDir?: 'ltr' | 'rtl'): Token[] {
   const text = tokens.map((t) => t.text).join('')
-  if (!RTL_RE.test(text)) return tokens
+  if (baseDir !== 'rtl' && !RTL_RE.test(text)) return tokens
   bidiApi ??= bidiFactory()
-  const { levels } = bidiApi.getEmbeddingLevels(text)
+  const { levels } = bidiApi.getEmbeddingLevels(text, baseDir)
   const out: Token[] = []
   let off = 0
   for (const tok of tokens) {
@@ -248,7 +250,10 @@ function layoutParagraph(
    *  pushes the first line's text start right, so it must wrap that much earlier. */
   firstLineShrinkPx = 0,
 ): LaidLine[] {
-  const tokens = applyBidi(tokenizeParagraph(p, scale, fontScale)).map((tok, logicalOrder) => ({
+  const tokens = applyBidi(
+    tokenizeParagraph(p, scale, fontScale),
+    p.rtl ? 'rtl' : undefined,
+  ).map((tok, logicalOrder) => ({
     ...tok,
     logicalOrder,
   }))
@@ -444,11 +449,15 @@ export interface TextLayoutInput {
   boxHeightPx: number
   metrics: FontMetricsProvider
   vp: Viewport
+  /** Fallback alignment when a paragraph has none explicit and content
+   * inference yields none (e.g. right for RTL table cells). Never echoed to
+   * TextLine.align, so editor commits don't bake it in. */
+  defaultAlign?: 'left' | 'right'
 }
 
 /** Main entry: TextBody → RenderTextLayout (including autofit shrink stepping). */
 export function layoutText(input: TextLayoutInput): RenderTextLayout {
-  const { body, boxWidthPx, boxHeightPx, metrics, vp } = input
+  const { body, boxWidthPx, boxHeightPx, metrics, vp, defaultAlign } = input
   const insets = {
     l: emuToPx(body.insets?.l ?? 91440, vp.scale),
     t: emuToPx(body.insets?.t ?? 45720, vp.scale),
@@ -472,7 +481,7 @@ export function layoutText(input: TextLayoutInput): RenderTextLayout {
     )
 
   const build = (fontScale: number, lnSpcRed: number) =>
-    layoutAll(body, availWidth, wrap, metrics, vp.scale, fontScale, lnSpcRed)
+    layoutAll(body, availWidth, wrap, metrics, vp.scale, fontScale, lnSpcRed, defaultAlign)
 
   // PowerPoint's stored shrink ratio takes priority (files with shrunk text render
   // as-is; we don't scale back up per our own metrics). Only if content still
@@ -790,6 +799,7 @@ function layoutAll(
   scale: number,
   fontScale: number,
   lnSpcRed: number,
+  defaultAlign?: 'left' | 'right',
 ): { lines: TextLine[]; contentHeight: number } {
   const outLines: TextLine[] = []
   let y = 0
@@ -809,10 +819,24 @@ function layoutAll(
 
     const textX = marLPx
     const avail = Math.max(availWidth - textX, 1)
-    // Paragraphs with an RTL base direction (first strong char is RTL) default to right
-    // alignment when none is explicit; affects layout only, not written back to
-    // TextLine.align (an editor commit would store it as an explicit value)
-    const align = p.align ?? (paraBaseRtl(p) ? ('right' as const) : undefined)
+    // Explicit <a:pPr rtl="1"> forces an RTL base direction even for Latin-only
+    // text (PowerPoint behavior); content-inferred direction stays untouched.
+    const explicitRtl = p.rtl === true
+    // Paragraphs with an RTL base direction (explicit flag, else first strong
+    // char) default to right alignment when none is explicit; affects layout
+    // only, not written back to TextLine.align (an editor commit would store
+    // it as an explicit value)
+    const baseRtl = explicitRtl || paraBaseRtl(p)
+    const align = p.align ?? defaultAlign ?? (baseRtl ? ('right' as const) : undefined)
+    // RTL mirroring: marL/indent measure from the right edge, so lay out in
+    // LTR space with left↔right swapped, then mirror every run around the
+    // content width (bullet glyph included). Center/justify are symmetric.
+    const effAlign =
+      explicitRtl && align === 'left'
+        ? ('right' as const)
+        : explicitRtl && align === 'right'
+          ? ('left' as const)
+          : align
     // Bullet glyph style/advance (drawn on the first line only). PowerPoint reserves
     // the glyph's advance like a tab stop: body text can never start before the glyph
     // ends, even when the glyph is wider than the hanging indent (-indent).
@@ -821,10 +845,15 @@ function layoutAll(
     if (hasBullet) {
       const base = runStyle(p.runs[0]!, scale, fontScale)
       // <a:buSzPct>: bullet glyph size as a percentage of the first run's size
-      bulletSt =
-        p.bullet?.sizePct != null
-          ? { ...base, fontSizePx: base.fontSizePx * (p.bullet.sizePct / 100) }
-          : base
+      // <a:buFont>: bullet font typeface (e.g. Symbol, Wingdings)
+      bulletSt = {
+        ...base,
+        ...(p.bullet?.font ? { fontFamily: p.bullet.font } : {}),
+        fontSizePx:
+          p.bullet?.sizePct != null
+            ? base.fontSizePx * (p.bullet.sizePct / 100)
+            : base.fontSizePx,
+      }
       bulletW = metrics.measure(bulletText, bulletSt)
     }
     const bulletX = Math.max(marLPx + indentPx, 0)
@@ -858,7 +887,7 @@ function layoutAll(
       // justifyExtraPx (a draw-only field) so letterSpacing round-trips stay clean
       let lineRuns = ln.runs
       if (
-        align === 'justify' &&
+        effAlign === 'justify' &&
         wrap &&
         li < laid.length - 1 &&
         ln.softBreakAfter == null &&
@@ -883,7 +912,7 @@ function layoutAll(
         }
       }
       // Center/right alignment counts the overflow push so the text stays inside the box
-      const off = alignOffset(align, avail, lineWidth + bulletShift)
+      const off = alignOffset(effAlign, avail, lineWidth + bulletShift)
       const dx = textX + firstShift + bulletShift + off
       const runs = lineRuns.map((r) => ({
         ...r,
@@ -907,14 +936,20 @@ function layoutAll(
           ascentPx: metrics.metrics(st).ascent,
         })
       }
+      // Explicit RTL: mirror the laid-out line (bullet included) around the
+      // content width, so marL/indent measure from the right edge
+      const finalRuns = explicitRtl
+        ? runs.map((r) => ({ ...r, x: avail - r.x - r.widthPx }))
+        : runs
       outLines.push({
-        runs,
+        runs: finalRuns,
         top: y,
         height: ln.height,
         paraStart: li === 0,
         ...(ln.trailingSpace ? { trailingSpace: true } : {}),
         ...(ln.softBreakAfter != null ? { softBreakAfter: ln.softBreakAfter } : {}),
         ...(p.align ? { align: p.align } : {}),
+        ...(p.rtl ? { rtl: true } : {}),
         ...(p.level ? { level: p.level } : {}),
         ...(marLPx ? { marLPx } : {}),
         ...(indentPx ? { indentPx } : {}),

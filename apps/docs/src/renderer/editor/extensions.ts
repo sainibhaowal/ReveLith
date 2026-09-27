@@ -88,6 +88,7 @@ import {
   StrikeMark,
   TextStyleMark,
   UnderlineMark,
+  VanishMark,
 } from './marks'
 import {
   DropCapExtension,
@@ -100,6 +101,7 @@ import {
   TabStopExtension,
 } from './decoration-extensions'
 import { AutoDirectionExtension } from './direction'
+import { AutolinkExtension } from './autolink'
 export * from './marks'
 export * from './decoration-extensions'
 
@@ -1099,6 +1101,8 @@ export const DocTable = Node.create({
       tblAlign: { default: null as string | null },
       indentTwips: { default: null as number | null },
       tblStyleId: { default: null as string | null },
+      /** Floating table (tblPr w:tblpPr): text wraps around it when positioned */
+      tblFloat: { default: null as Record<string, unknown> | null },
       /** RTL table (tblPr w:bidiVisual): columns right to left */
       bidiVisual: { default: false },
       originalStructure: { default: null as string | null },
@@ -1130,6 +1134,39 @@ export const DocTable = Node.create({
     else if (node.attrs.tblAlign === 'right') styles.push('margin-left:auto')
     else if (node.attrs.indentTwips) {
       styles.push(`margin-left:${(Number(node.attrs.indentTwips) / 15).toFixed(1)}px`)
+    }
+    // Floating tables (w:tblpPr): relative specs become floats so body text
+    // wraps around them with the exclusion margins; page-anchored tables
+    // degrade to an aligned block (absolute positioning cannot survive
+    // pagination reflow in the editor canvas).
+    const fl = node.attrs.tblFloat as {
+      xSpec?: string
+      ySpec?: string
+      leftFromTextTwips?: number
+      rightFromTextTwips?: number
+      bottomFromTextTwips?: number
+    } | null
+    if (fl) {
+      const side =
+        fl.xSpec === 'right' || fl.xSpec === 'outside'
+          ? 'right'
+          : fl.xSpec === 'center'
+            ? 'center'
+            : 'left'
+      const px = (twips: unknown) =>
+        typeof twips === 'number' && Number.isFinite(twips) && twips > 0
+          ? `${(twips / 15).toFixed(1)}px`
+          : null
+      if (side === 'center') {
+        styles.push('margin-left:auto', 'margin-right:auto')
+      } else {
+        styles.push(`float:${side}`)
+        const outer = side === 'left' ? px(fl.rightFromTextTwips) : px(fl.leftFromTextTwips)
+        if (outer) styles.push(side === 'left' ? `margin-right:${outer}` : `margin-left:${outer}`)
+      }
+      const below = px(fl.bottomFromTextTwips)
+      if (below) styles.push(`margin-bottom:${below}`)
+      attrs['data-tbl-float'] = side
     }
     if (styles.length > 0) attrs.style = styles.join(';')
     // A colgroup with normalized percentages defines the column grid whenever the
@@ -2850,6 +2887,7 @@ const textboxSubExtensions = [
   ItalicMark,
   UnderlineMark,
   StrikeMark,
+  VanishMark,
   LinkMark,
   // research-report sidebars keep PAGE/date/REF fields inside textbox tables;
   // without these marks the whole box fails to load into the sub-editor
@@ -2889,6 +2927,7 @@ export const editorExtensions = [
   ItalicMark,
   UnderlineMark,
   StrikeMark,
+  VanishMark,
   LinkMark,
   RefFieldMark,
   InstrFieldMark,
@@ -2913,4 +2952,5 @@ export const editorExtensions = [
   PPrChangeExtension,
   RevisionOriginalExtension,
   AutoDirectionExtension,
+  AutolinkExtension,
 ]

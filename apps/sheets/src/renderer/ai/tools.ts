@@ -1,4 +1,4 @@
-﻿import { z } from 'zod'
+import { z } from 'zod'
 import type { AgentToolCall, AgentToolDef } from '@revelith/agent-core'
 import { workbookOperationSchema, type WorkbookOperation } from '../../domain/workbook-dsl'
 import {
@@ -306,7 +306,7 @@ export const WORKBOOK_TOOLS: AgentToolDef[] = [
       '{op:"clear_cell",sheetId,address} | {op:"rename_sheet",sheetId,name}. ' +
       'Field definitions for the remaining operations live in the guides : load_guide before using them: ' +
       'writing(set_range/clear_range/find_replace) | formatting(format_range) | ' +
-      'layout(sort_range/merge_cells/unmerge_cells/set_row_height/set_col_width/set_rows_hidden/set_cols_hidden/set_freeze/set_page_setup) | ' +
+      'layout(sort_range/copy_range/fill_range/merge_cells/unmerge_cells/set_row_height/set_col_width/set_rows_hidden/set_cols_hidden/set_freeze/set_page_setup) | ' +
       'structure(insert_rows/delete_rows/insert_cols/delete_cols/add_sheet/delete_sheet/' +
       'duplicate_sheet/set_sheet_hidden/move_sheet/protect_sheet) | ' +
       'charts(add_chart/edit_chart/delete_visual/add_sparkline/add_shape/edit_shape/add_image) | ' +

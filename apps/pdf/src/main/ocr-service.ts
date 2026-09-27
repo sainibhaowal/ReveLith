@@ -499,7 +499,7 @@ export async function ocrPdfPage(
           const ihdrChunk = createChunk('IHDR', ihdr)
           
           // IDAT chunk (simplified - just wraps raw data)
-          const idatChunk = createChunk('IDAT', data)
+          const idatChunk = createChunk('IDAT', Buffer.from(data))
           
           // IEND chunk
           const iendChunk = createChunk('IEND', Buffer.alloc(0))

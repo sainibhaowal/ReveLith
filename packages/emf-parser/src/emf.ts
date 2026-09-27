@@ -106,55 +106,82 @@ function parseEmfRect(reader: BinaryReader): Rect {
   }
 }
 
+/**
+ * EMR_HEADER per [MS-EMF] 2.2.2.2: iType + nSize first, then bounds/frame,
+ * and only then the 0x464D4520 signature at byte 40.
+ */
 function parseEmfHeader(reader: BinaryReader): EmfHeader {
-  const signature = reader.readUint32()
-  if (signature !== 0x464D4520) {
-    throw new Error(`Invalid EMF signature: 0x${signature.toString(16)}`)
+  const recordType = reader.readUint32()
+  if (recordType !== 1) {
+    throw new Error(`Not an EMF header: record type ${recordType}`)
+  }
+  const recordSize = reader.readUint32()
+  if (recordSize < 88) {
+    throw new Error(`Invalid EMF header size: ${recordSize}`)
   }
 
   const bounds = parseEmfRect(reader)
   const frame = parseEmfRect(reader)
-  const size = { width: reader.readInt32(), height: reader.readInt32() }
-  const dpi = { x: reader.readInt32(), y: reader.readInt32() }
-  const version = reader.readUint32()
+
+  const signature = reader.readUint32()
+  if (signature !== ENHANCED_METAFILE_SIGNATURE) {
+    throw new Error(`Invalid EMF signature: 0x${signature.toString(16)}`)
+  }
+
+  reader.readUint32() // nVersion
+  reader.readUint32() // nBytes
   const recordsCount = reader.readUint32()
-  const handCount = reader.readUint32()
+  const handCount = reader.readUint16()
+  reader.readUint16() // sReserved
+  const nDescription = reader.readUint32()
+  const offDescription = reader.readUint32()
+  const nPalEntries = reader.readUint32()
+  const devCX = reader.readInt32()
+  const devCY = reader.readInt32()
+  const mmCX = reader.readInt32()
+  const mmCY = reader.readInt32()
 
+  // consumers want pixels: the bounds rectangle is already in device pixels
+  const size = { width: bounds.right - bounds.left, height: bounds.bottom - bounds.top }
+  const dpi = {
+    x: mmCX > 0 && devCX > 0 ? Math.round((devCX * 25.4) / mmCX) : 96,
+    y: mmCY > 0 && devCY > 0 ? Math.round((devCY * 25.4) / mmCY) : 96,
+  }
+
+  // the description string lives at an absolute file offset
   let description: string | undefined
-  let pixelFormat: number | undefined
-  let emfPlusFlags: number | undefined
-  let logPalette: any | undefined
-
-  if (reader.remaining >= 4) {
-    const descLen = reader.readUint32()
-    if (descLen > 0 && reader.remaining >= descLen * 2) {
-      description = reader.readString(descLen * 2, 'utf16le')
+  if (nDescription > 0 && nDescription <= 1024 && offDescription >= 88) {
+    const resume = reader.position
+    try {
+      reader.setPosition(offDescription)
+      description = reader.readString(nDescription * 2, 'utf16le').replace(/\0+$/, '')
+    } catch {
+      description = undefined
     }
+    reader.setPosition(resume)
+  }
 
-    if (reader.remaining >= 4) pixelFormat = reader.readUint32()
-    if (reader.remaining >= 4) emfPlusFlags = reader.readUint32()
-
-    if (reader.remaining >= 4) {
-      const saved = reader.position
-      const palVersion = reader.readUint16()
-      const palCount = reader.readUint16()
-      if (palVersion === 0x300 && palCount > 0 && palCount <= 256) {
-        const entries: any[] = []
-        for (let i = 0; i < palCount; i++) {
-          if (reader.remaining < 4) break
-          const val = reader.readUint32()
-          entries.push({
-            r: val & 0xFF,
-            g: (val >> 8) & 0xFF,
-            b: (val >> 16) & 0xFF,
-            a: 255,
-          })
-        }
-        logPalette = { version: palVersion, entries }
-      } else {
-        // Not a palette — rewind so record parsing starts at the right offset
-        reader.setPosition(saved)
+  // palette (LOGPALETTE) directly follows the 88-byte fixed part
+  let logPalette: LogPalette | undefined
+  if (nPalEntries > 0 && nPalEntries <= 256 && reader.remaining >= 4) {
+    const saved = reader.position
+    const palVersion = reader.readUint16()
+    const palCount = reader.readUint16()
+    if (palVersion === 0x300 && palCount > 0 && palCount <= 256) {
+      const entries: Color[] = []
+      for (let i = 0; i < palCount && reader.remaining >= 4; i++) {
+        const val = reader.readUint32()
+        entries.push({
+          r: val & 0xFF,
+          g: (val >> 8) & 0xFF,
+          b: (val >> 16) & 0xFF,
+          a: 255,
+        })
       }
+      logPalette = { version: palVersion, entries }
+    } else {
+      // Not a palette — rewind so record parsing starts at the right offset
+      reader.setPosition(saved)
     }
   }
 
@@ -167,8 +194,8 @@ function parseEmfHeader(reader: BinaryReader): EmfHeader {
     recordsCount,
     handCount,
     description,
-    pixelFormat,
-    emfPlusFlags,
+    pixelFormat: undefined,
+    emfPlusFlags: undefined,
     logPalette,
   }
 }

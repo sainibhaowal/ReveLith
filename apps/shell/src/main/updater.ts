@@ -1,4 +1,4 @@
-﻿import { readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { app, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
@@ -432,7 +432,9 @@ function manualDownloadUrlFor(info: UpdateInfo): string | null {
     const x64 = pick((name) => name.endsWith('.dmg') && !/-(arm64|universal)\.dmg$/.test(name))
     chosen = process.arch === 'arm64' ? (arm ?? x64) : (x64 ?? arm)
   } else if (process.platform === 'win32') {
-    chosen = pick((name) => name.endsWith('.exe'))
+    const arm = pick((name) => name.endsWith('-arm64.exe'))
+    const x64 = pick((name) => name.endsWith('.exe') && !name.endsWith('-arm64.exe'))
+    chosen = process.arch === 'arm64' ? (arm ?? x64) : (x64 ?? arm)
   } else {
     chosen = pick((name) => name.endsWith('.AppImage'))
   }

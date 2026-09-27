@@ -1,4 +1,4 @@
-﻿/**
+/**
  * RenderTree : a data-driven abstract draw list (the render layer's core asset).
  *
  * Design intent (plan A): parse the Slide element tree into a pure data structure
@@ -74,6 +74,14 @@ export interface RenderShadow {
   offsetY: number
 }
 
+export interface RenderReflection {
+  blurPx: number
+  startAlpha: number
+  endAlpha: number
+  distancePx: number
+  directionDeg: number
+}
+
 /** A laid-out text glyph block (one contiguous same-format span within a line). */
 export interface GlyphRun {
   text: string
@@ -135,6 +143,8 @@ export interface TextLine {
   softBreakAfter?: number
   /** Paragraph horizontal alignment (editor display) */
   align?: 'left' | 'center' | 'right' | 'justify'
+  /** Explicit RTL base direction (<a:pPr rtl>, editor display + toggle state) */
+  rtl?: boolean
   /** Paragraph indent level (editor Tab multi-level list display) */
   level?: number
   /** Paragraph left margin in px (editor display: body text starts here, not at the inset edge) */
@@ -198,6 +208,8 @@ export interface ShapeRenderNode extends RenderNodeBase {
   stroke?: RenderStroke
   shadow?: RenderShadow
   glow?: RenderGlow
+  softEdgePx?: number
+  reflection?: RenderReflection
   text?: RenderTextLayout
 }
 
@@ -212,6 +224,7 @@ export interface PictureRenderNode extends RenderNodeBase {
   opacity?: number
   /** Soft-edge feather radius (px) */
   softEdgePx?: number
+  reflection?: RenderReflection
   /** Audio/video (the image is the poster frame): the render layer overlays a play/speaker badge */
   media?: 'video' | 'audio'
   stroke?: RenderStroke
@@ -268,6 +281,8 @@ export interface TableRenderNode extends RenderNodeBase {
   gridY: number[]
   /** tblPr header-row / banded-row toggles (for the Ribbon "Table Design" display) */
   styleFlags?: { firstRow: boolean; bandRow: boolean }
+  /** Table reading direction (<a:tblPr rtl>, for the Ribbon toggle state) */
+  rtl?: boolean
 }
 
 // ── Charts (precomputed draw primitives, coordinates relative to the chart box top-left, px) ──
@@ -289,6 +304,8 @@ export interface ChartStyleInfo {
   kind:
     | 'bar'
     | 'barStacked'
+    | 'barPercentStacked'
+    | 'barH'
     | 'line'
     | 'area'
     | 'pie'

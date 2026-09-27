@@ -1500,24 +1500,24 @@ function createShellWindow(): void {
   // The first save / save-as fires this too, so applyPendingProject also runs here.
   setSheetsWorkbookOpenedHook((wc, path) => {
     manager.setTabFileFor(wc.id, path)
-    recordRecentFile(path)
+    trackRecentFile(path)
     applyPendingProject(path)
   })
   setSlidesOpenedHook((wc, path) => {
     manager.setTabFileFor(wc.id, path)
-    recordRecentFile(path)
+    trackRecentFile(path)
     applyPendingProject(path)
   })
   // docs' save-as / silent first save lands on a new path → sync the tab title too
   setDocsFileSavedHook((wc, path) => {
     manager.setTabFileFor(wc.id, path)
-    recordRecentFile(path)
+    trackRecentFile(path)
     applyPendingProject(path)
   })
   // markdown untitled first save / Save As lands on a new path
   setMarkdownFileSavedHook((wc, path) => {
     manager.setTabFileFor(wc.id, path)
-    recordRecentFile(path)
+    trackRecentFile(path)
     applyPendingProject(path)
   })
   // markdown "convert & open in Docs" → route the fresh .docx to a docs tab
@@ -1644,18 +1644,29 @@ function notifyUnsupportedFile(filePath: string): void {
   }
 }
 
+/** Record a recent file and queue it for full-text search indexing.
+ * Indexing is debounced and best-effort: it must never break open/save. */
+function trackRecentFile(path: string): void {
+  recordRecentFile(path)
+  try {
+    getSearchIndex().scheduleIndex(path)
+  } catch {
+    // ignore: the debounced indexer retries on the next trigger
+  }
+}
+
 /** the single router: extension decides which module owns the file; false = nothing opened */
 function openDocumentPath(filePath: string): boolean {
   if (!existsSync(filePath) || !tabManager) return false
   if (DOCX_RE.test(filePath)) {
-    recordRecentFile(filePath)
+    trackRecentFile(filePath)
     const existing = tabManager.findDocsTabByPath(filePath)
     if (existing) tabManager.activateTab(existing)
     else tabManager.openDocsTab(filePath)
     return true
   }
   if (XLSX_RE.test(filePath)) {
-    recordRecentFile(filePath)
+    trackRecentFile(filePath)
     const existing = tabManager.findSheetsTabByPath(filePath)
     if (existing) {
       tabManager.activateTab(existing)
@@ -1667,7 +1678,7 @@ function openDocumentPath(filePath: string): boolean {
     return true
   }
   if (PPTX_RE.test(filePath)) {
-    recordRecentFile(filePath)
+    trackRecentFile(filePath)
     const existing = tabManager.findSlidesTabByPath(filePath)
     if (existing) {
       tabManager.activateTab(existing)
@@ -1678,14 +1689,14 @@ function openDocumentPath(filePath: string): boolean {
     return true
   }
   if (PDF_RE.test(filePath)) {
-    recordRecentFile(filePath)
+    trackRecentFile(filePath)
     const existing = tabManager.findPdfTabByPath(filePath)
     if (existing) tabManager.activateTab(existing)
     else tabManager.openPdfTab(filePath)
     return true
   }
   if (MD_RE.test(filePath)) {
-    recordRecentFile(filePath)
+    trackRecentFile(filePath)
     const existing = tabManager.findMarkdownTabByPath(filePath)
     if (existing) tabManager.activateTab(existing)
     else tabManager.openMarkdownTab(filePath)
@@ -1912,7 +1923,7 @@ function registerHomeIpc(): void {
       const target = join(dir, `${base} ${tm('copySuffix')}${i === 1 ? '' : ` ${i}`}${ext}`)
       if (existsSync(target)) continue
       copyFileSync(path, target)
-      recordRecentFile(target)
+      trackRecentFile(target)
       return
     }
   })
@@ -2717,6 +2728,15 @@ app.whenReady().then(async () => {
   installBackToHomeItems()
   installDockMenu()
   initAutoUpdater(() => shellWindow, currentUpdateChannel())
+  // Full-text search warms up from recent files in the background; hits land
+  // as each file finishes (debounced per file). Never blocks startup.
+  try {
+    void getSearchIndex()
+      .indexAllFiles(readRecentFiles())
+      .catch(() => {})
+  } catch {
+    // search must never break startup
+  }
   // Windows Explorer "Open with ReveLith" verb: the NSIS installer registers
   // it (build/installer.nsh); this repairs it for packaged runs whose keys
   // are missing anyway (portable exe, moved install dir). Repair-only and

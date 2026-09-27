@@ -34,6 +34,7 @@
   type SdtShell,
   type SectionInfo,
   type TableCell,
+  type TableFloating,
   type TableModel,
   type TextboxDisplay,
   type TextboxParaPatch,
@@ -320,6 +321,7 @@ export function tableModelToPmNode(
       borders: model.borders ?? null,
       tblAlign: model.align ?? null,
       indentTwips: model.indentTwips ?? null,
+      tblFloat: model.floating ?? null,
       tblStyleId: model.tblStyleId ?? null,
       bidiVisual: model.bidiVisual ?? false,
       originalStructure: null,
@@ -602,6 +604,9 @@ export function pmTableToModel(table: PmNode): TableModel {
     ...(rowRevisions.some((revision) => revision !== null) ? { rowRevisions } : {}),
     // null (cleared) → '' removes explicitly; undefined leaves it alone
     ...(tblStyleAttr !== undefined ? { tblStyleId: tblStyleAttr ?? '' } : {}),
+    ...(table.attrs?.tblFloat != null
+      ? { floating: table.attrs.tblFloat as TableFloating }
+      : {}),
   }
 }
 
@@ -697,6 +702,7 @@ function runMarks(run: Run): PmMark[] {
   if (run.italic) marks.push({ type: 'italic' })
   if (run.underline) marks.push({ type: 'underline' })
   if (run.strike) marks.push({ type: 'strike' })
+  if (run.vanish) marks.push({ type: 'vanish' })
   if (run.link)
     marks.push({
       type: 'link',
@@ -1734,6 +1740,7 @@ export function inlineToRuns(content: PmNode[]): Run[] {
       else if (mark.type === 'italic') run.italic = true
       else if (mark.type === 'underline') run.underline = true
       else if (mark.type === 'strike') run.strike = true
+      else if (mark.type === 'vanish') run.vanish = true
       else if (mark.type === 'link') {
         run.link = {
           href: String(mark.attrs?.href ?? ''),
@@ -1816,6 +1823,7 @@ function runStyleKey(run: Run): string {
     !!run.italic,
     !!run.underline,
     !!run.strike,
+    !!run.vanish,
     run.color ?? null,
     run.sizeHalfPoints ?? null,
     run.font ?? null,

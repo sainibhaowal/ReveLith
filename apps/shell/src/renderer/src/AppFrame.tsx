@@ -81,8 +81,84 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
   const currentTheme = document.documentElement.getAttribute('data-theme') || 'system'
   const iframeSrcWithTheme = `${activeUrl}${activeUrl.includes('?') ? '&' : '?'}mode=tab&theme=${currentTheme}`
 
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragOver(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // only deactivate if leaving the app-frame container
+    if (e.currentTarget === e.target) {
+      setIsDragOver(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    const files = Array.from(e.dataTransfer.files)
+    for (const file of files) {
+      const electronWebUtils = (window as unknown as { electron?: { webUtils?: { getPathForFile: (f: File) => string } } }).electron?.webUtils
+      const filePath = (file as unknown as { path?: string }).path || electronWebUtils?.getPathForFile?.(file)
+      if (filePath) {
+        void window.aiOffice?.openPath?.(filePath)
+      }
+    }
+  }
+
   return (
-    <div className="app-frame" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface, #141416)' }}>
+    <div
+      className="app-frame"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface, #141416)' }}
+    >
+      {isDragOver && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(56, 189, 248, 0.08)',
+            border: '2px dashed #38bdf8',
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              padding: '16px 28px',
+              borderRadius: '12px',
+              background: 'var(--surface, #1e1e22)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+              color: '#38bdf8',
+              fontSize: '15px',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Drop documents to open
+          </div>
+        </div>
+      )}
       <TabBar />
       <div className="app-frame-content" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--surface, #141416)' }}>
         <div style={{ width: '100%', height: '100%', display: homeActive ? 'block' : 'none' }}>

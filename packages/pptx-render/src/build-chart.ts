@@ -18,7 +18,56 @@ import type { FontMetricsProvider, RunStyle } from './metrics'
 /** Default series palette (approximation of PowerPoint's default theme accent sequence). */
 const PALETTE = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47']
 
+/**
+ * Bar fill: explicit per-point colors (c:dPt) win; single-series charts with
+ * c:varyColors cycle the default palette per category (Office behavior);
+ * otherwise the series color.
+ */
+function barPointColor(
+  model: ChartModel,
+  ser: ChartModel['series'][number],
+  si: number,
+  i: number,
+): string {
+  return (
+    ser.pointColors?.[i] ??
+    (model.varyColors && model.series.length === 1
+      ? PALETTE[i % PALETTE.length]!
+      : (model.series[si]?.color ?? PALETTE[si % PALETTE.length]!))
+  )
+}
+
 const LABEL_FONT = 'Arial'
+
+/**
+ * Override an auto-computed plot frame with c:manualLayout: 'edge' mode takes
+ * normalized fractions of the chart box; 'factor' mode scales the auto frame
+ * (1 = default). Radar keeps auto layout (its radial math derives center and
+ * radius jointly, so a box override would corrupt spokes and rings).
+ */
+export function applyManualPlot(
+  layout: ChartModel['plotLayout'],
+  auto: { x: number; y: number; w: number; h: number },
+  box: { w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+  if (!layout) return auto
+  const pick = (
+    v: number,
+    mode: 'edge' | 'factor',
+    autoV: number,
+    boxV: number,
+    min: number,
+  ): number => {
+    const raw = mode === 'edge' ? v * boxV : autoV * v
+    return Math.max(Math.min(raw, boxV), min)
+  }
+  return {
+    x: pick(layout.x, layout.xMode, auto.x, box.w, 0),
+    y: pick(layout.y, layout.yMode, auto.y, box.h, 0),
+    w: pick(layout.w, layout.xMode, auto.w, box.w, 10),
+    h: pick(layout.h, layout.yMode, auto.h, box.h, 10),
+  }
+}
 
 export function buildChartNode(
   id: string,
@@ -49,10 +98,15 @@ export function buildChartNode(
     bold: true,
     italic: false,
   })
+  // Manual title layout wins over the centered default (same edge/factor
+  // semantics as the plot frame)
+  const tl = model.titleLayout
+  const tx = tl ? (tl.xMode === 'edge' ? tl.x * box.w : Math.max((box.w - tw) / 2, 4) * tl.x) : Math.max((box.w - tw) / 2, 4)
+  const ty = tl ? (tl.yMode === 'edge' ? tl.y * box.h : titleSizePx * 0.3 * tl.y) : titleSizePx * 0.3
   node.labels.push({
     text: model.title,
-    x: Math.max((box.w - tw) / 2, 4),
-    y: titleSizePx * 0.3,
+    x: tx,
+    y: ty,
     fontSizePx: titleSizePx,
     color: '#333333',
     bold: true,
@@ -223,12 +277,18 @@ function buildChartNodeInner(
   // Right side: no secondary axis → small gap (PowerPoint measured ≈1.5% width); with one, reserve space for tick labels + title
   const plotR = box.w - pad - (sec ? y2LabelW + axisTitle2W + 10 : labelSizePx * 0.7)
   const plotB = box.h - pad - catLabelSizePx * 1.5 - (legendPos === 'b' ? legendH : 0)
-  const plot = {
-    x: plotX,
-    y: plotY,
-    w: Math.max(plotR - plotX, 10),
-    h: Math.max(plotB - plotY, 10),
-  }
+  // Manual plot-area layout wins over the auto frame (ticks, gridlines and
+  // series all derive from `plot`, so they follow the override coherently)
+  const plot = applyManualPlot(
+    model.plotLayout,
+    {
+      x: plotX,
+      y: plotY,
+      w: Math.max(plotR - plotX, 10),
+      h: Math.max(plotB - plotY, 10),
+    },
+    box,
+  )
 
   const yOf = (v: number) => {
     if (isLog) {
@@ -398,7 +458,7 @@ function buildChartNodeInner(
         const ser = model.series[si]!
         const v = valueAt(si, i)
         if (v == null || v === 0) return
-        const color = ser.pointColors?.[i] ?? seriesColor(si)!
+        const color = barPointColor(model, ser, si, i)
         const from = v > 0 ? posAcc : negAcc
         const to = from + v
         if (v > 0) posAcc = to
@@ -418,7 +478,6 @@ function buildChartNodeInner(
     const base = Math.max(min, 0) // autoZero baseline; when axis min>0, bars start from the axis bottom
     barSeriesIdx.forEach((si, slot) => {
       const ser = model.series[si]!
-      const color = seriesColor(si)
       const bar3D = model.format3D ? {
         depth: model.format3D.depth,
         bevelTop: model.format3D.bevelTop,
@@ -434,13 +493,13 @@ function buildChartNodeInner(
         const x = plot.x + i * slotW + (slotW - groupW) / 2 + slot * barW
         const yTop = yOf(Math.max(v, base))
         const yBot = yOf(Math.min(v, base))
-        // Explicit per-point colors (c:dPt, varyColors multi-color single-series bars) win over the series color
+        // Explicit per-point colors (c:dPt) and single-series varyColors win over the series color
         node.bars.push({
           x,
           y: yTop,
           w: barW,
           h: Math.max(yBot - yTop, 0.5),
-          color: ser.pointColors?.[i] ?? color,
+          color: barPointColor(model, ser, si, i),
           format3D: bar3D,
         })
         dLbl(x + barW / 2, v >= 0 ? yTop - dlSize * 1.15 : yBot + dlSize * 0.15, v, false)
@@ -493,39 +552,54 @@ function buildChartNodeInner(
   // ── Legend ──────────────────────────────────────────────────────
   if (legendPos && model.series.some((s) => s.name)) {
     const sw = labelSizePx * 1.1
-    const items = model.series.map((s, i) => ({
-      label: s.name ?? '',
-      color: seriesColor(i),
-    }))
+    const hidden = new Set(model.hiddenLegendEntries ?? [])
+    const items = model.series
+      .map((s, i) => ({
+        label: s.name ?? '',
+        color: seriesColor(i),
+      }))
+      .filter((_, i) => !hidden.has(i))
     const itemWs = items.map((it) => sw + 4 + measure(it.label, labelSizePx) + labelSizePx)
+    const labelWs = items.map((it) => measure(it.label, labelSizePx))
+    const legendRtl = legendIsRtl(items.map((it) => it.label))
     if (legendPos === 't' || legendPos === 'b') {
       const total = itemWs.reduce((a, b) => a + b, 0)
-      let x = Math.max((box.w - total) / 2, pad)
-      const y = legendPos === 't' ? pad : box.h - pad - labelSizePx * 1.2
+      const origin = legendOrigin(
+        model.legendLayout,
+        Math.max((box.w - total) / 2, pad),
+        legendPos === 't' ? pad : box.h - pad - labelSizePx * 1.2,
+        box,
+      )
+      const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
       items.forEach((it, i) => {
         node.swatches.push({
-          x,
-          y: y + labelSizePx * 0.25,
+          x: placed[i]!.swX,
+          y: origin.y + labelSizePx * 0.25,
           w: sw,
           h: labelSizePx * 0.6,
           color: it.color,
         })
         node.labels.push({
           text: it.label,
-          x: x + sw + 4,
-          y,
+          x: placed[i]!.labelX,
+          y: origin.y,
           fontSizePx: labelSizePx,
           color: labelColor,
         })
-        x += itemWs[i]!
       })
     } else {
       // Right side (l/r/tr all laid out as a top-right column); with a secondary axis, shift right to clear its tick labels
-      let y = plot.y
-      const x = plot.x + plot.w + 8 + (sec ? y2LabelW + axisTitle2W + 8 : 0)
-      items.forEach((it) => {
+      const origin = legendOrigin(
+        model.legendLayout,
+        plot.x + plot.w + 8 + (sec ? y2LabelW + axisTitle2W + 8 : 0),
+        plot.y,
+        box,
+      )
+      const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
+      let y = origin.y
+      items.forEach((it, i) => {
         node.swatches.push({
-          x,
+          x: placed[i]!.swX,
           y: y + labelSizePx * 0.25,
           w: sw,
           h: labelSizePx * 0.6,
@@ -533,7 +607,7 @@ function buildChartNodeInner(
         })
         node.labels.push({
           text: it.label,
-          x: x + sw + 4,
+          x: placed[i]!.labelX,
           y,
           fontSizePx: labelSizePx,
           color: labelColor,
@@ -591,10 +665,14 @@ function buildPieNode(
 
   // Legend space (without a legend, the whole box goes to the pie)
   const legendPos = model.legendPos
-  const legendItems = model.categories.map((cat, i) => ({
-    label: cat,
-    color: sliceColor(i),
-  }))
+  const hiddenLegend = new Set(model.hiddenLegendEntries ?? [])
+  const legendItems = model.categories
+    .map((cat, i) => ({
+      label: cat,
+      color: sliceColor(i),
+      index: i,
+    }))
+    .filter((it) => !hiddenLegend.has(it.index))
   const legendRowH = labelSizePx * 1.5
   let plotW = box.w - pad * 2
   let plotH = box.h - pad * 2
@@ -615,6 +693,13 @@ function buildPieNode(
     plotY += legendRowH
     plotH -= legendRowH
   } else if (legendPos === 'b') plotH -= legendRowH
+  {
+    const manual = applyManualPlot(model.plotLayout, { x: plotX, y: plotY, w: plotW, h: plotH }, box)
+    plotX = manual.x
+    plotY = manual.y
+    plotW = manual.w
+    plotH = manual.h
+  }
 
   const outerR = Math.max(Math.min(plotW, plotH) / 2, 5)
   const cx = plotX + plotW / 2
@@ -665,34 +750,46 @@ function buildPieNode(
   // Legend
   if (legendPos) {
     const sw = labelSizePx * 1.1
+    const labelWs = legendItems.map((it) => measure(it.label))
+    const itemWs = legendItems.map((it, i) => sw + 4 + labelWs[i]! + labelSizePx)
+    const legendRtl = legendIsRtl(legendItems.map((it) => it.label))
     if (legendPos === 't' || legendPos === 'b') {
-      const itemWs = legendItems.map((it) => sw + 4 + measure(it.label) + labelSizePx)
       const totalW = itemWs.reduce((a, b) => a + b, 0)
-      let x = Math.max((box.w - totalW) / 2, pad)
-      const y = legendPos === 't' ? pad * 0.5 : box.h - pad * 0.5 - labelSizePx * 1.2
+      const origin = legendOrigin(
+        model.legendLayout,
+        Math.max((box.w - totalW) / 2, pad),
+        legendPos === 't' ? pad * 0.5 : box.h - pad * 0.5 - labelSizePx * 1.2,
+        box,
+      )
+      const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
       legendItems.forEach((it, i) => {
         node.swatches.push({
-          x,
-          y: y + labelSizePx * 0.25,
+          x: placed[i]!.swX,
+          y: origin.y + labelSizePx * 0.25,
           w: sw,
           h: labelSizePx * 0.6,
           color: it.color,
         })
         node.labels.push({
           text: it.label,
-          x: x + sw + 4,
-          y,
+          x: placed[i]!.labelX,
+          y: origin.y,
           fontSizePx: labelSizePx,
           color: '#666666',
         })
-        x += itemWs[i]!
       })
     } else {
-      const x = legendPos === 'l' ? pad : box.w - sideLegendW
-      let y = Math.max(cy - (legendItems.length * legendRowH) / 2, pad)
-      for (const it of legendItems) {
+      const origin = legendOrigin(
+        model.legendLayout,
+        legendPos === 'l' ? pad : box.w - sideLegendW,
+        Math.max(cy - (legendItems.length * legendRowH) / 2, pad),
+        box,
+      )
+      const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
+      let y = origin.y
+      legendItems.forEach((it, i) => {
         node.swatches.push({
-          x,
+          x: placed[i]!.swX,
           y: y + labelSizePx * 0.25,
           w: sw,
           h: labelSizePx * 0.6,
@@ -700,13 +797,13 @@ function buildPieNode(
         })
         node.labels.push({
           text: it.label,
-          x: x + sw + 4,
+          x: placed[i]!.labelX,
           y,
           fontSizePx: labelSizePx,
           color: '#666666',
         })
         y += legendRowH
-      }
+      })
     }
   }
 
@@ -792,10 +889,14 @@ function buildPieOfPieNode(
 
   // Layout: two pies side by side with gap
   const legendPos = model.legendPos
-  const legendItems = model.categories.map((cat, i) => ({
-    label: cat,
-    color: sliceColor(i),
-  }))
+  const hiddenLegend = new Set(model.hiddenLegendEntries ?? [])
+  const legendItems = model.categories
+    .map((cat, i) => ({
+      label: cat,
+      color: sliceColor(i),
+      index: i,
+    }))
+    .filter((it) => !hiddenLegend.has(it.index))
   const legendRowH = labelSizePx * 1.5
   let plotW = box.w - pad * 2
   let plotH = box.h - pad * 2
@@ -818,6 +919,13 @@ function buildPieOfPieNode(
     plotY += legendRowH
     plotH -= legendRowH
   } else if (legendPos === 'b') plotH -= legendRowH
+  {
+    const manual = applyManualPlot(model.plotLayout, { x: plotX, y: plotY, w: plotW, h: plotH }, box)
+    plotX = manual.x
+    plotY = manual.y
+    plotW = manual.w
+    plotH = manual.h
+  }
 
   // Two pies horizontally with gap
   const gapPx = plotW * gap
@@ -972,34 +1080,46 @@ function buildPieOfPieNode(
   // Legend (shared between both pies)
   if (legendPos) {
     const sw = labelSizePx * 1.1
+    const labelWs = legendItems.map((it) => measure(it.label))
+    const itemWs = legendItems.map((it, i) => sw + 4 + labelWs[i]! + labelSizePx)
+    const legendRtl = legendIsRtl(legendItems.map((it) => it.label))
     if (legendPos === 't' || legendPos === 'b') {
-      const itemWs = legendItems.map((it) => sw + 4 + measure(it.label) + labelSizePx)
       const totalW = itemWs.reduce((a, b) => a + b, 0)
-      let x = Math.max((box.w - totalW) / 2, pad)
-      const y = legendPos === 't' ? pad * 0.5 : box.h - pad * 0.5 - labelSizePx * 1.2
+      const origin = legendOrigin(
+        model.legendLayout,
+        Math.max((box.w - totalW) / 2, pad),
+        legendPos === 't' ? pad * 0.5 : box.h - pad * 0.5 - labelSizePx * 1.2,
+        box,
+      )
+      const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
       legendItems.forEach((it, i) => {
         node.swatches.push({
-          x,
-          y: y + labelSizePx * 0.25,
+          x: placed[i]!.swX,
+          y: origin.y + labelSizePx * 0.25,
           w: sw,
           h: labelSizePx * 0.6,
           color: it.color,
         })
         node.labels.push({
           text: it.label,
-          x: x + sw + 4,
-          y,
+          x: placed[i]!.labelX,
+          y: origin.y,
           fontSizePx: labelSizePx,
           color: '#666666',
         })
-        x += itemWs[i]!
       })
     } else {
-      const x = legendPos === 'l' ? pad : box.w - sideLegendW
-      let y = Math.max((plotY + pieH / 2) - (legendItems.length * legendRowH) / 2, pad)
-      for (const it of legendItems) {
+      const origin = legendOrigin(
+        model.legendLayout,
+        legendPos === 'l' ? pad : box.w - sideLegendW,
+        Math.max((plotY + pieH / 2) - (legendItems.length * legendRowH) / 2, pad),
+        box,
+      )
+      const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
+      let y = origin.y
+      legendItems.forEach((it, i) => {
         node.swatches.push({
-          x,
+          x: placed[i]!.swX,
           y: y + labelSizePx * 0.25,
           w: sw,
           h: labelSizePx * 0.6,
@@ -1007,13 +1127,13 @@ function buildPieOfPieNode(
         })
         node.labels.push({
           text: it.label,
-          x: x + sw + 4,
+          x: placed[i]!.labelX,
           y,
           fontSizePx: labelSizePx,
           color: '#666666',
         })
         y += legendRowH
-      }
+      })
     }
   }
 
@@ -1099,12 +1219,16 @@ function buildHBarNode(
   const plotY = pad + (legendPos === 't' ? legendH + 4 : 0) + labelSizePx * 0.6
   const plotR = box.w - pad - labelSizePx * 0.7
   const plotB = box.h - pad - labelSizePx * 1.5 - (legendPos === 'b' ? legendH : 0)
-  const plot = {
-    x: plotX,
-    y: plotY,
-    w: Math.max(plotR - plotX, 10),
-    h: Math.max(plotB - plotY, 10),
-  }
+  const plot = applyManualPlot(
+    model.plotLayout,
+    {
+      x: plotX,
+      y: plotY,
+      w: Math.max(plotR - plotX, 10),
+      h: Math.max(plotB - plotY, 10),
+    },
+    box,
+  )
 
   const xOf = (v: number) => plot.x + plot.w * ((v - min) / (max - min || 1))
 
@@ -1202,7 +1326,7 @@ function buildHBarNode(
           y,
           w: Math.max(xR - xL, 0.5),
           h: barH,
-          color: ser.pointColors?.[i] ?? seriesColor(si),
+          color: barPointColor(model, ser, si, i),
         })
         dLbl((xL + xR) / 2, y + barH / 2, ser.values[i]!, true)
       })
@@ -1213,7 +1337,6 @@ function buildHBarNode(
     const groupH = barH * sCount
     const base = Math.max(min, 0)
     model.series.forEach((ser, si) => {
-      const color = seriesColor(si)
       ser.values.forEach((v, i) => {
         if (v == null || i >= n) return
         const y = rowY(i) + (slotH - groupH) / 2 + si * barH
@@ -1224,7 +1347,7 @@ function buildHBarNode(
           y,
           w: Math.max(xR - xL, 0.5),
           h: barH,
-          color: ser.pointColors?.[i] ?? color,
+          color: barPointColor(model, ser, si, i),
         })
         dLbl(v >= 0 ? xR + 4 : xL - 4 - measure(fmtNum(round12(v)), dlSize), y + barH / 2, v, false)
       })
@@ -1290,12 +1413,16 @@ function buildScatterNode(
   const plotY = pad + (legendPos === 't' ? legendH + 4 : 0) + labelSizePx * 0.6
   const plotR = box.w - pad - labelSizePx * 0.7
   const plotB = box.h - pad - labelSizePx * 1.5 - (legendPos === 'b' ? legendH : 0)
-  const plot = {
-    x: plotX,
-    y: plotY,
-    w: Math.max(plotR - plotX, 10),
-    h: Math.max(plotB - plotY, 10),
-  }
+  const plot = applyManualPlot(
+    model.plotLayout,
+    {
+      x: plotX,
+      y: plotY,
+      w: Math.max(plotR - plotX, 10),
+      h: Math.max(plotB - plotY, 10),
+    },
+    box,
+  )
 
   const xOf = (v: number) =>
     plot.x + plot.w * ((v - xTicksR.min) / (xTicksR.max - xTicksR.min || 1))
@@ -1462,9 +1589,21 @@ function buildRadarNode(
       : 0
   const plotW = box.w - pad * 2 - sideLegendW - maxCatW * 2
   const plotH = box.h - pad * 2 - legendH - labelSizePx * 2.4
-  const R = Math.max(Math.min(plotW, plotH) / 2, 5)
-  const cx = pad + maxCatW + plotW / 2 + (legendPos === 'l' ? sideLegendW : 0)
-  const cy = pad + labelSizePx * 1.2 + (legendPos === 't' ? legendH : 0) + plotH / 2
+  let R = Math.max(Math.min(plotW, plotH) / 2, 5)
+  let cx = pad + maxCatW + plotW / 2 + (legendPos === 'l' ? sideLegendW : 0)
+  let cy = pad + labelSizePx * 1.2 + (legendPos === 't' ? legendH : 0) + plotH / 2
+  // Manual plot layout recenters/rescales the radar (radial math needs center
+  // + radius jointly, so the override maps the box, not raw frame edges)
+  if (model.plotLayout) {
+    const manual = applyManualPlot(
+      model.plotLayout,
+      { x: cx - R, y: cy - R, w: R * 2, h: R * 2 },
+      box,
+    )
+    cx = manual.x + manual.w / 2
+    cy = manual.y + manual.h / 2
+    R = Math.max(Math.min(manual.w, manual.h) / 2, 5)
+  }
   const plot = { x: cx - R, y: cy - R, w: R * 2, h: R * 2 }
 
   // Vertex directions: from 12 o'clock, clockwise
@@ -1568,6 +1707,65 @@ function emptyChartNode(id: string, sourceId: string, box: PlacedBox): ChartRend
   }
 }
 
+/** Strong-RTL test for legend labels (same ranges as paragraph base-direction inference). */
+const LEGEND_RTL_RE = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/
+
+/** True when any legend label carries strong RTL script: the whole legend row/column mirrors. */
+export function legendIsRtl(labels: string[]): boolean {
+  return labels.some((l) => LEGEND_RTL_RE.test(l))
+}
+
+export interface LegendPlacedItem {
+  swX: number
+  labelX: number
+}
+
+/**
+ * Lay out one legend flow (a t/b row or a side column): LTR places swatch
+ * left of each label flowing left-to-right; RTL mirrors the flow so items run
+ * right-to-left with each swatch right of its label. widths[i] is the full
+ * item advance (swatch + gap + label + trailing pad).
+ */
+export function layoutLegendFlow(
+  widths: number[],
+  labelWs: number[],
+  originX: number,
+  sw: number,
+  rtl: boolean,
+): LegendPlacedItem[] {
+  if (!rtl) {
+    let x = originX
+    return widths.map((w) => {
+      const placed = { swX: x, labelX: x + sw + 4 }
+      x += w
+      return placed
+    })
+  }
+  const total = widths.reduce((a, b) => a + b, 0)
+  let x = originX + total
+  return widths.map((w, i) => {
+    x -= w
+    return { swX: x + (labelWs[i] ?? 0) + 4, labelX: x }
+  })
+}
+
+/**
+ * Manual legend origin override (c:legend/c:layout/c:manualLayout): 'edge'
+ * takes normalized fractions of the chart box, 'factor' scales the auto origin.
+ */
+export function legendOrigin(
+  layout: ChartModel['legendLayout'],
+  autoX: number,
+  autoY: number,
+  box: { w: number; h: number },
+): { x: number; y: number } {
+  if (!layout) return { x: autoX, y: autoY }
+  return {
+    x: layout.xMode === 'edge' ? layout.x * box.w : autoX * layout.x,
+    y: layout.yMode === 'edge' ? layout.y * box.h : autoY * layout.y,
+  }
+}
+
 /** Series legend (shared by the newer chart types; t/b centered horizontally, l/r/tr as a top-right column). */
 function addSeriesLegend(
   node: ChartRenderNode,
@@ -1582,39 +1780,49 @@ function addSeriesLegend(
   const legendPos = model.legendPos
   if (!legendPos || !model.series.some((s) => s.name)) return
   const sw = labelSizePx * 1.1
-  const items = model.series.map((s, i) => ({
-    label: s.name ?? '',
-    color: seriesColor(i),
-  }))
+  const hiddenShared = new Set(model.hiddenLegendEntries ?? [])
+  const items = model.series
+    .map((s, i) => ({
+      label: s.name ?? '',
+      color: seriesColor(i),
+    }))
+    .filter((_, i) => !hiddenShared.has(i))
   const itemWs = items.map((it) => sw + 4 + measure(it.label, labelSizePx) + labelSizePx)
+  const labelWs = items.map((it) => measure(it.label, labelSizePx))
   const labelColor = model.valAxis?.labelColor ?? '#666666'
+  const legendRtl = legendIsRtl(items.map((it) => it.label))
   if (legendPos === 't' || legendPos === 'b') {
     const total = itemWs.reduce((a, b) => a + b, 0)
-    let x = Math.max((box.w - total) / 2, pad)
-    const y = legendPos === 't' ? pad : box.h - pad - labelSizePx * 1.2
+    const origin = legendOrigin(
+      model.legendLayout,
+      Math.max((box.w - total) / 2, pad),
+      legendPos === 't' ? pad : box.h - pad - labelSizePx * 1.2,
+      box,
+    )
+    const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
     items.forEach((it, i) => {
       node.swatches.push({
-        x,
-        y: y + labelSizePx * 0.25,
+        x: placed[i]!.swX,
+        y: origin.y + labelSizePx * 0.25,
         w: sw,
         h: labelSizePx * 0.6,
         color: it.color,
       })
       node.labels.push({
         text: it.label,
-        x: x + sw + 4,
-        y,
+        x: placed[i]!.labelX,
+        y: origin.y,
         fontSizePx: labelSizePx,
         color: labelColor,
       })
-      x += itemWs[i]!
     })
   } else {
-    let y = plot.y
-    const x = plot.x + plot.w + 8
-    items.forEach((it) => {
+    const origin = legendOrigin(model.legendLayout, plot.x + plot.w + 8, plot.y, box)
+    const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
+    let y = origin.y
+    items.forEach((it, i) => {
       node.swatches.push({
-        x,
+        x: placed[i]!.swX,
         y: y + labelSizePx * 0.25,
         w: sw,
         h: labelSizePx * 0.6,
@@ -1622,7 +1830,7 @@ function addSeriesLegend(
       })
       node.labels.push({
         text: it.label,
-        x: x + sw + 4,
+        x: placed[i]!.labelX,
         y,
         fontSizePx: labelSizePx,
         color: labelColor,

@@ -96,8 +96,10 @@ describe('PDF Table Extraction', () => {
       for (let i = 1; i < table.rows.length; i++) {
         const prevRow = table.rows[i - 1]
         const currRow = table.rows[i]
-        if (prevRow.length > 0 && currRow.length > 0) {
-          const gap = currRow[0].bbox.y - (prevRow[0].bbox.y + prevRow[0].bbox.height)
+        const prevCell = prevRow?.[0]
+        const currCell = currRow?.[0]
+        if (prevCell && currCell) {
+          const gap = currCell.bbox.y - (prevCell.bbox.y + prevCell.bbox.height)
           rowGaps.push(gap)
         }
       }
@@ -214,12 +216,12 @@ describe('PDF Table Extraction', () => {
       const workbookData = tablesToExcelWorkbook([table])
       
       expect(workbookData.worksheets).toHaveProperty('Table1')
-      expect(workbookData.worksheets.Table1.cells).toHaveProperty('A1')
-      expect(workbookData.worksheets.Table1.cells).toHaveProperty('B1')
-      expect(workbookData.worksheets.Table1.cells).toHaveProperty('C1')
-      expect(workbookData.worksheets.Table1.cells).toHaveProperty('A2')
-      expect(workbookData.worksheets.Table1.cells).toHaveProperty('B2')
-      expect(workbookData.worksheets.Table1.cells).toHaveProperty('C2')
+      expect(workbookData.worksheets.Table1?.cells).toHaveProperty('A1')
+      expect(workbookData.worksheets.Table1?.cells).toHaveProperty('B1')
+      expect(workbookData.worksheets.Table1?.cells).toHaveProperty('C1')
+      expect(workbookData.worksheets.Table1?.cells).toHaveProperty('A2')
+      expect(workbookData.worksheets.Table1?.cells).toHaveProperty('B2')
+      expect(workbookData.worksheets.Table1?.cells).toHaveProperty('C2')
       expect(workbookData.metadata.totalTables).toBe(1)
       expect(workbookData.metadata.totalRows).toBe(2)
       expect(workbookData.metadata.totalColumns).toBe(3)

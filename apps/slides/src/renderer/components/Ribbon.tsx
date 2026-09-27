@@ -467,7 +467,12 @@ const CHART_STYLE_PRESETS: ChartStylePreset[] = [
 function chartPresetActive(info: ChartStyleInfo | null | undefined, p: ChartStylePreset): boolean {
   if (!info) return false
   const s = p.style
-  const barKind = info.kind === 'bar' || info.kind === 'barStacked' || info.kind === 'comboBarLine'
+  const barKind =
+    info.kind === 'bar' ||
+    info.kind === 'barH' ||
+    info.kind === 'barStacked' ||
+    info.kind === 'barPercentStacked' ||
+    info.kind === 'comboBarLine'
   return (
     info.legendPos === s.legendPos &&
     info.dataLabels === s.dataLabels &&
@@ -766,6 +771,9 @@ export function Ribbon({
   onTextColor,
   curBulletChar,
   curAlign,
+  curDir,
+  curBodyPrVert = null,
+  onBodyPrVertToggle,
   curFontFamily,
   curFontSizePt,
   curFontSizeMixed,
@@ -857,6 +865,8 @@ export function Ribbon({
   onPictureOpacity,
   onPictureCutout,
   onEditTableStyle,
+  onEditTableRtl,
+  tableRtl,
   tableStyleFlags,
   tableActiveCell,
   onEditChart,
@@ -923,6 +933,18 @@ export function Ribbon({
   // responsive-collapse state (see the collapse effect below)
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
   const [collapseOpen, setCollapseOpen] = useState<string | null>(null)
+  const [ribbonCollapsed, setRibbonCollapsed] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'F1') {
+        e.preventDefault()
+        setRibbonCollapsed((c) => !c)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const [translateOpen, setTranslateOpen] = useState(false)
   const [arrangeOpen, setArrangeOpen] = useState(false)
   const [slideShowOpen, setSlideShowOpen] = useState(false)
@@ -1233,6 +1255,9 @@ export function Ribbon({
     closePanels,
     curBulletChar,
     curAlign,
+    curDir,
+    curBodyPrVert,
+    onBodyPrVertToggle,
     curFontFamily,
     curFontSizeMixed,
     curFontSizePt,
@@ -1476,7 +1501,9 @@ export function Ribbon({
             onClick={() => {
               setTab(tb)
               setFileOpen(false)
+              if (ribbonCollapsed) setRibbonCollapsed(false)
             }}
+            onDoubleClick={() => setRibbonCollapsed((c) => !c)}
           >
             {t(TAB_LABEL[tb])}
           </button>
@@ -1485,16 +1512,54 @@ export function Ribbon({
           <button
             key={contextTab}
             className={`ribbon-tab ribbon-tab-context ${tab === contextTab ? 'active' : ''}`}
-            onClick={() => setTab(contextTab)}
+            onClick={() => {
+              setTab(contextTab)
+              if (ribbonCollapsed) setRibbonCollapsed(false)
+            }}
+            onDoubleClick={() => setRibbonCollapsed((c) => !c)}
             data-tip={t(TAB_LABEL[contextTab])}
           >
             {t(TAB_LABEL[contextTab])}
           </button>
         )}
         <span className="ribbon-tabs-spacer" />
+        <button
+          className="ribbon-collapse-toggle"
+          title={ribbonCollapsed ? 'Expand Ribbon (Ctrl+F1)' : 'Collapse Ribbon (Ctrl+F1)'}
+          onClick={() => setRibbonCollapsed((c) => !c)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-dim, #888)',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              transform: ribbonCollapsed ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.15s ease',
+            }}
+          >
+            <path d="M2 8L6 4L10 8" />
+          </svg>
+        </button>
       </div>
 
-      <div className="ribbon-body" ref={bodyRef}>
+      {!ribbonCollapsed && (
+        <div className="ribbon-body" ref={bodyRef}>
         {tab === 'home' ? (
           <RibbonHomeTab rb={tabCtx} />
         ) : tab === 'insert' ? (
@@ -2373,6 +2438,16 @@ export function Ribbon({
               />
             </Group>
             <div className="ribbon-sep" />
+            <Group label={t('ribbonGroupTableDirection')}>
+              <TableToggleBtn
+                label={t('ribbonTableDirectionRtl')}
+                on={tableRtl ?? false}
+                disabled={!onEditTableRtl}
+                onClick={() => onEditTableRtl?.(true)}
+                offClick={() => onEditTableRtl?.(false)}
+              />
+            </Group>
+            <div className="ribbon-sep" />
             <Group label={tableActiveCell ? t('ribbonGroupShadingCell') : t('ribbonGroupShading')}>
               <div className="rb-table-shading">
                 {TABLE_SHADING_COLORS.map((c) => (
@@ -2841,6 +2916,7 @@ export function Ribbon({
           </>
         ) : null}
       </div>
+      )}
     </div>
   )
 }

@@ -111,7 +111,7 @@ jobs:
             npm install --prefix apps/markdown --save-optional @rollup/rollup-linux-x64-gnu || true
             npm install --prefix apps/shell --save-optional @rollup/rollup-linux-x64-gnu || true
           elif [ "${{ runner.os }}" = "Windows" ]; then
-            npm install --save-optional --include=optional @rollup/rollup-win32-x64-msvc
+            npm install --save-optional --include=optional @rollup/rollup-win32-x64-msvc @rollup/rollup-win32-arm64-msvc || true
           fi
         shell: bash
 
@@ -130,8 +130,9 @@ jobs:
       - name: Build Native Rust Sidecars
         run: |
           if [ "${{ matrix.platform }}" = "win" ]; then
-            rustup target add x86_64-pc-windows-gnu || true
+            rustup target add x86_64-pc-windows-gnu aarch64-pc-windows-msvc || true
             cargo build --release --target x86_64-pc-windows-gnu --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml || cargo build --release --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml
+            cargo build --release --target aarch64-pc-windows-msvc --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml || true
           elif [ "${{ matrix.platform }}" = "mac" ]; then
             rustup target add x86_64-apple-darwin aarch64-apple-darwin
             npm run native:build:universal -w @revelith/sheets
@@ -143,10 +144,29 @@ jobs:
       - name: Build All Workspaces
         run: npm run build:all
 
+      - name: Prepare Windows signing cert (if provided)
+        if: matrix.platform == 'win'
+        env:
+          CSC_LINK_B64: ${{ secrets.CSC_LINK_B64 }}
+        run: |
+          if [ -n "$CSC_LINK_B64" ]; then
+            echo "$CSC_LINK_B64" | base64 -d > "$RUNNER_TEMP/cert.pfx"
+            echo "CSC_LINK=$RUNNER_TEMP/cert.pfx" >> "$GITHUB_ENV"
+          fi
+        shell: bash
+
       - name: Package Desktop Artifacts (${{ matrix.platform }})
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REVELITH_UPDATE_URL: ${{ secrets.REVELITH_UPDATE_URL }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEYCHAIN_PROFILE: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
         run: |
           if [ "${{ matrix.platform }}" = "win" ]; then
             npm run dist:win
@@ -168,12 +188,16 @@ jobs:
             apps/shell/release/*.rpm
             apps/shell/release/*.dmg
             apps/shell/release/*.zip
+            apps/shell/release/*.yml
+            apps/shell/release/*.blockmap
             apps/shell/dist/*.exe
             apps/shell/dist/*.deb
             apps/shell/dist/*.AppImage
             apps/shell/dist/*.rpm
             apps/shell/dist/*.dmg
             apps/shell/dist/*.zip
+            apps/shell/dist/*.yml
+            apps/shell/dist/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

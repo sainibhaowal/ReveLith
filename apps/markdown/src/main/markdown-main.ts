@@ -27,10 +27,12 @@ import { createI18n, getUiLang } from '@revelith/i18n'
 import { atomicWriteFile } from './atomic-write'
 import { MARKDOWN_CHANNELS } from '../shared/ipc'
 import {
+  PNG_CAPTURE_SCALE,
   PNG_CAPTURE_WIDTH,
   computeCaptureSize,
   pngDefaultPath,
   sanitizeExportBaseName,
+  waitForStableValue,
 } from './png-export'
 import type {
   ExportDocxRequest,
@@ -729,19 +731,33 @@ function registerMarkdownIpc(): void {
         const htmlPath = join(workDir, 'print.html')
         await writeFile(htmlPath, request.html, 'utf8')
         await printWin.loadFile(htmlPath)
-        let measured: { w: number; h: number } | null = null
-        try {
-          measured = await printWin.webContents.executeJavaScript(
+        // zoom before measuring: later readings are in final-layout CSS px
+        printWin.webContents.setZoomFactor(PNG_CAPTURE_SCALE)
+        const readDoc = (): Promise<{ w: number; h: number }> =>
+          printWin.webContents.executeJavaScript(
             '({ w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight })',
-          )
-        } catch {
-          measured = null
-        }
-        const size = computeCaptureSize(measured?.w, measured?.h)
+          ) as Promise<{ w: number; h: number }>
+        const readHeight = (): Promise<number> => readDoc().then((m) => m.h, () => 0)
+        const first = await readDoc().catch(() => null)
+        let size = computeCaptureSize(first?.w, first?.h)
         printWin.setContentSize(size.width, size.height)
-        printWin.webContents.setZoomFactor(size.scale)
+        // the resize needs a reflow before capture, otherwise Chromium shoots
+        // the stale 800px viewport: settle, re-measure, then capture the full
+        // rect explicitly so tall pages are never clipped
+        const settledH = await waitForStableValue(readHeight)
+        const resized = computeCaptureSize(first?.w, settledH)
+        if (resized.height !== size.height || resized.width !== size.width) {
+          size = resized
+          printWin.setContentSize(size.width, size.height)
+          await waitForStableValue(readHeight)
+        }
         // capturePage forces a fresh frame even when occluded, unlike screenshots
-        const image = await printWin.webContents.capturePage()
+        const image = await printWin.webContents.capturePage({
+          x: 0,
+          y: 0,
+          width: size.width,
+          height: size.height,
+        })
         await writeFile(picked.filePath, image.toPNG())
         return { ok: true, path: picked.filePath }
       } catch (err) {

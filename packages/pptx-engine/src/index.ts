@@ -1,4 +1,4 @@
-﻿/**
+/**
  * pptx-engine top-level API.
  *
  * Phase 1 scope: openPptx (parsing) + savePptx's "no changes = byte identical"
@@ -16,6 +16,8 @@ import {
   patchElementStroke,
   patchElementXfrm,
   patchPictureSrcRect,
+  patchBodyPrVert,
+  patchElementEffects,
   patchSlideAdvanceTimeXml,
   patchSlideBackgroundXml,
   patchSlideHiddenXml,
@@ -27,6 +29,7 @@ import {
   readSlideTransitionXml,
   type GradientFillPatch,
   type SlideTransitionKind,
+  type ElementEffectsPatch,
 } from './generate'
 import {
   buildTableXml,
@@ -100,6 +103,8 @@ export {
   patchElementStroke,
   patchBodyPrAutofit,
   patchPictureSrcRect,
+  patchBodyPrVert,
+  patchElementEffects,
   patchSlideAdvanceTimeXml,
   patchSlideBackgroundXml,
   patchSlideHiddenXml,
@@ -111,6 +116,7 @@ export {
   generateXfrmXml,
   type GradientFillPatch,
   type SlideTransitionKind,
+  type ElementEffectsPatch,
 } from './generate'
 export {
   addElement,
@@ -1657,6 +1663,42 @@ export function editTableStyle(slide: Slide, elementId: string, edit: TableStyle
 }
 
 /**
+ * Table reading direction toggle (surgical <a:tblPr rtl> patch):
+ * sets or clears rtl="1" on the table's tblPr open tag, creating tblPr when
+ * absent, and mirrors the model flag. anchor.originalXml is patched directly;
+ * structureDirty=true triggers the save rebuild.
+ */
+export function setTableRtl(slide: Slide, elementId: string, rtl: boolean): boolean {
+  const el = slide.elements.find((e) => e.id === elementId)
+  if (!el || el.type !== 'table') return false
+  const table = el as TableElement
+  let xml = el.anchor.originalXml
+  const open = /<a:tblPr\b([^>]*?)(\/?)>/.exec(xml)
+  if (!open) {
+    // no tblPr: insert after <a:tbl>
+    if (!/<a:tbl\b[^>]*>/.test(xml)) return false
+    xml = xml.replace(/<a:tbl\b[^>]*>/, (m) =>
+      rtl ? `${m}<a:tblPr rtl="1"/>` : `${m}<a:tblPr/>`,
+    )
+  } else if (open[2] === '/') {
+    const attrs = `${open[1] ?? ''}`.replace(/\srtl="[^"]*"/, '')
+    const tag = rtl ? `<a:tblPr${attrs} rtl="1">` : `<a:tblPr${attrs}>`
+    xml = xml.slice(0, open.index) + tag + '</a:tblPr>' + xml.slice(open.index + open[0].length)
+  } else {
+    const tag = open[0].replace(/\srtl="[^"]*"/, '')
+    xml =
+      xml.slice(0, open.index) +
+      (rtl ? tag.replace(/^<a:tblPr/, '<a:tblPr rtl="1"') : tag) +
+      xml.slice(open.index + open[0].length)
+  }
+  el.anchor.originalXml = xml
+  if (rtl) table.rtl = true
+  else delete table.rtl
+  slide.structureDirty = true
+  return true
+}
+
+/**
  * Ensure ppt/tableStyles.xml contains the given custom style (injected the first
  * time a preset is applied). Creates the part when missing, adding the
  * [Content_Types].xml Override and presentation rels.
@@ -1698,6 +1740,107 @@ export function ensureTableStylePart(
       Buffer.from(presRels.replace('</Relationships>', rel + '</Relationships>'), 'utf8'),
     )
   }
+}
+
+/**
+ * Text-frame column direction toggle (surgical <a:bodyPr rtlCol> patch):
+ * sets or clears rtlCol="1" on the element's txBody bodyPr open tag, creating
+ * bodyPr when absent. anchor.originalXml is patched directly;
+ * structureDirty=true triggers the save rebuild. PowerPoint pairs this with
+ * RTL paragraphs for fully right-to-left text frames.
+ */
+export function setBodyPrRtlCol(slide: Slide, elementId: string, rtl: boolean): boolean {
+  const el = slide.elements.find((e) => e.id === elementId)
+  if (!el || (el.type !== 'text' && el.type !== 'shape')) return false
+  let xml = el.anchor.originalXml
+  const txBody = /<p:txBody>[\s\S]*?<\/p:txBody>/.exec(xml)
+  if (!txBody) return false
+  const body = txBody[0]
+  const open = /<a:bodyPr\b([^>]*?)(\/?)>/.exec(body)
+  let patched: string
+  if (!open) {
+    if (!/<p:txBody>/.test(body)) return false
+    patched = body.replace(
+      /<p:txBody>/,
+      rtl ? '<p:txBody><a:bodyPr rtlCol="1"/>' : '<p:txBody><a:bodyPr/>',
+    )
+  } else if (open[2] === '/') {
+    const attrs = `${open[1] ?? ''}`.replace(/\srtlCol="[^"]*"/, '')
+    const tag = rtl ? `<a:bodyPr${attrs} rtlCol="1">` : `<a:bodyPr${attrs}>`
+    patched = body.slice(0, open.index) + tag + '</a:bodyPr>' + body.slice(open.index + open[0].length)
+  } else {
+    const tag = open[0].replace(/\srtlCol="[^"]*"/, '')
+    patched =
+      body.slice(0, open.index) +
+      (rtl ? tag.replace(/^<a:bodyPr/, '<a:bodyPr rtlCol="1"') : tag) +
+      body.slice(open.index + open[0].length)
+  }
+  el.anchor.originalXml = xml.slice(0, txBody.index) + patched + xml.slice(txBody.index + body.length)
+  const text = (el as TextElement).text
+  if (text) {
+    if (rtl) text.rtlCol = true
+    else delete text.rtlCol
+  }
+  slide.structureDirty = true
+  return true
+}
+
+/**
+ * Set vertical text writing mode on a text/shape element (<a:bodyPr vert="...">).
+ * vert: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null
+ */
+export function setBodyPrVert(
+  slide: Slide,
+  elementId: string,
+  vert: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null,
+): boolean {
+  const el = slide.elements.find((e) => e.id === elementId)
+  if (!el || (el.type !== 'text' && el.type !== 'shape')) return false
+  const patchedXml = patchBodyPrVert(el.anchor.originalXml, vert)
+  el.anchor.originalXml = patchedXml
+  const text = (el as TextElement).text
+  if (text) {
+    if (vert && vert !== 'horz') {
+      text.vert = vert
+    } else {
+      delete text.vert
+    }
+  }
+  slide.structureDirty = true
+  return true
+}
+
+/**
+ * In-place patch of element effects (shadow, glow, soft edges, reflection) on shape/text/picture elements.
+ */
+export function setElementEffects(
+  slide: Slide,
+  elementId: string,
+  effects: ElementEffectsPatch,
+): boolean {
+  const el = slide.elements.find((e) => e.id === elementId)
+  if (!el || (el.type !== 'text' && el.type !== 'shape' && el.type !== 'picture')) return false
+  const patchedXml = patchElementEffects(el.anchor.originalXml, effects)
+  el.anchor.originalXml = patchedXml
+
+  if (effects.shadow !== undefined) {
+    if (effects.shadow) el.shadow = effects.shadow
+    else delete el.shadow
+  }
+  if (effects.glow !== undefined) {
+    if (effects.glow) el.glow = effects.glow
+    else delete el.glow
+  }
+  if (effects.softEdge !== undefined) {
+    if (effects.softEdge && effects.softEdge > 0) el.softEdge = effects.softEdge
+    else delete el.softEdge
+  }
+  if (effects.reflection !== undefined) {
+    if (effects.reflection) el.reflection = effects.reflection
+    else delete el.reflection
+  }
+  slide.structureDirty = true
+  return true
 }
 
 /**
@@ -2124,6 +2267,8 @@ export interface ParagraphFormatPatch {
   spaceBeforePt?: number
   spaceAfterPt?: number
   align?: Paragraph['align']
+  /** Base direction: true = rtl, false = ltr (clears rtl="1") */
+  direction?: 'ltr' | 'rtl'
   /** Indent level delta (multi-level list Tab/⇧Tab; clamp 0..8) */
   indentDelta?: 1 | -1
 }
@@ -2214,6 +2359,11 @@ function applyParagraphFormat(paragraphs: Paragraph[], patch: ParagraphFormatPat
       p.align = patch.align
       mark('align')
       dirty.align = true
+    }
+    if (patch.direction) {
+      p.rtl = patch.direction === 'rtl'
+      mark('rtl')
+      dirty.rtl = true
     }
     if (patch.indentDelta) {
       const lvl = Math.max(0, Math.min(8, (p.level ?? 0) + patch.indentDelta))
@@ -2769,6 +2919,8 @@ export interface ElementClipboardItem {
   xml: string
   /** rId referenced by the xml → absolute part path (External relationships keep the target verbatim) */
   rels: Array<{ rid: string; type: string; target: string; external?: boolean }>
+  /** Embedded media parts (part path → base64) for cross-deck and cross-window paste */
+  mediaParts?: Record<string, string>
 }
 
 const RID_ATTR_RE = /\br:(?:embed|link|id)="(rId\d+)"/g
@@ -2782,6 +2934,7 @@ export function copyElementData(
   const xml = patchedElementXml(el)
   const slideRels = opened.archive.readRels(slide.path)
   const rels: ElementClipboardItem['rels'] = []
+  const mediaParts: Record<string, string> = {}
   const seen = new Set<string>()
   for (const m of xml.matchAll(RID_ATTR_RE)) {
     const rid = m[1]!
@@ -2790,14 +2943,21 @@ export function copyElementData(
     const rel = slideRels.get(rid)
     if (!rel) continue
     const external = rel.targetMode === 'External'
+    const target = external ? rel.target : resolveTarget(slide.path, rel.target)
     rels.push({
       rid,
       type: rel.type,
-      target: external ? rel.target : resolveTarget(slide.path, rel.target),
+      target,
       ...(external ? { external: true } : {}),
     })
+    if (!external) {
+      const bytes = opened.archive.readBytes(target)
+      if (bytes) {
+        mediaParts[target] = Buffer.from(bytes).toString('base64')
+      }
+    }
   }
-  return { xml, rels }
+  return { xml, rels, ...(Object.keys(mediaParts).length ? { mediaParts } : {}) }
 }
 
 /** 'ppt/media/image1.png' → the relative Target '../media/image1.png' in the slide rels */
@@ -2820,6 +2980,17 @@ export function pasteElements(
   const { archive, deck } = opened
   const slide = deck.slides[slideIndex]
   if (!slide || !items.length) return null
+
+  // Ensure any media parts from cross-deck / cross-window copy are present in the target archive
+  for (const item of items) {
+    if (item.mediaParts) {
+      for (const [partPath, b64] of Object.entries(item.mediaParts)) {
+        if (!archive.entries.has(partPath)) {
+          archive.entries.set(partPath, Buffer.from(b64, 'base64'))
+        }
+      }
+    }
+  }
 
   const relsPath = relsPathFor(slide.path)
   let relsXml =

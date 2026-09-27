@@ -1855,6 +1855,21 @@ export const workbookExportPdfResultSchema = z.union([
 export type WorkbookExportPdfRequest = z.infer<typeof workbookExportPdfRequestSchema>
 export type WorkbookExportPdfResult = z.infer<typeof workbookExportPdfResultSchema>
 
+export const workbookExportCsvRequestSchema = z
+  .object({
+    fileName: z.string().min(1),
+    csv: z.string(),
+  })
+  .strict()
+
+export const workbookExportCsvResultSchema = z.union([
+  z.object({ canceled: z.literal(true) }).strict(),
+  z.object({ canceled: z.literal(false), path: z.string().min(1) }).strict(),
+])
+
+export type WorkbookExportCsvRequest = z.infer<typeof workbookExportCsvRequestSchema>
+export type WorkbookExportCsvResult = z.infer<typeof workbookExportCsvResultSchema>
+
 // ---- Chat attachments (local files fed to the agent via tools; same structure
 // as apps/docs and apps/slides) ----
 
@@ -1939,6 +1954,7 @@ export interface DesktopApi {
     baseName: string,
   ): Promise<{ renamed: boolean; name?: string }>
   exportPdf(request: WorkbookExportPdfRequest): Promise<WorkbookExportPdfResult>
+  exportCsv(request: WorkbookExportCsvRequest): Promise<WorkbookExportCsvResult>
   closeWorkbook(sessionId: string): Promise<void>
   openExternal(url: string): Promise<void>
   /// Application-menu File commands (Open/Save/Save As); returns unsubscribe.
@@ -1996,7 +2012,7 @@ export interface DesktopApi {
   generateImage(request: { prompt: string; aspectRatio?: string }): Promise<{ url?: string; error?: string }>
 }
 
-export type MenuAction = 'open' | 'save' | 'save-as' | 'export-pdf' | 'undo' | 'redo'
+export type MenuAction = 'open' | 'save' | 'save-as' | 'export-pdf' | 'export-csv' | 'undo' | 'redo'
 
 export interface WebSearchResult {
   results: Array<{ title: string; url: string; snippet: string }>

@@ -40,6 +40,7 @@ import type {
   StyleDisplay,
   StyleInfo,
   TableBorders,
+  TableFloating,
   TableStyleDisplay,
   TableCell,
   TableModel,
@@ -2459,6 +2460,7 @@ function buildRun(
     if (highlight && highlight !== 'none') run.highlight = highlight
     const shdFill = attrsOf(findChild(rPr, 'w:shd') ?? {})['w:fill']
     if (shdFill && shdFill !== 'auto') run.shading = shdFill
+    if (boolProp(rPr, 'w:vanish')) run.vanish = true
     const vertAlign = attrsOf(findChild(rPr, 'w:vertAlign') ?? {})['w:val']
     if (vertAlign === 'superscript' || vertAlign === 'subscript') run.vertAlign = vertAlign
     const em = attrsOf(findChild(rPr, 'w:em') ?? {})['w:val']
@@ -2574,8 +2576,53 @@ function tableSummary(xml: string): { label: string; previewText: string } {
  * inside their cell; the exact original bytes are what get saved, so lossiness
  * here only affects on-screen rendering.
  */
-function extractTable(xml: string, ctx: BuildContext): TableModel | undefined {
-  let parsed: XNode[]
+/** w:tblpPr → floating-table model; null when absent or unusable. */
+function tableFloatingOf(node: XNode | undefined): TableFloating | null {
+  if (!node) return null
+  const a = attrsOf(node)
+  const horizAnchor = a['w:horzAnchor']
+  const vertAnchor = a['w:vertAnchor']
+  if (
+    horizAnchor !== 'margin' && horizAnchor !== 'page' && horizAnchor !== 'text' &&
+    vertAnchor !== 'margin' && vertAnchor !== 'page' && vertAnchor !== 'text'
+  ) {
+    return null
+  }
+  const num = (v: string | undefined): number | undefined => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : undefined
+  }
+  const xSpec = a['w:tblpXSpec']
+  const ySpec = a['w:tblpYSpec']
+  const floating: TableFloating = {
+    horizAnchor:
+      horizAnchor === 'margin' || horizAnchor === 'page' || horizAnchor === 'text' ? horizAnchor : 'page',
+    vertAnchor:
+      vertAnchor === 'margin' || vertAnchor === 'page' || vertAnchor === 'text' ? vertAnchor : 'page',
+  }
+  const xTwips = num(a['w:tblpX'])
+  if (xTwips !== undefined) floating.xTwips = xTwips
+  if (xSpec === 'left' || xSpec === 'center' || xSpec === 'right' || xSpec === 'inside' || xSpec === 'outside') {
+    floating.xSpec = xSpec
+  }
+  const yTwips = num(a['w:tblpY'])
+  if (yTwips !== undefined) floating.yTwips = yTwips
+  if (ySpec === 'top' || ySpec === 'center' || ySpec === 'bottom' || ySpec === 'inside' || ySpec === 'outside') {
+    floating.ySpec = ySpec
+  }
+  for (const [attr, key] of [
+    ['w:topFromText', 'topFromTextTwips'],
+    ['w:bottomFromText', 'bottomFromTextTwips'],
+    ['w:leftFromText', 'leftFromTextTwips'],
+    ['w:rightFromText', 'rightFromTextTwips'],
+  ] as const) {
+    const n = num(a[attr])
+    if (n !== undefined && n >= 0) floating[key] = n
+  }
+  return floating
+}
+
+function extractTable(xml: string, ctx: BuildContext): TableModel | undefined {  let parsed: XNode[]
   try {
     parsed = xmlParser.parse(xml) as XNode[]
   } catch {
@@ -2712,6 +2759,12 @@ function extractTableModel(tbl: XNode, ctx: BuildContext): TableModel | undefine
   const tblStyle = attrsOf(findChild(findChild(tbl, 'w:tblPr') ?? {}, 'w:tblStyle') ?? {})['w:val']
   if (tblStyle) model.tblStyleId = tblStyle
   if (tblPrNode && boolProp(tblPrNode, 'w:bidiVisual')) model.bidiVisual = true
+  const floating = tableFloatingOf(findChild(tblPrNode ?? {}, 'w:tblpPr'))
+  if (floating) model.floating = floating
+  const tblOverlap = attrsOf(findChild(tblPrNode ?? {}, 'w:tblOverlap') ?? {})['w:val']
+  if (tblOverlap === 'never' || tblOverlap === 'overlap') {
+    model.floating = { ...(model.floating ?? { horizAnchor: 'page', vertAnchor: 'page' }), overlap: tblOverlap }
+  }
   if (rowHeightsTwips.some((h) => h !== null)) {
     model.rowHeightsTwips = rowHeightsTwips
     model.rowHeightRules = rowHeightRules

@@ -308,8 +308,22 @@ export function ExcelShell({
   const [showHeaderFooter, setShowHeaderFooter] = useState(false)
   /// Non-null while the Chart Design → Add Chart Element text prompt is open.
   const [chartTextTarget, setChartTextTarget] = useState<ChartTextTarget | null>(null)
+  const [ribbonCollapsed, setRibbonCollapsed] = useState(false)
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.closest('.ai-dock, .copilot-panel, .dialog-backdrop, .dialog-content, input, textarea'))
+      if (isInput) return
+
+      if ((event.metaKey || event.ctrlKey) && event.key === 'F1') {
+        event.preventDefault()
+        setRibbonCollapsed((c) => !c)
+      }
       if ((event.metaKey || event.ctrlKey) && event.key === '1') {
         event.preventDefault()
         setShowFormatCells(true)
@@ -390,17 +404,56 @@ export function ExcelShell({
             <button
               className={`${tab === activeTab ? 'active' : ''} ${tab === 'Chart Design' ? 'contextual' : ''}`}
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                setActiveTab(tab)
+                if (ribbonCollapsed) setRibbonCollapsed(false)
+              }}
+              onDoubleClick={() => setRibbonCollapsed((c) => !c)}
             >
               {t(TAB_LABEL[tab])}
             </button>
           ))}
           <span className="ribbon-tabs-spacer" />
+          <button
+            type="button"
+            className="ribbon-collapse-toggle"
+            title={ribbonCollapsed ? 'Expand Ribbon (Ctrl+F1)' : 'Collapse Ribbon (Ctrl+F1)'}
+            onClick={() => setRibbonCollapsed((c) => !c)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-dim, #888)',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 4,
+            }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                transform: ribbonCollapsed ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              <path d="M2 8L6 4L10 8" />
+            </svg>
+          </button>
           <span className="workbook-status" role="status" aria-live="polite">
             {statusMessage}
           </span>
         </nav>
 
+        {!ribbonCollapsed && (
         <Ribbon
           activeTab={activeTab}
           selectionFormat={selectionFormat}
@@ -441,6 +494,7 @@ export function ExcelShell({
           aiOpen={isCopilotOpen}
           onAiToggle={() => setIsCopilotOpen((open) => !open)}
         />
+        )}
       </header>
 
       {/* AI panel docks on the left, full height under the ribbon (unified with docs) */}
@@ -1858,6 +1912,14 @@ function Ribbon({
             >
               <ToolSymbol symbol="🗎" />
               {t('appFromTextCsv')}
+            </button>
+            <button
+              className="styles-row as-button"
+              data-tip={t('appExportCsvTitle')}
+              onClick={() => onCommand('export-csv')}
+            >
+              <ToolSymbol symbol="↷" />
+              {t('appExportCsv')}
             </button>
             <span className="styles-row reserved" data-tip={t('appNotAvailableYet')}>
               <ToolSymbol symbol="⟳" />

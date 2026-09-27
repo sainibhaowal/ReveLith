@@ -7,6 +7,8 @@ import type {
   RenameResult,
   ProjectHomeApi,
   ProjectSummaryEntry,
+  SearchPage,
+  SearchStats,
   TimelineEntryItem,
   UiLanguage,
 } from '../shared/home-api'
@@ -179,6 +181,21 @@ const homeApi: HomeApi = {
   },
   async setSettingsOverlay(open) {
     await ipcRenderer.invoke(HOME_CHANNELS.setSettingsOverlay, Boolean(open))
+  },
+  async searchFiles(query) {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.searchFiles, query)
+    return (result && typeof result === 'object'
+      ? result
+      : { results: [], total: 0, query: query?.query ?? '', tookMs: 0 }) as SearchPage
+  },
+  async getSearchStats() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getSearchStats)
+    return (result && typeof result === 'object'
+      ? result
+      : { totalFiles: 0, totalSize: 0, lastIndexed: null, isIndexing: false, progress: null }) as SearchStats
+  },
+  async reindexFiles(paths) {
+    await ipcRenderer.invoke(HOME_CHANNELS.reindexFiles, paths)
   },
 }
 

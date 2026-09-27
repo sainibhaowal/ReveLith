@@ -266,6 +266,33 @@ describe('buildChartSpaceXml comboBarLine (generate → parse round-trip)', () =
   })
 })
 
+describe('buildChartSpaceXml pieOfPie (generate → parse round-trip)', () => {
+  const OPTS = {
+    kind: 'pieOfPie' as const,
+    categories: ['Big', 'Medium', 'Small', 'Tiny'],
+    series: [{ name: 'Share', values: [55, 25, 12, 8] }],
+    offset: { x: 0, y: 0, cx: 100, cy: 100 },
+  }
+
+  it('writes an ofPieChart plot (pie sub-type, automatic split, 75% second pie)', () => {
+    const xml = buildChartSpaceXml(OPTS)
+    expect(xml).toContain('<c:ofPieChart>')
+    expect(xml).toContain('<c:ofPieType val="pie"/>')
+    expect(xml).toContain('<c:splitType val="auto"/>')
+    expect(xml).toContain('<c:secondPieSize val="75"/>')
+    expect(xml).not.toContain('<c:barChart>')
+    expect(xml).not.toContain('<c:pieChart>')
+  })
+
+  it('round-trip: parses back as pieOfPie with data and categories intact', () => {
+    const m = parseChartXml(buildChartSpaceXml(OPTS))!
+    expect(m.kind).toBe('pieOfPie')
+    expect(m.series).toHaveLength(1)
+    expect(m.series[0]!.values).toEqual([55, 25, 12, 8])
+    expect(m.categories).toEqual(['Big', 'Medium', 'Small', 'Tiny'])
+  })
+})
+
 describe('buildChartSpaceXml style options (generate → parse round-trip)', () => {
   const BASE = {
     kind: 'bar' as const,

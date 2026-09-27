@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Shared pieces of the slides ribbon: the Props contract, common constants,
  * small layout components, and the RibbonTabCtx bundle handed to the
  * extracted tab components.
@@ -350,6 +350,11 @@ export interface Props {
   curBulletChar: string | null
   /** Current paragraph alignment of the selection ('left' when unset; null = mixed/no text, nothing highlighted) */
   curAlign: 'left' | 'center' | 'right' | 'justify' | null
+  /** Current base direction of the selection ('ltr' covers unset; null = mixed/no text, nothing highlighted) */
+  curDir: 'ltr' | 'rtl' | null
+  /** Current text frame's bodyPr vert mode ('eaVert' | 'vert' | 'horz') */
+  curBodyPrVert?: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null
+  onBodyPrVertToggle?: (vert: 'eaVert' | 'vert' | 'horz') => void
   /** Editing: change the selection's font / set size (pt) */
   onFontFamily: (family: string) => void
   onFontSize: (pt: number) => void
@@ -383,6 +388,7 @@ export interface Props {
     spaceBeforePt?: number
     spaceAfterPt?: number
     indentDelta?: 1 | -1
+    direction?: 'ltr' | 'rtl'
   }) => void
   onInsertTable: (rows: number, cols: number) => void
   /** Current page's transition effect (for display) */
@@ -517,6 +523,12 @@ export interface Props {
   onPictureStroke?: (stroke: { color: string; widthPt: number; dash?: string } | null) => void
   /** Execute a table style operation */
   onEditTableStyle?: (op: Omit<EditTableStyleOp, 'slideIndex' | 'sourceId'>) => void
+  /** Toggle the selected table's reading direction */
+  onEditTableRtl?: (rtl: boolean) => void
+  /** Toggle the selected text frame's bodyPr rtlCol flag */
+  onBodyPrRtlColToggle?: (rtl: boolean) => void
+  /** Selected table's reading direction (toggle display) */
+  tableRtl?: boolean
   /** Selected table's header-row/banded-rows current state (toggle display) */
   tableStyleFlags?: { firstRow: boolean; bandRow: boolean } | null
   /** Cell being edited in the selected table; shading applies to just this cell */
@@ -552,6 +564,9 @@ export interface RibbonTabCtx extends Pick<
   | 'canPaste'
   | 'curBulletChar'
   | 'curAlign'
+  | 'curDir'
+  | 'curBodyPrVert'
+  | 'onBodyPrVertToggle'
   | 'curFontFamily'
   | 'curFontSizeMixed'
   | 'curFontSizePt'

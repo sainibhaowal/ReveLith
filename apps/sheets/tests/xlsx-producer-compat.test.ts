@@ -92,6 +92,22 @@ describe('workbook.xml producer compatibility (issue #10)', () => {
     const imported = await readBasicWorkbook(buffer)
     expect(Object.values(imported.sheetNamesById)).toEqual(['\u5E93\u5B58'])
   })
+
+  it('opens and reads workbooks with leading-slash ZIP entries', async () => {
+    const zip = new JSZip()
+    zip.file('/[Content_Types].xml', CONTENT_TYPES)
+    zip.file('/_rels/.rels', ROOT_RELS)
+    zip.file(
+      '/xl/workbook.xml',
+      '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    )
+    zip.file('/xl/_rels/workbook.xml.rels', WORKBOOK_RELS)
+    zip.file('/xl/worksheets/sheet1.xml', WORKSHEET)
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' })
+    const imported = await readBasicWorkbook(buffer)
+    expect(imported.snapshot.sheets).toHaveLength(1)
+    expect(imported.snapshot.sheets[0]?.name).toBe('Sheet1')
+  })
 })
 
 describe('parseSheetElements decoding', () => {

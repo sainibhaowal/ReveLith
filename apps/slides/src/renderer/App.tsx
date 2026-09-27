@@ -23,6 +23,7 @@ import type {
   InsertKind,
   LinkTargetOp,
   MasterPartItem,
+  MissingFontInfo,
   PasteSlideMode,
   SectionInfo,
   SlideComment,
@@ -265,6 +266,27 @@ function collectAligns(node: RenderNode, out: Set<ParaAlign>) {
   else if (node.type === 'group') for (const child of node.children) collectAligns(child, out)
 }
 
+type ParaDir = 'ltr' | 'rtl'
+
+function collectBodyDirs(
+  text: { lines: Array<{ align?: ParaAlign; paraStart?: boolean; rtl?: boolean }> } | undefined,
+  out: Set<ParaDir>,
+) {
+  if (!text) return
+  if (!text.lines.length) {
+    out.add('ltr')
+    return
+  }
+  for (const line of text.lines) if (line.paraStart) out.add(line.rtl ? 'rtl' : 'ltr')
+}
+
+/** Same collection across a node's text bodies (group children, all table cells). */
+function collectDirs(node: RenderNode, out: Set<ParaDir>) {
+  if (node.type === 'shape' || node.type === 'text') collectBodyDirs(node.text, out)
+  else if (node.type === 'table') for (const cell of node.cells) collectBodyDirs(cell.text, out)
+  else if (node.type === 'group') for (const child of node.children) collectDirs(child, out)
+}
+
 export function App() {
   const { lang } = useI18n()
   const [slides, setSlides] = useState<RenderSlide[]>([])
@@ -399,6 +421,8 @@ export function App() {
   const [customShows, setCustomShows] = useState<CustomShow[]>([])
   const [customShowDlgOpen, setCustomShowDlgOpen] = useState(false)
   const [findOpen, setFindOpen] = useState(false)
+  const [missingFonts, setMissingFonts] = useState<MissingFontInfo[]>([])
+  const [fontInstallTarget, setFontInstallTarget] = useState<MissingFontInfo | null>(null)
   /** Per-page dwell seconds awaiting confirmation after rehearsal (non-null shows the "save?" confirmation dialog) */
   const [pendingRehearse, setPendingRehearse] = useState<number[] | null>(null)
   const [showRuler, setShowRuler] = useState(false)
@@ -413,8 +437,8 @@ export function App() {
   const [notesText, setNotesText] = useState('')
   /** Unsaved notes draft (flushed before page switch/save) */
   const notesDraftRef = useRef<{ index: number; text: string } | null>(null)
-  /** Notes pane height (px): default 118, drag-resizable */
-  const [notesHeight, setNotesHeight] = useState(118)
+  /** Notes pane height (px): default 160, drag-resizable */
+  const [notesHeight, setNotesHeight] = useState(160)
   const notesDragRef = useRef<{ startY: number; startH: number } | null>(null)
   // ── Review tab: comments ────────────────────────────────────────────────
   const [comments, setComments] = useState<SlideComment[]>([])
@@ -588,6 +612,7 @@ export function App() {
       )
       // Fetch the layout list asynchronously (doesn't block opening)
       void window.slidesApi.getLayouts().then((r) => setLayoutsResult(r))
+      void window.slidesApi.getMissingFonts?.().then((mf) => setMissingFonts(mf ?? []))
     },
     [fitZoom],
   )
@@ -2112,6 +2137,10 @@ export function App() {
       styleActions.onEditTableStyle(ctxRef.current, op),
     [],
   )
+  const onEditTableRtl = useCallback(
+    (rtl: boolean) => styleActions.onEditTableRtl(ctxRef.current, rtl),
+    [],
+  )
   const onEditChart = useCallback(
     (op: Omit<EditChartOp, 'slideIndex' | 'sourceId'>) =>
       styleActions.onEditChart(ctxRef.current, op),
@@ -2215,6 +2244,25 @@ export function App() {
     }
     return found.size === 1 ? [...found][0]! : null
   }, [inTextEdit, selAlign, selectedIds, findNodeCtx])
+
+  // Current base direction for the ribbon LTR/RTL toggle: explicit rtl flags
+  // only ('ltr' covers unset + explicitly cleared); null = mixed/no text
+  const curDir = useMemo((): ParaDir | null => {
+    if (!selectedIds.length) return null
+    const found = new Set<ParaDir>()
+    for (const id of selectedIds) {
+      const node = findNodeCtx(id)?.node
+      if (node) collectDirs(node, found)
+    }
+    return found.size === 1 ? [...found][0]! : null
+  }, [selectedIds, findNodeCtx])
+
+  // Selected table's reading direction for the Table Design toggle
+  const tableRtl = useMemo(
+    () =>
+      selectedNode?.type === 'table' ? ((selectedNode as TableRenderNode).rtl ?? false) : false,
+    [selectedNode],
+  )
 
   // Refresh the action-module context every render so extracted actions never see stale state
   ctxRef.current = {
@@ -2393,6 +2441,18 @@ export function App() {
         onTextToggle={onTextToggle}
         onElementTextColor={onElementTextColor}
         onFindReplace={() => setFindOpen(true)}
+        curBodyPrVert={
+          selectedNode && (selectedNode.type === 'shape' || selectedNode.type === 'text')
+            ? (selectedNode as ShapeRenderNode).text?.vert ?? 'horz'
+            : null
+        }
+        onBodyPrVertToggle={(vert) => {
+          if (selectedNode) {
+            void window.slidesApi
+              .setVerticalText({ slideIndex: current, sourceId: selectedNode.sourceId, vert })
+              .then((r) => r && applySlide(current, r))
+          }
+        }}
         animByParagraph={animByParagraph}
         onToggleAnimByParagraph={() => setAnimByParagraph((v) => !v)}
         onSetLayout={(layoutPath) =>
@@ -2428,6 +2488,7 @@ export function App() {
         onParagraphFormat={onParagraphFormat}
         curBulletChar={curBulletChar}
         curAlign={curAlign}
+        curDir={curDir}
         curFontFamily={fontStatus?.family ?? null}
         curFontSizePt={fontStatus?.sizePt ?? null}
         curFontSizeMixed={fontStatus?.sizeMixed ?? false}
@@ -2534,6 +2595,8 @@ export function App() {
             .then((r) => r && applySlide(current, r))
         }}
         onEditTableStyle={(op) => void onEditTableStyle(op)}
+        onEditTableRtl={(rtl) => void onEditTableRtl(rtl)}
+        tableRtl={tableRtl}
         tableStyleFlags={tableStyleFlags}
         tableActiveCell={tableActiveCell}
         onEditChart={(op) => void onEditChart(op)}
@@ -2542,6 +2605,59 @@ export function App() {
         onFlip={(axis) => void flipSelected(axis)}
         canDistribute={selectedIds.length >= 3}
       />
+
+      {missingFonts.length > 0 && (
+        <div
+          className="slides-missing-fonts-banner"
+          style={{
+            background: '#fffbe6',
+            borderBottom: '1px solid #ffe58f',
+            padding: '6px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.85rem',
+            color: '#873800',
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>⚠️</span>
+            <span>
+              Missing font(s) detected: <strong>{missingFonts.map((f) => f.family).join(', ')}</strong> (substituting with {missingFonts.map((f) => f.substitute).join(', ')})
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="btn btn-sm"
+              style={{
+                background: '#1890ff',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 4,
+                padding: '3px 10px',
+                cursor: 'pointer',
+              }}
+              onClick={() => setFontInstallTarget(missingFonts[0]!)}
+            >
+              Install Font…
+            </button>
+            <button
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                color: '#873800',
+              }}
+              onClick={() => setMissingFonts([])}
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="app-main">
         {slide && viewMode !== 'reading' && viewMode !== 'sorter' && (
@@ -3199,6 +3315,16 @@ export function App() {
                         .setTextAnchor({ slideIndex: current, sourceId: id, anchor })
                         .then((r) => r && applySlide(current, r))
                     }
+                    onVerticalText={(id, vert) =>
+                      void window.slidesApi
+                        .setVerticalText({ slideIndex: current, sourceId: id, vert })
+                        .then((r) => r && applySlide(current, r))
+                    }
+                    onEffects={(id, patch) =>
+                      void window.slidesApi
+                        .setEffects({ slideIndex: current, sourceId: id, ...patch })
+                        .then((r) => r && applySlide(current, r))
+                    }
                     onStroke={(id, stroke) => void onStroke(id, stroke)}
                     onDelete={() => void deleteSelected()}
                     onCollapse={() => setShowFormat(false)}
@@ -3407,6 +3533,53 @@ export function App() {
               <button className="primary" onClick={() => void saveRehearseTimings()}>
                 {t('appRehearseSave')}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fontInstallTarget && (
+        <div className="modal-backdrop" onClick={() => setFontInstallTarget(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <h3>Install Font: {fontInstallTarget.family}</h3>
+            <p style={{ margin: '8px 0', fontSize: '0.88rem', color: '#666' }}>
+              This presentation uses <strong>{fontInstallTarget.family}</strong> ({fontInstallTarget.occurrences} occurrence(s)).
+              {fontInstallTarget.substitute ? ` Currently falling back to ${fontInstallTarget.substitute}.` : ''}
+            </p>
+            <p style={{ margin: '8px 0', fontSize: '0.85rem' }}>
+              Select a font file (<code>.ttf</code>, <code>.otf</code>, or <code>.woff2</code>) to install it directly into your OS user fonts:
+            </p>
+            <div style={{ margin: '12px 0' }}>
+              <input
+                type="file"
+                accept=".ttf,.otf,.woff2"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const buf = await file.arrayBuffer()
+                  const bytes = new Uint8Array(buf)
+                  let binary = ''
+                  for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]!)
+                  }
+                  const base64 = btoa(binary)
+                  const res = await window.slidesApi.installFont({
+                    family: fontInstallTarget.family,
+                    fileName: file.name,
+                    fileBytesBase64: base64,
+                  })
+                  if (res && res.success) {
+                    const mf = await window.slidesApi.getMissingFonts()
+                    setMissingFonts(mf ?? [])
+                    setFontInstallTarget(null)
+                  } else {
+                    alert('Could not install font file.')
+                  }
+                }}
+              />
+            </div>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setFontInstallTarget(null)}>{t('appSettingsCancel')}</button>
             </div>
           </div>
         </div>

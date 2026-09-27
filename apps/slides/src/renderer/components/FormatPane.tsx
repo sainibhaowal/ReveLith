@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Format pane (a trimmed-down PowerPoint Format Pane): position/size/rotation/fill of the
  * selected element. Shares the right dock area with the AI panel, mutually exclusive. Inputs
  * commit on blur/Enter; external changes (dragging etc.) sync default values by remounting
@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { PictureRenderNode, RenderNode, ShapeRenderNode } from '@revelith/pptx-render'
 import type { GradientFillSpec, LinkTargetOp } from '../../shared/ipc'
-import { useI18n } from '../i18n/locale'
+import { useI18n, getLang } from '../i18n/locale'
 import { armColorInput } from '../color-input'
 import { IconSidebarCollapse } from './icons'
 
@@ -22,6 +22,21 @@ interface Props {
   onImageFill?: (sourceId: string) => void
   /** Text box vertical alignment */
   onTextAnchor?: (sourceId: string, anchor: 'top' | 'middle' | 'bottom') => void
+  /** Text direction: horizontal or vertical */
+  onVerticalText?: (
+    sourceId: string,
+    vert: 'horz' | 'vert' | 'eaVert' | 'vert270' | 'wordArtVert',
+  ) => void
+  /** Element effects (shadow, glow, softEdge, reflection) */
+  onEffects?: (
+    sourceId: string,
+    effects: {
+      shadow?: { color?: string; blurRad?: number; dist?: number; dirDeg?: number } | null
+      glow?: { color?: string; radius?: number } | null
+      softEdge?: number | null
+      reflection?: { blurRad?: number; stA?: number; endA?: number; dist?: number; dirDeg?: number } | null
+    },
+  ) => void
   onStroke: (
     sourceId: string,
     stroke: { color: string; widthPt: number; dash?: string } | null,
@@ -74,6 +89,8 @@ export function FormatPane({
   onFill,
   onImageFill,
   onTextAnchor,
+  onVerticalText,
+  onEffects,
   onStroke,
   onDelete,
   onCollapse,
@@ -86,6 +103,13 @@ export function FormatPane({
   onChartPointColor,
 }: Props) {
   const { t } = useI18n()
+  const effectsTimer = useRef<number | null>(null)
+  const [effectsOpen, setEffectsOpen] = useState(true)
+  const [shadowExpanded, setShadowExpanded] = useState(false)
+  const [reflectionExpanded, setReflectionExpanded] = useState(false)
+  const [glowExpanded, setGlowExpanded] = useState(false)
+  const [softEdgeExpanded, setSoftEdgeExpanded] = useState(false)
+
   // The color picker fires change repeatedly while dragging; debounce before IPC
   const fillTimer = useRef<number | null>(null)
   const debouncedFill = (sourceId: string, value: string) => {
@@ -336,6 +360,29 @@ export function FormatPane({
                   </div>
                 </>
               )}
+              {shape.text && onVerticalText && (
+                <>
+                  <div className="fp-section">{getLang() === 'zh' ? '文字方向' : 'Text Direction'}</div>
+                  <div className="fp-row">
+                    {(
+                      [
+                        ['horz', getLang() === 'zh' ? '水平' : 'Horizontal'],
+                        ['eaVert', getLang() === 'zh' ? '竖排' : 'Vertical'],
+                        ['vert', getLang() === 'zh' ? '旋转90°' : 'Rotate 90°'],
+                        ['vert270', getLang() === 'zh' ? '旋转270°' : 'Rotate 270°'],
+                      ] as const
+                    ).map(([v, label]) => (
+                      <button
+                        key={v}
+                        className={`fp-btn ${(shape.text?.vert ?? 'horz') === v ? 'active' : ''}`}
+                        onClick={() => onVerticalText(node.sourceId, v)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="fp-section">{t('paneFormatGradient')}</div>
               <div className="fp-row">
                 <input
@@ -440,6 +487,300 @@ export function FormatPane({
                   </select>
                 </label>
               </div>
+            </>
+          )}
+
+          {(shape || pic) && onEffects && (
+            <>
+              <div
+                className="fp-section fp-section-toggle"
+                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                onClick={() => setEffectsOpen((v) => !v)}
+              >
+                <span>{getLang() === 'zh' ? '效果' : 'Effects'}</span>
+                <span>{effectsOpen ? '▾' : '▸'}</span>
+              </div>
+              {effectsOpen && (
+                <div className="fp-effects-subsections" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Shadow */}
+                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                    <div
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      onClick={() => setShadowExpanded((v) => !v)}
+                    >
+                      <span>{getLang() === 'zh' ? '阴影 (Shadow)' : 'Shadow'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={!!(shape ?? pic)?.shadow}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              onEffects(node.sourceId, { shadow: { color: 'rgba(0,0,0,0.5)', blurRad: 50800, dist: 38100, dirDeg: 54 } })
+                            } else {
+                              onEffects(node.sourceId, { shadow: null })
+                            }
+                          }}
+                        />
+                        <span>{shadowExpanded ? '▾' : '▸'}</span>
+                      </div>
+                    </div>
+                    {shadowExpanded && (shape ?? pic)?.shadow && (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="fp-row">
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '颜色' : 'Color'}</span>
+                            <input
+                              type="color"
+                              className="fp-color"
+                              defaultValue={toHex6((shape ?? pic)?.shadow?.color ?? '#000000')}
+                              onChange={(e) => {
+                                const cur = (shape ?? pic)?.shadow
+                                onEffects(node.sourceId, {
+                                  shadow: {
+                                    color: e.target.value,
+                                    blurRad: cur ? Math.round(cur.blurPx * 9525) : 50800,
+                                    dist: cur ? Math.round(Math.hypot(cur.offsetX, cur.offsetY) * 9525) : 38100,
+                                  },
+                                })
+                              }}
+                            />
+                          </label>
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '模糊 (pt)' : 'Blur (pt)'}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              defaultValue={Math.round(((shape ?? pic)?.shadow?.blurPx ?? 4) * 0.75)}
+                              onChange={(e) => {
+                                const pt = Number(e.target.value) || 0
+                                onEffects(node.sourceId, {
+                                  shadow: {
+                                    color: (shape ?? pic)?.shadow?.color ?? '#000000',
+                                    blurRad: Math.round(pt * 12700),
+                                  },
+                                })
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <div className="fp-row">
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '距离 (pt)' : 'Distance (pt)'}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              defaultValue={Math.round(Math.hypot((shape ?? pic)?.shadow?.offsetX ?? 3, (shape ?? pic)?.shadow?.offsetY ?? 3) * 0.75)}
+                              onChange={(e) => {
+                                const pt = Number(e.target.value) || 0
+                                onEffects(node.sourceId, {
+                                  shadow: {
+                                    color: (shape ?? pic)?.shadow?.color ?? '#000000',
+                                    dist: Math.round(pt * 12700),
+                                  },
+                                })
+                              }}
+                            />
+                          </label>
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '角度 (°)' : 'Angle (°)'}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={360}
+                              step={5}
+                              defaultValue={Math.round(((Math.atan2((shape ?? pic)?.shadow?.offsetY ?? 3, (shape ?? pic)?.shadow?.offsetX ?? 3) * 180) / Math.PI + 360) % 360)}
+                              onChange={(e) => {
+                                const deg = Number(e.target.value) || 0
+                                onEffects(node.sourceId, {
+                                  shadow: {
+                                    color: (shape ?? pic)?.shadow?.color ?? '#000000',
+                                    dirDeg: deg,
+                                  },
+                                })
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Reflection */}
+                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                    <div
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      onClick={() => setReflectionExpanded((v) => !v)}
+                    >
+                      <span>{getLang() === 'zh' ? '倒影 (Reflection)' : 'Reflection'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={!!(shape ?? pic)?.reflection}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              onEffects(node.sourceId, { reflection: { blurRad: 6350, dist: 25400, stA: 50000, endA: 300 } })
+                            } else {
+                              onEffects(node.sourceId, { reflection: null })
+                            }
+                          }}
+                        />
+                        <span>{reflectionExpanded ? '▾' : '▸'}</span>
+                      </div>
+                    </div>
+                    {reflectionExpanded && (shape ?? pic)?.reflection && (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="fp-row">
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '模糊 (pt)' : 'Blur (pt)'}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={50}
+                              step={0.5}
+                              defaultValue={Math.round(((shape ?? pic)?.reflection?.blurPx ?? 1) * 0.75)}
+                              onChange={(e) => {
+                                const pt = Number(e.target.value) || 0
+                                onEffects(node.sourceId, { reflection: { blurRad: Math.round(pt * 12700) } })
+                              }}
+                            />
+                          </label>
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '距离 (pt)' : 'Distance (pt)'}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              defaultValue={Math.round(((shape ?? pic)?.reflection?.distancePx ?? 2) * 0.75)}
+                              onChange={(e) => {
+                                const pt = Number(e.target.value) || 0
+                                onEffects(node.sourceId, { reflection: { dist: Math.round(pt * 12700) } })
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Glow */}
+                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                    <div
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      onClick={() => setGlowExpanded((v) => !v)}
+                    >
+                      <span>{getLang() === 'zh' ? '发光 (Glow)' : 'Glow'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={!!(shape ?? pic)?.glow}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              onEffects(node.sourceId, { glow: { color: '#ffff00', radius: 101600 } })
+                            } else {
+                              onEffects(node.sourceId, { glow: null })
+                            }
+                          }}
+                        />
+                        <span>{glowExpanded ? '▾' : '▸'}</span>
+                      </div>
+                    </div>
+                    {glowExpanded && (shape ?? pic)?.glow && (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="fp-row">
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '颜色' : 'Color'}</span>
+                            <input
+                              type="color"
+                              className="fp-color"
+                              defaultValue={toHex6((shape ?? pic)?.glow?.color ?? '#ffcc00')}
+                              onChange={(e) => {
+                                onEffects(node.sourceId, {
+                                  glow: {
+                                    color: e.target.value,
+                                    radius: Math.round(((shape ?? pic)?.glow?.blurPx ?? 8) * 0.75 * 12700),
+                                  },
+                                })
+                              }}
+                            />
+                          </label>
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '大小 (pt)' : 'Size (pt)'}</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={150}
+                              step={1}
+                              defaultValue={Math.round(((shape ?? pic)?.glow?.blurPx ?? 8) * 0.75)}
+                              onChange={(e) => {
+                                const pt = Number(e.target.value) || 8
+                                onEffects(node.sourceId, {
+                                  glow: {
+                                    color: (shape ?? pic)?.glow?.color ?? '#ffcc00',
+                                    radius: Math.round(pt * 12700),
+                                  },
+                                })
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Soft Edges */}
+                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                    <div
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      onClick={() => setSoftEdgeExpanded((v) => !v)}
+                    >
+                      <span>{getLang() === 'zh' ? '柔化边缘 (Soft Edges)' : 'Soft Edges'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={((shape ?? pic)?.softEdgePx ?? 0) > 0}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              onEffects(node.sourceId, { softEdge: 63500 }) // 5 pt
+                            } else {
+                              onEffects(node.sourceId, { softEdge: null })
+                            }
+                          }}
+                        />
+                        <span>{softEdgeExpanded ? '▾' : '▸'}</span>
+                      </div>
+                    </div>
+                    {softEdgeExpanded && ((shape ?? pic)?.softEdgePx ?? 0) > 0 && (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="fp-row">
+                          <label className="fp-field" style={{ flex: 1 }}>
+                            <span>{getLang() === 'zh' ? '大小 (pt)' : 'Size (pt)'}</span>
+                            <select
+                              value={Math.round(((shape ?? pic)?.softEdgePx ?? 0) * 0.75)}
+                              onChange={(e) => {
+                                const pt = Number(e.target.value) || 0
+                                onEffects(node.sourceId, { softEdge: pt > 0 ? Math.round(pt * 12700) : null })
+                              }}
+                            >
+                              {[1, 2.5, 5, 10, 25, 50].map((pt) => (
+                                <option key={pt} value={pt}>{pt} pt</option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
 

@@ -34,11 +34,11 @@ export interface Table {
 }
 
 export interface ExtractionOptions {
-  mergeCrossPageTables?: boolean
-  detectLabelValueGrids?: boolean
-  detectRuleLessBands?: boolean
-  minConfidence?: number
-  language?: string
+  mergeCrossPageTables?: boolean | undefined
+  detectLabelValueGrids?: boolean | undefined
+  detectRuleLessBands?: boolean | undefined
+  minConfidence?: number | undefined
+  language?: string | undefined
 }
 
 /**
@@ -156,8 +156,10 @@ function detectRuleLessBandStructure(table: Table): boolean {
     const prevRow = table.rows[i - 1]
     const currRow = table.rows[i]
     
-    if (prevRow.length > 0 && currRow.length > 0) {
-      const gap = currRow[0].bbox.y - (prevRow[0].bbox.y + prevRow[0].bbox.height)
+    const prevCell = prevRow?.[0]
+    const currCell = currRow?.[0]
+    if (prevCell && currCell) {
+      const gap = currCell.bbox.y - (prevCell.bbox.y + prevCell.bbox.height)
       rowGaps.push(gap)
     }
   }

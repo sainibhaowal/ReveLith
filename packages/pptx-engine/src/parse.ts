@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Parse one slide → Slide element tree.
  *
  * Semantic parsing uses fast-xml-parser; byte-fidelity anchors come from scanSlide
@@ -272,6 +272,8 @@ function parseSpShape(
   let stroke = parseStroke(spPr, ctx)
   let shadow = parseShadow(spPr, ctx)
   let glow = parseGlow(spPr, ctx)
+  let softEdge = parseSoftEdge(spPr)
+  let reflection = parseReflection(spPr)
 
   // <p:style> theme style reference fallback: when spPr has no explicit value, take the
   // fmtScheme template by idx (fillStyleLst/lnStyleLst/effectStyleLst) with phClr
@@ -328,6 +330,8 @@ function parseSpShape(
     ...(stroke ? { stroke } : {}),
     ...(shadow ? { shadow } : {}),
     ...(glow ? { glow } : {}),
+    ...(softEdge ? { softEdge } : {}),
+    ...(reflection ? { reflection } : {}),
     text,
   }
   return el
@@ -474,6 +478,23 @@ function parseShadow(spPr: any, ctx: ParseContext): ShadowEffect | undefined {
     dist: intOr(shdw['@_dist'], 0),
     dirDeg: intOr(shdw['@_dir'], 0) / 60000,
   }
+}
+
+function parseReflection(spPr: any): import('./types').ReflectionEffect | undefined {
+  const refl = spPr?.['a:effectLst']?.['a:reflection']
+  if (!refl || typeof refl !== 'object') return undefined
+  return {
+    blurRad: intOr(refl['@_blurRad'], 0),
+    stA: intOr(refl['@_stA'], 50000),
+    endA: intOr(refl['@_endA'], 300),
+    dist: intOr(refl['@_dist'], 0),
+    dirDeg: intOr(refl['@_dir'], 5400000) / 60000,
+  }
+}
+
+function parseSoftEdge(spPr: any): number | undefined {
+  const rad = spPr?.['a:effectLst']?.['a:softEdge']?.['@_rad']
+  return rad != null ? intOr(rad, 0) : undefined
 }
 
 /** <a:avLst> adjust values: <a:gd name="adj" fmla="val 50000"/> → { adj: 50000 }. */
@@ -717,6 +738,7 @@ function parsePicture(node: any, anchor: ByteAnchor, ctx: ParseContext): Picture
       : {}),
     ...(opacity != null && opacity < 1 ? { opacity } : {}),
     ...(softEdgeRad != null ? { softEdge: intOr(softEdgeRad, 0) } : {}),
+    ...(parseReflection(spPr) ? { reflection: parseReflection(spPr) } : {}),
     ...(media ? { media } : {}),
     ...(stroke ? { stroke } : {}),
     ...(shadow ? { shadow } : {}),
@@ -896,6 +918,7 @@ function parseTable(
     rowHeights,
     rows,
     styleFlags: { firstRow: flags.firstRow, bandRow: flags.bandRow },
+    ...(tblPr['@_rtl'] === '1' || tblPr['@_rtl'] === 'true' ? { rtl: true } : {}),
   }
 }
 
@@ -1100,6 +1123,7 @@ function parseTextBody(txBody: any, ctx: ParseContext, phChain: TextStyleLevels[
     vertRaw === 'eaVert' || vertRaw === 'vert' || vertRaw === 'vert270' || vertRaw === 'wordArtVert'
       ? vertRaw
       : undefined
+  const rtlColRaw = bodyPr['@_rtlCol']
 
   return {
     paragraphs,
@@ -1115,6 +1139,7 @@ function parseTextBody(txBody: any, ctx: ParseContext, phChain: TextStyleLevels[
     ...(lnSpcReduction != null ? { lnSpcReduction } : {}),
     wrap: bodyPr['@_wrap'] !== 'none',
     ...(vert ? { vert } : {}),
+    ...(rtlColRaw === '1' || rtlColRaw === 'true' ? { rtlCol: true } : {}),
   }
 }
 
@@ -1208,6 +1233,7 @@ function parseParagraph(
   // Record which properties come from an explicit pPr (the rebuild path writes only explicit items; inherited values are not baked in)
   const pPrExplicit: NonNullable<Paragraph['pPrExplicit']> = {
     ...(pPr['@_algn'] ? { align: true } : {}),
+    ...(pPr['@_rtl'] != null ? { rtl: true } : {}),
     ...(lnSpcNode ? { lnSpc: true } : {}),
     ...(befNode ? { spcBef: true } : {}),
     ...(aftNode ? { spcAft: true } : {}),
@@ -1219,6 +1245,9 @@ function parseParagraph(
   return {
     runs,
     align: pPr['@_algn'] ? alignMap[pPr['@_algn']] : dflt?.align,
+    ...(pPr['@_rtl'] != null
+      ? { rtl: pPr['@_rtl'] === '1' || pPr['@_rtl'] === 'true' }
+      : {}),
     level,
     pPrExplicit,
     ...(lineHeight != null ? { lineHeight } : {}),
@@ -1261,6 +1290,8 @@ function parseRun(r: any, ctx: ParseContext, dflt?: LevelTextStyle): TextRun {
   )
   const hlink = rPr['a:hlinkClick']
   const hlinkTarget = hlink?.['@_r:id'] ? ctx.hlinkRels?.get(String(hlink['@_r:id'])) : undefined
+  // Complex-script run marker (<a:rtl/>): written back verbatim on rebuild
+  const runRtl = rPr['a:rtl'] !== undefined
   const fill = rPr['a:solidFill']
   // PowerPoint styles linked runs with the theme hlink color unless the run has an explicit fill
   const color =
@@ -1303,6 +1334,7 @@ function parseRun(r: any, ctx: ParseContext, dflt?: LevelTextStyle): TextRun {
     text,
     bold: bAttr != null ? bAttr === '1' || bAttr === 'true' : !!dflt?.bold,
     italic: iAttr != null ? iAttr === '1' || iAttr === 'true' : !!dflt?.italic,
+    ...(runRtl ? { rtl: true } : {}),
     underline: (uAttr !== undefined && uAttr !== 'none') || linkUnderline,
     ...(uAttr !== undefined && uAttr !== 'none' ? { underlineStyle: String(uAttr) } : {}),
     ...(linkUnderline ? { underlineImplicit: true } : {}),

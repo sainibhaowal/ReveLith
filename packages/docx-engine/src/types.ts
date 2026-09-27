@@ -12,7 +12,7 @@ export interface Run {
   text: string
   /**
    * Original <w:rPr> slice (serialized from the parse tree). Written back via
-   * mergeRPrModel when the run is rebuilt: unmodeled properties (caps/vanish/dstrike/
+   * mergeRPrModel when the run is rebuilt: unmodeled properties (caps/dstrike/
    * bdr/double underline/themeColor/all four rFonts slots…) are kept verbatim, and
    * modeled fields are only rebuilt when they differ from the raw encoding (i.e. edited).
    */
@@ -49,6 +49,8 @@ export interface Run {
   cs?: boolean
   /** superscript / subscript (w:vertAlign) */
   vertAlign?: 'superscript' | 'subscript'
+  /** hidden text (w:vanish): hidden in standard view, shown with marks visible */
+  vanish?: boolean
   /** East Asian emphasis mark (w:em). Display only; saving is kept faithful by rawRPr */
   em?: 'dot' | 'comma' | 'circle' | 'underDot'
   /** hyperlink info; rId references an existing relationship in the original docx */
@@ -625,6 +627,27 @@ export interface TableModel {
   tblStyleId?: string
   /** RTL table (tblPr w:bidiVisual): columns display right to left */
   bidiVisual?: boolean
+  /** Floating table positioning (w:tblpPr); absent = inline table */
+  floating?: TableFloating
+}
+
+/** Floating table positioning (w:tblpPr + w:tblOverlap); absent = inline table. */
+export interface TableFloating {
+  horizAnchor: 'margin' | 'page' | 'text'
+  /** absolute offset (twips); absent when xSpec positions relatively */
+  xTwips?: number
+  xSpec?: 'left' | 'center' | 'right' | 'inside' | 'outside'
+  vertAnchor: 'margin' | 'page' | 'text'
+  /** absolute offset (twips); absent when ySpec positions relatively */
+  yTwips?: number
+  ySpec?: 'top' | 'center' | 'bottom' | 'inside' | 'outside'
+  /** allow overlap with other floating objects (w:tblOverlap) */
+  overlap?: 'never' | 'overlap'
+  /** exclusion margins (twips) */
+  topFromTextTwips?: number
+  bottomFromTextTwips?: number
+  leftFromTextTwips?: number
+  rightFromTextTwips?: number
 }
 
 /**

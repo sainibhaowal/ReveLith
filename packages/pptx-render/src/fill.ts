@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 2.2 Fill / stroke resolution : converts pptx-engine Fill/Stroke (final values after
  * inheritance) into RenderFill/RenderStroke the render layer can consume directly
  * (px line width, angle in degrees, image dataUrl).
@@ -81,6 +81,20 @@ export function resolveShadow(
     blurPx: emuToPx(shadow.blurRad, vp.scale),
     offsetX: Math.cos(rad) * distPx,
     offsetY: Math.sin(rad) * distPx,
+  }
+}
+
+export function resolveReflection(
+  refl: import('@revelith/pptx-engine').ReflectionEffect | undefined,
+  vp: Viewport,
+): import('./render-tree').RenderReflection | undefined {
+  if (!refl) return undefined
+  return {
+    blurPx: emuToPx(refl.blurRad ?? 0, vp.scale),
+    startAlpha: (refl.stA ?? 50000) / 100000,
+    endAlpha: (refl.endA ?? 300) / 100000,
+    distancePx: emuToPx(refl.dist ?? 0, vp.scale),
+    directionDeg: refl.dirDeg ?? 90,
   }
 }
 

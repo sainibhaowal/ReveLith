@@ -1609,6 +1609,34 @@ export function generateTableModelXml(model: TableModel, originalTableXml?: stri
       }
     }
   }
+  // Floating position (w:tblpPr): refresh from the model when the table was
+  // rebuilt and carries floating state; untouched tables keep original bytes.
+  if (model.floating) {
+    tblPr = tblPr.replace(/<w:tblpPr(?:\s[^>]*)?\/>/, '')
+    const f = model.floating
+    const attrs: string[] = []
+    if (f.leftFromTextTwips !== undefined) attrs.push(`w:leftFromText="${f.leftFromTextTwips}"`)
+    if (f.rightFromTextTwips !== undefined) attrs.push(`w:rightFromText="${f.rightFromTextTwips}"`)
+    if (f.topFromTextTwips !== undefined) attrs.push(`w:topFromText="${f.topFromTextTwips}"`)
+    if (f.bottomFromTextTwips !== undefined) attrs.push(`w:bottomFromText="${f.bottomFromTextTwips}"`)
+    attrs.push(`w:horzAnchor="${f.horizAnchor}"`)
+    if (f.xSpec !== undefined) attrs.push(`w:tblpXSpec="${f.xSpec}"`)
+    if (f.xTwips !== undefined) attrs.push(`w:tblpX="${f.xTwips}"`)
+    attrs.push(`w:vertAnchor="${f.vertAnchor}"`)
+    if (f.ySpec !== undefined) attrs.push(`w:tblpYSpec="${f.ySpec}"`)
+    if (f.yTwips !== undefined) attrs.push(`w:tblpY="${f.yTwips}"`)
+    const tag = `<w:tblpPr ${attrs.filter(Boolean).join(' ')}/>`
+    tblPr = /<w:tblStyle[^>]*\/>/.test(tblPr)
+      ? tblPr.replace(/(<w:tblStyle[^>]*\/>)/, `$1${tag}`)
+      : tblPr.replace(/(<w:tblPr(?:\s[^>]*)?>)/, `$1${tag}`)
+  }
+  if (model.floating?.overlap !== undefined) {
+    tblPr = tblPr.replace(/<w:tblOverlap(?:\s[^>]*)?\/>/, '')
+    const tag = `<w:tblOverlap w:val="${model.floating.overlap}"/>`
+    tblPr = /<w:tblStyle[^>]*\/>/.test(tblPr)
+      ? tblPr.replace(/(<w:tblStyle[^>]*\/>)/, `$1${tag}`)
+      : tblPr.replace(/(<w:tblPr(?:\s[^>]*)?>)/, `$1${tag}`)
+  }
   return `<w:tbl>${tblPr}${grid}${rows}</w:tbl>`
 }
 
@@ -1975,6 +2003,7 @@ const RUN_MANAGED_GROUPS: Array<{ key: string; tags: string[] }> = [
   { key: 'underline', tags: ['w:u'] },
   { key: 'shading', tags: ['w:shd'] },
   { key: 'vertAlign', tags: ['w:vertAlign'] },
+  { key: 'vanish', tags: ['w:vanish'] },
   { key: 'rPrChange', tags: ['w:rPrChange'] },
 ]
 
@@ -2090,6 +2119,7 @@ function modelRPrChildren(run: Run, insideLink: boolean): PPrChild[] {
   }
   if (run.vertAlign)
     out.push({ name: 'w:vertAlign', xml: `<w:vertAlign w:val="${run.vertAlign}"/>` })
+  if (run.vanish) out.push({ name: 'w:vanish', xml: '<w:vanish/>' })
   const rPrChange = revisionRPrChangeXml(run)
   if (rPrChange) out.push({ name: 'w:rPrChange', xml: rPrChange })
   return out
@@ -2099,7 +2129,7 @@ function modelRPrChildren(run: Run, insideLink: boolean): PPrChild[] {
  * Merge the raw rPr slice with the run model: groups whose model value matches the raw
  * encoding keep their original bytes (double underline/themeColor/all four rFonts slots
  * do not degrade); mismatched (edited) groups are rebuilt from the model; children the
- * model does not cover (caps/vanish/dstrike/bdr/shd/spacing/lang…) are always kept.
+ * model does not cover (caps/dstrike/bdr/spacing/lang…) are always kept.
  */
 export function mergeRPrModel(rawRPr: string, run: Run, insideLink: boolean): string {
   const open = /^<w:rPr(?: [^>]*)?>/.exec(rawRPr)?.[0]
@@ -2173,6 +2203,8 @@ export function mergeRPrModel(rawRPr: string, run: Run, insideLink: boolean): st
         const modeled = raw === 'superscript' || raw === 'subscript' ? raw : undefined
         return modeled === run.vertAlign
       }
+      case 'vanish':
+        return rawBool(rawOf('w:vanish')) === !!run.vanish
       case 'rPrChange':
         return !!rawOf('w:rPrChange') === !!run.rPrChange
       default:

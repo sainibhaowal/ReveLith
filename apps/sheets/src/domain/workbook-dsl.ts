@@ -1,4 +1,4 @@
-﻿import { z } from 'zod'
+import { z } from 'zod'
 import { ADDABLE_SHAPE_TYPES } from '../shared/shape-types'
 import { columnIndex, columnLabel, formatAddress, parseRange, rangeCellCount } from './cell-address'
 import { computeSortChanges } from './sort-range'
@@ -690,6 +690,20 @@ const sortRangeSchema = z.object({
   hasHeader: z.boolean().optional(),
 })
 
+const copyRangeSchema = z.object({
+  op: z.literal('copy_range'),
+  sheetId: z.string().min(1),
+  sourceRange: cellRangeSchema,
+  targetStart: cellAddressSchema,
+})
+
+const fillRangeSchema = z.object({
+  op: z.literal('fill_range'),
+  sheetId: z.string().min(1),
+  sourceRange: cellRangeSchema,
+  targetRange: cellRangeSchema,
+})
+
 const mergeCellsSchema = z.object({
   op: z.literal('merge_cells'),
   sheetId: z.string().min(1),
@@ -776,6 +790,8 @@ export const workbookOperationSchema = z.discriminatedUnion('op', [
   clearRangeSchema,
   formatRangeSchema,
   sortRangeSchema,
+  copyRangeSchema,
+  fillRangeSchema,
   mergeCellsSchema,
   unmergeCellsSchema,
   setRowHeightSchema,
@@ -965,6 +981,8 @@ const CELL_CONTENT_OPS = new Set([
   'clear_range',
   'format_range',
   'sort_range',
+  'copy_range',
+  'fill_range',
   'find_replace',
   ...LAYOUT_OPS,
 ])
@@ -1181,6 +1199,67 @@ export function expandToPrimitiveOps(
           value: change.after,
           expectedValue: change.before,
         })
+      }
+    } else if (operation.op === 'copy_range') {
+      if (!readCell) throw new Error('copy_range needs the current cell contents to plan against.')
+      const srcBounds = parseRange(operation.sourceRange)
+      const tgtOrigin = parseRange(operation.targetStart)
+      const rowCount = srcBounds.endRow - srcBounds.startRow + 1
+      const colCount = srcBounds.endColumn - srcBounds.startColumn + 1
+      if (rowCount * colCount > MAX_EXPANDED_CELL_OPS) {
+        throw new Error(`copy_range covers more than ${MAX_EXPANDED_CELL_OPS} cells.`)
+      }
+      for (let r = 0; r < rowCount; r++) {
+        for (let c = 0; c < colCount; c++) {
+          const srcAddr = formatAddress(srcBounds.startRow + r, srcBounds.startColumn + c)
+          const tgtAddr = formatAddress(tgtOrigin.startRow + r, tgtOrigin.startColumn + c)
+          const currentTgt = readCell(tgtAddr, operation.sheetId)
+          if (currentTgt.formula) {
+            throw new Error(
+              `Target cell ${tgtAddr} contains a live formula : copying raw values over it is rejected to prevent breaking calculation chains.`,
+            )
+          }
+          const srcState = readCell(srcAddr, operation.sheetId)
+          countCell()
+          expanded.push({
+            op: 'set_cell',
+            sheetId: operation.sheetId,
+            address: tgtAddr,
+            value: srcState.value,
+            expectedValue: currentTgt.value,
+          })
+        }
+      }
+    } else if (operation.op === 'fill_range') {
+      if (!readCell) throw new Error('fill_range needs the current cell contents to plan against.')
+      const srcBounds = parseRange(operation.sourceRange)
+      const tgtBounds = parseRange(operation.targetRange)
+      const srcRows = srcBounds.endRow - srcBounds.startRow + 1
+      const srcCols = srcBounds.endColumn - srcBounds.startColumn + 1
+      if (rangeCellCount(tgtBounds) > MAX_EXPANDED_CELL_OPS) {
+        throw new Error(`fill_range covers more than ${MAX_EXPANDED_CELL_OPS} cells.`)
+      }
+      for (let r = tgtBounds.startRow; r <= tgtBounds.endRow; r++) {
+        for (let c = tgtBounds.startColumn; c <= tgtBounds.endColumn; c++) {
+          const tgtAddr = formatAddress(r, c)
+          const currentTgt = readCell(tgtAddr, operation.sheetId)
+          if (currentTgt.formula) {
+            throw new Error(
+              `Target cell ${tgtAddr} contains a live formula : filling raw values over it is rejected to prevent breaking calculation chains.`,
+            )
+          }
+          const srcRow = srcBounds.startRow + ((r - tgtBounds.startRow) % srcRows)
+          const srcCol = srcBounds.startColumn + ((c - tgtBounds.startColumn) % srcCols)
+          const srcState = readCell(formatAddress(srcRow, srcCol), operation.sheetId)
+          countCell()
+          expanded.push({
+            op: 'set_cell',
+            sheetId: operation.sheetId,
+            address: tgtAddr,
+            value: srcState.value,
+            expectedValue: currentTgt.value,
+          })
+        }
       }
     } else if (operation.op === 'add_pivot') {
       const columnFieldsArray =

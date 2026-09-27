@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Plugin, PluginKey, Selection } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView } from '@tiptap/pm/view'
 
@@ -30,6 +30,35 @@ export const PaginationGapsExtension = Extension.create({
         props: {
           decorations(state) {
             return key.getState(state)
+          },
+          handleKeyDown(view, event) {
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return false
+            const { state } = view
+            const { selection } = state
+            if (!selection.empty) return false
+            const pos = selection.from
+            const gaps = key.getState(state)
+            if (!gaps || gaps === DecorationSet.empty) return false
+
+            const found = gaps.find(Math.max(0, pos - 2), Math.min(state.doc.content.size, pos + 2))
+            if (found.length === 0) return false
+
+            if (event.key === 'ArrowDown') {
+              const nextPos = Math.min(state.doc.content.size, pos + 1)
+              const resolved = state.doc.resolve(nextPos)
+              if (resolved.parent.isTextblock) {
+                view.dispatch(state.tr.setSelection(Selection.near(resolved, 1)))
+                return true
+              }
+            } else if (event.key === 'ArrowUp') {
+              const prevPos = Math.max(0, pos - 1)
+              const resolved = state.doc.resolve(prevPos)
+              if (resolved.parent.isTextblock) {
+                view.dispatch(state.tr.setSelection(Selection.near(resolved, -1)))
+                return true
+              }
+            }
+            return false
           },
         },
       }),

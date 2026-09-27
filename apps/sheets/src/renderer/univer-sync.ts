@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Univer runtime synchronization helpers for the sheets renderer.
  *
  * Module-level functions that translate between the workbook file model
@@ -2686,6 +2686,9 @@ export function toUniverDvRule(
   }
 }
 
+// Cache of parsed conditional-formatting rules per sheet/priority to avoid re-parsing on large workbooks
+const cfRuleCache = new Map<string, ReturnType<typeof buildConditionalRule>>()
+
 function applyConditionalRules(
   worksheet: UniverWorksheet,
   state: LazyWorkbookState,
@@ -2694,15 +2697,18 @@ function applyConditionalRules(
 ): void {
   if (rules.length === 0 || state.appliedCfSheets.has(sheetId)) return
   state.appliedCfSheets.add(sheetId)
-  // Lower xlsx priority number = higher precedence; Univer applies rules in
-  // insertion order, so add the most important rules first. Installing the
-  // file's own rules must not mark the sheet's CF as edited.
+  // Index and order rules by priority. Lower xlsx priority number = higher precedence.
   const ordered = [...rules].sort((a, b) => a.priority - b.priority)
   journalSuppression.active = true
   try {
     for (const rule of ordered) {
       try {
-        const built = buildConditionalRule(worksheet, state.file.dxfStyles, rule)
+        const cacheKey = `${sheetId}:${rule.priority}:${rule.ruleType}:${rule.dxfIndex ?? ''}`
+        let built = cfRuleCache.get(cacheKey)
+        if (!built) {
+          built = buildConditionalRule(worksheet, state.file.dxfStyles, rule)
+          if (built) cfRuleCache.set(cacheKey, built)
+        }
         if (built) worksheet.addConditionalFormattingRule(built)
       } catch {
         // An unsupported rule must not break the rest of the sheet.

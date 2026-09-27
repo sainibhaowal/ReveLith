@@ -137,6 +137,8 @@ export interface ParagraphFormatPatch {
   spaceBeforePt?: number
   spaceAfterPt?: number
   indentDelta?: 1 | -1
+  /** Base text direction ('rtl' sets <a:pPr rtl="1">, 'ltr' clears it) */
+  direction?: 'ltr' | 'rtl'
 }
 
 /** Patch keys the editing-mode selection path can express; anything else stays element-level */
@@ -267,6 +269,26 @@ export async function onEditTableStyle(
   const oldId = ctx.selectedNode.sourceId
   const result = await window.slidesApi.editTableStyle({
     ...op,
+    slideIndex: ctx.current,
+    sourceId: oldId,
+  })
+  if (result) {
+    ctx.applySlide(ctx.current, result.slide)
+    // Element ids change after reparse: re-select so the "Table Design" tab doesn't jump away
+    if (result.sourceId) {
+      ctx.setSelectedIds([result.sourceId])
+      if (ctx.editingCell?.sourceId === oldId)
+        ctx.setEditingCell({ ...ctx.editingCell, sourceId: result.sourceId })
+    }
+  }
+}
+
+/** Table reading-direction toggle (delegated to IPC) */
+export async function onEditTableRtl(ctx: ActionCtx, rtl: boolean): Promise<void> {
+  if (!ctx.selectedNode || ctx.selectedNode.type !== 'table') return
+  const oldId = ctx.selectedNode.sourceId
+  const result = await window.slidesApi.setTableRtl({
+    rtl,
     slideIndex: ctx.current,
     sourceId: oldId,
   })

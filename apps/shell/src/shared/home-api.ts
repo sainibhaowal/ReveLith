@@ -146,6 +146,7 @@ export interface SearchResult {
   snippet: string
   score: number
   mtimeMs: number
+  sizeBytes?: number
 }
 
 export interface SearchPage {

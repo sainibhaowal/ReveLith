@@ -4,29 +4,36 @@ import { parseEmf } from '../src/emf'
 import { parseEmfPlusHeader, parseEmfPlusRecords } from '../src/emfp'
 
 function makeMinimalEmf(): Uint8Array {
-  const buf = new Uint8Array(96)
+  // EMR_HEADER per [MS-EMF] 2.2.2.2 (88 bytes) + EMR_EOF (20 bytes)
+  const buf = new Uint8Array(108)
   const view = new DataView(buf.buffer)
   let o = 0
   const u32 = (v: number) => { view.setUint32(o, v, true); o += 4 }
   const i32 = (v: number) => { view.setInt32(o, v, true); o += 4 }
-  u32(0x464d4520) // signature
-  // bounds
-  i32(0); i32(0); i32(1000); i32(1000)
-  // frame
-  i32(0); i32(0); i32(1000); i32(1000)
-  // size
-  i32(100); i32(100)
-  // dpi
-  i32(96); i32(96)
-  u32(0x00010000) // version
-  u32(1) // recordsCount (header is not counted? parser reads `count` records after header; use 1 for EOF)
-  u32(0) // handles
-  u32(0) // desc len
-  u32(0) // pixelFormat
-  u32(0) // emfPlusFlags
+  const u16 = (v: number) => { view.setUint16(o, v, true); o += 2 }
+  u32(1) // iType = EMR_HEADER
+  u32(88) // nSize
+  // rclBounds
+  i32(0); i32(0); i32(100); i32(100)
+  // rclFrame
+  i32(0); i32(0); i32(100); i32(100)
+  u32(0x464d4520) // dSignature
+  u32(0x00010000) // nVersion
+  u32(108) // nBytes
+  u32(2) // nRecords (header + EOF)
+  u16(1) // nHandles
+  u16(0) // sReserved
+  u32(0) // nDescription
+  u32(0) // offDescription
+  u32(0) // nPalEntries
+  i32(0); i32(0) // szlDevice
+  i32(0); i32(0) // szlMillimeters
   // EMR_EOF record
   u32(0x0000000e)
-  u32(8)
+  u32(20)
+  u32(0) // nPalEntries
+  u32(16) // offPalEntries
+  u32(20) // nSizeLast
   return buf
 }
 
@@ -50,7 +57,7 @@ describe('parseEmf', () => {
   it('parses a minimal header without errors', () => {
     const result = parseEmf(makeMinimalEmf())
     expect(result.errors).toEqual([])
-    expect(result.header.recordsCount).toBe(1)
+    expect(result.header.recordsCount).toBe(2)
     expect(result.header.size.width).toBe(100)
     expect(result.records.length).toBe(1)
     expect(result.records[0].type).toBe('EMR_EOF')

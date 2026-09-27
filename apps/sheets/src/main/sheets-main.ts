@@ -104,6 +104,7 @@ import {
   screenSourcesResultSchema,
   workbookPivotDefinitionSchema,
   workbookExportPdfRequestSchema,
+  workbookExportCsvRequestSchema,
   workbookRangeRequestSchema,
   workbookRangeResultSchema,
   workbookSaveRequestSchema,
@@ -112,6 +113,7 @@ import {
 import { IPC_CHANNELS } from '../shared/ipc-channels'
 import { closeGuardDecision } from './close-guard'
 import { exportPdf } from './pdf-export'
+import { exportCsv, exportWorksheetToCsv } from './csv-export'
 import { XlsxSidecarClient } from './xlsx-sidecar-client'
 
 /**
@@ -155,6 +157,7 @@ const tMain = createI18n({
     menuSave: '保存',
     menuSaveAs: '另存为…',
     menuExportPdf: '导出 PDF…',
+    menuExportCsv: '导出活动工作表为 CSV…',
     menuClose: '关闭',
     menuQuit: '退出',
     menuEdit: '编辑',
@@ -200,6 +203,7 @@ const tMain = createI18n({
     menuSave: 'Save',
     menuSaveAs: 'Save As…',
     menuExportPdf: 'Export PDF…',
+    menuExportCsv: 'Export Active Sheet as CSV…',
     menuClose: 'Close',
     menuQuit: 'Quit',
     menuEdit: 'Edit',
@@ -246,6 +250,7 @@ const tMain = createI18n({
     menuSave: '保存',
     menuSaveAs: '名前を付けて保存…',
     menuExportPdf: 'PDF をエクスポート…',
+    menuExportCsv: 'アクティブなシートを CSV としてエクスポート…',
     menuClose: '閉じる',
     menuQuit: '終了',
     menuEdit: '編集',
@@ -294,6 +299,7 @@ const tMain = createI18n({
     menuSave: '저장',
     menuSaveAs: '다른 이름으로 저장…',
     menuExportPdf: 'PDF 내보내기…',
+    menuExportCsv: '활성 시트를 CSV로 내보내기…',
     menuClose: '닫기',
     menuQuit: '끝내기',
     menuEdit: '편집',
@@ -342,6 +348,7 @@ const tMain = createI18n({
     menuSave: 'Enregistrer',
     menuSaveAs: 'Enregistrer sous…',
     menuExportPdf: 'Exporter en PDF…',
+    menuExportCsv: 'Exporter la feuille active en CSV…',
     menuClose: 'Fermer',
     menuQuit: 'Quitter',
     menuEdit: 'Édition',
@@ -390,6 +397,7 @@ const tMain = createI18n({
     menuSave: 'Speichern',
     menuSaveAs: 'Speichern unter…',
     menuExportPdf: 'PDF exportieren…',
+    menuExportCsv: 'Aktives Blatt als CSV exportieren…',
     menuClose: 'Schließen',
     menuQuit: 'Beenden',
     menuEdit: 'Bearbeiten',
@@ -437,6 +445,7 @@ const tMain = createI18n({
     menuSave: 'Guardar',
     menuSaveAs: 'Guardar como…',
     menuExportPdf: 'Exportar a PDF…',
+    menuExportCsv: 'Exportar hoja activa como CSV…',
     menuClose: 'Cerrar',
     menuQuit: 'Salir',
     menuEdit: 'Edición',
@@ -483,6 +492,7 @@ const tMain = createI18n({
     menuSave: 'บันทึก',
     menuSaveAs: 'บันทึกเป็น…',
     menuExportPdf: 'ส่งออก PDF…',
+    menuExportCsv: 'ส่งออกแผ่นงานที่ใช้งานเป็น CSV…',
     menuClose: 'ปิด',
     menuQuit: 'ออก',
     menuEdit: 'แก้ไข',
@@ -528,6 +538,7 @@ const tMain = createI18n({
     menuSave: 'Simpan',
     menuSaveAs: 'Simpan Sebagai…',
     menuExportPdf: 'Ekspor PDF…',
+    menuExportCsv: 'Ekspor Lembar Aktif sebagai CSV…',
     menuClose: 'Tutup',
     menuQuit: 'Keluar',
     menuEdit: 'Edit',
@@ -575,6 +586,7 @@ const tMain = createI18n({
     menuSave: 'Сохранить',
     menuSaveAs: 'Сохранить как…',
     menuExportPdf: 'Экспорт в PDF…',
+    menuExportCsv: 'Экспорт активного листа в CSV…',
     menuClose: 'Закрыть',
     menuQuit: 'Выход',
     menuEdit: 'Правка',
@@ -621,6 +633,7 @@ const tMain = createI18n({
     menuSave: 'حفظ',
     menuSaveAs: 'حفظ باسم…',
     menuExportPdf: 'تصدير PDF…',
+    menuExportCsv: 'تصدير الورقة النشطة كـ CSV…',
     menuClose: 'إغلاق',
     menuQuit: 'إنهاء',
     menuEdit: 'تحرير',
@@ -667,6 +680,7 @@ const tMain = createI18n({
     menuSave: 'Salvar',
     menuSaveAs: 'Salvar Como…',
     menuExportPdf: 'Exportar PDF…',
+    menuExportCsv: 'Exportar folha ativa como CSV…',
     menuClose: 'Fechar',
     menuQuit: 'Sair',
     menuEdit: 'Editar',
@@ -715,6 +729,7 @@ const tMain = createI18n({
     menuSave: 'Salva',
     menuSaveAs: 'Salva con nome…',
     menuExportPdf: 'Esporta PDF…',
+    menuExportCsv: 'Esporta foglio attivo come CSV…',
     menuClose: 'Chiudi',
     menuQuit: 'Esci',
     menuEdit: 'Modifica',
@@ -762,6 +777,7 @@ const tMain = createI18n({
     menuSave: 'Zapisz',
     menuSaveAs: 'Zapisz jako…',
     menuExportPdf: 'Eksportuj PDF…',
+    menuExportCsv: 'Eksportuj aktywny arkusz do CSV…',
     menuClose: 'Zamknij',
     menuQuit: 'Zakończ',
     menuEdit: 'Edycja',
@@ -810,6 +826,7 @@ const tMain = createI18n({
     menuSave: 'Opslaan',
     menuSaveAs: 'Opslaan als…',
     menuExportPdf: 'PDF exporteren…',
+    menuExportCsv: 'Actief blad exporteren als CSV…',
     menuClose: 'Sluiten',
     menuQuit: 'Stoppen',
     menuEdit: 'Bewerken',
@@ -856,6 +873,7 @@ const tMain = createI18n({
     menuSave: 'Simpan',
     menuSaveAs: 'Simpan Sebagai…',
     menuExportPdf: 'Eksport PDF…',
+    menuExportCsv: 'Eksport Helaian Aktif sebagai CSV…',
     menuClose: 'Tutup',
     menuQuit: 'Keluar',
     menuEdit: 'Edit',
@@ -900,6 +918,7 @@ const tMain = createI18n({
     menuSave: 'שמירה',
     menuSaveAs: 'שמירה בשם…',
     menuExportPdf: 'ייצוא PDF…',
+    menuExportCsv: 'ייצוא גיליון פעיל כ-CSV…',
     menuClose: 'סגירה',
     menuQuit: 'יציאה',
     menuEdit: 'עריכה',
@@ -946,6 +965,7 @@ const tMain = createI18n({
     menuSave: 'सहेजें',
     menuSaveAs: 'इस रूप में सहेजें…',
     menuExportPdf: 'PDF निर्यात करें…',
+    menuExportCsv: 'सक्रिय शीट को CSV के रूप में निर्यात करें…',
     menuClose: 'बंद करें',
     menuQuit: 'बाहर निकलें',
     menuEdit: 'संपादन',
@@ -990,6 +1010,7 @@ const tMain = createI18n({
     menuSave: '儲存',
     menuSaveAs: '另存新檔…',
     menuExportPdf: '匯出 PDF…',
+    menuExportCsv: '匯出作用中工作表為 CSV…',
     menuClose: '關閉',
     menuQuit: '結束',
     menuEdit: '編輯',
@@ -1015,6 +1036,8 @@ interface SessionInfo {
   /// The converted copy came from a CSV: the Save As dialog explains that
   /// formatting requires .xlsx (CSV keeps values only).
   readonly csvImport?: boolean
+  /// When opened directly from a CSV file, stores the original file path on disk
+  readonly originalCsvPath?: string
 }
 
 // ---- runtime configuration (paths differ when bundled into the shell) ----
@@ -1165,7 +1188,7 @@ export function setSheetsWorkbookOpenedHook(
 
 /** forward an application-menu File command into the sheets renderer */
 export function sendSheetsMenuAction(
-  action: 'open' | 'save' | 'save-as' | 'export-pdf' | 'undo' | 'redo',
+  action: 'open' | 'save' | 'save-as' | 'export-pdf' | 'export-csv' | 'undo' | 'redo',
 ): void {
   activeSheetsWebContents?.send(IPC_CHANNELS.menuAction, action)
 }
@@ -1826,6 +1849,7 @@ export function registerSheetsIpc(): void {
       entry.sessions,
       prepared.suggestSaveAs,
       prepared.csvImport,
+      prepared.originalCsvPath,
     )
     if (result) workbookOpenedHook?.(event.sender, path)
     return result
@@ -2047,6 +2071,12 @@ export function registerSheetsIpc(): void {
     return exportPdf(event, request)
   })
 
+  ipcMain.handle(IPC_CHANNELS.exportCsv, async (event, input: unknown) => {
+    sessionFor(event)
+    const request = workbookExportCsvRequestSchema.parse(input)
+    return exportCsv(event, request)
+  })
+
   ipcMain.handle(IPC_CHANNELS.saveWorkbook, async (event, input: unknown) => {
     const entry = sessionFor(event)
     const client = entry.client
@@ -2055,14 +2085,17 @@ export function registerSheetsIpc(): void {
     if (!session) throw new Error('Unknown workbook session.')
 
     let targetPath = session.path
+    const isDirectCsvSave = !!session.originalCsvPath && request.mode !== 'save-as'
+
     // Converted imports (.xls/.csv) never save silently over the temp copy :
-    // the first save always asks where the .xlsx should live.
-    if (request.mode === 'save-as' || session.suggestSaveAs !== undefined) {
+    // the first save always asks where the .xlsx should live, UNLESS
+    // it's a direct CSV save (user opened a CSV and clicked standard Save).
+    if (!isDirectCsvSave && (request.mode === 'save-as' || session.suggestSaveAs !== undefined)) {
       const selection = await saveFileDialog(event, {
         defaultPath: session.suggestSaveAs ?? session.path,
         filters: [{ name: tm('filterXlsx'), extensions: ['xlsx'] }],
         // CSV import: explain why the save goes through .xlsx (CSV keeps values only)
-        ...(session.csvImport
+        ...(session.csvImport && !session.originalCsvPath
           ? { title: tm('csvSaveAsNotice'), message: tm('csvSaveAsNotice') }
           : {}),
       })
@@ -2078,17 +2111,29 @@ export function registerSheetsIpc(): void {
 
     const mutation = await writeWorkbookTo(client, session, request, targetPath)
 
+    if (isDirectCsvSave && session.originalCsvPath) {
+      await exportWorksheetToCsv(targetPath, session.originalCsvPath)
+    }
+
     // The sidecar session still streams the pre-save bytes; swap it for a
     // fresh session over the saved file so future reads match the disk state.
     entry.sessions.delete(request.sessionId)
     await client.close(request.sessionId).catch(() => undefined)
-    const file = await openWorkbookSession(client, targetPath, entry.sessions)
+    const file = await openWorkbookSession(
+      client,
+      targetPath,
+      entry.sessions,
+      isDirectCsvSave ? undefined : session.suggestSaveAs,
+      session.csvImport,
+      isDirectCsvSave ? session.originalCsvPath : undefined,
+    )
     // Notify shell (if running) so it can update the tab title and record the
     // saved path in recent files (mirrors the open hook; covers Save As + first
     // save after converting an .xls/.csv import).
-    workbookOpenedHook?.(event.sender, targetPath)
+    workbookOpenedHook?.(event.sender, isDirectCsvSave ? session.originalCsvPath! : targetPath)
     // The file on disk now carries these edits
     clearWorkbookRecovery(targetPath)
+    if (session.originalCsvPath) clearWorkbookRecovery(session.originalCsvPath)
     if (session.suggestSaveAs !== undefined) clearWorkbookRecovery(session.suggestSaveAs)
     return { canceled: false, file, touchedEntries: mutation.touchedEntries }
   })
@@ -2808,6 +2853,7 @@ async function openWorkbookSession(
   sessions: Map<string, SessionInfo>,
   suggestSaveAs?: string,
   csvImport?: boolean,
+  originalCsvPath?: string,
 ): Promise<WorkbookFile> {
   const [opened, digest] = await Promise.all([
     client.open(path, getUiLang()).then((result) => sidecarOpenResultSchema.parse(result)),
@@ -2819,13 +2865,14 @@ async function openWorkbookSession(
     sheetNames: new Map(opened.sheets.map((sheet) => [sheet.id, sheet.name])),
     ...(suggestSaveAs === undefined ? {} : { suggestSaveAs }),
     ...(csvImport ? { csvImport } : {}),
+    ...(originalCsvPath ? { originalCsvPath } : {}),
   })
   return workbookFileSchema.parse({
     ...opened,
-    path,
+    path: originalCsvPath ?? path,
     sha256: digest,
     readOnly: false,
-    needsSaveAs: suggestSaveAs !== undefined,
+    needsSaveAs: originalCsvPath ? false : suggestSaveAs !== undefined,
   })
 }
 
@@ -2846,7 +2893,7 @@ async function prepareWorkbookForOpen(
   client: XlsxSidecarClient,
   path: string,
   parent?: BrowserWindow | undefined,
-): Promise<{ openPath: string; suggestSaveAs?: string; csvImport?: boolean }> {
+): Promise<{ openPath: string; suggestSaveAs?: string; csvImport?: boolean; originalCsvPath?: string }> {
   const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
   if (extension !== 'csv' && extension !== 'xls') {
     // Unsaved work from a lost session: offer the recovery copy. Restoring
@@ -2885,7 +2932,7 @@ async function prepareWorkbookForOpen(
   return {
     openPath,
     suggestSaveAs: path.replace(/\.[^.]+$/, '.xlsx'),
-    ...(extension === 'csv' ? { csvImport: true } : {}),
+    ...(extension === 'csv' ? { csvImport: true, originalCsvPath: path } : {}),
   }
 }
 
@@ -2935,6 +2982,10 @@ function installApplicationMenu(): void {
           {
             label: tm('menuExportPdf'),
             click: () => sendMenuAction('export-pdf'),
+          },
+          {
+            label: tm('menuExportCsv'),
+            click: () => sendMenuAction('export-csv'),
           },
           { type: 'separator' },
           closeActiveTabHook

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Slide → RenderSlide builder : turns the pptx-engine Slide element tree into a
  * RenderTree with pixel geometry, resolved styles, and laid-out text (core of approach A).
  */
@@ -38,7 +38,14 @@ import {
   type PlacedBox,
   type ParentPlacement,
 } from './coords'
-import { resolveFill, resolveStroke, resolveShadow, resolveGlow, type MediaResolver } from './fill'
+import {
+  resolveFill,
+  resolveStroke,
+  resolveShadow,
+  resolveGlow,
+  resolveReflection,
+  type MediaResolver,
+} from './fill'
 import { layoutText } from './text-layout'
 import { HeuristicMetrics, type FontMetricsProvider } from './metrics'
 import {
@@ -306,6 +313,9 @@ function buildShape(
   if (shadow) node.shadow = shadow
   const glow = resolveGlow(el.glow, vp)
   if (glow) node.glow = glow
+  if (el.softEdge) node.softEdgePx = emuToPx(el.softEdge, vp.scale)
+  const refl = resolveReflection(el.reflection, vp)
+  if (refl) node.reflection = refl
   if (el.text && el.text.paragraphs.length) {
     node.text = layoutText({
       body: el.text,
@@ -373,6 +383,8 @@ function buildPicture(
   if (shadow) node.shadow = shadow
   const glow = resolveGlow(el.glow, vp)
   if (glow) node.glow = glow
+  const picRefl = resolveReflection(el.reflection, vp)
+  if (picRefl) node.reflection = picRefl
   return node
 }
 
@@ -431,7 +443,7 @@ function buildGroup(
  * Row height is a minimum in PPT: rows whose wrapped cell text needs more space grow to
  * fit it, and the node box grows with the total so nothing is clipped.
  */
-function buildTable(
+export function buildTable(
   el: TableElement,
   box: PlacedBox,
   vp: Viewport,
@@ -442,9 +454,21 @@ function buildTable(
   const sumH = el.rowHeights.reduce((a, b) => a + b, 0) || 1
   const colPx = el.colWidths.map((w) => (w / sumW) * box.w)
   const rowPx = el.rowHeights.map((h) => (h / sumH) * box.h)
-  // Prefix sums → start of each column
-  const colX: number[] = [0]
-  for (const w of colPx) colX.push(colX[colX.length - 1]! + w)
+  // Prefix sums → start of each column (LTR geometry). RTL tables (a:tblPr
+  // rtl) mirror the column order: logical column c occupies
+  // [W - colLTR[c+span], W - colLTR[c]] (column 0 renders on the far right).
+  // The reported grid stays ascending so spans, hit-testing and the editor
+  // resize handles keep working.
+  const colLTR: number[] = [0]
+  for (const w of colPx) colLTR.push(colLTR[colLTR.length - 1]! + w)
+  const colEnd = (c: number, span: number): number =>
+    colLTR[Math.min(c + span, colLTR.length - 1)] ?? 0
+  const colStart = (c: number, span: number): number =>
+    el.rtl ? box.w - colEnd(c, span) : (colLTR[c] ?? 0)
+  const colX = el.rtl ? colLTR.map((x) => box.w - x).reverse() : colLTR
+  // Cell text in RTL tables defaults to right alignment (PowerPoint behavior);
+  // explicit paragraph alignment and the rtl flag itself still win per cell.
+  const cellDefaultAlign = el.rtl ? ('right' as const) : undefined
 
   // Measure pass: grow any row whose cell content wraps taller than the stored height
   // (rowSpan cells are skipped : their height is ambiguous to attribute to one row).
@@ -454,14 +478,16 @@ function buildTable(
       const cIdx = gridCols[tcIdx]!
       if (cell.merged || (cell.rowSpan ?? 1) > 1) return
       if (!cell.text || !cell.text.paragraphs.length) return
-      const x = colX[cIdx] ?? 0
-      const w = (colX[Math.min(cIdx + (cell.gridSpan ?? 1), colX.length - 1)] ?? x) - x
+      const span = cell.gridSpan ?? 1
+      const x = colStart(cIdx, span)
+      const w = colEnd(cIdx, span) - (colLTR[cIdx] ?? 0)
       const probe = layoutText({
         body: cell.text,
         boxWidthPx: w,
         boxHeightPx: rowPx[r] ?? 0,
         metrics,
         vp,
+        ...(cellDefaultAlign ? { defaultAlign: cellDefaultAlign } : {}),
       })
       const needed = probe.contentHeight + probe.insets.t + probe.insets.b
       if (needed > (rowPx[r] ?? 0)) rowPx[r] = needed
@@ -481,9 +507,9 @@ function buildTable(
       const gridSpan = cell.gridSpan ?? 1
       if (cell.merged) return
       const rowSpan = cell.rowSpan ?? 1
-      const x = colX[cIdx] ?? 0
+      const x = colStart(cIdx, gridSpan)
       const y = rowY[r] ?? 0
-      const w = (colX[Math.min(cIdx + gridSpan, colX.length - 1)] ?? x) - x
+      const w = colEnd(cIdx, gridSpan) - (colLTR[cIdx] ?? 0)
       const h = (rowY[Math.min(r + rowSpan, rowY.length - 1)] ?? y) - y
       const out: TableCellRender = {
         x,
@@ -509,6 +535,7 @@ function buildTable(
           boxHeightPx: h,
           metrics,
           vp,
+          ...(cellDefaultAlign ? { defaultAlign: cellDefaultAlign } : {}),
         })
       }
       cells.push(out)
@@ -524,18 +551,24 @@ function buildTable(
     gridX: colX,
     gridY: rowY,
     ...(el.styleFlags ? { styleFlags: el.styleFlags } : {}),
+    ...(el.rtl ? { rtl: true } : {}),
   }
 }
 
-/** ChartModel → style summary echoed to the Ribbon (kind maps to EditChartOp semantics; horizontal bars count as bar). */
-function chartStyleInfo(m: ChartElement['chart']): import('./render-tree').ChartStyleInfo {
+/** ChartModel → style summary echoed to the Ribbon (kind maps to EditChartOp semantics). */
+export function chartStyleInfo(m: ChartElement['chart']): import('./render-tree').ChartStyleInfo {
+  const combo = m.series.some((s) => s.plotKind === 'line')
   const kind =
     m.kind === 'bar'
-      ? m.series.some((s) => s.plotKind === 'line')
+      ? combo
         ? 'comboBarLine'
-        : m.grouping === 'stacked' || m.grouping === 'percentStacked'
-          ? 'barStacked'
-          : 'bar'
+        : m.grouping === 'percentStacked'
+          ? 'barPercentStacked'
+          : m.grouping === 'stacked'
+            ? 'barStacked'
+            : m.barDir === 'bar'
+              ? 'barH'
+              : 'bar'
       : m.kind === 'pie'
         ? (m.holePct ?? 0) > 0
           ? 'doughnut'

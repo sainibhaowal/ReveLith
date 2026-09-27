@@ -12,6 +12,9 @@ import {
   IconAiImage,
   IconAlignCenter,
   IconAlignJustify,
+  IconTextDirectionLtr,
+  IconTextDirectionRtl,
+  IconTextDirectionVertical,
   IconAlignLeft,
   IconAlignRight,
   IconBullets,
@@ -64,6 +67,9 @@ export function RibbonHomeTab({ rb }: { rb: RibbonTabCtx }) {
     canPaste,
     curBulletChar,
     curAlign,
+    curDir,
+    curBodyPrVert,
+    onBodyPrVertToggle,
     curFontFamily,
     curFontSizeMixed,
     curFontSizePt,
@@ -999,6 +1005,43 @@ export function RibbonHomeTab({ rb }: { rb: RibbonTabCtx }) {
                       {icon}
                     </button>
                   ))}
+                  <span className="rb-mini-sep" />
+                  {(
+                    [
+                      ['ltr', <IconTextDirectionLtr key="l" size={20} />, t('ribbonDirectionLtr')],
+                      ['rtl', <IconTextDirectionRtl key="r" size={20} />, t('ribbonDirectionRtl')],
+                    ] as const
+                  ).map(([dir, icon, label]) => (
+                    <button
+                      key={dir}
+                      className={`rb-icon ${curDir === dir ? 'active' : ''}`}
+                      disabled={!editing && !hasSelection}
+                      data-tip={label}
+                      aria-label={label}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        if (editing || hasSelection) onParagraphFormat({ direction: dir })
+                      }}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                  <span className="rb-mini-sep" />
+                  <button
+                    className={`rb-icon ${curBodyPrVert && curBodyPrVert !== 'horz' ? 'active' : ''}`}
+                    disabled={!editing && !hasSelection}
+                    data-tip={curBodyPrVert && curBodyPrVert !== 'horz' ? 'Horizontal Text' : 'Vertical Text (竖排)'}
+                    aria-label={curBodyPrVert && curBodyPrVert !== 'horz' ? 'Horizontal Text' : 'Vertical Text'}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      if (editing || hasSelection) {
+                        const next = curBodyPrVert && curBodyPrVert !== 'horz' ? 'horz' : 'eaVert'
+                        onBodyPrVertToggle?.(next)
+                      }
+                    }}
+                  >
+                    <IconTextDirectionVertical size={20} />
+                  </button>
                   <span className="rb-mini-sep" />
                   <div className="rb-drop-wrap">
                     <button

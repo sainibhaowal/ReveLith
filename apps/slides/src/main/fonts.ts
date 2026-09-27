@@ -1,4 +1,4 @@
-﻿/**
+/**
  * System font metrics (main process) : parse real font files with opentype.js and inject them
  * into pptx-render's OpentypeMetrics, replacing heuristic estimation for accurate line
  * wrapping/centering.
@@ -425,6 +425,35 @@ class FontRegistry {
     }
     return undefined
   }
+
+  hasFont(family: string): boolean {
+    this.buildIndex()
+    const candidates: string[] = [family, ...aliasesOf(family)]
+    const suffixes = ['', 'regular', 'w4', 'w3', 'bold', 'bd', 'b', 'w7', 'w6', 'italic', 'it', 'i']
+    for (const f of candidates) {
+      const base = norm(f)
+      for (const suf of suffixes) {
+        if (this.index.has(base + norm(suf))) return true
+      }
+    }
+    return false
+  }
+
+  getSubstitute(family: string): string | undefined {
+    this.buildIndex()
+    for (const s of substitutesFor(family)) {
+      if (this.hasFont(s)) return s
+    }
+    return undefined
+  }
+
+  refresh(): void {
+    this.indexed = false
+    this.index.clear()
+    this.faceDirs.clear()
+    this.parsed.clear()
+    this.buildIndex()
+  }
 }
 
 /** One glyph as returned by opentype.js (only the advance is read here). */
@@ -547,10 +576,12 @@ function instantiateWeight(font: OpentypeFontLike, bold: boolean): OpentypeFontL
   }
 }
 
+export const sharedFontRegistry = new FontRegistry()
+
 /** Create a metrics provider injected with system fonts (falls back to heuristics per run when no font is found). */
 export function createSystemFontMetrics(): FontMetricsProvider {
   initShapedMetrics()
-  const registry = new FontRegistry()
+  const registry = sharedFontRegistry
   const cache = new Map<string, { font: OpentypeFontLike; family: string } | undefined>()
   const resolveEntry = (style: RunStyle) => {
     const key = `${style.fontFamily}|${style.bold ? 1 : 0}${style.italic ? 1 : 0}`
@@ -577,5 +608,100 @@ export function createSystemFontMetrics(): FontMetricsProvider {
     // Substituted fonts return the substitute family; the renderer draws with it (same font file for measuring/drawing)
     displayFamily: (style, text) =>
       (text != null ? shapedFamily(text) : null) ?? resolveEntry(style)?.family ?? style.fontFamily,
+  }
+}
+
+/**
+ * Scan all text runs in the deck and detect fonts that are not installed on the system
+ * and rely on script/generic substitutions.
+ */
+export function detectMissingFonts(
+  deck: { slides: import('@revelith/pptx-engine').Slide[] },
+): import('../shared/ipc').MissingFontInfo[] {
+  const counts = new Map<string, number>()
+  for (const slide of deck.slides) {
+    for (const el of slide.elements) {
+      if ('text' in el && (el as any).text) {
+        const text = (el as any).text as import('@revelith/pptx-engine').TextBody
+        for (const p of text.paragraphs) {
+          for (const r of p.runs) {
+            if (r.fontFamily) {
+              const fam = r.fontFamily.trim()
+              if (fam) counts.set(fam, (counts.get(fam) ?? 0) + 1)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const result: import('../shared/ipc').MissingFontInfo[] = []
+  for (const [family, count] of counts.entries()) {
+    if (!sharedFontRegistry.hasFont(family)) {
+      const substitute = sharedFontRegistry.getSubstitute(family) ?? 'Arial'
+      result.push({
+        family,
+        occurrences: count,
+        substitute,
+        status: 'missing',
+      })
+    }
+  }
+  return result
+}
+
+/**
+ * Install a font directly into the OS user font directory and refresh the registry.
+ */
+export async function installFont(
+  family: string,
+  fileBytes?: Buffer,
+  fileName?: string,
+): Promise<{ success: boolean; installedFamily?: string; path?: string; error?: string }> {
+  try {
+    let targetDir: string
+    switch (process.platform) {
+      case 'win32':
+        targetDir = join(homedir(), 'AppData', 'Local', 'Microsoft', 'Windows', 'Fonts')
+        break
+      case 'darwin':
+        targetDir = join(homedir(), 'Library', 'Fonts')
+        break
+      default:
+        targetDir = join(homedir(), '.local', 'share', 'fonts')
+        break
+    }
+    const { mkdirSync, writeFileSync } = await import('node:fs')
+    mkdirSync(targetDir, { recursive: true })
+
+    const safeName = fileName || `${family.replace(/[^a-zA-Z0-9_\-]/g, '')}.ttf`
+    const targetPath = join(targetDir, safeName)
+
+    if (fileBytes && fileBytes.length > 0) {
+      writeFileSync(targetPath, fileBytes)
+    } else {
+      try {
+        const normalized = norm(family)
+        const fetchRes = await fetch(
+          `https://raw.githubusercontent.com/google/fonts/main/ofl/${normalized}/${family.replace(/\s+/g, '')}-Regular.ttf`,
+        )
+        if (fetchRes.ok) {
+          const buf = Buffer.from(await fetchRes.arrayBuffer())
+          writeFileSync(targetPath, buf)
+        } else {
+          return {
+            success: false,
+            error: `Could not auto-download font "${family}". Please select a local .ttf or .otf file.`,
+          }
+        }
+      } catch (err: any) {
+        return { success: false, error: `Download failed: ${err.message}` }
+      }
+    }
+
+    sharedFontRegistry.refresh()
+    return { success: true, installedFamily: family, path: targetPath }
+  } catch (err: any) {
+    return { success: false, error: err.message }
   }
 }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Phase 3.3 element-level patch generation : regenerating OOXML fragments for
  * dirty elements.
  *
@@ -16,7 +16,17 @@
  * possible). The Phase 3 editor uses the former (lossless) when only text and
  * formatting change without structural edits; structural changes use the latter.
  */
-import type { SlideElement, TextElement, Paragraph, TextRun, Transform, PPrDirty } from './types'
+import type {
+  SlideElement,
+  TextElement,
+  Paragraph,
+  TextRun,
+  Transform,
+  PPrDirty,
+  ShadowEffect,
+  GlowEffect,
+  ReflectionEffect,
+} from './types'
 import { escapeXmlText, escapeXmlAttr } from './xml-utils'
 
 /**
@@ -144,6 +154,7 @@ export function patchParagraphPPrXml(paraXml: string, p: Paragraph, which: PPrDi
     else openTag = openTag.replace(/^<a:pPr/, `<a:pPr ${name}="${escapeXmlAttr(value)}"`)
   }
   if (which.align) setPPrAttr('algn', p.align ? ALIGN_MAP[p.align] : undefined)
+  if (which.rtl) setPPrAttr('rtl', p.rtl ? '1' : undefined)
   if (which.level) setPPrAttr('lvl', p.level ? String(p.level) : undefined)
   if (which.indents) {
     setPPrAttr('marL', p.marL != null ? String(Math.round(p.marL)) : undefined)
@@ -640,6 +651,7 @@ export function generateParagraphXml(p: Paragraph): string {
   if (p.marL != null && want('marL')) pPrAttrs.push(`marL="${Math.round(p.marL)}"`)
   if (p.indent != null && want('indent')) pPrAttrs.push(`indent="${Math.round(p.indent)}"`)
   if (p.align && want('align')) pPrAttrs.push(`algn="${alignMap[p.align]}"`)
+  if (p.rtl && want('rtl')) pPrAttrs.push('rtl="1"')
   if (p.level) pPrAttrs.push(`lvl="${p.level}"`)
 
   // CT_TextParagraphProperties child order: lnSpc → spcBef → spcAft → buClr → buSzPct → buFont → bu*
@@ -686,7 +698,7 @@ export function generateParagraphXml(p: Paragraph): string {
   return `<a:p>${pPr}${runs}</a:p>`
 }
 
-function generateRunXml(r: TextRun): string {
+export function generateRunXml(r: TextRun): string {
   // Soft-break sentinel → <a:br/>; embedded "\n" in text (new editor Shift+Enter input) splits into alternating run+br
   if (isSoftBreakRun(r)) return '<a:br/>'
   if (r.text.includes('\n') && !r.field) {
@@ -718,7 +730,9 @@ function generateRunXml(r: TextRun): string {
         : ''
   // Run-level hyperlink: rId written back (allocated by ensureRunLinkRels for links set this session)
   const hlink = hlinkXml(r)
-  const rprInner = ln + color + font + hlink
+  // Complex-script marker (parsed from <a:rtl/>): position follows the font slots per AFTER_FONT_SLOTS
+  const rtlMark = r.rtl ? '<a:rtl/>' : ''
+  const rprInner = ln + color + font + hlink + rtlMark
   const rPr = rprInner
     ? `<a:rPr${attrs}>${rprInner}</a:rPr>`
     : attrs
@@ -1338,4 +1352,127 @@ export function patchBodyPrAutofit(
     /<a:normAutofit\b[^>]*?(?:\/>|>\s*<\/a:normAutofit>)/,
     `<a:normAutofit${attrs}/>`,
   )
+}
+
+// ── Effects patch (shadow, glow, softEdge, reflection) ───────────────────
+
+export interface ElementEffectsPatch {
+  shadow?: ShadowEffect | null
+  glow?: GlowEffect | null
+  softEdge?: number | null
+  reflection?: ReflectionEffect | null
+}
+
+function buildOuterShdwXml(shdw: ShadowEffect): string {
+  const dir = Math.round(shdw.dirDeg * 60000)
+  const blur = Math.round(shdw.blurRad)
+  const dist = Math.round(shdw.dist)
+  const clr = srgbClrXml(shdw.color)
+  return `<a:outerShdw blurRad="${blur}" dist="${dist}" dir="${dir}">${clr}</a:outerShdw>`
+}
+
+function buildGlowXml(glow: GlowEffect): string {
+  const rad = Math.round(glow.radius)
+  const clr = srgbClrXml(glow.color)
+  return `<a:glow rad="${rad}">${clr}</a:glow>`
+}
+
+function buildSoftEdgeXml(rad: number): string {
+  return `<a:softEdge rad="${Math.round(rad)}"/>`
+}
+
+function buildReflectionXml(refl: ReflectionEffect): string {
+  const blur = refl.blurRad != null ? ` blurRad="${Math.round(refl.blurRad)}"` : ''
+  const stA = refl.stA != null ? ` stA="${Math.round(refl.stA)}"` : ' stA="50000"'
+  const endA = refl.endA != null ? ` endA="${Math.round(refl.endA)}"` : ' endA="300"'
+  const dist = refl.dist != null ? ` dist="${Math.round(refl.dist)}"` : ''
+  const dir = refl.dirDeg != null ? ` dir="${Math.round(refl.dirDeg * 60000)}"` : ' dir="5400000"'
+  return `<a:reflection${blur}${stA}${endA}${dist}${dir}/>`
+}
+
+export function patchElementEffects(originalXml: string, patch: ElementEffectsPatch): string {
+  originalXml = expandEmptySpPr(originalXml)
+  const spPrOpen = /<p:spPr(\s[^>]*)?>/.exec(originalXml)
+  if (!spPrOpen) return originalXml
+  const innerStart = spPrOpen.index + spPrOpen[0].length
+  const spPrClose = originalXml.indexOf('</p:spPr>', innerStart)
+  if (spPrClose < 0) return originalXml
+
+  const children = topLevelChildren(originalXml, innerStart, spPrClose)
+  const existing = children.find((c) => c.name === 'a:effectLst')
+
+  if (existing) {
+    const effectNode = originalXml.slice(existing.start, existing.end)
+    const isSelfClosing = /^<a:effectLst[^>]*\/>$/.test(effectNode)
+    let inner = ''
+    if (!isSelfClosing) {
+      const openEnd = effectNode.indexOf('>') + 1
+      const closeStart = effectNode.lastIndexOf('</a:effectLst>')
+      inner = effectNode.slice(openEnd, closeStart)
+    }
+
+    if (patch.shadow !== undefined) {
+      inner = inner.replace(/<a:outerShdw\b[\s\S]*?(?:\/>|<\/a:outerShdw>)/g, '')
+      if (patch.shadow) inner += buildOuterShdwXml(patch.shadow)
+    }
+    if (patch.glow !== undefined) {
+      inner = inner.replace(/<a:glow\b[\s\S]*?(?:\/>|<\/a:glow>)/g, '')
+      if (patch.glow) inner += buildGlowXml(patch.glow)
+    }
+    if (patch.softEdge !== undefined) {
+      inner = inner.replace(/<a:softEdge\b[\s\S]*?(?:\/>|<\/a:softEdge>)/g, '')
+      if (patch.softEdge && patch.softEdge > 0) inner += buildSoftEdgeXml(patch.softEdge)
+    }
+    if (patch.reflection !== undefined) {
+      inner = inner.replace(/<a:reflection\b[\s\S]*?(?:\/>|<\/a:reflection>)/g, '')
+      if (patch.reflection) inner += buildReflectionXml(patch.reflection)
+    }
+
+    const newEffectLst = inner.trim() ? `<a:effectLst>${inner}</a:effectLst>` : '<a:effectLst/>'
+    return originalXml.slice(0, existing.start) + newEffectLst + originalXml.slice(existing.end)
+  }
+
+  let inner = ''
+  if (patch.shadow) inner += buildOuterShdwXml(patch.shadow)
+  if (patch.glow) inner += buildGlowXml(patch.glow)
+  if (patch.softEdge && patch.softEdge > 0) inner += buildSoftEdgeXml(patch.softEdge)
+  if (patch.reflection) inner += buildReflectionXml(patch.reflection)
+
+  if (!inner) return originalXml
+
+  const newEffectLst = `<a:effectLst>${inner}</a:effectLst>`
+  const anchor =
+    children.find((c) => c.name === 'a:ln') ??
+    children.find((c) => FILL_TAGS.has(c.name)) ??
+    children.find((c) => c.name === 'a:prstGeom' || c.name === 'a:custGeom') ??
+    children.find((c) => c.name === 'a:xfrm')
+  const at = anchor ? anchor.end : innerStart
+  return originalXml.slice(0, at) + newEffectLst + originalXml.slice(at)
+}
+
+/**
+ * Patch <a:bodyPr vert="..."> for vertical text layout.
+ * Pass null or 'horz' to clear vertical orientation and restore horizontal writing.
+ */
+export function patchBodyPrVert(
+  xml: string,
+  vert: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null,
+): string {
+  const isHorz = !vert || vert === 'horz'
+  const txBody = /<p:txBody>[\s\S]*?<\/p:txBody>/.exec(xml)
+  if (!txBody) return xml
+  const body = txBody[0]
+  const open = /<a:bodyPr\b([^>]*?)(\/?)>/.exec(body)
+  let patched: string
+  if (!open) {
+    const vertAttr = isHorz ? '' : ` vert="${vert}"`
+    patched = body.replace(/<p:txBody>/, `<p:txBody><a:bodyPr${vertAttr}/>`)
+  } else {
+    const isSelfClosing = open[2] === '/'
+    let attrs = (open[1] ?? '').replace(/\svert="[^"]*"/g, '')
+    if (!isHorz) attrs = `${attrs} vert="${vert}"`
+    const newTag = isSelfClosing ? `<a:bodyPr${attrs}/>` : `<a:bodyPr${attrs}>`
+    patched = body.slice(0, open.index) + newTag + body.slice(open.index + open[0].length)
+  }
+  return xml.slice(0, txBody.index) + patched + xml.slice(txBody.index + body.length)
 }

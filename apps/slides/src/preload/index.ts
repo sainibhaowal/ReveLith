@@ -24,6 +24,8 @@ import type {
   DuplicateElementsOp,
   EditTableCellOp,
   EditTableStyleOp,
+  SetTableRtlOp,
+  SetBodyPrRtlColOp,
   EditChartOp,
   EditPictureSrcRectOp,
   EditPictureOpacityOp,
@@ -56,6 +58,9 @@ import type {
   EditBackgroundOp,
   EditFillOp,
   EditStrokeOp,
+  SetVerticalTextOp,
+  SetEffectsOp,
+  InstallFontOp,
   FlipElementOp,
   EditTextOp,
   EditTransformOp,
@@ -163,6 +168,10 @@ const api: SlidesApi = {
     ipcRenderer.invoke('slides:master-delete-element', op),
   editFill: (op: EditFillOp) => ipcRenderer.invoke('slides:edit-fill', op),
   editStroke: (op: EditStrokeOp) => ipcRenderer.invoke('slides:edit-stroke', op),
+  setVerticalText: (op: SetVerticalTextOp) => ipcRenderer.invoke('slides:set-vertical-text', op),
+  setEffects: (op: SetEffectsOp) => ipcRenderer.invoke('slides:set-effects', op),
+  getMissingFonts: () => ipcRenderer.invoke('slides:get-missing-fonts'),
+  installFont: (op: InstallFontOp) => ipcRenderer.invoke('slides:install-font', op),
   flipElements: (op: FlipElementOp) => ipcRenderer.invoke('slides:flip-elements', op),
   editBackground: (op: EditBackgroundOp) => ipcRenderer.invoke('slides:edit-background', op),
   insertImage: (slideIndex: number, fitWidthPx: number) =>
@@ -184,6 +193,7 @@ const api: SlidesApi = {
   setTableCellAnchor: (op: SetTableCellAnchorOp) =>
     ipcRenderer.invoke('slides:set-table-cell-anchor', op),
   editTableStyle: (op: EditTableStyleOp) => ipcRenderer.invoke('slides:edit-table-style', op),
+  setTableRtl: (op: SetTableRtlOp) => ipcRenderer.invoke('slides:set-table-rtl', op),
   editChart: (op: EditChartOp) => ipcRenderer.invoke('slides:edit-chart', op),
   getChartColorSchemes: () => ipcRenderer.invoke('slides:chart-color-schemes'),
   getChartData: (slideIndex: number, sourceId: string) =>
@@ -346,6 +356,7 @@ const api: SlidesApi = {
     ipcRenderer.on('slides:audience-nav', listener)
     return () => ipcRenderer.removeListener('slides:audience-nav', listener)
   },
+  accountStatus: () => ipcRenderer.invoke('slides:account-status'),
 }
 
 contextBridge.exposeInMainWorld('slidesApi', api)

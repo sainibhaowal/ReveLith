@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import type { Editor, JSONContent } from '@tiptap/core'
 import { SHAPE_GALLERY_GROUPS, wordArtSolidColor, type WordArtPreset } from '@revelith/ui'
 import {
@@ -38,6 +38,7 @@ import {
   IconPrintLayout,
   IconReadMode,
   IconRuler,
+  IconSpellcheck,
   IconSplit,
   IconSwitchWindows,
   IconRedo,
@@ -511,6 +512,8 @@ interface ReviewTabProps extends TabProps {
   isProtected: boolean
   onToggleProtection: () => void
   onCompare: () => void
+  spellcheckEnabled?: boolean
+  onToggleSpellcheck?: () => void
 }
 
 export function ReviewTab({
@@ -533,6 +536,8 @@ export function ReviewTab({
   isProtected,
   onToggleProtection,
   onCompare,
+  spellcheckEnabled,
+  onToggleSpellcheck,
 }: ReviewTabProps) {
   const { t } = useI18n()
   // One-time acknowledgement before whole-document AI rewrites:
@@ -546,7 +551,7 @@ export function ReviewTab({
   }
   return (
     <>
-      {/* Word: Proofing (Editor) sits leftmost */}
+      {/* Word: Proofing (Editor + Spellcheck) sits leftmost */}
       <div className="ribbon-group">
         <div className="ribbon-group-items">
           <button
@@ -563,6 +568,17 @@ export function ReviewTab({
               </span>
             </span>
             <span>{t('ribbonEditorBtn')}</span>
+          </button>
+          <button
+            className={`rb-big ${spellcheckEnabled ? 'active' : ''}`}
+            disabled={!hasDoc}
+            title={spellcheckEnabled ? 'Spelling & Grammar (Enabled)' : 'Spelling & Grammar (Disabled)'}
+            onClick={onToggleSpellcheck}
+          >
+            <span className="rb-big-icon">
+              <IconSpellcheck size={22} />
+            </span>
+            <span>Spelling</span>
           </button>
         </div>
         <div className="ribbon-group-label">{t('ribbonGroupProofing')}</div>

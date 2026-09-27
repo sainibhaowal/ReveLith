@@ -2931,8 +2931,33 @@ th.cell-rev-del {
   color: var(--docs-paper-ink);
   /* Word's autoSpaceDE/DN (on by default): 1/8em gap between CJK and Latin/digits */
   text-autospace: normal;
+  /* Word-compatible inter-word justified spacing */
+  text-justify: inter-word;
   /* the other half of Word's ~1/4em gap, delivered by .doc-autospace-pad spans */
   --doc-autospace-pad: 0.125em;
+}
+
+/* Hidden text (w:vanish): hidden by default; revealed with dotted underline under .show-marks */
+.vanish-run {
+  display: none;
+}
+
+.show-marks .vanish-run {
+  display: inline !important;
+  border-bottom: 1px dotted var(--text-dim, #888);
+  color: inherit;
+  opacity: 0.85;
+}
+
+/* Drop cap visual styling: floats and enlarges the initial letter */
+.has-drop-cap::first-letter {
+  float: left;
+  font-size: 3.2em;
+  line-height: 0.82;
+  margin-top: 0.05em;
+  margin-right: 0.12em;
+  font-weight: 700;
+  color: var(--docs-paper-ink);
 }
 
 /* zero-width pad at CJK/Latin boundaries. Plain inline (not inline-block): an
@@ -3315,6 +3340,63 @@ th.cell-rev-del {
   color: var(--docs-paper-link);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* hidden text (w:vanish): invisible normally, dotted underline with marks shown */
+.vanish-run {
+  display: none;
+}
+
+.show-marks .vanish-run {
+  display: inline;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+/* hyperlink hover card: URL preview + Copy / Edit / Remove */
+.link-tip {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 320px;
+  padding: 6px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-modal-strong);
+  font-size: 12px;
+}
+
+.link-tip-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.link-tip-btn {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.link-tip-btn:hover {
+  background: var(--bg-hover);
+}
+
+.link-tip-btn.danger {
+  color: var(--danger);
 }
 
 /* flat list items (1:1 with w:p anchors)
@@ -6437,6 +6519,10 @@ body.docs-crop-active
     min-height: 0 !important;
     box-shadow: none !important;
     margin: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Direct PDF uses the same section page box as the editor. Preview export

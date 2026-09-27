@@ -16,7 +16,7 @@
  */
 import { XMLParser } from 'fast-xml-parser'
 import { type Theme } from './theme'
-import { resolveColorNode } from './color'
+import { resolveColorNode, resolveFillRefColor } from './color'
 
 const chartParser = new XMLParser({
   ignoreAttributes: false,
@@ -27,6 +27,16 @@ const chartParser = new XMLParser({
 })
 
 export type ChartKind = 'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'pieOfPie' | 'unknown'
+
+/** Normalized manual-layout box (c:manualLayout x/y/w/h + xMode/yMode). */
+export interface ManualLayoutBox {
+  x: number
+  y: number
+  w: number
+  h: number
+  xMode: 'edge' | 'factor'
+  yMode: 'edge' | 'factor'
+}
 
 export interface ChartSeries {
   name?: string
@@ -93,6 +103,20 @@ export interface ChartModel {
   dataLabelsPct?: boolean
   /** Chart title (concatenated rich text of c:chart/c:title) */
   title?: string
+  /**
+   * Manual layout box (c:layout/c:manualLayout): normalized 0..1 coordinates.
+   * xMode/yMode 'edge' = fraction of the chart box; 'factor' = multiplier of
+   * the auto-computed frame (1 = default). Absent = auto layout.
+   */
+  plotLayout?: ManualLayoutBox
+  /** Manual legend layout (c:legend/c:layout/c:manualLayout) */
+  legendLayout?: ManualLayoutBox
+  /** Manual title layout (c:title/c:layout/c:manualLayout) */
+  titleLayout?: ManualLayoutBox
+  /** Per-point colors for single-series charts (c:varyColors val="1") */
+  varyColors?: boolean
+  /** Deleted legend entry indexes (c:legendEntry/c:delete); skipped in legends */
+  hiddenLegendEntries?: number[]
   /** Logarithmic value axis (c:scaling/logBase) */
   logBase?: number
   /** Pie of pie: second pie shows the smallest N points (c:pieOfPieChart splitType) */
@@ -143,9 +167,11 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
   } else if (plotArea['c:pieChart'] || plotArea['c:doughnutChart']) {
     kind = 'pie'
     plot = plotArea['c:pieChart'] ?? plotArea['c:doughnutChart']
-  } else if (plotArea['c:pieOfPieChart']) {
+  } else if (plotArea['c:ofPieChart'] ?? plotArea['c:pieOfPieChart']) {
+    // canonical OOXML name is c:ofPieChart (CT_OfPieChart); the second
+    // spelling is tolerated for files written by third-party producers
     kind = 'pieOfPie'
-    plot = plotArea['c:pieOfPieChart']
+    plot = plotArea['c:ofPieChart'] ?? plotArea['c:pieOfPieChart']
   } else if (plotArea['c:scatterChart']) {
     kind = 'scatter'
     plot = plotArea['c:scatterChart']
@@ -203,7 +229,11 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
         for (const dPt of dPts) {
           const idx = parseInt(dPt['c:idx']?.['@_val'], 10)
           if (Number.isNaN(idx)) continue
-          const c = resolveColorNode(dPt['c:spPr']?.['a:solidFill'], theme)
+          const spPr = dPt['c:spPr']
+          const c =
+            resolveColorNode(spPr?.['a:solidFill'], theme) ??
+            resolveFillRefColor(spPr, theme) ??
+            resolveGradFillColor(spPr, theme)
           if (c != null) pointColors[idx] = c
         }
         if (pointColors.length) s.pointColors = pointColors
@@ -225,6 +255,21 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
   }
 
   const model: ChartModel = { kind, categories, series }
+
+  // Manual layouts (c:layout/c:manualLayout on plotArea, legend and title):
+  // normalized coordinates; applied by the renderer instead of auto-layout
+  const plotLayout = parseManualLayout(plotArea)
+  if (plotLayout) model.plotLayout = plotLayout
+  const legendNode = chart?.['c:legend']
+  const legendLayout = parseManualLayout(legendNode)
+  if (legendLayout) model.legendLayout = legendLayout
+  const titleNode = chart?.['c:title']
+  const titleLayout = parseManualLayout(titleNode)
+  if (titleLayout) model.titleLayout = titleLayout
+
+  // Per-point colors for single-series charts (each bar/slice its own color)
+  const varyRaw = plot['c:varyColors']?.['@_val']
+  if (varyRaw === '1' || varyRaw === 'true') model.varyColors = true
 
   if (kind === 'bar') {
     const dir = plot['c:barDir']?.['@_val']
@@ -310,6 +355,22 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
 
   const legendPos = chart['c:legend']?.['c:legendPos']?.['@_val']
   if (chart['c:legend']) model.legendPos = (legendPos as ChartModel['legendPos']) ?? 'r'
+  // Deleted legend entries (c:legendEntry/c:delete): hidden series/category
+  // indexes, skipped by the renderer's legend builders
+  const legendEntryRaw = chart['c:legend']?.['c:legendEntry']
+  const legendEntries: any[] = Array.isArray(legendEntryRaw)
+    ? legendEntryRaw
+    : legendEntryRaw
+      ? [legendEntryRaw]
+      : []
+  const hiddenLegendEntries: number[] = []
+  for (const entry of legendEntries) {
+    const del = entry?.['c:delete']?.['@_val']
+    if (del !== '1' && del !== 'true') continue
+    const idx = parseInt(entry?.['c:idx']?.['@_val'], 10)
+    if (Number.isFinite(idx) && idx >= 0) hiddenLegendEntries.push(idx)
+  }
+  if (hiddenLegendEntries.length) model.hiddenLegendEntries = hiddenLegendEntries
 
   const chartTitle = collectText(chart['c:title']?.['c:tx']?.['c:rich'])
   if (chartTitle) model.title = chartTitle
@@ -402,13 +463,51 @@ function readPoints(cache: any): Array<string | null> {
   return out
 }
 
-/** Series main color: ln stroke first (lines), otherwise solidFill (bars/pies). */
+/** c:layout/c:manualLayout → normalized box; undefined when absent/incomplete. */
+function parseManualLayout(node: any): ManualLayoutBox | undefined {
+  const ml = node?.['c:layout']?.['c:manualLayout']
+  if (!ml || typeof ml !== 'object') return undefined
+  const num = (v: unknown): number | undefined => {
+    const raw = typeof v === 'object' && v !== null ? (v as Record<string, unknown>)['@_val'] : v
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : undefined
+  }
+  const x = num(ml['c:x'])
+  const y = num(ml['c:y'])
+  const w = num(ml['c:w'])
+  const h = num(ml['c:h'])
+  if (x === undefined || y === undefined || w === undefined || h === undefined) return undefined
+  const mode = (v: unknown): 'edge' | 'factor' => (v === 'factor' ? 'factor' : 'edge')
+  return {
+    x,
+    y,
+    w,
+    h,
+    xMode: mode(ml['c:xMode']?.['@_val'] ?? ml['c:xMode']),
+    yMode: mode(ml['c:yMode']?.['@_val'] ?? ml['c:yMode']),
+  }
+}
+
+/** Series main color: ln stroke, solidFill, theme style refs (fillRef →
+ * fmtScheme), then the first gradient stop (no flat equivalent exists; the
+ * dominant stop keeps the hue family). */
 function serColor(ser: any, theme?: Theme): string | undefined {
   const spPr = ser['c:spPr']
   if (!spPr) return undefined
   const lnColor = resolveColorNode(spPr['a:ln']?.['a:solidFill'], theme)
   const fillColor = resolveColorNode(spPr['a:solidFill'], theme)
-  return lnColor ?? fillColor
+  return lnColor ?? fillColor ?? resolveFillRefColor(spPr, theme) ?? resolveGradFillColor(spPr, theme)
+}
+
+/** First gradient stop color (a:gradFill/a:gsLst/a:gs → srgbClr/schemeClr). */
+function resolveGradFillColor(spPr: any, theme?: Theme): string | undefined {
+  const gsLst = spPr?.['a:gradFill']?.['a:gsLst']?.['a:gs']
+  const stops: any[] = Array.isArray(gsLst) ? gsLst : gsLst ? [gsLst] : []
+  for (const gs of stops) {
+    const c = resolveColorNode(gs, theme)
+    if (c) return c
+  }
+  return undefined
 }
 
 function parseAxis(ax: any, theme?: Theme): ChartAxisStyle | undefined {

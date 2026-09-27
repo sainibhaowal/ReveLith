@@ -3108,6 +3108,7 @@ async function executeTool(
       const kind = isShape ? String(call.input.kind) : 'textbox'
       if (isShape && !/^[a-zA-Z][a-zA-Z0-9]*$/.test(kind)) {
         return fail(t('aiFailNewShape'), `Invalid shape name: ${kind}`)
+      }
       // Enable auto-size for AI-generated text boxes
       const autoSize = !isShape && paragraphs && paragraphs.length > 0
       const r = await window.slidesApi.addElement({

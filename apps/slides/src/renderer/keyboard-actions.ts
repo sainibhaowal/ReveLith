@@ -9,6 +9,7 @@ import * as clipboardActions from './clipboard-actions'
 import * as arrangeActions from './arrange-actions'
 import * as slideActions from './slide-actions'
 import * as showActions from './show-actions'
+import * as styleActions from './style-actions'
 import { shouldRouteUndoToDeck } from './undo-routing'
 
 /** Whether focus is in a text input (input/textarea/contentEditable) : these cases use native undo/delete */
@@ -55,6 +56,14 @@ export function handleGlobalKeydown(ctx: ActionCtx, e: KeyboardEvent): void {
     if (editing || inField) return
     e.preventDefault()
     ctx.setPrintDlgOpen(true)
+    return
+  }
+  // Ctrl+Left/Right Shift: paragraph base direction (Word parity). Shift is the
+  // key itself here (e.key === 'Shift'); e.location tells left from right.
+  if (mod && !e.altKey && e.key === 'Shift' && !editing && !inField && selectedIds.length) {
+    e.preventDefault()
+    const dir = e.location === KeyboardEvent.DOM_KEY_LOCATION_RIGHT ? 'rtl' : 'ltr'
+    styleActions.onParagraphFormat(ctx, { direction: dir })
     return
   }
   // Zoom shortcut fallback

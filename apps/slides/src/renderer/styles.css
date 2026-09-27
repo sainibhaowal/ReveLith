@@ -4061,12 +4061,13 @@ body.vib .slide-list {
 /* Notes pane (bottom, PowerPoint style) */
 .notes-pane {
   flex-shrink: 0;
-  height: 118px;
+  height: 160px;
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 0 14px 10px;
+  box-sizing: border-box;
 }
 
 .notes-resize-handle {
@@ -4085,9 +4086,11 @@ body.vib .slide-list {
 
 .notes-label {
   font-size: 11px;
+  font-weight: 600;
   color: var(--text-dim);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   user-select: none;
+  letter-spacing: 0.02em;
 }
 
 .notes-pane textarea {
@@ -4095,12 +4098,15 @@ body.vib .slide-list {
   border: none;
   outline: none;
   resize: none;
+  overflow-y: auto;
   font:
-    13px/1.5 'Segoe UI',
+    14px/1.6 'Segoe UI',
     var(--ui-cjk),
+    -apple-system,
     sans-serif;
   color: var(--text);
   background: transparent;
+  padding: 2px 0;
 }
 
 /* Ruler: inside .stage-scale, scales with zoom and stays aligned with the slide */

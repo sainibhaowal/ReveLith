@@ -177,8 +177,7 @@ export interface SetElementParagraphFormatOp {
   slideIndex: number
   sourceIds: string[]
   /** 'char' bullet dot / 'number' numbered / 'none' explicitly none */
-  bullet?: 'char' | 'number' | 'none'
-  /** Custom bullet character (with bullet: 'char'; defaults to '•') */
+  bullet?: 'char' | 'number' | 'none'  /** Custom bullet character (with bullet: 'char'; defaults to '•') */
   bulletChar?: string
   /** Bullet hanging indent (EMU); alone it adjusts existing bullets' indent */
   bulletHangEmu?: number
@@ -192,10 +191,63 @@ export interface SetElementParagraphFormatOp {
   spaceBeforePt?: number
   spaceAfterPt?: number
   align?: 'left' | 'center' | 'right' | 'justify'
+  /** Base text direction: 'rtl' sets <a:pPr rtl="1">, 'ltr' clears it */
+  direction?: 'ltr' | 'rtl'
   /** Indent level increment/decrement (multi-level lists; applies to all paragraphs) */
   indentDelta?: 1 | -1
   /** In-group editing: all sourceIds are direct children of that group */
   groupId?: string
+}
+
+/** Text-frame column direction toggle (<a:bodyPr rtlCol>). */
+export interface SetBodyPrRtlColOp {
+  slideIndex: number
+  sourceId: string
+  rtl: boolean
+}
+
+/** Text-frame vertical text writing direction. */
+export interface SetVerticalTextOp {
+  slideIndex: number
+  sourceId: string
+  vert: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null
+}
+
+/** Element effects (shadow, glow, soft edge, reflection) patch. */
+export interface SetEffectsOp {
+  slideIndex: number
+  sourceId: string
+  shadow?: {
+    color?: string
+    blurRad?: number
+    dist?: number
+    dirDeg?: number
+  } | null
+  glow?: {
+    color?: string
+    radius?: number
+  } | null
+  softEdge?: number | null
+  reflection?: {
+    blurRad?: number
+    stA?: number
+    endA?: number
+    dist?: number
+    dirDeg?: number
+  } | null
+}
+
+export interface MissingFontInfo {
+  family: string
+  occurrences: number
+  substitute?: string
+  status: 'missing' | 'installed'
+}
+
+export interface InstallFontOp {
+  family: string
+  fileBytesBase64?: string
+  fileName?: string
 }
 
 /** Whole-picture opacity (0..1; 1 = opaque, clears the marker). */
@@ -651,6 +703,13 @@ export interface SetTableCellAnchorOp {
   anchor: 'top' | 'middle' | 'bottom'
 }
 
+/** Table reading direction toggle (a:tablePr rtl="1|0"). */
+export interface SetTableRtlOp {
+  slideIndex: number
+  sourceId: string
+  rtl: boolean
+}
+
 /** Picture crop edit: a null srcRect resets to the full image. */
 export interface EditPictureSrcRectOp {
   slideIndex: number
@@ -768,6 +827,7 @@ export interface AddChartOp {
     | 'area'
     | 'pie'
     | 'doughnut'
+    | 'pieOfPie'
     | 'scatter'
     | 'radar'
     | 'comboBarLine'
@@ -884,6 +944,7 @@ export interface EditChartOp {
     | 'area'
     | 'pie'
     | 'doughnut'
+    | 'pieOfPie'
     | 'scatter'
     | 'radar'
     | 'comboBarLine'
@@ -1131,6 +1192,10 @@ export interface SlidesApi {
   setTableCellAnchor: (op: SetTableCellAnchorOp) => Promise<RenderSlide | null>
   editFill: (op: EditFillOp) => Promise<RenderSlide | null>
   editStroke: (op: EditStrokeOp) => Promise<RenderSlide | null>
+  setVerticalText: (op: SetVerticalTextOp) => Promise<RenderSlide | null>
+  setEffects: (op: SetEffectsOp) => Promise<RenderSlide | null>
+  getMissingFonts: () => Promise<MissingFontInfo[]>
+  installFont: (op: InstallFontOp) => Promise<{ success: boolean; installedFamily?: string; error?: string }>
   /** Mirror selected elements horizontally/vertically */
   flipElements: (op: FlipElementOp) => Promise<RenderSlide | null>
   /** Returns the full affected RenderSlide array (when applied to all pages) */
@@ -1264,6 +1329,8 @@ export interface SlidesApi {
   editTableStyle: (
     op: EditTableStyleOp,
   ) => Promise<{ slide: RenderSlide; sourceId: string | null } | null>
+  /** Table reading direction toggle; returns the updated page */
+  setTableRtl: (op: SetTableRtlOp) => Promise<{ slide: RenderSlide; sourceId: string | null } | null>
   /** Chart edit (charts created by this app, rebuilds the chart part); returns the updated page */
   /** sourceId: the chart's new element id after reparse (the renderer uses it to keep the selection), null on error */
   editChart: (op: EditChartOp) => Promise<{ slide: RenderSlide; sourceId: string | null } | null>

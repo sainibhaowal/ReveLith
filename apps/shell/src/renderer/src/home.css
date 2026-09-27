@@ -547,9 +547,22 @@ body.vib .home {
   z-index: 4;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 14px;
   padding: 10px 0 14px;
   background: var(--bg-content);
+}
+
+/* heading and pills never shrink: the search box absorbs the slack */
+.recents-heading,
+.filter-pills,
+.selection-bar {
+  flex-shrink: 0;
+}
+
+/* search sits at the toolbar's right edge, flush with the table below */
+.search-bar-wrapper {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* "RECENT · N files" on one baseline */

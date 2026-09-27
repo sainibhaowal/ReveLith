@@ -78,6 +78,40 @@ export function applyColorMods(hex: string, mods: XmlNode | undefined): string {
   return out
 }
 
+/**
+ * Resolve a theme style reference (a:fillRef idx → fmtScheme fillStyleLst):
+ * solid template fills resolve to a color (with tint/shade/alpha mods);
+ * gradients/patterns/blips have no flat equivalent → undefined (callers fall
+ * back to explicit fills or the palette). The reference's own color resolves
+ * phClr-style usages and is the last-resort fallback.
+ */
+export function resolveFillRefColor(spPr: unknown, theme: Theme | undefined): string | undefined {
+  const ref = asXmlNode(asXmlNode(spPr)?.['a:fillRef'])
+  if (!ref || typeof ref !== 'object') return undefined
+  const idx = parseInt(String(ref['@_idx'] ?? '0'), 10) || 0
+  const refColor = resolveColorNode(ref, theme) ?? undefined
+  if (idx <= 0) return refColor
+  const tpl = theme?.fillStyles?.[idx - 1]
+  const solid = tpl ? findSolidFill(tpl) : undefined
+  return (solid ? resolveColorNode(solid, theme) : undefined) ?? refColor
+}
+
+/** First a:solidFill anywhere inside a (possibly nested) style template node. */
+function findSolidFill(node: unknown): XmlNode | undefined {
+  const n = asXmlNode(node)
+  if (!n || typeof n !== 'object') return undefined
+  if (n['a:solidFill'] && typeof n['a:solidFill'] === 'object') {
+    return asXmlNode(n['a:solidFill'])
+  }
+  for (const value of Object.values(n)) {
+    if (value && typeof value === 'object') {
+      const found = findSolidFill(value)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
 export function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const h = hex.replace(/^#/, '')
   return {

@@ -1,4 +1,4 @@
-﻿import {
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -89,6 +89,7 @@ import { Ribbon } from './components/Ribbon'
 import { computeFormatState } from './components/ribbon-format-state'
 import { IconRedo, IconSave, IconUndo } from './components/icons'
 import { ToastHost } from './components/toast'
+import { LinkTooltip } from './components/LinkTooltip'
 import {
   LinkInsertModal,
   insertImageFromDataUrl,
@@ -575,13 +576,17 @@ export function App() {
   // as succeeded; callers that must not lose data (the close guard) save again.
   const saveIncompleteRef = useRef(false)
 
+  const [spellcheckEnabled, setSpellcheckEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('docs:spellcheck-enabled') !== '0'
+  })
+
   const editorRef = useRef<Editor | null>(null)
   const editor = useEditor({
     extensions: editorExtensions,
     content: { type: 'doc', content: [{ type: 'docParagraph' }] },
     editorProps: {
       // Word checks spelling as you type by default
-      attributes: { class: 'doc-page', spellcheck: 'true' },
+      attributes: { class: 'doc-page', spellcheck: spellcheckEnabled ? 'true' : 'false' },
       // Word/web HTML cleanup: strip mso comments and <o:p>, unwrap <li><p>x</p></li>
       // (docListItem is an inline container; block-level p would shatter the list)
       transformPastedHTML: cleanPastedHtml,
@@ -679,6 +684,13 @@ export function App() {
       forceRender()
     },
   })
+
+  useEffect(() => {
+    localStorage.setItem('docs:spellcheck-enabled', spellcheckEnabled ? '1' : '0')
+    if (editor?.view?.dom) {
+      editor.view.dom.setAttribute('spellcheck', spellcheckEnabled ? 'true' : 'false')
+    }
+  }, [spellcheckEnabled, editor])
 
   // textbox sub-editors: re-render the ribbon on focus/selection changes and
   // mark the document dirty when their content changes
@@ -2879,6 +2891,8 @@ export function App() {
         readMode={readMode}
         showGrid={showGrid}
         splitView={splitView}
+        spellcheckEnabled={spellcheckEnabled}
+        onToggleSpellcheck={() => setSpellcheckEnabled((prev) => !prev)}
         {...ribbonActions}
       />
 
@@ -3186,6 +3200,7 @@ export function App() {
       </div>
 
       {showLinkModal && <LinkInsertModal editor={editor} onClose={() => setShowLinkModal(false)} />}
+      <LinkTooltip editor={editor} />
       {showEquationModal && editor && (
         <EquationModal editor={editor} onClose={() => setShowEquationModal(false)} />
       )}

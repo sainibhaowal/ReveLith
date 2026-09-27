@@ -238,6 +238,7 @@ export interface ChartPresetDef {
     | 'area'
     | 'pie'
     | 'doughnut'
+    | 'pieOfPie'
     | 'scatter'
     | 'radar'
     | 'comboBarLine'

@@ -43,6 +43,9 @@ export function pngDefaultPath(safeName: string): string {
 /**
  * Map measured content size → hidden-window size. Non-finite or empty
  * measurements fall back to a minimal viewport; oversized documents clamp.
+ *
+ * Measure AFTER setZoomFactor: readings are then in final-layout CSS px, so
+ * the window size matches what capturePage will actually rasterize.
  */
 export function computeCaptureSize(scrollWidth: unknown, scrollHeight: unknown): CaptureSize {
   const w = Number(scrollWidth)
@@ -51,4 +54,25 @@ export function computeCaptureSize(scrollWidth: unknown, scrollHeight: unknown):
   const rawHeight = Number.isFinite(h) && h > 0 ? Math.ceil(h) + PNG_CAPTURE_PADDING * 2 : PNG_CAPTURE_MIN_HEIGHT
   const height = Math.min(Math.max(rawHeight, PNG_CAPTURE_MIN_HEIGHT), PNG_CAPTURE_MAX_HEIGHT)
   return { width: Math.max(width, PNG_CAPTURE_WIDTH), height, scale: PNG_CAPTURE_SCALE }
+}
+
+/**
+ * Poll a numeric reading until it stops changing (Chromium reflow settling
+ * after a window resize / zoom change). Returns the settled value, or the
+ * last reading when maxAttempts runs out. The measure callback is injected
+ * so tests can drive it without Electron.
+ */
+export async function waitForStableValue(
+  measure: () => Promise<number>,
+  options?: { intervalMs?: number; maxAttempts?: number; tolerance?: number },
+): Promise<number> {
+  const { intervalMs = 60, maxAttempts = 30, tolerance = 2 } = options ?? {}
+  let prev = await measure()
+  for (let i = 1; i < maxAttempts; i++) {
+    await new Promise((r) => setTimeout(r, intervalMs))
+    const next = await measure()
+    if (Math.abs(next - prev) <= tolerance) return next
+    prev = next
+  }
+  return prev
 }

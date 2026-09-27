@@ -52,6 +52,7 @@ import {
   type PlanContext,
 } from './plan-operations'
 import { isNumericIdentifierText } from './cell-warning'
+import { handleExportActiveSheetCsv } from './csv-export-action'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 import {
@@ -241,6 +242,7 @@ import { installSheetRenameFix } from './sheet-rename-fix'
 import { installSelectionWrapGuard } from './selection-wrap-fix'
 import { installMultiRowAutofit } from './autofit-multi-row'
 import { installCopyMaterialize } from './copy-materialize'
+import { installPasteGuard } from './paste-guard'
 import { applyUniverLocale } from './univer-locales'
 import { installRuleDetail } from './univer-rule-detail'
 import { installPopulatedDataValidationArrow } from './data-validation-arrow'
@@ -1373,6 +1375,9 @@ export function App(): React.JSX.Element {
     // Copy/cut load their selection into the lazy window first so streamed
     // workbooks don't serialize blanks for never-viewed rows.
     const copyMaterializeDisposable = installCopyMaterialize(runtime, lazyWorkbookRef, setMessage)
+    // Pastes over the cell ceiling are refused with a message instead of
+    // freezing the worker on a million-cell write + recalc.
+    const pasteGuardDisposable = installPasteGuard(runtime, setMessage)
     // List-validation arrows stay discoverable on values without cluttering empty template rows.
     const dataValidationArrowDisposable = installPopulatedDataValidationArrow(runtime)
     // Univer's own UI (rule-management panels, dialogs) follows the app
@@ -2195,6 +2200,7 @@ export function App(): React.JSX.Element {
       multiRowAutofitDisposable.dispose()
       nullResultDisposable.dispose()
       copyMaterializeDisposable.dispose()
+      pasteGuardDisposable.dispose()
       dataValidationArrowDisposable.dispose()
       ruleDetailDisposable()
       scrollDisposable.dispose()
@@ -2839,6 +2845,7 @@ export function App(): React.JSX.Element {
       pivotContext,
       handlePageLayoutCommand: (rest) => handlePageLayoutCommandImpl(pageLayoutContext(), rest),
       handleExportPdf: () => handleExportPdfImpl(pageLayoutContext()),
+      handleExportCsv: () => handleExportActiveSheetCsv(univerRef.current, setMessage),
     }
   }
 
@@ -3127,6 +3134,8 @@ export function App(): React.JSX.Element {
       void handleInspectWorkbook()
     } else if (action === 'export-pdf') {
       void handleExportPdfImpl(pageLayoutContext())
+    } else if (action === 'export-csv') {
+      void handleExportActiveSheetCsv(univerRef.current, setMessage)
     } else if (action === 'undo' || action === 'redo') {
       // The shell's own text fields (AI prompt, dialog inputs) keep native
       // text undo; everywhere else ⌘Z means workbook history.

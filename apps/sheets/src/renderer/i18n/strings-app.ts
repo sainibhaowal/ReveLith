@@ -489,6 +489,7 @@ export const appStrings = defineStrings({
     appFullyLoaded: '工作簿已完整加载::公式实时重算，行列可编辑。',
     appRangeMustBeVector: '{range} 必须是单行或单列的单元格。',
     appRangeTooManyCells: '{range} 超过 {max} 个单元格。',
+    appPasteTooLarge: '粘贴内容过大（{cells} 个单元格，上限 {max}）。请复制更小的区域。',
     appSheetStillIndexing: '工作表还在索引中::稍后再试。',
     // Print (export PDF)
     appPrintNothing: '该工作表没有可打印的内容。',
@@ -1716,6 +1717,7 @@ export const appStrings = defineStrings({
     appFullyLoaded: 'Workbook fully loaded : formulas recalculate live, rows/columns editable.',
     appRangeMustBeVector: '{range} must be a single row or a single column of cells.',
     appRangeTooManyCells: '{range} covers more than {max} cells.',
+    appPasteTooLarge: 'Paste is too large ({cells} cells, limit {max}). Copy a smaller range.',
     appSheetStillIndexing: 'The sheet is still indexing : try again in a moment.',
     appPrintNothing: 'The sheet has nothing to print.',
     appPrintTooLarge:
@@ -2981,6 +2983,7 @@ export const appStrings = defineStrings({
     appFullyLoaded: 'ブックを完全に読み込みました : 数式はライブで再計算され、行列を編集できます。',
     appRangeMustBeVector: '{range} は 1 行または 1 列のセルである必要があります。',
     appRangeTooManyCells: '{range} が {max} 個のセルを超えています。',
+    appPasteTooLarge: '貼り付けが大きすぎます（{cells} セル、上限 {max}）。範囲を小さくしてください。',
     appSheetStillIndexing: 'シートのインデックスを作成中です : しばらくしてからお試しください。',
     // Print (export PDF)
     appPrintNothing: 'このシートには印刷できる内容がありません。',
@@ -4232,6 +4235,7 @@ export const appStrings = defineStrings({
       '통합 문서를 모두 로드했습니다 : 수식이 실시간으로 다시 계산되고 행/열을 편집할 수 있습니다.',
     appRangeMustBeVector: '{range}은(는) 단일 행 또는 단일 열의 셀이어야 합니다.',
     appRangeTooManyCells: '{range}이(가) 셀 {max}개를 초과합니다.',
+    appPasteTooLarge: '붙여넣기가 너무 큽니다({cells}개 셀, 제한 {max}). 더 작은 범위를 복사하세요.',
     appSheetStillIndexing: '시트의 인덱스를 만드는 중입니다 : 잠시 후 다시 시도하십시오.',
     // Print (export PDF)
     appPrintNothing: '이 시트에는 인쇄할 내용이 없습니다.',
@@ -5527,6 +5531,7 @@ export const appStrings = defineStrings({
       'Classeur entièrement chargé : les formules se recalculent en direct, lignes/colonnes modifiables.',
     appRangeMustBeVector: '{range} doit être une seule ligne ou une seule colonne de cellules.',
     appRangeTooManyCells: '{range} couvre plus de {max} cellules.',
+    appPasteTooLarge: 'Collage trop volumineux ({cells} cellules, limite {max}). Copiez une plage plus petite.',
     appSheetStillIndexing:
       "La feuille est encore en cours d'indexation : réessayez dans un instant.",
     appPrintNothing: 'Cette feuille ne contient rien à imprimer.',
@@ -6803,6 +6808,7 @@ export const appStrings = defineStrings({
     appRangeMustBeVector:
       '{range} muss eine einzelne Zeile oder eine einzelne Spalte von Zellen sein.',
     appRangeTooManyCells: '{range} umfasst mehr als {max} Zellen.',
+    appPasteTooLarge: 'Einfügen zu groß ({cells} Zellen, Limit {max}). Kleineren Bereich kopieren.',
     appSheetStillIndexing: 'Das Blatt wird noch indiziert : versuchen Sie es gleich noch einmal.',
     appPrintNothing: 'Das Blatt enthält nichts zu drucken.',
     appPrintTooLarge:
@@ -8065,6 +8071,7 @@ export const appStrings = defineStrings({
       'Libro completamente cargado : las fórmulas se recalculan en vivo y las filas/columnas son editables.',
     appRangeMustBeVector: '{range} debe ser una sola fila o una sola columna de celdas.',
     appRangeTooManyCells: '{range} abarca más de {max} celdas.',
+    appPasteTooLarge: 'El pegado es demasiado grande ({cells} celdas, límite {max}). Copie un rango menor.',
     appSheetStillIndexing: 'La hoja todavía se está indexando : inténtelo de nuevo en un momento.',
     appPrintNothing: 'La hoja no tiene nada que imprimir.',
     appPrintTooLarge:
@@ -9274,6 +9281,7 @@ export const appStrings = defineStrings({
     appFullyLoaded: 'เวิร์กบุ๊กโหลดเต็มแล้ว : สูตรคำนวณใหม่แบบสด แก้ไขแถว/คอลัมน์ได้',
     appRangeMustBeVector: '{range} ต้องเป็นเซลล์แถวเดียวหรือคอลัมน์เดียว',
     appRangeTooManyCells: '{range} ครอบคลุมเกิน {max} เซลล์',
+    appPasteTooLarge: 'วางมีขนาดใหญ่เกินไป ({cells} เซลล์ จำกัด {max}) โปรดคัดลอกช่วงที่เล็กลง',
     appSheetStillIndexing: 'แผ่นงานยังทำดัชนีอยู่ : ลองใหม่อีกสักครู่',
     appPrintNothing: 'แผ่นงานนี้ไม่มีอะไรให้พิมพ์',
     appPrintTooLarge: 'ช่วงการพิมพ์ใหญ่เกินไป : กำหนดพื้นที่พิมพ์ให้เล็กลงในแท็บเค้าโครงหน้ากระดาษ',
@@ -10495,6 +10503,7 @@ export const appStrings = defineStrings({
       'Buku kerja termuat penuh : rumus dihitung ulang secara langsung, baris/kolom dapat diedit.',
     appRangeMustBeVector: '{range} harus berupa satu baris atau satu kolom sel.',
     appRangeTooManyCells: '{range} mencakup lebih dari {max} sel.',
+    appPasteTooLarge: 'Tempelan terlalu besar ({cells} sel, batas {max}). Salin rentang yang lebih kecil.',
     appSheetStillIndexing: 'Lembar masih diindeks : coba lagi sebentar lagi.',
     appPrintNothing: 'Lembar ini tidak memiliki apa pun untuk dicetak.',
     appPrintTooLarge:
@@ -11742,6 +11751,7 @@ export const appStrings = defineStrings({
       'Книга полностью загружена : формулы пересчитываются вживую, строки и столбцы доступны для редактирования.',
     appRangeMustBeVector: '{range} должен быть одной строкой или одним столбцом ячеек.',
     appRangeTooManyCells: '{range} охватывает более {max} ячеек.',
+    appPasteTooLarge: 'Вставка слишком велика ({cells} ячеек, лимит {max}). Скопируйте меньший диапазон.',
     appSheetStillIndexing: 'Лист ещё индексируется : повторите попытку чуть позже.',
     appPrintNothing: 'На листе нечего печатать.',
     appPrintTooLarge:
@@ -12950,6 +12960,7 @@ export const appStrings = defineStrings({
       'حُمّل المصنف بالكامل : تُعاد الصيغ للحساب مباشرة والصفوف والأعمدة قابلة للتحرير.',
     appRangeMustBeVector: 'يجب أن يكون {range} صفًا واحدًا أو عمودًا واحدًا من الخلايا.',
     appRangeTooManyCells: 'يغطي {range} أكثر من {max} خلية.',
+    appPasteTooLarge: 'اللصق كبير جدًا ({cells} خلية، الحد {max}). انسخ نطاقًا أصغر.',
     appSheetStillIndexing: 'الورقة لا تزال قيد الفهرسة : أعد المحاولة لاحقًا.',
     appPrintNothing: 'لا يوجد في الورقة ما يمكن طباعته.',
     appPrintTooLarge:
@@ -14203,6 +14214,7 @@ export const appStrings = defineStrings({
       'Pasta de trabalho totalmente carregada : fórmulas recalculam ao vivo, linhas/colunas editáveis.',
     appRangeMustBeVector: '{range} deve ser uma única linha ou uma única coluna de células.',
     appRangeTooManyCells: '{range} cobre mais de {max} células.',
+    appPasteTooLarge: 'Colagem grande demais ({cells} células, limite {max}). Copie um intervalo menor.',
     appSheetStillIndexing: 'A planilha ainda está sendo indexada : tente novamente em instantes.',
     appPrintNothing: 'A planilha não tem nada para imprimir.',
     appPrintTooLarge:
@@ -15461,6 +15473,7 @@ export const appStrings = defineStrings({
       'Cartella di lavoro completamente caricata : le formule si ricalcolano in tempo reale, righe/colonne modificabili.',
     appRangeMustBeVector: '{range} deve essere una singola riga o una singola colonna di celle.',
     appRangeTooManyCells: '{range} copre più di {max} celle.',
+    appPasteTooLarge: 'Incolla troppo grande ({cells} celle, limite {max}). Copia un intervallo più piccolo.',
     appSheetStillIndexing: 'Il foglio è ancora in fase di indicizzazione : riprova tra poco.',
     appPrintNothing: 'Il foglio non ha nulla da stampare.',
     appPrintTooLarge:
@@ -16718,6 +16731,7 @@ export const appStrings = defineStrings({
       'Skoroszyt w pełni załadowany : formuły przeliczają się na żywo, wiersze/kolumny można edytować.',
     appRangeMustBeVector: '{range} musi być pojedynczym wierszem lub pojedynczą kolumną komórek.',
     appRangeTooManyCells: '{range} obejmuje ponad {max} komórek.',
+    appPasteTooLarge: 'Wklejanie zbyt duże ({cells} komórek, limit {max}). Skopiuj mniejszy zakres.',
     appSheetStillIndexing: 'Arkusz jest wciąż indeksowany : spróbuj ponownie za chwilę.',
     appPrintNothing: 'Arkusz nie zawiera nic do wydrukowania.',
     appPrintTooLarge:
@@ -17981,6 +17995,7 @@ export const appStrings = defineStrings({
       'Werkmap volledig geladen : formules worden live opnieuw berekend, rijen/kolommen bewerkbaar.',
     appRangeMustBeVector: '{range} moet één rij of één kolom cellen zijn.',
     appRangeTooManyCells: '{range} beslaat meer dan {max} cellen.',
+    appPasteTooLarge: 'Plakken te groot ({cells} cellen, limiet {max}). Kopieer een kleiner bereik.',
     appSheetStillIndexing: 'Het werkblad wordt nog geïndexeerd : probeer het zo opnieuw.',
     appPrintNothing: 'Het werkblad bevat niets om af te drukken.',
     appPrintTooLarge:
@@ -19209,6 +19224,7 @@ export const appStrings = defineStrings({
       'Buku kerja dimuatkan sepenuhnya : formula dikira semula secara langsung, baris/lajur boleh diedit.',
     appRangeMustBeVector: '{range} mesti satu baris atau satu lajur sel.',
     appRangeTooManyCells: '{range} merangkumi lebih daripada {max} sel.',
+    appPasteTooLarge: 'Tampalan terlalu besar ({cells} sel, had {max}). Salin julat yang lebih kecil.',
     appSheetStillIndexing: 'Helaian masih diindeks : cuba lagi sebentar.',
     appPrintNothing: 'Helaian ini tiada apa untuk dicetak.',
     appPrintTooLarge:
@@ -20399,6 +20415,7 @@ export const appStrings = defineStrings({
       'חוברת העבודה נטענה במלואה : נוסחאות מחושבות מחדש באופן חי, שורות/עמודות ניתנות לעריכה.',
     appRangeMustBeVector: '{range} חייב להיות שורה בודדת או עמודה בודדת של תאים.',
     appRangeTooManyCells: '{range} מכסה יותר מ-{max} תאים.',
+    appPasteTooLarge: 'ההדבקה גדולה מדי ({cells} תאים, מגבלה {max}). העתק טווח קטן יותר.',
     appSheetStillIndexing: 'הגיליון עדיין באינדוקס : נסה שוב בעוד רגע.',
     appPrintNothing: 'בגיליון אין מה להדפיס.',
     appPrintTooLarge: 'טווח ההדפסה גדול מדי : הגדר אזור הדפסה קטן יותר בכרטיסייה פריסת עמוד.',
@@ -21624,6 +21641,7 @@ export const appStrings = defineStrings({
       'कार्यपुस्तिका पूरी तरह लोड हुई : सूत्र लाइव पुनर्गणित होते हैं, पंक्तियाँ/स्तंभ संपादन-योग्य।',
     appRangeMustBeVector: '{range} सेलों की एक ही पंक्ति या एक ही स्तंभ होना चाहिए।',
     appRangeTooManyCells: '{range} {max} से अधिक सेल कवर करता है।',
+    appPasteTooLarge: 'पेस्ट बहुत बड़ा है ({cells} सेल, सीमा {max})। छोटी श्रेणी कॉपी करें।',
     appSheetStillIndexing: 'शीट अभी अनुक्रमित हो रही है : थोड़ी देर बाद फिर प्रयास करें।',
     appPrintNothing: 'शीट में मुद्रित करने के लिए कुछ नहीं है।',
     appPrintTooLarge:
@@ -22780,6 +22798,7 @@ export const appStrings = defineStrings({
     appFullyLoaded: '活頁簿已完整載入::公式即時重新計算，列欄可編輯。',
     appRangeMustBeVector: '{range} 必須是單列或單欄的儲存格。',
     appRangeTooManyCells: '{range} 超過 {max} 個儲存格。',
+    appPasteTooLarge: '貼上內容過大（{cells} 個儲存格，上限 {max}）。請複製更小的範圍。',
     appSheetStillIndexing: '工作表還在建立索引::請稍後再試。',
     appPrintNothing: '該工作表沒有可列印的內容。',
     appPrintTooLarge: '列印範圍太大::請在「版面配置」裡設定更小的列印範圍。',

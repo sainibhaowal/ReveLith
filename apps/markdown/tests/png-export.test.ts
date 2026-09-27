@@ -6,6 +6,7 @@ import {
   computeCaptureSize,
   pngDefaultPath,
   sanitizeExportBaseName,
+  waitForStableValue,
 } from '../src/main/png-export'
 import { buildPrintHtml } from '../src/renderer/export/printHtml'
 
@@ -51,6 +52,34 @@ describe('png capture sizing', () => {
     const size = computeCaptureSize(NaN, undefined)
     expect(size.width).toBe(PNG_CAPTURE_WIDTH)
     expect(size.height).toBe(PNG_CAPTURE_MIN_HEIGHT)
+  })
+})
+
+describe('waitForStableValue', () => {
+  it('returns once the reading stops changing', async () => {
+    const readings = [400, 900, 1200, 1200]
+    let calls = 0
+    const value = await waitForStableValue(
+      async () => readings[Math.min(calls++, readings.length - 1)],
+      { intervalMs: 1 },
+    )
+    expect(value).toBe(1200)
+    expect(calls).toBe(4)
+  })
+
+  it('accepts values within tolerance as settled', async () => {
+    const value = await waitForStableValue(async () => 1000, { intervalMs: 1 })
+    expect(value).toBe(1000)
+  })
+
+  it('gives up after maxAttempts and returns the last reading', async () => {
+    let n = 0
+    const value = await waitForStableValue(async () => (n += 100), {
+      intervalMs: 1,
+      maxAttempts: 5,
+    })
+    expect(value).toBe(500)
+    expect(n).toBe(500)
   })
 })
 

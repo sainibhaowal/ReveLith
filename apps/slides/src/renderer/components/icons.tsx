@@ -160,6 +160,33 @@ export function IconAlignJustify(props: IconProps) {
   )
 }
 
+export function IconTextDirectionLtr(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 4.53 5.78 h 9.96 M 4.53 9.51 h 14.94 M 4.53 13.25 h 9.96 M 4.53 16.98 h 14.94" />
+      <path d="M 16.5 4.2 l 3.4 3.1 -3.4 3.1 z" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
+export function IconTextDirectionRtl(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 9.51 5.78 h 9.96 M 4.53 9.51 h 14.94 M 9.51 13.25 h 9.96 M 4.53 16.98 h 14.94" />
+      <path d="M 7.5 4.2 l -3.4 3.1 3.4 3.1 z" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
+export function IconTextDirectionVertical(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 6 4.53 v 9.96 M 10 4.53 v 14.94 M 14 4.53 v 9.96 M 18 4.53 v 14.94" />
+      <path d="M 4.2 16.5 l 3.1 3.4 3.1 -3.4 z" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
 export function IconLineSpacing(props: IconProps) {
   return (
     <Svg {...props}>

@@ -203,6 +203,8 @@ interface RibbonProps {
   isProtected: boolean
   onToggleProtection: () => void
   onCompare: () => void
+  spellcheckEnabled?: boolean
+  onToggleSpellcheck?: () => void
   /** current document path (View → New Window opens it in another window) */
   filePath: string | null
   viewMode: ViewMode
@@ -665,6 +667,8 @@ function RibbonInner({
   isProtected,
   onToggleProtection,
   onCompare,
+  spellcheckEnabled,
+  onToggleSpellcheck,
   filePath,
   viewMode,
   onViewMode,
@@ -700,6 +704,18 @@ function RibbonInner({
   /** Picture Format → remove background / crop dialogs */
   const [pictureDialog, setPictureDialog] = useState<'cutout' | 'crop' | null>(null)
   const [listDialog, setListDialog] = useState(false)
+  const [ribbonCollapsed, setRibbonCollapsed] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'F1') {
+        e.preventDefault()
+        setRibbonCollapsed((c) => !c)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => {
     if (tabRequest && (TABS as readonly string[]).includes(tabRequest.tab)) {
@@ -1502,7 +1518,9 @@ function RibbonInner({
               lastRegularTab.current = tabName
               setTab(tabName)
               setDropdown(null)
+              if (ribbonCollapsed) setRibbonCollapsed(false)
             }}
+            onDoubleClick={() => setRibbonCollapsed((c) => !c)}
           >
             {t(TAB_LABEL_KEYS[tabName])}
           </button>
@@ -1548,10 +1566,44 @@ function RibbonInner({
             </button>
           ))}
         <span className="ribbon-tabs-spacer" />
+        <button
+          className="ribbon-collapse-toggle"
+          title={ribbonCollapsed ? 'Expand Ribbon (Ctrl+F1)' : 'Collapse Ribbon (Ctrl+F1)'}
+          onClick={() => setRibbonCollapsed((c) => !c)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-dim, #888)',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              transform: ribbonCollapsed ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.15s ease',
+            }}
+          >
+            <path d="M2 8L6 4L10 8" />
+          </svg>
+        </button>
         {trailingActions}
       </div>
 
-      <div className="ribbon-body">
+      {!ribbonCollapsed && (
+        <div className="ribbon-body">
         {tab === 'shapeFormat' && inShape ? (
           <div className="table-ribbon-body">
             <div className="ribbon-group">
@@ -3048,6 +3100,8 @@ function RibbonInner({
             isProtected={isProtected}
             onToggleProtection={onToggleProtection}
             onCompare={onCompare}
+            spellcheckEnabled={spellcheckEnabled}
+            onToggleSpellcheck={onToggleSpellcheck}
           />
         ) : (
           <ViewTab
@@ -3076,6 +3130,7 @@ function RibbonInner({
           />
         )}
       </div>
+      )}
 
       {pictureDialog === 'cutout' && imageDataUrl && (
         <CutoutDialog

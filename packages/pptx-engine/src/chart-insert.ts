@@ -22,6 +22,8 @@ export type NewChartKind =
   | 'area'
   | 'pie'
   | 'doughnut'
+  /** Pie-of-pie (second pie breaks out small slices; Change-Type dialog entry) */
+  | 'pieOfPie'
   | 'scatter'
   | 'radar'
   /** Combo chart: first N-1 series as clustered columns, last series as a line (on the right secondary value axis) */
@@ -176,6 +178,12 @@ export function buildChartSpaceXml(opts: NewChartOptions): string {
     plot =
       `<c:doughnutChart><c:varyColors val="1"/>${sers}${dLbls}` +
       '<c:firstSliceAng val="0"/><c:holeSize val="50"/></c:doughnutChart>'
+  } else if (opts.kind === 'pieOfPie') {
+    // Pie-of-pie: main pie plus a breakout pie for small slices (PowerPoint
+    // defaults: pie sub-type, automatic split, 75% second-pie size)
+    plot =
+      `<c:ofPieChart><c:ofPieType val="pie"/><c:varyColors val="1"/>${sers}${dLbls}` +
+      '<c:gapWidth val="150"/><c:splitType val="auto"/><c:secondPieSize val="75"/></c:ofPieChart>'
   } else if (opts.kind === 'scatter') {
     // Scatter (XY): x values come from categories (numeric strings use their value,
     // otherwise ordinals 1..n), y values from the series values;

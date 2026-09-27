@@ -90,6 +90,20 @@ export const StrikeMark = Mark.create({
   },
 })
 
+/**
+ * Hidden text (w:vanish): invisible in standard view, revealed with a dotted
+ * underline when formatting marks are shown (.show-marks on the page).
+ */
+export const VanishMark = Mark.create({
+  name: 'vanish',
+  parseHTML() {
+    return [{ tag: 'span[data-vanish]' }]
+  },
+  renderHTML() {
+    return ['span', { 'data-vanish': '', class: 'vanish-run' }, 0]
+  },
+})
+
 export const LinkMark = Mark.create({
   name: 'link',
   inclusive: false,

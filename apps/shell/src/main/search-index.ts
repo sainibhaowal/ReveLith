@@ -117,9 +117,24 @@ class JsonFallbackIndex {
     }
   }
 
-  upsert(entry: JsonIndexEntry): void {
+  upsert(
+    filePath: string,
+    fileName: string,
+    extension: string,
+    content: string,
+    mtimeMs: number,
+    size: number,
+  ): void {
     this.load()
-    this.entries.set(entry.filePath, entry)
+    this.entries.set(filePath, {
+      filePath,
+      fileName,
+      extension,
+      content,
+      mtimeMs,
+      size,
+      indexedAt: new Date().toISOString(),
+    })
     this.save()
   }
 
@@ -255,13 +270,15 @@ class SqliteFtsIndex {
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('busy_timeout = 5000')
 
-    // Create FTS5 virtual table
+    // Create FTS5 virtual table. `content` lives on files itself: the
+    // external-content FTS table mirrors it via the triggers below.
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         filePath TEXT UNIQUE NOT NULL,
         fileName TEXT NOT NULL,
         extension TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
         mtimeMs INTEGER NOT NULL,
         size INTEGER NOT NULL,
         indexedAt TEXT NOT NULL
@@ -279,6 +296,16 @@ class SqliteFtsIndex {
         tokenize='unicode61'
       );
     `)
+
+    // Databases created before the content column existed need the migration:
+    // CREATE TABLE IF NOT EXISTS won't add it, and every upsert + trigger
+    // references new.content/old.content.
+    const columns = this.db
+      .prepare(`PRAGMA table_info(files)`)
+      .all() as Array<{ name: string }>
+    if (!columns.some((c) => c.name === 'content')) {
+      this.db.exec(`ALTER TABLE files ADD COLUMN content TEXT NOT NULL DEFAULT ''`)
+    }
 
     // Triggers to keep FTS in sync
     this.db.exec(`
@@ -431,7 +458,7 @@ async function getExtractors(): Promise<Map<string, (filePath: string) => Promis
     const XLSX = await import('xlsx')
     extractors.set('xlsx', async (filePath: string) => {
       const workbook = XLSX.readFile(filePath)
-      const sheets = workbook.SheetNames.map(name => {
+      const sheets = workbook.SheetNames.map((name: string) => {
         const sheet = workbook.Sheets[name]
         return XLSX.utils.sheet_to_txt(sheet)
       })

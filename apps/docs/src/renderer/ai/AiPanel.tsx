@@ -780,6 +780,9 @@ export function AiPanel({
     loopRef.current?.reset()
     setBusy(false)
     setChat([])
+    setHistoricChat([])
+    setAttachments([])
+    setAttachmentPreviews({})
     sentAttachmentsRef.current = []
     inputRef.current?.focus()
   }
