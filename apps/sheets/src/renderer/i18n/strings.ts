@@ -22,6 +22,7 @@ const csvExportStrings = {
   he: { appExportCsv: 'ייצוא ל-CSV', appExportCsvTitle: 'ייצוא גיליון פעיל כקובץ CSV' },
   hi: { appExportCsv: 'CSV में निर्यात करें', appExportCsvTitle: 'सक्रिय शीट को CSV फ़ाइल के रूप में निर्यात करें' },
   'zh-TW': { appExportCsv: '匯出為 CSV', appExportCsvTitle: '將目前作用中工作表匯出為 CSV 檔案' },
+  cs: { appExportCsv: 'Exportovat do CSV', appExportCsvTitle: 'Exportovat aktivní list jako soubor CSV' },
 }
 
 export const strings = {
@@ -44,5 +45,11 @@ export const strings = {
   he: { ...appStrings.he, ...dialogStrings.he, ...aiStrings.he, ...csvExportStrings.he },
   hi: { ...appStrings.hi, ...dialogStrings.hi, ...aiStrings.hi, ...csvExportStrings.hi },
   'zh-TW': { ...appStrings['zh-TW'], ...dialogStrings['zh-TW'], ...aiStrings['zh-TW'], ...csvExportStrings['zh-TW'] },
+  cs: {
+    ...(appStrings.cs ?? appStrings.en),
+    ...(dialogStrings.cs ?? dialogStrings.en),
+    ...(aiStrings.cs ?? aiStrings.en),
+    ...csvExportStrings.cs,
+  },
 }
 

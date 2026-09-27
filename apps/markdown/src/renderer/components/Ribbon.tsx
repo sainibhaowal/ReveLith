@@ -19,6 +19,7 @@ import {
   IconTable,
   IconTaskList,
   IconUndo,
+  IconFind,
 } from './icons'
 
 interface Props {
@@ -32,6 +33,8 @@ interface Props {
   onInsertImage: () => void
   frontmatterOpen: boolean
   onToggleFrontmatter: () => void
+  findOpen?: boolean
+  onToggleFind?: () => void
   aiOpen: boolean
   onToggleAi: () => void
   onAiPreset: (instruction: string) => void
@@ -151,6 +154,8 @@ export function Ribbon({
   onInsertImage,
   frontmatterOpen,
   onToggleFrontmatter,
+  findOpen,
+  onToggleFind,
   aiOpen,
   onToggleAi,
   onAiPreset,
@@ -449,6 +454,16 @@ export function Ribbon({
 
         <div className="ribbon-group">
           <div className="ribbon-group-items">
+            {onToggleFind && (
+              <IconBtn
+                title="Find & Replace (Ctrl+F / Ctrl+H)"
+                active={findOpen}
+                disabled={disabled}
+                onClick={onToggleFind}
+              >
+                <IconFind size={ICON} />
+              </IconBtn>
+            )}
             <IconBtn
               title={t('fmProperties')}
               active={frontmatterOpen}

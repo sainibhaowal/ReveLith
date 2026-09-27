@@ -90,6 +90,7 @@ function CustomSelect<T extends string>({
 // shared alphabet, so the code is the ordering key
 const LANG_OPTIONS = [
   { value: 'ar', label: 'العربية' },
+  { value: 'cs', label: 'Čeština' },
   { value: 'de', label: 'Deutsch' },
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Español' },
@@ -294,6 +295,13 @@ const PROVIDER_METAS = [
     desc: 'DeepSeek V3 / R1 Reasoner',
   },
   {
+    id: 'codex-app-server',
+    label: 'Codex App Server',
+    defaultUrl: 'http://localhost:8765/v1',
+    defaultModel: 'codex-1',
+    desc: 'Local / Remote Codex App Server',
+  },
+  {
     id: 'custom',
     label: 'Custom Server',
     defaultUrl: 'http://localhost:8080/v1',
@@ -387,6 +395,38 @@ function AiSettingsSection() {
     setSettings(next)
     try { localStorage.setItem('revelith.aiSettings', JSON.stringify(next)) } catch {}
     void window.aiOffice?.setAiSettings?.(next)
+  }
+
+  const updateByok = (key: 'webSearchKey' | 'imageGenKey' | 'mediaAnalysisKey', val: string) => {
+    const next = {
+      ...settings,
+      byok: {
+        ...(settings.byok || {}),
+        [key]: val,
+      },
+    }
+    setSettings(next)
+    try { localStorage.setItem('revelith.aiSettings', JSON.stringify(next)) } catch {}
+    void window.aiOffice?.setAiSettings?.(next)
+  }
+
+  const [aiFontSize, setAiFontSize] = useState(() => {
+    try { return localStorage.getItem('revelith.aiPanelFontSize') || '14px' } catch { return '14px' }
+  })
+  const [aiSpellcheck, setAiSpellcheck] = useState(() => {
+    try { return localStorage.getItem('revelith.aiSpellcheck') !== 'false' } catch { return true }
+  })
+
+  const changeAiFontSize = (size: string) => {
+    setAiFontSize(size)
+    try { localStorage.setItem('revelith.aiPanelFontSize', size) } catch {}
+    window.dispatchEvent(new CustomEvent('revelith-ai-panel-settings-changed', { detail: { fontSize: size } }))
+  }
+
+  const toggleAiSpellcheck = (val: boolean) => {
+    setAiSpellcheck(val)
+    try { localStorage.setItem('revelith.aiSpellcheck', String(val)) } catch {}
+    window.dispatchEvent(new CustomEvent('revelith-ai-panel-settings-changed', { detail: { spellcheck: val } }))
   }
 
   const setActiveProvider = (id: string) => {
@@ -807,6 +847,83 @@ function AiSettingsSection() {
           </div>
         </div>
       </div>
+
+      {/* BYOK Keys Section */}
+      <div style={{ marginTop: 20, padding: 16, borderRadius: 8, background: 'var(--surface-sunken)', border: '1px solid var(--border-subtle)' }}>
+        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>🔑</span> Dedicated BYOK Keys (Search, Image & Media)
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: 'var(--text-secondary)' }}>
+              Web Search API Key (Serper / Google)
+            </label>
+            <input
+              type="password"
+              className="ai-input"
+              value={settings?.byok?.webSearchKey || ''}
+              placeholder="Search API Key..."
+              onChange={(e) => updateByok('webSearchKey', e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: 'var(--text-secondary)' }}>
+              Image Generation Key (OpenAI / Image)
+            </label>
+            <input
+              type="password"
+              className="ai-input"
+              value={settings?.byok?.imageGenKey || ''}
+              placeholder="Image API Key..."
+              onChange={(e) => updateByok('imageGenKey', e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: 'var(--text-secondary)' }}>
+              Media Analysis Key (Vision / Multimodal)
+            </label>
+            <input
+              type="password"
+              className="ai-input"
+              value={settings?.byok?.mediaAnalysisKey || ''}
+              placeholder="Vision API Key..."
+              onChange={(e) => updateByok('mediaAnalysisKey', e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* AI Panel Preferences */}
+      <div style={{ marginTop: 14, padding: 16, borderRadius: 8, background: 'var(--surface-sunken)', border: '1px solid var(--border-subtle)' }}>
+        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>🎨</span> AI Panel Preferences
+        </h4>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Panel Font Size:</label>
+            <select
+              className="ai-input"
+              style={{ width: 130, height: 32 }}
+              value={aiFontSize}
+              onChange={(e) => changeAiFontSize(e.target.value)}
+            >
+              <option value="12px">Small (12px)</option>
+              <option value="14px">Normal (14px)</option>
+              <option value="16px">Large (16px)</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={aiSpellcheck}
+                onChange={(e) => toggleAiSpellcheck(e.target.checked)}
+              />
+              Enable Spellcheck in AI Composer
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -871,6 +988,25 @@ export function SettingsModal({
   const [saveDir, setSaveDir] = useState('')
   const [channel, setChannel] = useState<'stable' | 'beta'>('stable')
   const [appVersion, setAppVersion] = useState('')
+
+  const [autoSave, setAutoSave] = useState(() => {
+    try { return localStorage.getItem('revelith.autoSaveEnabled') === 'true' } catch { return false }
+  })
+  const [autoSaveInterval, setAutoSaveInterval] = useState(() => {
+    try { return Number(localStorage.getItem('revelith.autoSaveInterval') || 60) } catch { return 60 }
+  })
+
+  const toggleAutoSave = (val: boolean) => {
+    setAutoSave(val)
+    try { localStorage.setItem('revelith.autoSaveEnabled', String(val)) } catch {}
+    window.dispatchEvent(new CustomEvent('revelith-autosave-changed', { detail: { enabled: val, interval: autoSaveInterval } }))
+  }
+
+  const changeAutoSaveInterval = (interval: number) => {
+    setAutoSaveInterval(interval)
+    try { localStorage.setItem('revelith.autoSaveInterval', String(interval)) } catch {}
+    window.dispatchEvent(new CustomEvent('revelith-autosave-changed', { detail: { enabled: autoSave, interval } }))
+  }
 
   useEffect(() => {
     let alive = true
@@ -1004,6 +1140,35 @@ export function SettingsModal({
                     </button>
                   }
                 />
+                <div className="set-field" style={{ marginTop: 14 }}>
+                  <div className="set-field-text">
+                    <label className="set-field-label">Global AutoSave</label>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Automatically save changes periodically across all editors</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={autoSave}
+                        onChange={(e) => toggleAutoSave(e.target.checked)}
+                      />
+                      Enabled
+                    </label>
+                    {autoSave && (
+                      <select
+                        className="ai-input"
+                        style={{ width: 110, height: 32 }}
+                        value={autoSaveInterval}
+                        onChange={(e) => changeAutoSaveInterval(Number(e.target.value))}
+                      >
+                        <option value={30}>Every 30s</option>
+                        <option value={60}>Every 1m</option>
+                        <option value={120}>Every 2m</option>
+                        <option value={300}>Every 5m</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
               </>
             )}
             {section === 'about' && (

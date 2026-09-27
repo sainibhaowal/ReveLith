@@ -437,20 +437,81 @@ This document is the master technical reference and verification guide for all n
 
 ---
 
+### 4.12 GenOffice HTML (Interactive HTML Studio & Document Engineering)
+- **Scope:** Full-featured `.html` document creator & editor with AI Design, AI Document generation, interactive element click-to-restyle, targeted element AI refinement, DOM layer tree inspector, fullscreen presentation mode, and local Word (`.docx`) & PDF export.
+- **Architecture & Implementation:**
+  - **App & Layout:** [apps/html/src/renderer/App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/html/src/renderer/App.tsx) hosts the sandboxed live preview iframe, ribbon controls, and sidebars.
+  - **Click-to-Restyle & Inspection:** [apps/html/src/renderer/components/ElementRestyler.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/html/src/renderer/components/ElementRestyler.tsx) communicates bidirectionally with the guest document via `postMessage` (`revelith:element-selected`, `revelith:update-element-style`).
+  - **Targeted AI Refinement:** Prompts AI to alter or enhance only the selected DOM node using `revelith:replace-selected-html` without disrupting surrounding document structure.
+  - **DOM Layer Tree:** [apps/html/src/renderer/components/LayerTree.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/html/src/renderer/components/LayerTree.tsx) recursively renders the document hierarchy with selection highlighting.
+  - **Fullscreen Present Mode:** [apps/html/src/renderer/components/PresentMode.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/html/src/renderer/components/PresentMode.tsx) enables full-screen slide presentations with keyboard navigation.
+  - **Native Word & PDF Export:** [apps/html/src/renderer/export/htmlDocxExport.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/html/src/renderer/export/htmlDocxExport.ts) parses HTML elements to typed OOXML blocks using `@revelith/docx-engine`, and headless Chromium PDF printing in [apps/html/src/main/html-main.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/html/src/main/html-main.ts).
+  - **Shell Integration:** Integrated into [apps/shell](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell) as `TabKind = 'html'`, with desktop file associations (`.html`, `.htm`) and Home screen templates.
+
+---
+
+### 4.13 AI Provider Architecture & Selection Quoting
+- **Scope:** Granular BYOK API keys for Web Search, Image Generation, and Media Analysis; new `codex-app-server` provider; Ask AI quotes and highlights selected text in Docs.
+- **Implementation:**
+  - **Granular BYOK Keys:** [packages/ai-provider/src/types.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/ai-provider/src/types.ts) defines `ByokSettings` (`webSearchKey`, `imageGenKey`, `mediaAnalysisKey`). Configured in Shell's [SettingsModal.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell/src/renderer/src/SettingsModal.tsx).
+  - **Web Search BYOK:** [packages/ai-search/src/search.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/ai-search/src/search.ts) prioritizes user BYOK search keys before falling back to default Serper configurations.
+  - **Codex App Server:** Added `'codex-app-server'` provider metadata (`http://localhost:8765/v1`, model `codex-1`) in [packages/ai-provider/src/types.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/ai-provider/src/types.ts) and streaming transports.
+  - **Selection Quoting & Highlight:** In [apps/docs/src/renderer/ai/AiPanel.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/ai/AiPanel.tsx), selected text appears as a quote badge chip; submitting quotes applies a native `docTextStyle` yellow highlight (`#fef08a`) to the quoted span in the editor.
+
+---
+
+### 4.14 App Shell: Global AutoSave, AI Typography & Czech Localization
+- **Scope:** Global AutoSave toggle with configurable interval (1-60 min); AI panel typography scaling and spellcheck preferences; Complete Czech UI (`cs` / `cs-CZ`).
+- **Implementation:**
+  - **Global AutoSave:** Central timer in [apps/shell/src/renderer/src/App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell/src/renderer/src/App.tsx) and configuration card in [SettingsModal.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell/src/renderer/src/SettingsModal.tsx).
+  - **AI Typography & Spellcheck:** Configures `--ai-base-font-size` and spellcheck attributes in [apps/docs/src/renderer/ai/AiPanel.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/ai/AiPanel.tsx) and [apps/docs/src/renderer/App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/App.tsx).
+  - **Czech Localization:** Added `cs` (Čeština, `cs-CZ`) across [packages/i18n](file:///c:/Users/Ravin/Projects/ReveLith/packages/i18n), [apps/shell/src/renderer/src/locale.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell/src/renderer/src/locale.tsx), [apps/pdf/src/renderer/i18n/strings.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/pdf/src/renderer/i18n/strings.ts), [apps/markdown/src/renderer/i18n/strings.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/markdown/src/renderer/i18n/strings.ts), and main process menus.
+
+---
+
+### 4.15 Docs: HTML Export & In-Place Comment Editing
+- **Scope:** Export document directly to HTML; double-click/edit existing comments in-place.
+- **Implementation:**
+  - **HTML Export:** Registered IPC `docs:export-html` in [apps/docs/src/main/docs-main.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/main/docs-main.ts) and File menu actions in [apps/docs/src/renderer/file-actions.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/file-actions.ts).
+  - **In-Place Comments:** Inline textarea mode in [apps/docs/src/renderer/components/CommentsPanel.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/components/CommentsPanel.tsx) preserving OOXML thread identifiers and author metadata.
+
+---
+
+### 4.16 Sheets: Performance Bounding, Cached Formulas & Paste Repeat
+- **Scope:** Find & Replace no longer freezes on large grids; external-workbook formulas keep cached values; Excel-style paste repeat pattern tiling.
+- **Implementation:**
+  - **Find Scope Bounding:** [apps/sheets/src/renderer/find-replace-fix.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/renderer/find-replace-fix.ts) bounds searches to `worksheet.getDataRealRange()`, preventing scanning 1M+ empty grid cells. Installed in [App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/renderer/App.tsx).
+  - **External Formula Caching:** [apps/sheets/src/gateway/xlsx-gateway.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/gateway/xlsx-gateway.ts) preserves original `<v>` cached values when formulas refer to external workbooks.
+  - **Excel-Style Paste Repeat:** `tileTsv` in [apps/sheets/src/renderer/paste-guard.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/renderer/paste-guard.ts) tiles copied clipboard blocks across larger destination selections. Verified in `apps/sheets/tests/paste-guard.test.ts`.
+
+---
+
+### 4.17 Slides: Large Deck PDF Streaming & Font Resolution
+- **Scope:** Memory-safe streamed PDF export for large decks; East Asian and complex font resolution for themes and WMF/EMF metafiles.
+- **Implementation:**
+  - **Disk Streaming PDF Export:** [apps/slides/src/main/slides-main.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/slides/src/main/slides-main.ts) streams slide raster images to temporary disk files via `mkdtemp` and loads them via `win.loadFile`, preventing base64 URL blowout and memory exhaust.
+  - **East Asian & Complex Fonts:** Extended typeface resolver in [packages/pptx-engine/src/theme.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/pptx-engine/src/theme.ts) resolving `<a:ea>` (`Jpan`, `Hans`, `Hant`, `Kore`) and `<a:cs>`.
+
+---
+
+### 4.18 PDF & Markdown: Find/Replace & Mermaid Diagrams
+- **Scope:** In-content Find and Replace in PDF; aligned highlight geometry in PDF; full TipTap Find & Replace in Markdown; live Mermaid diagrams in Markdown.
+- **Implementation:**
+  - **PDF Find & Replace:** [apps/pdf/src/renderer/App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/pdf/src/renderer/App.tsx) adds Replace mode to the search bar (`Ctrl+H`), applying in-place `LocalTextEdit` replacements.
+  - **PDF Aligned Highlights:** [apps/pdf/src/renderer/annotations.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/pdf/src/renderer/annotations.ts) aligns highlight bounds to glyph ascender/descender metrics.
+  - **Markdown Find & Replace:** [apps/markdown/src/renderer/editor/searchHighlight.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/markdown/src/renderer/editor/searchHighlight.ts) and [FindReplaceBar.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/markdown/src/renderer/components/FindReplaceBar.tsx) provide match highlighting, regex, whole-word, and replace all.
+  - **Mermaid Diagrams:** [apps/markdown/src/renderer/editor/CodeBlockView.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/markdown/src/renderer/editor/CodeBlockView.tsx) renders live SVG diagrams with an interactive source code toggle button.
+
+---
+
 ## 5. Verification Commands
 
-To independently verify the entire suite:
+To independently verify the entire suite across all packages and applications:
 
 ```bash
-# 1. Typecheck all packages
-npx tsc --noEmit -p packages/pptx-engine
-npx tsc --noEmit -p packages/pptx-render
-npm run --prefix apps/slides typecheck
-npm run --prefix apps/sheets typecheck
+# 1. Typecheck all 19 packages and apps across the monorepo
+npm run typecheck
 
 # 2. Run unit & integration test suites
-npx vitest run --dir packages/pptx-engine
-npx vitest run --dir packages/pptx-render
-npx vitest run --dir apps/slides
-npx vitest run --dir apps/sheets
+npm test
 ```

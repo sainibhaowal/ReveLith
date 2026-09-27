@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Icon set for the markdown app. Everything that exists in the docs ribbon
  * library is re-exported from there so glyph style stays uniform across the
  * suite; the handful of markdown-only glyphs below are drawn on the same
@@ -177,3 +177,13 @@ export function IconQuoteMark(props: IconProps) {
     </Svg>
   )
 }
+
+export function IconFind(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="6.5" cy="6.5" r="4.5" />
+      <path d="M10 10l4 4" />
+    </Svg>
+  )
+}
+

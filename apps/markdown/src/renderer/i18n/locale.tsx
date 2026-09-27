@@ -29,6 +29,7 @@ const AI_LANG_DIRECTIVES: Record<Lang, string> = {
   he: '\n\nהשב באותה שפה של הודעת המשתמש; אם לא ניתן לקבוע אותה, השב בעברית.',
   hi: '\n\nउपयोगकर्ता के संदेश की भाषा में ही उत्तर दें; यदि भाषा निर्धारित न हो सके, तो हिंदी में उत्तर दें।',
   'zh-TW': '\n\n用與使用者訊息相同的語言回覆；無法判斷使用者訊息的語言時，用繁體中文回覆。',
+  cs: '\n\nOdpovídejte ve stejném jazyce jako zpráva uživatele; pokud jej nelze určit, odpovězte v češtině.',
 }
 
 export function aiLangDirective(lang: Lang): string {

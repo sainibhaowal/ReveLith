@@ -577,8 +577,22 @@ export function App() {
   const saveIncompleteRef = useRef(false)
 
   const [spellcheckEnabled, setSpellcheckEnabled] = useState<boolean>(() => {
+    try {
+      const globalVal = localStorage.getItem('revelith.editorSpellcheck')
+      if (globalVal !== null) return globalVal !== 'false'
+    } catch {}
     return localStorage.getItem('docs:spellcheck-enabled') !== '0'
   })
+
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'revelith.editorSpellcheck' && e.newValue !== null) {
+        setSpellcheckEnabled(e.newValue !== 'false')
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   const editorRef = useRef<Editor | null>(null)
   const editor = useEditor({

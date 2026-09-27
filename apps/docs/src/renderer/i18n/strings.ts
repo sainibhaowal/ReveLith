@@ -28,4 +28,11 @@ export const strings = {
     ...editorStrings['zh-TW'],
     ...aiStrings['zh-TW'],
   },
+  cs: {
+    ...(appStrings.cs ?? appStrings.en),
+    ...(ribbonStrings.cs ?? ribbonStrings.en),
+    ...(editorStrings.cs ?? editorStrings.en),
+    ...(aiStrings.cs ?? aiStrings.en),
+  },
 }
+

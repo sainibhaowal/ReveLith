@@ -1,4 +1,4 @@
-﻿import { app, dialog } from 'electron'
+import { app, dialog } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
@@ -167,6 +167,13 @@ const tUpd = createI18n({
     updDesc: '新版本包含效能改進與問題修復，建議立即更新。',
     updInstall: '立即重新啟動安裝',
     updLater: '稍後再說',
+  },
+  cs: {
+    updTitle: 'Aktualizace softwaru',
+    updHeadline: 'K dispozici je nová verze',
+    updDesc: 'Tato aktualizace obsahuje vylepšení výkonu a opravy chyb. Doporučujeme aktualizovat nyní.',
+    updInstall: 'Restartovat a nainstalovat',
+    updLater: 'Připomenout později',
   },
 })
 

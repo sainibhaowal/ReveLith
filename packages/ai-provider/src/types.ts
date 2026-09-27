@@ -8,12 +8,13 @@ export type AiProviderId =
   | 'deepseek'
   | 'openai'
   | 'opencode-zen'
+  | 'codex-app-server'
   | 'custom'
 
 export interface AiProviderConfig {
   apiKey: string
   model: string
-  /** only used by the custom (OpenAI-compatible) provider */
+  /** used by custom/local providers and codex-app-server */
   baseUrl?: string | undefined
 }
 
@@ -26,9 +27,16 @@ export interface AiProviderMeta {
   needsBaseUrl?: boolean
 }
 
+export interface ByokSettings {
+  webSearchKey?: string
+  imageGenKey?: string
+  mediaAnalysisKey?: string
+}
+
 export interface AiSettings {
   provider: AiProviderId
   providers: Record<AiProviderId, AiProviderConfig>
+  byok?: ByokSettings
 }
 
 /** pre-provider settings shape (single OpenAI-compatible endpoint); migrated into "custom" */

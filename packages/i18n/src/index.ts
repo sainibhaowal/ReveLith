@@ -18,6 +18,7 @@ export type Lang =
   | 'he'
   | 'hi'
   | 'zh-TW'
+  | 'cs'
 
 export const LANGS: readonly Lang[] = [
   'zh',
@@ -39,6 +40,7 @@ export const LANGS: readonly Lang[] = [
   'he',
   'hi',
   'zh-TW',
+  'cs',
 ]
 
 export function isLang(value: unknown): value is Lang {
@@ -54,6 +56,8 @@ export function normalizeLang(raw: string | null | undefined): Lang {
   for (const lang of LANGS) {
     if (lang !== 'en' && lang !== 'zh-TW' && value.startsWith(lang)) return lang
   }
+  // 'cz' is sometimes informally used for Czech
+  if (/^cz\b/.test(value) || /^cz[-_]/.test(value)) return 'cs'
   // 'in' is the legacy ISO code for Indonesian still reported by some systems
   if (/^in\b/.test(value) || /^in[-_]/.test(value)) return 'id'
   // 'iw' is the legacy ISO code for Hebrew
@@ -81,6 +85,7 @@ const HTML_LANGS: Record<Lang, string> = {
   he: 'he-IL',
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
+  cs: 'cs-CZ',
 }
 
 /** BCP-47 tag for document.documentElement.lang (drives CSS :lang() and Chromium's per-language font fallback) */
@@ -147,9 +152,11 @@ export function format(template: string, params?: Params): string {
   )
 }
 
-/** per-language dictionaries; zh defines the key set, all others must match it */
-export type LangDicts<D extends Record<string, string>> = { zh: D } & {
-  [L in Exclude<Lang, 'zh'>]: Record<keyof D, string>
+/** per-language dictionaries; zh defines the key set, all others must match it. cs falls back to en/zh if omitted. */
+export type LangDicts<D extends Record<string, string>> = { zh: D; en: Record<keyof D, string> } & {
+  [L in Exclude<Lang, 'zh' | 'en' | 'cs'>]: Record<keyof D, string>
+} & {
+  cs?: Partial<Record<keyof D, string>>
 }
 
 /**
@@ -185,10 +192,13 @@ export function onUiLangChange(listener: (lang: Lang) => void): () => void {
 /**
  * Build a translator over per-language dictionaries. The zh dictionary defines
  * the key set; every other language must cover exactly the same keys
- * (compile-time checked), so a missing translation is a type error, not a
- * runtime fallback.
+ * (compile-time checked). cs falls back to en/zh if missing.
  */
 export function createI18n<D extends Record<string, string>>(dicts: LangDicts<D>) {
-  return (lang: Lang, key: keyof D, params?: Params): string =>
-    platformShortcuts(format(dicts[lang][key], params))
+  return (lang: Lang, key: keyof D, params?: Params): string => {
+    const dict = dicts[lang]
+    const template = (dict && dict[key]) || dicts.en[key] || dicts.zh[key] || ''
+    return platformShortcuts(format(template, params))
+  }
 }
+

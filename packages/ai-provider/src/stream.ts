@@ -984,6 +984,16 @@ export async function streamForProvider(
           maxTokens,
           callbacks,
         )
+      case 'codex-app-server':
+        return streamOpenAiCompatible(
+          config.baseUrl || 'http://localhost:8765/v1',
+          config,
+          system,
+          messages,
+          tools,
+          maxTokens,
+          callbacks,
+        )
       case 'custom':
         if (!config.baseUrl) throw new Error('A custom provider requires a Base URL')
         return streamOpenAiCompatible(

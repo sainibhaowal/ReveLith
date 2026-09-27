@@ -120,6 +120,12 @@ import {
   setMarkdownDocxExportedHook,
   setMarkdownFileSavedHook,
 } from '../../../markdown/src/main/markdown-main'
+import {
+  configureHtmlRuntime,
+  registerHtmlIpc,
+  requestHtmlSave,
+  htmlFileRenamed,
+} from '../../../html/src/main/html-main'
 import type {
   RecentEntry,
   RecentPage,
@@ -181,6 +187,9 @@ const PDF_OUT = app.isPackaged
 const MARKDOWN_OUT = app.isPackaged
   ? join(process.resourcesPath, 'modules', 'markdown')
   : join(APPS_ROOT, 'markdown', 'out')
+const HTML_OUT = app.isPackaged
+  ? join(process.resourcesPath, 'modules', 'html')
+  : join(APPS_ROOT, 'html', 'out')
 const SIDECAR_BIN = app.isPackaged
   ? join(process.resourcesPath, 'native', SIDECAR_EXE)
   : join(APPS_ROOT, 'sheets', 'native', 'xlsx-engine', 'target', 'release', SIDECAR_EXE)
@@ -211,6 +220,11 @@ configureMarkdownRuntime({
   preloadPath: join(MARKDOWN_OUT, 'preload', 'index.js'),
   rendererUrl: process.env.MARKDOWN_RENDERER_URL,
   rendererFile: join(MARKDOWN_OUT, 'renderer', 'index.html'),
+})
+configureHtmlRuntime({
+  preloadPath: join(HTML_OUT, 'preload', 'index.js'),
+  rendererUrl: process.env.HTML_RENDERER_URL,
+  rendererFile: join(HTML_OUT, 'renderer', 'index.html'),
 })
 
 // ---- UI language ----
@@ -1592,6 +1606,7 @@ const XLSX_RE = /\.(xlsx|xls|csv)$/i
 const PPTX_RE = /\.pptx$/i
 const PDF_RE = /\.pdf$/i
 const MD_RE = /\.(md|markdown)$/i
+const HTML_RE = /\.(html|htm)$/i
 
 /** document formats we recognize but don't open : surfaced as a dialog, not silently dropped */
 const UNSUPPORTED_DOC_RE = /\.(doc|rtf|odt|ppt|pps|odp|ods|xlsm|xlsb|pages|key|numbers)$/i
@@ -1612,6 +1627,8 @@ const OPEN_DIALOG_EXTENSIONS = [
   'pdf',
   'md',
   'markdown',
+  'html',
+  'htm',
 ]
 
 function supportedFileIn(argv: string[]): string | null {
@@ -1622,7 +1639,8 @@ function supportedFileIn(argv: string[]): string | null {
           XLSX_RE.test(arg) ||
           PPTX_RE.test(arg) ||
           PDF_RE.test(arg) ||
-          MD_RE.test(arg)) &&
+          MD_RE.test(arg) ||
+          HTML_RE.test(arg)) &&
         existsSync(arg),
     ) ?? null
   )
@@ -1702,6 +1720,13 @@ function openDocumentPath(filePath: string): boolean {
     else tabManager.openMarkdownTab(filePath)
     return true
   }
+  if (HTML_RE.test(filePath)) {
+    trackRecentFile(filePath)
+    const existing = tabManager.findHtmlTabByPath(filePath)
+    if (existing) tabManager.activateTab(existing)
+    else tabManager.openHtmlTab(filePath)
+    return true
+  }
   notifyUnsupportedFile(filePath)
   return false
 }
@@ -1759,6 +1784,14 @@ function newSlideTab(): void {
 function newMarkdownTab(): void {
   try {
     tabManager?.openMarkdownTab()
+  } catch (err) {
+    surfaceNewTabError(err)
+  }
+}
+
+function newHtmlTab(): void {
+  try {
+    tabManager?.openHtmlTab()
   } catch (err) {
     surfaceNewTabError(err)
   }
@@ -1871,6 +1904,13 @@ function registerHomeIpc(): void {
       pendingNewFileProject.set('markdown', opts.projectId)
     }
     newMarkdownTab()
+  })
+
+  ipcMain.handle(HOME_CHANNELS.newHtml, (_event, opts?: { projectId?: string }) => {
+    if (opts?.projectId && opts.projectId !== 'default') {
+      pendingNewFileProject.set('html', opts.projectId)
+    }
+    newHtmlTab()
   })
 
   ipcMain.handle(HOME_CHANNELS.removeRecent, (_event, paths: unknown) => {
@@ -2184,6 +2224,7 @@ const TAB_MENU_ICON: Record<TabKind, keyof MenuIconSet> = {
   slides: 'pptx',
   pdf: 'pdf',
   markdown: 'md',
+  html: 'md',
 }
 
 // tab views see neither DOM events nor a focus change when the user clicks the

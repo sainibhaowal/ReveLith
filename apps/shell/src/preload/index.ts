@@ -36,6 +36,7 @@ const UI_LANGUAGES: readonly UiLanguage[] = [
   'he',
   'hi',
   'zh-TW',
+  'cs',
 ]
 
 function isUiLanguage(value: unknown): value is UiLanguage {
@@ -84,6 +85,9 @@ const homeApi: HomeApi = {
   },
   async newMarkdown(opts) {
     await ipcRenderer.invoke(HOME_CHANNELS.newMarkdown, opts)
+  },
+  async newHtml(opts) {
+    await ipcRenderer.invoke(HOME_CHANNELS.newHtml, opts)
   },
   async removeRecent(paths) {
     await ipcRenderer.invoke(HOME_CHANNELS.removeRecent, paths)

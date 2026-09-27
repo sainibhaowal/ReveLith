@@ -521,14 +521,23 @@ This document analyzes 9 requested features and identifies what exists vs. what 
 | 27. Collapsible ribbon in every editor | ✅ Complete | High | Medium | `Ctrl+F1`, double-click tab, chevron button in Docs, Slides, Sheets |
 | 28. Rich AI chat (tables, code copy, RTL, clean reset) | ✅ Complete | High | Medium | Markdown GFM tables, code blocks with copy, auto-RTL, new chat cleanup |
 | 29. Windows ARM64 Snapdragon X & auto-updater | ✅ Complete | High | High | Native ARM64 installer, DigiCert EV signing, direct GitHub auto-updater |
+| 30. GenOffice HTML app (`apps/html`) | ✅ Complete | High | High | AI Design, AI Document, click-to-restyle, layer inspector, present mode, Word/PDF export |
+| 31. Granular BYOK Keys & Codex App Server | ✅ Complete | High | Medium | Separate search/image/analysis keys; `codex-app-server` provider (`http://localhost:8765/v1`) |
+| 32. Ask AI Selection Quote & Highlight | ✅ Complete | High | Medium | Quote badge chip, citation text auto-highlighted in Docs with `docTextStyle` yellow mark |
+| 33. Global AutoSave & AI Typography Settings | ✅ Complete | Medium | Low | Central timer with configurable interval (1-60m), AI panel font size & spellcheck config |
+| 34. Czech UI (`cs` / `cs-CZ`) Localization | ✅ Complete | High | Medium | 20-language support across Shell, PDF, Markdown, and core apps with ISO normalization |
+| 35. Docs HTML Export & In-Place Comments | ✅ Complete | High | Medium | Direct `docs:export-html` and inline comment editing with Save/Cancel |
+| 36. Sheets Large-Grid Find & Paste Repeat | ✅ Complete | High | Medium | Search bounded to `getDataRealRange()`, cached external `<v>` preserved, `tileTsv` paste repeat |
+| 37. Slides PDF Streaming & Font Resolution | ✅ Complete | High | Medium | Temp disk streaming eliminates base64 URL blowout; East Asian theme & metafile font resolution |
+| 38. PDF/Markdown Find & Replace + Mermaid | ✅ Complete | High | Medium | In-stream PDF replace (`Ctrl+H`), TipTap Markdown replace, live Mermaid SVG rendering |
 
 **Total:**
-- ✅ **Fully Implemented & Verified:** 29 / 29 features (100%)
+- ✅ **Fully Implemented & Verified:** 38 / 38 features (100%)
 - ⚠️ Partially exists: 0
 - ❌ Missing: 0
 
 **Verification Status:**
-All packages typecheck cleanly (`tsc --noEmit`) and all 2,207+ automated tests pass with zero regressions. Complete technical documentation is available in [FEATURES_END_TO_END_GUIDE.md](./FEATURES_END_TO_END_GUIDE.md) and [PUBLIC_RELEASE_NOTES.md](./PUBLIC_RELEASE_NOTES.md).
+All 19 monorepo packages and apps typecheck cleanly (`npm run typecheck`, 0 errors) and all 2,775+ automated tests pass with zero regressions. Complete technical documentation is available in [FEATURES_END_TO_END_GUIDE.md](./FEATURES_END_TO_END_GUIDE.md) and [PUBLIC_RELEASE_NOTES.md](./PUBLIC_RELEASE_NOTES.md).
 
 
 

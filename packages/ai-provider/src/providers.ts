@@ -63,6 +63,14 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     needsBaseUrl: true,
   },
   {
+    id: 'codex-app-server',
+    label: 'Codex App Server',
+    models: ['codex-1', 'gpt-5-codex', 'codex-pro', 'o3-mini', 'o1'],
+    defaultModel: 'codex-1',
+    keyPlaceholder: 'Codex API Key / Access Token',
+    needsBaseUrl: true,
+  },
+  {
     id: 'custom',
     label: 'Custom Server',
     models: [],
@@ -85,6 +93,7 @@ export function defaultAiSettings(
     ollama: 'http://localhost:11434/v1',
     lmstudio: 'http://localhost:1234/v1',
     'opencode-zen': 'https://opencode.ai/zen/v1',
+    'codex-app-server': 'http://localhost:8765/v1',
     custom: 'http://localhost:8080/v1',
   }
   const providers = {} as AiSettings['providers']

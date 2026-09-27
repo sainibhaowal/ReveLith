@@ -4,6 +4,14 @@
 
 ### Features
 
+* **html:** new GenOffice HTML app (`apps/html`) for visual/dashboard/slides AI Design and long-form AI Documents, live preview, element click-to-restyle, targeted AI element refinement, DOM layer tree inspector, fullscreen present mode, and local Word (`.docx`) & PDF export
+* **ai & byok:** separate BYOK API keys for web search, image generation, and media analysis; new `codex-app-server` provider integration (`http://localhost:8765/v1`, `codex-1`)
+* **docs & ai:** Ask AI quotes selected text and highlights it with yellow mark; export document as clean HTML (`.html`); in-place comment editing mode; global spellcheck preference synchronization
+* **shell:** Global AutoSave settings toggle with configurable interval (1-60 min); AI panel font size and spellcheck configuration; Czech UI (`cs` / `cs-CZ`) localized across Desktop Shell, PDF, Markdown, and core apps
+* **sheets:** Find scoped to `worksheet.getDataRealRange()` to prevent scanning empty cells and eliminate UI freezes on large grids; external-workbook formula cached `<v>` values preserved verbatim; Excel-style paste repeat pattern replication
+* **slides:** streamed PDF export for large decks to temp disk files without base64 data-URL blowout; font resolution for EMF/WMF pictures and East Asian themes (`Jpan`, `Hans`, `Hant`, `Kore`)
+* **pdf:** aligned highlight geometry; Find and Replace in PDF content-stream text with match navigation and replace all (`Ctrl+H`)
+* **markdown:** full TipTap Find & Replace (`Ctrl+F`, `Ctrl+H`) with regex/case/word options; live Mermaid diagram rendering with source toggle
 * **slides:** new Effects inspector pane (Shadow, Reflection, Glow, Soft Edges) in FormatPane and true vertical text direction toggle
 * **slides:** cross-window and cross-deck element copy/paste with base64 binary media bundling via native OS clipboard buffer `io.revelith.slides.elements`
 * **slides:** one-click OS user font installer with deck-wide missing font detection and AI text box autofit

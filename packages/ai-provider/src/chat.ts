@@ -163,6 +163,14 @@ export async function chatForProvider(
           system,
           user,
         )
+      case 'codex-app-server':
+        return chatOpenAiCompatible(
+          wd,
+          config.baseUrl || 'http://localhost:8765/v1',
+          config,
+          system,
+          user,
+        )
       case 'custom':
         if (!config.baseUrl)
           return Promise.resolve({

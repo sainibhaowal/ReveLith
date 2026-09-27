@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createI18n, htmlLang, type Lang, type Params } from '@revelith/i18n'
 import { strings } from './strings'
@@ -38,6 +38,7 @@ const AI_LANG_DIRECTIVES: Record<Lang, string> = {
   he: '\n\nהשב באותה שפה של הודעת המשתמש; אם לא ניתן לקבוע אותה, השב בעברית.',
   hi: '\n\nउपयोगकर्ता के संदेश की भाषा में ही उत्तर दें; यदि भाषा निर्धारित न हो सके, तो हिंदी में उत्तर दें।',
   'zh-TW': '\n\n用與使用者訊息相同的語言回覆；無法判斷使用者訊息的語言時，用繁體中文回覆。',
+  cs: '\n\nOdpovídejte ve stejném jazyce jako zpráva uživatele; pokud jej nelze určit, odpovídejte v češtině.',
 }
 
 /** appended to the agent system prompt: replies follow the user's message language, falling back to the UI language */
@@ -66,6 +67,7 @@ export const DATE_LOCALES: Record<Lang, string> = {
   he: 'he-IL',
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
+  cs: 'cs-CZ',
 }
 
 const LocaleContext = createContext<Lang>('zh')

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { useI18n } from './i18n/locale'
@@ -18,6 +18,7 @@ import { Ribbon } from './components/Ribbon'
 import { SlashMenu, type SlashMenuHandle } from './components/SlashMenu'
 import { TableMenu } from './components/TableMenu'
 import { FrontmatterPanel } from './components/FrontmatterPanel'
+import { FindReplaceBar } from './components/FindReplaceBar'
 import { AiPanel, ReveLithAiMark, type AiPreset, type MarkdownAiDeps } from './ai/AiPanel'
 import { DOCX_MAX_IMAGE_PX, exportDocxBytes } from './export/docxExport'
 import { buildPrintHtml } from './export/printHtml'
@@ -81,6 +82,8 @@ export default function App() {
   const [slashState, setSlashState] = useState<SlashMenuState | null>(null)
   const [fmOpen, setFmOpen] = useState(false)
   const [fmText, setFmText] = useState('')
+  const [findOpen, setFindOpen] = useState(false)
+  const [findReplaceMode, setFindReplaceMode] = useState(false)
   const [aiOpen, setAiOpen] = useState(true)
   const [aiPreset, setAiPreset] = useState<AiPreset | null>(null)
   const [autoSave, setAutoSave] = useState(() => localStorage.getItem('mdapp.autoSave') === '1')
@@ -293,9 +296,19 @@ export default function App() {
     })
     const offRenamed = window.markdownApi.onFileRenamed((newPath) => setFilePath(newPath))
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 's') {
-        event.preventDefault()
-        void doSave(event.shiftKey ? 'saveAs' : 'save')
+      if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+        if (event.key.toLowerCase() === 's') {
+          event.preventDefault()
+          void doSave(event.shiftKey ? 'saveAs' : 'save')
+        } else if (event.key.toLowerCase() === 'f') {
+          event.preventDefault()
+          setFindReplaceMode(false)
+          setFindOpen((prev) => (prev && !findReplaceMode ? false : true))
+        } else if (event.key.toLowerCase() === 'h') {
+          event.preventDefault()
+          setFindReplaceMode(true)
+          setFindOpen(true)
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown, true)
@@ -379,6 +392,11 @@ export default function App() {
         onInsertImage={insertImage}
         frontmatterOpen={fmOpen}
         onToggleFrontmatter={() => setFmOpen((v) => !v)}
+        findOpen={findOpen}
+        onToggleFind={() => {
+          setFindReplaceMode(false)
+          setFindOpen((prev) => !prev)
+        }}
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((v) => !v)}
         onAiPreset={(text) => {
@@ -410,6 +428,14 @@ export default function App() {
           )}
         </div>
         <div className="app-content">
+          {editor && (
+            <FindReplaceBar
+              editor={editor}
+              isOpen={findOpen}
+              initialReplaceOpen={findReplaceMode}
+              onClose={() => setFindOpen(false)}
+            />
+          )}
           <div className="editor-scroll" ref={scrollRef}>
             <div className="doc-page">
               {fmOpen && <FrontmatterPanel value={fmText} onChange={onFrontmatterChange} />}

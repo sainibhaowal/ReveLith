@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Independent search utilities (main process): Serper Google API when configured,
  * with DuckDuckGo as the free fallback. The Serper/DuckDuckGo logic mirrors an earlier
  * web_search / google_image_search implementation. Runs in the main process
@@ -22,12 +22,13 @@ const SERPER_KEY = () => process.env.SERPER_API_KEY ?? ''
 export async function webSearch(
   query: string,
   maxResults = 6,
+  apiKey?: string,
 ): Promise<{
   results: WebSearchResult[]
   answer?: string
   method: string
 }> {
-  const key = SERPER_KEY()
+  const key = apiKey || SERPER_KEY()
   if (key) {
     try {
       const resp = await fetchWithTimeout('https://google.serper.dev/search', {
@@ -68,11 +69,12 @@ export async function webSearch(
 export async function imageSearch(
   query: string,
   maxResults = 8,
+  apiKey?: string,
 ): Promise<{
   images: ImageSearchResult[]
   method: string
 }> {
-  const key = SERPER_KEY()
+  const key = apiKey || SERPER_KEY()
   if (key) {
     try {
       const resp = await fetchWithTimeout('https://google.serper.dev/images', {

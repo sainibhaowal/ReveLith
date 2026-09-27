@@ -1733,6 +1733,16 @@ function patchFormulaCachedValue(
   if (!existing) return worksheetXml
   const body = existing[3] ?? ''
   if (!/<f[\s/>]/.test(body)) return worksheetXml
+
+  // External-workbook formulas (e.g. =[1]Sheet1!A1 or ='[Path.xlsx]Sheet1'!$A$1)
+  // keep their cached values when the external file is not loaded or local recalc is empty/#REF!
+  const isExternalFormula = /<f\b[^>]*>[\s\S]*?\[.+?\][\s\S]*?<\/f>/.test(body)
+  if (
+    isExternalFormula &&
+    (value === null || value === undefined || value === '' || value === '#REF!' || value === '#N/A')
+  ) {
+    return worksheetXml
+  }
   const attrs = `${existing[1] ?? ''}${existing[2] ?? ''}`
   // Formula results carry t="str" for text, no t (numeric default) otherwise;
   // booleans use t="b" with 1/0. A null result drops the cached value entirely.

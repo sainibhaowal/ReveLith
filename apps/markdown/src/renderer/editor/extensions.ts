@@ -1,4 +1,4 @@
-﻿import type { AnyExtension } from '@tiptap/core'
+import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { TableKit } from '@tiptap/extension-table'
@@ -11,6 +11,7 @@ import { LocalImage } from './localImage'
 import { BlockDragHandle } from './blockDragHandle'
 import { BlockKeymap } from './blockKeymap'
 import { AiHighlight } from './aiHighlight'
+import { SearchHighlightExtension } from './searchHighlight'
 import { SlashCommand } from './slashCommand'
 import type { SlashController, SlashItem } from './slashCommand'
 import { TableWithPipeEscape } from './table-markdown'
@@ -68,6 +69,7 @@ export function buildExtensions(options: BuildExtensionsOptions): AnyExtension[]
     BlockDragHandle,
     BlockKeymap,
     AiHighlight,
+    SearchHighlightExtension,
     Placeholder.configure({ placeholder: () => t('placeholder') }),
     SlashCommand.configure({
       controller: options.slashController,

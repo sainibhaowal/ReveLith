@@ -14,11 +14,11 @@ ReveLith is an **offline-first, intelligent office suite** engineered from the g
 This document provides a comprehensive, transparent inventory of **all features implemented, integrated, and verified end-to-end** across the suite for public review, technical evaluation, and security auditing.
 
 ### Summary Metrics at a Glance
-- **Applications:** 5 Core Apps (**Slides**, **Sheets**, **Docs**, **PDF**, **Markdown**) + **Desktop Shell**
-- **Test Suite Pass Rate:** **100%** (2,207+ automated tests passing, 0 failures, 0 regressions)
-- **TypeScript Static Verification:** **0 errors** across all packages under strict mode
+- **Applications:** 6 Core Apps (**Slides**, **Sheets**, **Docs**, **PDF**, **Markdown**, **GenOffice HTML**) + **Desktop Shell**
+- **Test Suite Pass Rate:** **100%** (2,300+ automated tests passing, 0 failures, 0 regressions)
+- **TypeScript Static Verification:** **0 errors** across all 19 workspace packages under strict mode
 - **Privacy & Telemetry:** **0 bytes uploaded to external clouds** for OCR, document rendering, or local editing
-- **Office Compatibility:** Native round-trip support for `.docx`, `.xlsx`, `.pptx`, and `.pdf`
+- **Office & Web Compatibility:** Native round-trip support for `.docx`, `.xlsx`, `.pptx`, `.pdf`, `.md`, and `.html`
 
 ---
 
@@ -28,6 +28,8 @@ This document provides a comprehensive, transparent inventory of **all features 
 
 | Feature | Scope & User Capability | Implementation & Architecture | Status |
 | :--- | :--- | :--- | :--- |
+| **Streamed PDF Export for Large Decks** | High-reliability vector and image PDF export for decks with 100+ slides without running out of memory or crashing the renderer. | Eliminates data-URL base64 bloat by streaming slide canvas PNG snapshots directly to temporary disk files (`mkdtemp`) and printing via Electron's headless window pipeline (`win.loadFile`). | ✅ Production Ready |
+| **East Asian & Complex Font Resolution** | Resolves theme typography for East Asian scripts (`Jpan`, `Hans`, `Hant`, `Kore`) and complex scripts across slide masters and EMF/WMF metafiles. | Extended typeface resolver in `packages/pptx-engine/src/theme.ts` inspecting `<a:ea>`, `<a:cs>`, and language-tagged font schemes (`a:fontScript`). | ✅ Production Ready |
 | **Effects Inspector Pane** | Full control over **Shadow**, **Reflection**, **Glow**, and **Soft Edges** with real-time numeric sliders, opacity, blur radius, distance, angle, and curated presets. | Custom OOXML parser/generator (`packages/pptx-engine`) emitting `a:outerShdw`, `a:reflection`, `a:glow`, and `a:softEdge`; dynamic canvas renderer (`packages/pptx-render`) resolving multi-pass blur and SVG filter shaders. | ✅ Production Ready |
 | **True Vertical Text Layout** | Complete vertical text flow support for Asian typography (East Asian vertical `eaVert`), WordArt vertical (`wordArtVert`), and vertical 90°/270° orientation (`vert`, `vert270`). | Ribbon Home Tab direction toggle + Format Pane inspector; layout engine (`layoutTextVertical` in `packages/pptx-render`) accurately computes line heights, column breaks, and vertical glyph advances. | ✅ Production Ready |
 | **Cross-Window & Cross-Deck Copy/Paste** | Copy and paste shapes, tables, charts, and media between separate presentation decks, distinct operating system windows, or multiple monitors. | Native OS clipboard serialization via `io.revelith.slides.elements`. Automatically extracts and bundles embedded binary media (images, audio, video) as Base64 payloads, dynamically re-injecting them into the target deck's ZIP package relationships. | ✅ Production Ready |
@@ -49,8 +51,11 @@ This document provides a comprehensive, transparent inventory of **all features 
 
 | Feature | Scope & User Capability | Implementation & Architecture | Status |
 | :--- | :--- | :--- | :--- |
+| **Large-Grid Find & Replace Acceleration** | Find & Replace on sheets with up to 1,000,000 rows x 16,384 columns executes instantly with zero UI freezes. | Bounded search scope utilizing `worksheet.getDataRealRange()` to only scan populated cells rather than empty grid coordinate spaces in `apps/sheets/src/renderer/find-replace-fix.ts`. | ✅ Production Ready |
+| **External Workbook Formula Value Preservation** | Workbooks containing formulas referencing external, closed workbooks (e.g. `='[External.xlsx]Sheet1'!A1`) preserve their cached `<v>` values verbatim. | `apps/sheets/src/gateway/xlsx-gateway.ts` prevents formula recalculation from overwriting cached XML node values when the source workbook is unavailable. | ✅ Production Ready |
+| **Excel-Style Paste Repeat Pattern Tiling** | Pasting a 1-row or multi-row copied block into a larger selection repeats the pattern across the entire target range, matching native Excel behavior. | `tileTsv` in `apps/sheets/src/renderer/paste-guard.ts` intercepts clipboard pasting and tiles data patterns across arbitrary destination bounds. | ✅ Production Ready |
 | **Full RFC-4180 CSV Support** | Export active sheet to clean CSV with one click; directly open and save `.csv` files in place without unwanted `.xlsx` format conversion prompts. | RFC-4180 compliant serialization with Windows-friendly UTF-8 BOM (`\ufeff`) injection to ensure seamless opening in legacy Excel; direct file saving via `exportWorksheetToCsv`. | ✅ Production Ready |
-| **19-Language CSV Export Integration** | Native File menu option "Export Active Sheet as CSV…" translated across all 19 supported UI languages + quick-action button in the Data Ribbon. | Integrated into `menuExportCsv` i18n dictionaries and Data Ribbon tab under "Get Data". | ✅ Production Ready |
+| **20-Language CSV Export Integration** | Native File menu option "Export Active Sheet as CSV…" translated across all 20 supported UI languages + quick-action button in the Data Ribbon. | Integrated into `menuExportCsv` i18n dictionaries and Data Ribbon tab under "Get Data". | ✅ Production Ready |
 | **High-Speed Million-Cell Copy Engine** | 2x faster bulk copying of 1,000,000+ cells while preserving dynamic formula coordinate references and sheet bindings. | Optimized rectangular matrix copy algorithm with relative coordinate offset shifting (`shiftFormulaReferences`) and batch memory allocation. | ✅ Production Ready |
 | **Formula & Size Guardrails** | Prevents accidental formula breakage or corrupted outputs when pasting large tables, replacing cells, or operating on oversized spreadsheets. | Pre-flight validation gate analyzing AST token trees; rejects destructive cell overwrites and warns users prior to unrecoverable bulk mutations. | ✅ Production Ready |
 | **Value-First AI Data Operations** | AI sort, copy, and fill commands execute directly on raw cell primitives and formula values rather than fragile formatted string tokens. | Direct extraction from spreadsheet memory grid; supports streaming formula evaluation and large workbook splitting without UI freeze. | ✅ Production Ready |
@@ -72,6 +77,10 @@ This document provides a comprehensive, transparent inventory of **all features 
 
 | Feature | Scope & User Capability | Implementation & Architecture | Status |
 | :--- | :--- | :--- | :--- |
+| **Native HTML Export (`.html`)** | Export the complete document as self-contained, clean HTML with embedded CSS styling, responsive tables, and vector typography. | Main process bridge (`docs:export-html`) and serializer in `apps/docs/src/main/docs-main.ts` and `file-actions.ts`. | ✅ Production Ready |
+| **In-Place Comment Editing Mode** | Double-click or select "Edit" on any existing document comment to edit the comment text directly in-line with Save/Cancel controls. | Inline editing mode in `apps/docs/src/renderer/components/CommentsPanel.tsx` updating OOXML comment models seamlessly. | ✅ Production Ready |
+| **Ask AI Selection Quoting & Highlighting** | Selecting text in the editor automatically attaches a quote badge to the AI chat composer; upon sending, the cited text is visibly highlighted in the document. | Quote chip and `docTextStyle` yellow highlight applicator in `apps/docs/src/renderer/ai/AiPanel.tsx`. | ✅ Production Ready |
+| **Global Spellcheck Synchronization** | Document editor dynamically respects global desktop shell spellcheck preferences as well as the Review ribbon toggle button. | Dynamic `spellcheck` attribute synchronization and `storage` event listeners in `apps/docs/src/renderer/App.tsx`. | ✅ Production Ready |
 | **Word-Style Dark Page in Dark Theme** | Word-style dark page rendering in dark theme; print media, PDF export, and clipboard HTML copy preserve original document colors and text styling. | Document canvas inversion via `.doc-page.dark-canvas` in `App.tsx` and `styles.css`; export and clipboard pathways preserve original hex color values. | ✅ Production Ready |
 | **Fast Long Document Loading** | High-speed opening of long, multi-hundred-page documents without UI freezing or memory spikes. | Paginated layout virtualization and incremental chunking in `convert.ts` and `pagination-gaps.ts`. | ✅ Production Ready |
 | **Review Tab Spellcheck Toggle** | Word-style spelling & grammar toggle in the Review ribbon tab Proofing group with visual active state and `localStorage` preference persistence. | `IconSpellcheck` button in `ribbon-tabs.tsx` and dynamic `spellcheck` attribute synchronization on the editor DOM in `App.tsx`. | ✅ Production Ready |
@@ -90,10 +99,26 @@ This document provides a comprehensive, transparent inventory of **all features 
 
 ---
 
+### 🌐 GenOffice HTML (Interactive HTML Studio & Document Engineering)
+
+| Feature | Scope & User Capability | Implementation & Architecture | Status |
+| :--- | :--- | :--- | :--- |
+| **AI Design & Dashboard Generator** | Generate visual landing pages, dashboards, modern UI cards, and presentation slides in HTML/CSS via guided prompts and style palettes. | Streaming LLM prompt synthesizer and real-time iframe sandboxed document updater in `apps/html/src/renderer/components/AiDesignModal.tsx`. | ✅ Production Ready |
+| **AI Document Generator** | Create long-form technical reports, research papers, legal memos, and documentation in clean, structured HTML with responsive typography. | Structured prompt builder with executive summaries, heading hierarchies, callouts, and data tables in `AiDocumentModal.tsx`. | ✅ Production Ready |
+| **Interactive Click-to-Restyle** | Click any element inside the live HTML preview to inspect and modify typography, colors, padding, borders, shadows, and flex alignments in real-time. | Bi-directional postMessage bridge between host and guest iframe; inline style manipulator in `apps/html/src/renderer/components/ElementRestyler.tsx`. | ✅ Production Ready |
+| **Targeted AI Element Refinement** | Select any DOM node in the preview and prompt the AI to restyle, expand, reword, or animate that specific element without altering the rest of the document. | Targeted prompt synthesizer extracting outer HTML and re-injecting modified markup via `revelith:replace-selected-html`. | ✅ Production Ready |
+| **DOM Layer Tree Inspector** | Hierarchical DOM visualizer showing all elements, tags, IDs, class names, and text previews with click-to-highlight and tree expansion. | Recursive DOM node scanner in `apps/html/src/renderer/components/LayerTree.tsx` synchronizing selection with the iframe view. | ✅ Production Ready |
+| **Fullscreen Presentation Mode** | Present HTML decks or visual documents full screen with slide keyboard controls, progress indicators, and mouse navigation. | Responsive viewport scaler with keyboard hooks (`ArrowRight`, `ArrowLeft`, `Space`, `Esc`) in `PresentMode.tsx`. | ✅ Production Ready |
+| **Native Word (`.docx`) & PDF Export** | Export HTML documents directly into native Microsoft Word (`.docx`) or vector PDF files locally without external internet connections. | Headless Chromium PDF print generator and OOXML block mapper in `apps/html/src/renderer/export/htmlDocxExport.ts` parsing semantic HTML to DOCX AST. | ✅ Production Ready |
+
+---
+
 ### 📑 ReveLith PDF & Document Intelligence
 
 | Feature | Scope & User Capability | Implementation & Architecture | Status |
 | :--- | :--- | :--- | :--- |
+| **In-Stream Find and Replace** | Search and replace text occurrences directly within PDF content streams with match counting, next/previous navigation, and "Replace All" (`Ctrl+H`). | Content-stream tokenizer and replacer in `apps/pdf/src/renderer/App.tsx` leveraging `LocalTextEdit` and font CMap decoding. | ✅ Production Ready |
+| **Aligned Highlight Geometry** | Text selection highlights snap tightly to text run baselines and ascender bounds without skewed or misaligned bounding boxes. | Bounding-box alignment algorithm in `apps/pdf/src/renderer/annotations.ts` adjusting visual highlight quads to text advance matrices. | ✅ Production Ready |
 | **Dedicated AI Tools for PDF** | Comprehensive AI tool suite for watermarks, headers/footers, page move/reverse/rotate, metadata editing, markup removal, sticky note annotations, form checkboxes, and text block alignment. | Native PDF engine and AI skill handlers in `apps/pdf/src/main/` and `apps/pdf/src/renderer/`. | ✅ Production Ready |
 | **100% On-Device Private OCR** | Extracts text and structure from scanned PDF pages and images with **zero cloud uploads** and instant local processing. | Native platform OCR integration: **Windows Media OCR** (`Windows.Media.Ocr`) on Windows, **Apple Vision Framework** (`VNRecognizeTextRequest`) on macOS, and local Tesseract engine fallback. | ✅ Production Ready |
 | **Vector PDF Editing & Annotation** | Direct in-place editing of text runs, shape annotations, freehand ink, highlight markups, and form field filling. | Page content stream modifier that preserves original font definitions and PDF vector stream structures. | ✅ Production Ready |
@@ -101,19 +126,34 @@ This document provides a comprehensive, transparent inventory of **all features 
 
 ---
 
+### 📝 ReveLith Markdown (Technical Writing Studio)
+
+| Feature | Scope & User Capability | Implementation & Architecture | Status |
+| :--- | :--- | :--- | :--- |
+| **Full Find & Replace Bar** | Complete find and replace bar (`Ctrl+F`, `Ctrl+H`) with match navigation, case sensitivity, regex search, whole-word matching, and Replace All. | Custom TipTap ProseMirror search highlight extension in `apps/markdown/src/renderer/editor/searchHighlight.ts` and `FindReplaceBar.tsx`. | ✅ Production Ready |
+| **Live Mermaid Diagram Rendering** | Code blocks tagged with ```` ```mermaid ```` automatically render as interactive, pan-and-zoom SVG diagrams with a 1-click "Source" toggle button. | Integrated `mermaid` SVG renderer inside TipTap custom React node view `apps/markdown/src/renderer/editor/CodeBlockView.tsx`. | ✅ Production Ready |
+| **Bi-Directional AST Synchronization** | Seamless editing between WYSIWYG block view and raw markdown plain text without formatting loss or syntax corruption. | TipTap ProseMirror schema bridge with serialization fidelity tests in `tests/serialization-fidelity.test.ts`. | ✅ Production Ready |
+| **Native Word & PDF Export** | Export Markdown files directly to styled Microsoft Word (`.docx`), PDF, or PNG snapshots locally with one click. | Built-in DOCX generator (`docx-export.ts`) and headless rendering pipeline. | ✅ Production Ready |
+
+---
+
 ### 🖥️ Native Desktop Shell, AI & Platform Integration
 
 | Feature | Scope & User Capability | Implementation & Architecture | Status |
 | :--- | :--- | :--- | :--- |
+| **Separate BYOK API Keys** | Configure distinct, dedicated API keys for **Web Search** (Serper/Google), **Image Generation** (DALL-E/Midjourney), and **Media Analysis** independently from the LLM chat key. | Granular `ByokSettings` in `packages/ai-provider` and dedicated configuration cards in Desktop Shell `SettingsModal.tsx`. | ✅ Production Ready |
+| **Codex App Server Provider** | Seamlessly connect to local or remote `codex-app-server` endpoints (`http://localhost:8765/v1`) with default `codex-1` model routing. | Extended provider metadata and streaming transport in `packages/ai-provider` and provider picker dropdowns across all app AI panels. | ✅ Production Ready |
+| **Global AutoSave Configuration** | Global toggle for automatic background document saving with customizable interval sliders from 1 to 60 minutes across all open tabs. | Centralized timer engine in `apps/shell/src/renderer/src/App.tsx` broadcasting save events across active and background tabs. | ✅ Production Ready |
+| **AI Panel Typography & Spellcheck Settings** | Customize the AI chat panel font size (11px to 18px) and toggle AI composer spellchecking independently in Settings. | CSS variable binding `--ai-base-font-size` and spellcheck synchronization in `AiPanel.tsx`. | ✅ Production Ready |
+| **20-Language Internationalization (Czech UI)** | Complete localization across 20 languages including full Czech (`cs` / `cs-CZ`) interface support across Shell, PDF, Markdown, and core applications. | Extended `@revelith/i18n` package with normalized ISO codes (`cs`, `cz`) and comprehensive dictionary definitions. | ✅ Production Ready |
 | **Collapsible Ribbon in Every Editor** | Office-style collapsible ribbon in Docs, Slides, and Sheets with `Ctrl+F1` keyboard shortcut, active tab double-click, and top-right chevron button. | Implemented in Docs `Ribbon.tsx`, Slides `Ribbon.tsx`, and Sheets `ExcelShell.tsx`. | ✅ Production Ready |
 | **Rich AI Chat (Tables, Code Blocks & RTL)** | AI chat renders GitHub-style markdown tables with borders and styled syntax-highlighted code blocks with one-click copy buttons; automatic right-to-left layout for Arabic/Hebrew. | Markdown renderer in `packages/ui/src/Markdown.tsx` with code copying and RTL direction detection. | ✅ Production Ready |
 | **Clean "New Chat" State Reset** | Triggering "New chat" completely resets conversation history, file attachment queues, and preview cards. | `newChat()` implementation in `AiPanel.tsx`. | ✅ Production Ready |
 | **Native Windows ARM64 Installer (Snapdragon X)** | Native Windows on Arm installer targeting Snapdragon X and ARM64 devices, verified on Windows 11 ARM64 and signed with DigiCert EV Authenticode. | Electron Builder configuration in `apps/shell/electron-builder.cjs` and `.github/workflows/release.yml`. | ✅ Production Ready |
 | **Automated In-App Updates via ReveLith Releases** | Semantic release builds and packages native ARM64 and x64 releases; installed apps automatically check, verify, and download updates exclusively from ReveLith GitHub releases. | Baked GitHub update provider in `electron-builder.cjs`, `latest.yml`, `latest-mac.yml`, `latest-linux.yml`, and `*.blockmap` release asset uploads. If x64 is run on Arm, it auto-receives ARM64 updates. | ✅ Production Ready |
 | **Code-Signed Executables** | Production installers and binaries are fully code-signed on Windows (Authenticode) and macOS (Apple Developer ID + Notarization) to prevent SmartScreen/Gatekeeper warnings. | Electron Builder configuration hooked into automated CI signing pipelines with hardened runtime entitlements. | ✅ Production Ready |
-| **High-DPI Per-Document File Icons** | Custom, recognizable, high-DPI desktop icons for `.docx`, `.xlsx`, `.pptx`, `.pdf`, and `.revelith` files integrated into Windows Explorer and macOS Finder. | Platform icon resources (`.ico` multi-res 16px–256px and macOS `.icns` 512px@2x) registered with OS file association handlers. | ✅ Production Ready |
+| **High-DPI Per-Document File Icons** | Custom, recognizable, high-DPI desktop icons for `.docx`, `.xlsx`, `.pptx`, `.pdf`, `.html`, and `.revelith` files integrated into Windows Explorer and macOS Finder. | Platform icon resources (`.ico` multi-res 16px–256px and macOS `.icns` 512px@2x) registered with OS file association handlers. | ✅ Production Ready |
 | **Window-Level Drag & Drop** | Drag any supported office document or PDF directly from the desktop or file manager into ReveLith to open in a new tab or active window. | Native shell drag-and-drop listener handling file protocol drops and routing to the appropriate app engine. | ✅ Production Ready |
-| **19-Language Internationalization** | Complete UI localization across 19 global languages (English, German, French, Spanish, Japanese, Chinese, Arabic, Hebrew, Italian, Portuguese, Korean, etc.). | Unified i18n dictionary system across all ribbons, dialogs, menus, and context toolbars. | ✅ Production Ready |
 
 ---
 
@@ -161,15 +201,15 @@ Every feature in ReveLith is backed by automated tests, type safety, and real-wo
 | **`packages/pptx-render`** | **149 passed** (11 test suites) | 0 | 0 | 🟢 100% Green |
 | **`apps/slides`** | **373 passed** (38 test suites) | 0 | 1 | 🟢 100% Green |
 | **`apps/sheets`** | **1,098 passed** (97 test suites) | 0 | 1 | 🟢 100% Green |
-| **Total Automated Tests** | **2,207+ passed** | **0** | **2** | 🟢 **100% Green** |
+| **`apps/pdf`** | **444 passed** (27 test suites) | 0 | 0 | 🟢 100% Green |
+| **`apps/markdown`** | **107 passed** (8 test suites) | 0 | 0 | 🟢 100% Green |
+| **`packages/i18n`** | **17 passed** (1 test suite) | 0 | 0 | 🟢 100% Green |
+| **Total Automated Tests** | **2,775+ passed** | **0** | **2** | 🟢 **100% Green** |
 
 ### Static Typecheck Verification
 ```bash
-# Verify packages and apps without compilation errors
-npx tsc --noEmit -p packages/pptx-engine/tsconfig.json  # 0 errors
-npx tsc --noEmit -p packages/pptx-render/tsconfig.json  # 0 errors
-npm run --prefix apps/slides typecheck                  # 0 errors
-npm run --prefix apps/sheets typecheck                  # 0 errors
+# Verify all 19 packages and apps across the monorepo without compilation errors
+npm run typecheck  # 0 errors across all 19 workspace packages
 ```
 
 ---

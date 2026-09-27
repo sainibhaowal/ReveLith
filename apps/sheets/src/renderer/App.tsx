@@ -243,6 +243,7 @@ import { installSelectionWrapGuard } from './selection-wrap-fix'
 import { installMultiRowAutofit } from './autofit-multi-row'
 import { installCopyMaterialize } from './copy-materialize'
 import { installPasteGuard } from './paste-guard'
+import { installFindReplaceGridFix } from './find-replace-fix'
 import { applyUniverLocale } from './univer-locales'
 import { installRuleDetail } from './univer-rule-detail'
 import { installPopulatedDataValidationArrow } from './data-validation-arrow'
@@ -1378,6 +1379,8 @@ export function App(): React.JSX.Element {
     // Pastes over the cell ceiling are refused with a message instead of
     // freezing the worker on a million-cell write + recalc.
     const pasteGuardDisposable = installPasteGuard(runtime, setMessage)
+    // Find/replace search scope bounds to data extent to prevent freezing on large sheets.
+    const findReplaceGridFixDisposable = installFindReplaceGridFix(runtime)
     // List-validation arrows stay discoverable on values without cluttering empty template rows.
     const dataValidationArrowDisposable = installPopulatedDataValidationArrow(runtime)
     // Univer's own UI (rule-management panels, dialogs) follows the app
@@ -2201,6 +2204,7 @@ export function App(): React.JSX.Element {
       nullResultDisposable.dispose()
       copyMaterializeDisposable.dispose()
       pasteGuardDisposable.dispose()
+      findReplaceGridFixDisposable.dispose()
       dataValidationArrowDisposable.dispose()
       ruleDetailDisposable()
       scrollDisposable.dispose()

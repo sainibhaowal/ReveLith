@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { PASTE_CELL_LIMIT, installPasteGuard } from '../src/renderer/paste-guard'
+import { PASTE_CELL_LIMIT, installPasteGuard, tileTsv } from '../src/renderer/paste-guard'
 
 /**
  * Paste size guard: wraps Univer's sheet clipboard paste() (every paste path
@@ -67,4 +67,16 @@ describe('installPasteGuard', () => {
     // dispose reinstalls the pre-wrap function (identity change proves restore)
     expect(service.paste).not.toBe(original)
   })
+
+  it('tiles single cell across multi-row/col target', () => {
+    const tiled = tileTsv('42\n', 3, 2)
+    expect(tiled).toBe('42\t42\n42\t42\n42\t42\n')
+  })
+
+  it('tiles 2x2 pattern across 4x3 destination', () => {
+    const source = 'A\tB\nC\tD\n'
+    const tiled = tileTsv(source, 4, 3)
+    expect(tiled).toBe('A\tB\tA\nC\tD\tC\nA\tB\tA\nC\tD\tC\n')
+  })
 })
+

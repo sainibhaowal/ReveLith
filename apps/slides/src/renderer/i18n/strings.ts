@@ -28,4 +28,11 @@ export const strings = {
     ...paneStrings['zh-TW'],
     ...aiStrings['zh-TW'],
   },
+  cs: {
+    ...(appStrings.cs ?? appStrings.en),
+    ...(ribbonStrings.cs ?? ribbonStrings.en),
+    ...(paneStrings.cs ?? paneStrings.en),
+    ...(aiStrings.cs ?? aiStrings.en),
+  },
 }
+

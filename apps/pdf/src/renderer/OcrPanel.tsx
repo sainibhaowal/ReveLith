@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { OcrPageResponse, OcrAvailabilityResult } from '../shared/ipc'
+import type { OcrPageResponse, OcrPageResult, OcrAvailabilityResult } from '../shared/ipc'
 
 interface OcrPanelProps {
   onOcrPage: (pageIndex: number, language?: string) => Promise<OcrPageResponse>
@@ -71,7 +71,7 @@ export function OcrPanel({
     
     // Combine results from all pages
     const combinedText = results
-      .filter((r): r is { ok: true } => r.ok)
+      .filter((r): r is OcrPageResult => r.ok)
       .map(r => r.text)
       .join('\n\n--- Page Break ---\n\n')
     

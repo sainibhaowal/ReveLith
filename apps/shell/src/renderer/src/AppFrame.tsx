@@ -15,6 +15,7 @@ const RENDERER_URLS: Record<string, string> = {
   slides: 'http://localhost:5175',
   pdf: 'http://localhost:5176',
   markdown: 'http://localhost:5177',
+  html: 'http://localhost:5178',
 }
 
 export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
@@ -76,6 +77,7 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
     slides: 'AI Slides',
     pdf: 'AI PDF',
     markdown: 'AI Markdown',
+    html: 'GenOffice HTML',
   }
 
   const currentTheme = document.documentElement.getAttribute('data-theme') || 'system'

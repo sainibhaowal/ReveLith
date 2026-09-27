@@ -100,6 +100,7 @@ import type {
   MarkupType,
   MetadataInput,
   PageImageRef,
+  OcrAvailabilityResult,
   StaticFormFillRecord,
   StampInput,
   TextEditFailure,
@@ -1502,18 +1503,14 @@ export default function App() {
   /** OCR panel state */
   const [ocrPanelOpen, setOcrPanelOpen] = useState(false)
   const [ocrAvailable, setOcrAvailable] = useState(false)
-  const [ocrAvailability, setOcrAvailability] = useState<{ available: boolean; platform: string; method: string } | null>(null)
+  const [ocrAvailability, setOcrAvailability] = useState<OcrAvailabilityResult | null>(null)
   
   // Check OCR availability on mount
   useEffect(() => {
     window.pdfApi.ocrCheckAvailability().then((result) => {
       if (result.ok) {
         setOcrAvailable(result.available)
-        setOcrAvailability({
-          available: result.available,
-          platform: result.platform,
-          method: result.method
-        })
+        setOcrAvailability(result)
       }
     }).catch(() => {
       setOcrAvailable(false)
@@ -1556,6 +1553,8 @@ export default function App() {
   const savedOnceRef = useRef(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [replaceMode, setReplaceMode] = useState(false)
+  const [replaceQuery, setReplaceQuery] = useState('')
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([])
   const [searchCur, setSearchCur] = useState(0)
   const [printing, setPrinting] = useState(false)
@@ -2334,8 +2333,9 @@ export default function App() {
     setSearchCur((searchCurClamped + dir + n) % n)
   }
 
-  const openSearch = () => {
+  const openSearch = (replace = false) => {
     setSearchOpen(true)
+    if (replace) setReplaceMode(true)
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
       searchInputRef.current?.select()
@@ -2343,6 +2343,64 @@ export default function App() {
   }
 
   const closeSearch = () => setSearchOpen(false)
+
+  const replaceCurrentMatch = () => {
+    const m = activeMatches[searchCurClamped]
+    if (!m || !searchQuery.trim() || readOnly) return
+    let x1 = Infinity
+    let y1 = Infinity
+    let x2 = -Infinity
+    let y2 = -Infinity
+    for (const [rx1, ry1, rx2, ry2] of m.rects) {
+      x1 = Math.min(x1, rx1)
+      y1 = Math.min(y1, ry1)
+      x2 = Math.max(x2, rx2)
+      y2 = Math.max(y2, ry2)
+    }
+    const fontSize = Math.max(8, y2 - y1)
+    const editInput: TextEditInput = {
+      pageIndex: m.pageIndex,
+      rect: [x1, y1, x2, y2],
+      oldText: searchQuery.trim(),
+      newText: replaceQuery,
+      fontSize,
+    }
+    pushUndoRef.current()
+    setTextEdits((prev) => [...prev, { id: newId(), input: editInput }])
+    if (activeMatches.length > 1) {
+      searchStep(1)
+    }
+  }
+
+  const replaceAllMatches = () => {
+    if (activeMatches.length === 0 || !searchQuery.trim() || readOnly) return
+    const newEdits: LocalTextEdit[] = []
+    for (const m of activeMatches) {
+      let x1 = Infinity
+      let y1 = Infinity
+      let x2 = -Infinity
+      let y2 = -Infinity
+      for (const [rx1, ry1, rx2, ry2] of m.rects) {
+        x1 = Math.min(x1, rx1)
+        y1 = Math.min(y1, ry1)
+        x2 = Math.max(x2, rx2)
+        y2 = Math.max(y2, ry2)
+      }
+      const fontSize = Math.max(8, y2 - y1)
+      newEdits.push({
+        id: newId(),
+        input: {
+          pageIndex: m.pageIndex,
+          rect: [x1, y1, x2, y2],
+          oldText: searchQuery.trim(),
+          newText: replaceQuery,
+          fontSize,
+        },
+      })
+    }
+    pushUndoRef.current()
+    setTextEdits((prev) => [...prev, ...newEdits])
+  }
 
   /** Selection quads in PDF space keyed by original page index; null when nothing usable */
   const selectionQuads = (): Map<number, number[][]> | null => {
@@ -4975,7 +5033,11 @@ export default function App() {
           else undo()
         } else if (k === 'f') {
           e.preventDefault()
+          setReplaceMode(false)
           openSearch()
+        } else if (k === 'h') {
+          e.preventDefault()
+          openSearch(true)
         } else if (k === 'p' && !e.shiftKey) {
           e.preventDefault()
           void printDoc()
@@ -6940,48 +7002,86 @@ export default function App() {
             </div>
             {searchOpen && (
               <div className="pdf-search-bar">
-                <input
-                  ref={searchInputRef}
-                  className="pdf-search-input"
-                  placeholder={t('search')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') searchStep(e.shiftKey ? -1 : 1)
-                    else if (e.key === 'Escape') closeSearch()
-                  }}
-                />
-                <span className="pdf-search-count">
-                  {searchQuery.trim()
-                    ? activeMatches.length > 0
-                      ? t('searchCount', {
-                          current: searchCurClamped + 1,
-                          total: activeMatches.length,
-                        })
-                      : t('searchNoResults')
-                    : ''}
-                </span>
-                <button
-                  className="rb-icon"
-                  data-tip={t('searchPrev')}
-                  aria-label={t('searchPrev')}
-                  disabled={activeMatches.length === 0}
-                  onClick={() => searchStep(-1)}
-                >
-                  ‹
-                </button>
-                <button
-                  className="rb-icon"
-                  data-tip={t('searchNext')}
-                  aria-label={t('searchNext')}
-                  disabled={activeMatches.length === 0}
-                  onClick={() => searchStep(1)}
-                >
-                  ›
-                </button>
-                <button className="rb-icon" onClick={closeSearch}>
-                  ×
-                </button>
+                <div className="pdf-search-row">
+                  <button
+                    className="rb-icon"
+                    title={replaceMode ? 'Hide Replace' : 'Show Replace'}
+                    onClick={() => setReplaceMode(!replaceMode)}
+                  >
+                    {replaceMode ? '▼' : '▶'}
+                  </button>
+                  <input
+                    ref={searchInputRef}
+                    className="pdf-search-input"
+                    placeholder={t('search')}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') searchStep(e.shiftKey ? -1 : 1)
+                      else if (e.key === 'Escape') closeSearch()
+                    }}
+                  />
+                  <span className="pdf-search-count">
+                    {searchQuery.trim()
+                      ? activeMatches.length > 0
+                        ? t('searchCount', {
+                            current: searchCurClamped + 1,
+                            total: activeMatches.length,
+                          })
+                        : t('searchNoResults')
+                      : ''}
+                  </span>
+                  <button
+                    className="rb-icon"
+                    data-tip={t('searchPrev')}
+                    aria-label={t('searchPrev')}
+                    disabled={activeMatches.length === 0}
+                    onClick={() => searchStep(-1)}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    className="rb-icon"
+                    data-tip={t('searchNext')}
+                    aria-label={t('searchNext')}
+                    disabled={activeMatches.length === 0}
+                    onClick={() => searchStep(1)}
+                  >
+                    ›
+                  </button>
+                  <button className="rb-icon" onClick={closeSearch}>
+                    ×
+                  </button>
+                </div>
+                {replaceMode && (
+                  <div className="pdf-search-row pdf-replace-row">
+                    <span style={{ width: 24 }} />
+                    <input
+                      className="pdf-search-input"
+                      placeholder="Replace with…"
+                      value={replaceQuery}
+                      onChange={(e) => setReplaceQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') replaceCurrentMatch()
+                        else if (e.key === 'Escape') closeSearch()
+                      }}
+                    />
+                    <button
+                      className="pdf-find-action"
+                      disabled={activeMatches.length === 0 || readOnly}
+                      onClick={replaceCurrentMatch}
+                    >
+                      Replace
+                    </button>
+                    <button
+                      className="pdf-find-action"
+                      disabled={activeMatches.length === 0 || readOnly}
+                      onClick={replaceAllMatches}
+                    >
+                      Replace All
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {selPopup && (

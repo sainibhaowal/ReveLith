@@ -19,10 +19,10 @@ import {
 } from 'electron'
 import type { WebContents } from 'electron'
 import { execFile } from 'node:child_process'
-import { readFile, writeFile, rm, stat, mkdir, open } from 'node:fs/promises'
+import { readFile, writeFile, rm, stat, mkdir, open, mkdtemp } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync } from 'node:fs'
-import { userInfo } from 'node:os'
+import { userInfo, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   appMenuLabels,
@@ -3701,36 +3701,48 @@ export function registerSlidesIpc(): void {
     // PDF page size: fixed 7.5in height, width by slide ratio (16:9 -> 13.333in, 4:3 -> 10in)
     const heightIn = 7.5
     const widthIn = Math.round((op.widthPx / op.heightPx) * heightIn * 1000) / 1000
-    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    const tmpDir = await mkdtemp(join(tmpdir(), 'slides-pdf-'))
+    const imgTags: string[] = []
+    try {
+      for (let i = 0; i < op.pngsBase64.length; i++) {
+        const imgPath = join(tmpDir, `slide-${i}.png`)
+        await writeFile(imgPath, Buffer.from(op.pngsBase64[i]!, 'base64'))
+        const imgUrl = 'file:///' + imgPath.replace(/\\/g, '/')
+        imgTags.push(`<div class="page"><img src="${imgUrl}"></div>`)
+      }
+      const htmlPath = join(tmpDir, 'print.html')
+      const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 @page { size: ${widthIn}in ${heightIn}in; margin: 0; }
 html, body { margin: 0; padding: 0; }
 .page { width: ${widthIn}in; height: ${heightIn}in; overflow: hidden; page-break-after: always; }
 .page:last-child { page-break-after: auto; }
 .page img { display: block; width: 100%; height: 100%; }
-</style></head><body>${op.pngsBase64
-      .map((b64) => `<div class="page"><img src="data:image/png;base64,${b64}"></div>`)
-      .join('')}</body></html>`
-    const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
-    try {
-      await win.loadURL('data:text/html;base64,' + Buffer.from(html, 'utf8').toString('base64'))
-      // Wait for fonts and all images to decode before printing, avoiding blank pages
-      await win.webContents.executeJavaScript(
-        'Promise.all([document.fonts.ready, ...Array.from(document.images).map((i) => i.decode().catch(() => {}))])',
-        true,
-      )
-      const pdf = await win.webContents.printToPDF({
-        landscape: false, // The page size is already landscape (width > height); passing landscape would rotate a second time
-        printBackground: true,
-        pageSize: { width: widthIn, height: heightIn },
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        preferCSSPageSize: false,
-      })
-      await writeFile(op.filePath, pdf)
-      return { ok: true, path: op.filePath }
+</style></head><body>${imgTags.join('')}</body></html>`
+      await writeFile(htmlPath, html, 'utf8')
+      const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
+      try {
+        await win.loadFile(htmlPath)
+        // Wait for fonts and all images to decode before printing, avoiding blank pages
+        await win.webContents.executeJavaScript(
+          'Promise.all([document.fonts.ready, ...Array.from(document.images).map((i) => i.decode().catch(() => {}))])',
+          true,
+        )
+        const pdf = await win.webContents.printToPDF({
+          landscape: false, // The page size is already landscape (width > height); passing landscape would rotate a second time
+          printBackground: true,
+          pageSize: { width: widthIn, height: heightIn },
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
+          preferCSSPageSize: false,
+        })
+        await writeFile(op.filePath, pdf)
+        return { ok: true, path: op.filePath }
+      } finally {
+        win.destroy()
+      }
     } catch (err) {
       return { ok: false, error: String(err) }
     } finally {
-      win.destroy()
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
     }
   })
 

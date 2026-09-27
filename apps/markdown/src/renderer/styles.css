@@ -2118,3 +2118,157 @@ button {
 .md-block-menu-item.danger:hover {
   background: var(--danger-bg);
 }
+
+/* ── Find and Replace Panel ── */
+.md-find-panel {
+  position: absolute;
+  top: 12px;
+  right: 24px;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  backdrop-filter: blur(12px);
+  -webkit-app-region: no-drag;
+}
+
+.md-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.md-find-toggle {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.md-find-toggle:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.md-find-spacer {
+  width: 20px;
+}
+
+.md-find-input {
+  width: 190px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+
+.md-find-input:focus {
+  border-color: var(--accent);
+}
+
+.md-find-opt {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.md-find-opt:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.md-find-opt.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.md-find-count {
+  min-width: 50px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  user-select: none;
+}
+
+.md-find-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.md-find-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.md-find-btn:disabled {
+  color: var(--border);
+  cursor: default;
+}
+
+.md-find-close {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.md-find-action {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.md-find-action:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.md-find-action:disabled {
+  color: var(--border);
+  cursor: default;
+}
+
+/* ── Search Hit Highlights ── */
+.search-hit {
+  background: rgba(255, 230, 0, 0.35);
+  border-radius: 2px;
+}
+
+.search-hit-active {
+  background: rgba(255, 150, 0, 0.65);
+  outline: 1px solid rgba(255, 130, 0, 0.9);
+}
+

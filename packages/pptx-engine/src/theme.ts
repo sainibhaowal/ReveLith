@@ -75,8 +75,43 @@ function readColorNode(node: unknown): string | undefined {
 
 /** Font typeface attribute of e.g. fontScheme['a:majorFont']['a:latin'] (undefined when absent). */
 function typeface(scheme: XmlNode, font: string, script: string): string | undefined {
-  const v = asXmlNode(asXmlNode(scheme[font])[script])['@_typeface']
-  return typeof v === 'string' && v ? v : undefined
+  const fontNode = asXmlNode(scheme[font])
+  const v = asXmlNode(fontNode[script])['@_typeface']
+  if (typeof v === 'string' && v.trim()) return v.trim()
+
+  // Office East Asian theme fallback: check <a:font script="..."> children
+  if (script === 'a:ea' || script === 'ea') {
+    const fonts = fontNode['a:font']
+    if (fonts) {
+      const list = Array.isArray(fonts) ? fonts : [fonts]
+      for (const item of list) {
+        const fn = asXmlNode(item)
+        const s = String(fn['@_script'] ?? '').toLowerCase()
+        if (s === 'jpan' || s === 'hans' || s === 'hant' || s === 'kore') {
+          const tf = fn['@_typeface']
+          if (typeof tf === 'string' && tf.trim()) return tf.trim()
+        }
+      }
+    }
+  }
+
+  // Complex script fallback
+  if (script === 'a:cs' || script === 'cs') {
+    const fonts = fontNode['a:font']
+    if (fonts) {
+      const list = Array.isArray(fonts) ? fonts : [fonts]
+      for (const item of list) {
+        const fn = asXmlNode(item)
+        const s = String(fn['@_script'] ?? '').toLowerCase()
+        if (s === 'arab' || s === 'hebr' || s === 'deva' || s === 'thai') {
+          const tf = fn['@_typeface']
+          if (typeof tf === 'string' && tf.trim()) return tf.trim()
+        }
+      }
+    }
+  }
+
+  return undefined
 }
 
 export function parseTheme(themeXml: string): Theme {

@@ -1266,13 +1266,40 @@ button {
   right: 20px;
   z-index: 40;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 6px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--pdf-shadow-popup);
+}
+
+.pdf-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pdf-find-action {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pdf-find-action:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.pdf-find-action:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .pdf-search-input {

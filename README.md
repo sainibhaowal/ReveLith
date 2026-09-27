@@ -28,9 +28,9 @@ Ready to use ReveLith on your computer? Download the pre-built installer for you
 
 * **Byte-Preserving Fidelity**: Edits Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) files by patching modified structures only. Untouched elements, layouts, and styles remain 100% byte-for-byte intact.
 * **100% Local and Private**: Document processing, editing, and on-device OCR run entirely on your local machine. Your files never leave your system.
-* **Native AI Copilot**: Context-aware AI agents embedded across all editors for deep document comprehension, refactoring, synthesis, and creative generation with rich markdown tables, syntax-highlighted code blocks with one-click copying, and RTL support.
-* **Unified Workspace Shell**: Seamless tabbed multi-document management for Docs, Sheets, Slides, PDF, and Markdown in a single cohesive environment with collapsible ribbons (`Ctrl+F1`).
-* **High-Performance Architecture**: Native Rust sidecars, WebAssembly text shaping, and specialized parsing engines deliver instant startup and fluid performance on x64 and ARM64 hardware.
+* **Native AI Copilot & BYOK**: Context-aware AI agents across all editors, supporting dedicated BYOK keys (Search, Image, Analysis) and custom local/server models (e.g. `codex-app-server`), with quote-aware prompt references and highlights.
+* **Unified Workspace Shell**: Seamless tabbed multi-document management for Docs, Sheets, Slides, PDF, Markdown, and GenOffice HTML in a single cohesive environment with collapsible ribbons (`Ctrl+F1`), Global AutoSave, and multi-language UI (including Czech).
+* **High-Performance Architecture**: Native Rust sidecars, WebAssembly text shaping, streaming large-deck PDF exports, and specialized parsing engines deliver instant startup and fluid performance on x64 and ARM64 hardware.
 * **Modern Design System**: Polished Light, Dark, and System themes featuring Word-style dark page rendering in dark theme with accurate print, PDF export, and clipboard fidelity.
 
 ---
@@ -39,12 +39,13 @@ Ready to use ReveLith on your computer? Download the pre-built installer for you
 
 | Module | Core Functionality | Engine & Architecture |
 | :--- | :--- | :--- |
-| **Docs** | Word processor (`.docx`) | Byte-preserving round trips, paginated layout engine, tracked changes, rich comments, complex equations, and ink support. |
-| **Sheets** | Spreadsheet analyzer (`.xlsx`) | In-house Rust calculation engine and `.xlsx` sidecar, dynamic charting, pivot tables, slicers, formula tracing, and conditional styling. |
-| **Slides** | Presentation designer (`.pptx`) | Custom OOXML parser, master and layout inheritance, shape transforms, non-destructive cropping, and smart layout snapping. |
-| **PDF** | Complete PDF editor (`.pdf`) | Direct page content stream manipulation, font-preserving text updates, form filling, digital signatures, and vector annotations. |
-| **Markdown** | Technical document editor (`.md`) | Block-based rich text workspace with immediate bi-directional plain text synchronization and native export capabilities. |
-| **Shell** | Master orchestrator | Central workspace hub, unified tab engine, instant project switcher, and integrated theme controller. |
+| **Docs** | Word processor (`.docx`) | Byte-preserving round trips, paginated layout engine, tracked changes, in-place comments, HTML export, equations, and ink support. |
+| **Sheets** | Spreadsheet analyzer (`.xlsx`) | In-house Rust calculation engine and `.xlsx` sidecar, dynamic charting, cached external formulas, Excel-style paste repeat, and large-grid search. |
+| **Slides** | Presentation designer (`.pptx`) | Custom OOXML parser, master and layout inheritance, shape transforms, streamed PDF export, East Asian font resolution, and smart layout snapping. |
+| **PDF** | Complete PDF editor (`.pdf`) | Direct page content stream manipulation, aligned highlight geometry, in-stream Find and Replace, form filling, signatures, and annotations. |
+| **Markdown** | Technical document editor (`.md`) | Block-based rich text workspace with immediate bi-directional plain text sync, live Mermaid diagrams, Find and Replace, and native exports. |
+| **HTML** | GenOffice HTML studio (`.html`) | Full-featured HTML document creator & editor with AI Design, AI Document, click-to-restyle, layer inspector, present mode, and Word/PDF export. |
+| **Shell** | Master orchestrator | Central workspace hub, unified tab engine, Global AutoSave, instant project switcher, and integrated theme controller. |
 
 ---
 

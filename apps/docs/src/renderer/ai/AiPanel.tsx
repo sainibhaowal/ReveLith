@@ -671,9 +671,33 @@ export function AiPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset?.nonce])
 
+  const [selectedQuote, setSelectedQuote] = useState('')
+  const [panelFontSize, setPanelFontSize] = useState(() => {
+    try { return localStorage.getItem('revelith.aiPanelFontSize') || '14px' } catch { return '14px' }
+  })
+  const [panelSpellcheck, setPanelSpellcheck] = useState(() => {
+    try { return localStorage.getItem('revelith.aiSpellcheck') !== 'false' } catch { return true }
+  })
+
+  useEffect(() => {
+    const handleSettings = (e: any) => {
+      if (e.detail?.fontSize) setPanelFontSize(e.detail.fontSize)
+      if (e.detail?.spellcheck !== undefined) setPanelSpellcheck(e.detail.spellcheck)
+    }
+    window.addEventListener('revelith-ai-panel-settings-changed', handleSettings)
+    return () => window.removeEventListener('revelith-ai-panel-settings-changed', handleSettings)
+  }, [])
+
   // keep the scope hint & quick actions in sync with the editor selection
   useEffect(() => {
-    const bump = () => setScopeTick((t) => t + 1)
+    const bump = () => {
+      setScopeTick((t) => t + 1)
+      const { from, to, empty } = editor.state.selection
+      if (!empty && to > from) {
+        const text = editor.state.doc.textBetween(from, to, ' ').trim()
+        if (text.length > 0) setSelectedQuote(text)
+      }
+    }
     editor.on('selectionUpdate', bump)
     editor.on('update', bump)
     return () => {
@@ -729,6 +753,17 @@ export function AiPanel({
   ) => {
     const loop = loopRef.current
     if (!instruction || !loop || loop.busy) return
+    if (selectedQuote && !instruction.includes(selectedQuote)) {
+      displayInstruction = `> "${selectedQuote}"\n\n${displayInstruction}`
+      instruction = `> "${selectedQuote}"\n\n${instruction}`
+      try {
+        const { from, to } = editor.state.selection
+        if (to > from) {
+          editor.chain().setMark('docTextStyle', { highlight: 'yellow' }).run()
+        }
+      } catch {}
+    }
+    setSelectedQuote('')
     setInput('')
     // The message consumes the composer attachments: they ride along (echoed on the
     // bubble, images multimodal, files via the files skill) and the composer clears.
@@ -909,7 +944,7 @@ export function AiPanel({
   return (
     <aside
       ref={asideRef}
-      style={{ width: '100%' }}
+      style={{ width: '100%', fontSize: panelFontSize }}
       className={`ai-panel${dragOver ? ' ai-panel-dragover' : ''}${resizing ? ' ai-panel-resizing' : ''}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('Files')) {
@@ -1121,6 +1156,50 @@ export function AiPanel({
       </div>
 
       <div className="ai-composer">
+        {selectedQuote && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              margin: '0 12px 6px 12px',
+              padding: '6px 10px',
+              background: 'rgba(234, 179, 8, 0.14)',
+              borderLeft: '3px solid #eab308',
+              borderRadius: 4,
+              fontSize: '0.85em',
+              color: '#d1d5db',
+            }}
+          >
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: '85%',
+              }}
+              title={selectedQuote}
+            >
+              💬 Quote: <em>&ldquo;{selectedQuote}&rdquo;</em>
+            </span>
+            <button
+              type="button"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                fontSize: 16,
+                lineHeight: 1,
+                padding: '0 4px',
+              }}
+              onClick={() => setSelectedQuote('')}
+              title="Clear quote"
+            >
+              &times;
+            </button>
+          </div>
+        )}
         {attachNotice && <div className="ai-attach-notice">{attachNotice}</div>}
         <AiComposer
           header={
@@ -1459,6 +1538,7 @@ function ModelSelectorDropdown() {
     ],
     anthropic: ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'],
     gemini: ['gemini-2.5-pro', 'gemini-2.5-flash'],
+    'codex-app-server': ['codex-1', 'codex-2', 'codex-pro', 'codex-mini'],
   }
   const discoveredModels: string[] =
     config.discoveredModels?.length ? config.discoveredModels : fallbackModels[provider] || [currentModel]
@@ -1505,6 +1585,7 @@ function ModelSelectorDropdown() {
     ollama: { label: 'Ollama', icon: '🦙' },
     openai: { label: 'OpenAI', icon: '🟢' },
     'opencode-zen': { label: 'OpenCode Zen', icon: '⚡' },
+    'codex-app-server': { label: 'Codex App Server', icon: '🧠' },
     anthropic: { label: 'Claude', icon: '🟣' },
     gemini: { label: 'Google Gemini', icon: '🔵' },
     deepseek: { label: 'DeepSeek', icon: '🔴' },
