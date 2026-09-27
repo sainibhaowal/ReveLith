@@ -506,13 +506,29 @@ This document analyzes 9 requested features and identifies what exists vs. what 
 | 12. Sheets Excel compatibility | ✅ Complete | High | High | Charts, pivot styles, fills, drawing pictures, validation rules |
 | 13. Sheets find skip filter-hidden rows | ✅ Complete | Medium | Low | Univer filter-aware find-and-replace |
 | 14. Sheets CSV export & direct save | ✅ Complete | High | Medium | RFC-4180 with UTF-8 BOM, File menu in 19 langs, direct save |
+| 15. Docs Word-style dark page in dark theme | ✅ Complete | High | Medium | Inversion scoped to canvas; print, PDF export, clipboard HTML keep original colors |
+| 16. Docs spellcheck toggle & persistence | ✅ Complete | Medium | Low | Review tab Proofing button + DOM spellcheck sync & localStorage |
+| 17. Docs in-place hyperlink editing card | ✅ Complete | Medium | Low | Floating link inspection card with edit, copy, visit, unlink |
+| 18. Docs per-side table borders | ✅ Complete | High | Medium | OOXML table border parser/generator (`w:top`, `w:bottom`, `w:left`, etc.) |
+| 19. Slides MTX compressed font decoding | ✅ Complete | High | High | Decompresses MicroType Express font streams in `.pptx` decks |
+| 20. Slides text & run fidelity | ✅ Complete | High | Medium | `defRPr`, Symbol bullet fonts, theme colors, CJK fonts, `slidenum` fields |
+| 21. Slides EMF+ & pattern brushes | ✅ Complete | Medium | High | Vector EMF+ parsing & GDI+ pattern brush rendering |
+| 22. Slides serialized saves & resilient AI runs | ✅ Complete | High | Medium | `saveQueueBySender` prevents concurrent write corruption |
+| 23. Sheets "No fill" preservation | ✅ Complete | Medium | Low | Clean null background fill vs white fill draft state |
+| 24. Sheets safe $ header/footer setup | ✅ Complete | High | Low | Slicing and XML escaping prevents $ corruption in page setup |
+| 25. Sheets shortcut isolation | ✅ Complete | High | Low | Grid shortcuts suppressed inside text inputs, dialogs, and AI chat |
+| 26. Sheets leading-slash ZIP entry compatibility | ✅ Complete | High | Low | `loadSafeZip` normalizes `/xl/...` paths safely |
+| 27. Collapsible ribbon in every editor | ✅ Complete | High | Medium | `Ctrl+F1`, double-click tab, chevron button in Docs, Slides, Sheets |
+| 28. Rich AI chat (tables, code copy, RTL, clean reset) | ✅ Complete | High | Medium | Markdown GFM tables, code blocks with copy, auto-RTL, new chat cleanup |
+| 29. Windows ARM64 Snapdragon X & auto-updater | ✅ Complete | High | High | Native ARM64 installer, DigiCert EV signing, direct GitHub auto-updater |
 
 **Total:**
-- ✅ **Fully Implemented & Verified:** 14 / 14 features (100%)
+- ✅ **Fully Implemented & Verified:** 29 / 29 features (100%)
 - ⚠️ Partially exists: 0
 - ❌ Missing: 0
 
 **Verification Status:**
-All packages typecheck cleanly (`tsc --noEmit`) and all 2,207+ automated tests pass with zero regressions. Complete technical documentation is available in [FEATURES_END_TO_END_GUIDE.md](./FEATURES_END_TO_END_GUIDE.md).
+All packages typecheck cleanly (`tsc --noEmit`) and all 2,207+ automated tests pass with zero regressions. Complete technical documentation is available in [FEATURES_END_TO_END_GUIDE.md](./FEATURES_END_TO_END_GUIDE.md) and [PUBLIC_RELEASE_NOTES.md](./PUBLIC_RELEASE_NOTES.md).
+
 
 

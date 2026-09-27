@@ -98,6 +98,36 @@ This document is the master technical reference and verification guide for all n
 
 ---
 
+### 1.9 Compressed Embedded Fonts (MTX) Decoding
+- **Scope:** Decodes compressed MicroType Express (MTX) font streams embedded within `.pptx` presentations into native OpenType/TrueType tables for canvas rendering.
+- **Implementation:**
+  - Font decompressor in [apps/slides/src/main/fonts.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/slides/src/main/fonts.ts) extracts compressed MTX font data parts from the PPTX package and transforms them to standard `@font-face` buffers.
+
+---
+
+### 1.10 Text Run & Font Fidelity
+- **Scope:** Comprehensive text run styling matching PowerPoint: default run properties (`defRPr`), Symbol & Wingdings bullet font mapping (`<a:buFont>`), theme colors, CJK vs. Latin font selection, and live `slidenum` fields.
+- **Implementation:**
+  - Text styling resolution in [packages/pptx-render/src/text-layout.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/pptx-render/src/text-layout.ts), [placeholder.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/pptx-render/src/placeholder.ts), and [packages/pptx-engine/src/parse.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/pptx-engine/src/parse.ts).
+- **Tests & Verification:**
+  - `packages/pptx-render/tests/text-fidelity.test.ts` and `packages/pptx-engine/tests/text-runs.test.ts`.
+
+---
+
+### 1.11 EMF+ Vector Pictures & Pattern Brushes
+- **Scope:** Renders Enhanced Metafile Format Plus (EMF+) vector graphics and GDI+ pattern brushes (`EMR_CREATEDIBPATTERNBRUSHPT`) crisply without rasterization blur.
+- **Implementation:**
+  - Vector decoder in [packages/emf-parser/src/emf.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/emf-parser/src/emf.ts) and [packages/docx-engine/src/metafile-bitmap.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/docx-engine/src/metafile-bitmap.ts).
+
+---
+
+### 1.12 Serialized Saves & Resilient AI Runs
+- **Scope:** Chained Promise queues (`saveQueueBySender`) prevent concurrent write corruption during rapid saves; background AI agent tasks survive window lifecycle boundaries.
+- **Implementation:**
+  - Serialized save queue in [apps/slides/src/main/slides-main.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/slides/src/main/slides-main.ts) and lifecycle state persistence in [apps/slides/src/renderer/ai/slides-skill.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/slides/src/renderer/ai/slides-skill.ts).
+
+---
+
 ## 2. Sheets (Spreadsheet Engine & App)
 
 ### 2.1 Fast Million-Cell Copies & Formula Safety Guard
@@ -178,6 +208,52 @@ This document is the master technical reference and verification guide for all n
 
 ---
 
+### 2.9 "No Fill" Cell Style Saving & Draft State
+- **Scope:** Accurately distinguishes between explicit white cell fills and "No fill" (`null`), serializing clean OOXML styles without unwanted background fills.
+- **Implementation:**
+  - Explicit cell fill draft state in [apps/sheets/src/renderer/FormatCellsDialog.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/renderer/FormatCellsDialog.tsx) and [apps/sheets/src/domain/workbook-dsl.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/domain/workbook-dsl.ts).
+
+---
+
+### 2.10 Safe Header/Footer Page Setup ($ Protection)
+- **Scope:** Literal `$` characters (e.g., `$100 Budget`, `$&`, `$$`) in custom headers and footers no longer corrupt XML page setup.
+- **Implementation:**
+  - Slicing and XML entity escaping in [apps/sheets/src/gateway/xlsx-page-setup.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/gateway/xlsx-page-setup.ts) avoiding regex replacement token conflicts.
+- **Tests & Verification:**
+  - `apps/sheets/tests/xlsx-page-setup.test.ts` (passing).
+
+---
+
+### 2.11 Cell Shortcuts Isolation
+- **Scope:** Cell navigation and formatting shortcuts (`Ctrl+1`, `Ctrl+G`, arrow keys) are strictly suppressed whenever focus is in text inputs, textareas, contenteditable elements, modal dialogs, or the AI chat panel.
+- **Implementation:**
+  - Focus isolation filter in [apps/sheets/src/renderer/ExcelShell.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/renderer/ExcelShell.tsx) `onKeyDown` handler.
+
+---
+
+### 2.12 Smooth Scrolling & Recalculation Stream Synchronization
+- **Scope:** Fluid scrolling and row/column virtualization on multi-hundred-thousand row workbooks; formula recalculation waits for async streaming to complete before evaluation.
+- **Implementation:**
+  - Virtualization and stream coordination in [apps/sheets/src/renderer/univer-sync.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/renderer/univer-sync.ts) and [apps/sheets/src/gateway/xlsx-streaming-save.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/gateway/xlsx-streaming-save.ts).
+
+---
+
+### 2.13 Leading-Slash ZIP Entry Compatibility
+- **Scope:** Workbooks created by 3rd-party generators containing leading slashes in ZIP entry paths (e.g., `/xl/workbook.xml`) open cleanly without path mismatch errors.
+- **Implementation:**
+  - Path normalization in `loadSafeZip` within [apps/sheets/src/gateway/xlsx-gateway.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/gateway/xlsx-gateway.ts).
+- **Tests & Verification:**
+  - `apps/sheets/tests/xlsx-producer-compat.test.ts` (passing).
+
+---
+
+### 2.14 Zoom Persistence & Combo Chart / Conditional Formatting Fixes
+- **Scope:** Sheet zoom percentage persists across saves and reloads; combo charts with dual axes and complex conditional formatting rules evaluate and render accurately.
+- **Implementation:**
+  - View serialization in [apps/sheets/src/gateway/xlsx-cf.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/gateway/xlsx-cf.ts) and [apps/sheets/src/gateway/xlsx-chart.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/gateway/xlsx-chart.ts).
+
+---
+
 ## 3. Docs (Word Processor Engine & App)
 
 ### 3.1 Floating-Table Layout, Drop Caps, Hidden Text & Shading
@@ -225,6 +301,57 @@ This document is the master technical reference and verification guide for all n
 
 ---
 
+### 3.6 Word-Style Dark Page in Dark Theme
+- **Scope:** Word-style dark page rendering in dark theme; print media, PDF export, and clipboard HTML copy preserve original document colors and text styling.
+- **Implementation:**
+  - Document canvas inversion via `.doc-page.dark-canvas` in [apps/docs/src/renderer/App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/App.tsx) and [apps/docs/src/renderer/styles.css](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/styles.css); export and clipboard pathways preserve original hex color values.
+
+---
+
+### 3.7 Fast Long Document Loading
+- **Scope:** High-speed opening of long, multi-hundred-page documents without UI freezing or excessive memory allocation.
+- **Implementation:**
+  - Paginated layout virtualization and incremental chunking in [apps/docs/src/renderer/editor/convert.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/editor/convert.ts) and [pagination-gaps.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/editor/pagination-gaps.ts).
+
+---
+
+### 3.8 Review Tab Spellcheck Toggle
+- **Scope:** Word-style spelling & grammar toggle in the Review ribbon tab Proofing group with visual active state and `localStorage` preference persistence.
+- **Implementation:**
+  - `IconSpellcheck` button in [apps/docs/src/renderer/components/ribbon-tabs.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/components/ribbon-tabs.tsx) and dynamic `spellcheck` attribute synchronization on the editor DOM in [apps/docs/src/renderer/App.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/App.tsx).
+
+---
+
+### 3.9 Interactive In-Place Hyperlink Editing Card
+- **Scope:** Hovering or clicking existing hyperlinks opens an inline card to edit URL, copy, visit, or remove the link.
+- **Implementation:**
+  - [apps/docs/src/renderer/components/LinkTooltip.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/components/LinkTooltip.tsx).
+
+---
+
+### 3.10 Per-Side Table Borders Engine
+- **Scope:** Independent styling for top, bottom, left, right, inside horizontal, and inside vertical table borders (`w:top`, `w:bottom`, `w:left`, `w:right`, `w:insideH`, `w:insideV`).
+- **Implementation:**
+  - [packages/docx-engine/src/table-style.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/docx-engine/src/table-style.ts).
+
+---
+
+### 3.11 Embedded DOCX Font Extraction & Loading
+- **Scope:** Embedded font streams (`w:font` / `w:embedRegular`) in DOCX files are extracted and loaded dynamically as `@font-face` rules.
+- **Implementation:**
+  - Native font extraction in [packages/docx-engine/src/parse.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/docx-engine/src/parse.ts).
+
+---
+
+### 3.12 Comprehensive Word Fidelity Fixes
+- **Scope:** Strict schema order enforcement for tables, headers/footers, anchored pictures, multi-level lists, footnotes, and CJK typography conforming strictly to OOXML schema child ordering.
+- **Implementation:**
+  - [packages/docx-engine/src/generate.ts](file:///c:/Users/Ravin/Projects/ReveLith/packages/docx-engine/src/generate.ts).
+- **Tests & Verification:**
+  - `packages/docx-engine/tests/schema-order.test.ts` (passing).
+
+---
+
 ## 4. Platform, Desktop Shell, PDF & AI
 
 ### 4.1 On-Device OCR for Scanned PDFs
@@ -265,6 +392,48 @@ This document is the master technical reference and verification guide for all n
   - Signing configuration in [apps/shell/electron-builder.cjs](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell/electron-builder.cjs).
 - **Tests & Verification:**
   - `apps/shell/tests/doc-icons.test.ts` (passing).
+
+---
+
+### 4.6 Collapsible Ribbon in Every Editor
+- **Scope:** Office-style collapsible ribbon in Docs, Slides, and Sheets with `Ctrl+F1` keyboard shortcut, active tab double-click, and top-right chevron button.
+- **Implementation:**
+  - Implemented in Docs [Ribbon.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/components/Ribbon.tsx), Slides [Ribbon.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/slides/src/renderer/components/Ribbon.tsx), and Sheets [ExcelShell.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/sheets/src/renderer/ExcelShell.tsx).
+
+---
+
+### 4.7 Rich AI Chat: Tables, Syntax-Highlighted Code & RTL
+- **Scope:** AI chat renders GitHub-style markdown tables with borders and styled syntax-highlighted code blocks with one-click copy buttons; automatic right-to-left layout for Arabic/Hebrew.
+- **Implementation:**
+  - Markdown renderer in [packages/ui/src/Markdown.tsx](file:///c:/Users/Ravin/Projects/ReveLith/packages/ui/src/Markdown.tsx) with code copying and RTL direction detection.
+
+---
+
+### 4.8 Clean "New Chat" State Reset
+- **Scope:** Triggering "New chat" completely resets conversation history, file attachment queues, and preview cards.
+- **Implementation:**
+  - `newChat()` implementation in [apps/docs/src/renderer/ai/AiPanel.tsx](file:///c:/Users/Ravin/Projects/ReveLith/apps/docs/src/renderer/ai/AiPanel.tsx).
+
+---
+
+### 4.9 Dedicated AI Tools for PDF
+- **Scope:** Comprehensive AI tool suite for watermarks, headers/footers, page move/reverse/rotate, metadata editing, markup removal, sticky note annotations, form checkboxes, and text block alignment.
+- **Implementation:**
+  - Native PDF engine and AI skill handlers in `apps/pdf/src/main/` and [apps/pdf/src/renderer/ai/pdf-skill.ts](file:///c:/Users/Ravin/Projects/ReveLith/apps/pdf/src/renderer/ai/pdf-skill.ts).
+
+---
+
+### 4.10 Native Windows ARM64 Installer (Snapdragon X & Windows on Arm)
+- **Scope:** Native Windows on Arm installer targeting Snapdragon X and ARM64 devices, verified on Windows 11 ARM64 and signed with DigiCert EV Authenticode.
+- **Implementation:**
+  - Electron Builder configuration in [apps/shell/electron-builder.cjs](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell/electron-builder.cjs) and [.github/workflows/release.yml](file:///c:/Users/Ravin/Projects/ReveLith/.github/workflows/release.yml).
+
+---
+
+### 4.11 Direct In-App Auto-Updates via ReveLith GitHub Releases
+- **Scope:** Semantic release builds and packages native ARM64 and x64 releases; installed apps automatically check, verify, and download updates exclusively from ReveLith GitHub releases. If x64 is run on Arm, it auto-migrates to ARM64.
+- **Implementation:**
+  - Baked GitHub update provider in [apps/shell/electron-builder.cjs](file:///c:/Users/Ravin/Projects/ReveLith/apps/shell/electron-builder.cjs), `latest.yml`, `latest-mac.yml`, `latest-linux.yml`, and `*.blockmap` release asset uploads.
 
 ---
 

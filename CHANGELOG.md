@@ -9,18 +9,37 @@
 * **slides:** one-click OS user font installer with deck-wide missing font detection and AI text box autofit
 * **slides:** right-to-left support with paragraph and table direction toggles, mirrored bullets, and bidi complex-script shaping
 * **slides:** chart fidelity with manual plot layout support, RTL-aware legends, and theme-override colors
+* **slides:** compressed embedded fonts (MTX) decode; text fidelity for default run properties (`defRPr`), Symbol bullets, theme colors, CJK/Latin font selection, and live slide-number fields (`slidenum`)
+* **slides:** EMF+ vector graphics and DIB pattern brush rendering in slide canvas and shapes
+* **slides:** serialized file saves via Promise queue preventing concurrent write corruption; agent runs survive lifecycle boundaries
 * **slides:** dual-window editing allowing the same presentation to be opened and edited across multiple windows
 * **sheets:** CSV export of active worksheet (RFC-4180 with UTF-8 BOM) and direct saving of opened CSV files without XLSX conversion prompt
 * **sheets:** multi-language File menu support for CSV export across all 19 UI languages and Data Ribbon "Export to CSV" button
 * **sheets:** million-cell copies twice as fast with formula coordinate shifting and formula-breaking safety guard
 * **sheets:** reliable AI edits for sort, copy, and fill on raw cell values and standalone sheet export
+* **sheets:** "No fill" saves correctly; `$` in headers/footers no longer corrupts page setup
+* **sheets:** cell shortcuts (`Ctrl+1`, `Ctrl+G`, navigation) isolated from AI chat panels and modal dialogs
+* **sheets:** smoother scrolling and async loading of large workbooks; recalculation waits for streaming to complete
+* **sheets:** workbooks with leading-slash ZIP entries open cleanly; sheet zoom level persists across saves
+* **sheets:** combo chart and conditional-formatting fixes
 * **sheets:** Excel compatibility for charts, column widths, row heights, and filter-hidden find skipping
 * **sheets:** PDF to Excel table converter supporting multi-page spanning, rule-less bands, and label/value grids
+* **docs:** Word-style dark page in dark theme — print, PDF export, and clipboard HTML preserve original document colors
+* **docs:** fast opening for long documents with virtualized pagination and incremental chunking
+* **docs:** spellcheck toggle in Review ribbon tab Proofing group with editor DOM and preference synchronization
 * **docs:** floating-table layout overhaul (`w:tblpPr`), drop caps, hidden text (`w:vanish`), and background shading (`w:shd`)
-* **docs:** live URL auto-linkify as you type, cleaner page breaks, and in-place hyperlink editing
+* **docs:** live URL auto-linkify as you type, cleaner page breaks, and in-place hyperlink editing with inline card
+* **docs:** per-side table borders (`w:top`, `w:bottom`, `w:left`, `w:right`, `w:insideH`, `w:insideV`); embedded DOCX fonts load
+* **docs:** Word-fidelity fixes for tables, headers/footers, anchored pictures, lists, footnotes, and CJK typography
 * **docs:** Word-style ribbon table layout controls and Word-compatible keyboard shortcuts
 * **docs:** image anchoring, WordArt, WMF/EMF metafile rasterization, and cleaner PDF export
+* **pdf:** new AI tools for watermarks, headers/footers, page move/reverse/rotate, metadata, markup removal, sticky notes, form checkboxes, and text block alignment
 * **pdf & shell:** on-device OCR for scanned PDFs (native Windows Media OCR / macOS Vision Framework) with zero uploads
+* **shell:** collapsible ribbon like Office in every editor (`Ctrl+F1`, double-click tab, chevron button)
+* **shell & ai:** AI chat renders GitHub-style markdown tables and syntax-highlighted code blocks with copy button
+* **shell & ai:** "New chat" fully clears history, pending attachments, and previews; RTL-aware AI panels
+* **shell:** native Windows ARM64 installer for Snapdragon X and Windows on Arm devices, signed with DigiCert EV
+* **shell & ci:** semantic release builds native ARM64 and x64 packages; automatic in-app updates directly from ReveLith GitHub releases
 * **shell:** per-document file icons (`.docx`, `.pptx`, `.xlsx`, `.pdf`) and code-signed production executables
 * **shell:** window-level drag-and-drop document opening across the entire suite
 

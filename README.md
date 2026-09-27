@@ -18,20 +18,20 @@ An ultra-fast, local-first productivity powerhouse designed for modern engineeri
 
 Ready to use ReveLith on your computer? Download the pre-built installer for your operating system from our **[Releases Page](https://github.com/sainibhaowal/Revelith/releases)**:
 
-- 🪟 **Windows**: `.exe` (Installer)
-- 🍎 **macOS**: `.dmg` (Apple Silicon & Intel)
+- 🪟 **Windows**: `.exe` (x64 and Native ARM64 for Snapdragon X & Windows on Arm)
+- 🍎 **macOS**: `.dmg` (Universal: Apple Silicon & Intel)
 - 🐧 **Linux**: `.AppImage` / `.deb`
 
-*No compilation or terminal setup required for end users.*
+*No compilation or terminal setup required for end users. Installed apps automatically and exclusively receive updates directly from ReveLith GitHub releases (with automatic x64-to-ARM64 migration on Windows on Arm).*
 
 ## Key Capabilities
 
 * **Byte-Preserving Fidelity**: Edits Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) files by patching modified structures only. Untouched elements, layouts, and styles remain 100% byte-for-byte intact.
-* **100% Local and Private**: Document processing and editing run entirely on your local machine. Your files never leave your system.
-* **Native AI Copilot**: Context-aware AI agents embedded across all editors for deep document comprehension, refactoring, synthesis, and creative generation.
-* **Unified Workspace Shell**: Seamless tabbed multi-document management for Docs, Sheets, Slides, PDF, and Markdown in a single cohesive environment.
-* **High-Performance Architecture**: Native Rust sidecars, WebAssembly text shaping, and specialized parsing engines deliver instant startup and fluid performance.
-* **Modern Design System**: Polished Light, Dark, and System themes featuring dark chrome with accurate white-canvas presentation to ensure print and export accuracy.
+* **100% Local and Private**: Document processing, editing, and on-device OCR run entirely on your local machine. Your files never leave your system.
+* **Native AI Copilot**: Context-aware AI agents embedded across all editors for deep document comprehension, refactoring, synthesis, and creative generation with rich markdown tables, syntax-highlighted code blocks with one-click copying, and RTL support.
+* **Unified Workspace Shell**: Seamless tabbed multi-document management for Docs, Sheets, Slides, PDF, and Markdown in a single cohesive environment with collapsible ribbons (`Ctrl+F1`).
+* **High-Performance Architecture**: Native Rust sidecars, WebAssembly text shaping, and specialized parsing engines deliver instant startup and fluid performance on x64 and ARM64 hardware.
+* **Modern Design System**: Polished Light, Dark, and System themes featuring Word-style dark page rendering in dark theme with accurate print, PDF export, and clipboard fidelity.
 
 ---
 
@@ -114,9 +114,10 @@ npm run dev:docs
 npm run typecheck
 
 # Build native installers
-npm run dist:win      # Windows (.exe / NSIS)
-npm run dist:mac      # macOS (.dmg)
-npm run dist:linux    # Linux (.AppImage, .deb, .rpm)
+npm run dist:win        # Windows x64 (.exe / NSIS)
+npm run dist:win:arm64  # Windows ARM64 (.exe / NSIS for Snapdragon X)
+npm run dist:mac        # macOS (.dmg)
+npm run dist:linux      # Linux (.AppImage, .deb, .rpm)
 ```
 
 ---
