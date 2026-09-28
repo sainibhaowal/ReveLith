@@ -199,8 +199,10 @@ const config = {
     // keep working: set CSC_LINK (+CSC_KEY_PASSWORD) for a PFX, or the
     // AZURE_* vars for Azure Trusted Signing. CI decodes CSC_LINK_B64 into
     // $RUNNER_TEMP/cert.pfx (see .github/workflows/release.yml).
-    ...(process.env.CSC_LINK ? { certificateFile: process.env.CSC_LINK } : {}),
-    ...(process.env.CSC_KEY_PASSWORD ? { certificatePassword: process.env.CSC_KEY_PASSWORD } : {}),
+    // (electron-builder >=26.15 schema: cscLink/cscKeyPassword live on the
+    // win block; the timestamp server lives in signtoolOptions.)
+    ...(process.env.CSC_LINK ? { cscLink: process.env.CSC_LINK } : {}),
+    ...(process.env.CSC_KEY_PASSWORD ? { cscKeyPassword: process.env.CSC_KEY_PASSWORD } : {}),
     ...(process.env.AZURE_TRUSTED_SIGNING_ENDPOINT
       ? {
           azureSignOptions: {
@@ -210,10 +212,12 @@ const config = {
           },
         }
       : {}),
-    // helper exes, uninstaller and (with signAndEditExecutable) the main exe
-    // all get the timestamped signature
-    signDlls: true,
-    rfc3161TimeStampServer: 'http://timestamp.digicert.com',
+    // helper exes, uninstaller and the main exe all get the timestamped
+    // signature (DLLs are signed by default whenever signing is enabled)
+    signAndEditExecutable: true,
+    signtoolOptions: {
+      rfc3161TimeStampServer: 'http://timestamp.digicert.com',
+    },
     extraResources: [
       {
         from: existsSync(
