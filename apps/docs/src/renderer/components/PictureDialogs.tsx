@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Picture Format dialogs: remove background (tolerance cutout) + crop.
  *
  * Remove background: same interaction as slides' CutoutDialog : a tolerance slider with live
@@ -559,6 +559,140 @@ export function CropDialog({ dataUrl, onApply, onCancel }: CropProps) {
           <button className="primary" onClick={apply} disabled={!loaded || !!error}>
             {t('ribbonApply')}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ViewPictureModal({
+  src,
+  onClose,
+  onSaveAs,
+}: {
+  src: string
+  onClose: () => void
+  onSaveAs?: (src: string) => void
+}) {
+  const [zoom, setZoom] = useState(1)
+  const [dim, setDim] = useState<{ w: number; h: number } | null>(null)
+
+  useEffect(() => {
+    const img = new Image()
+    img.onload = () => {
+      setDim({ w: img.naturalWidth, h: img.naturalHeight })
+    }
+    img.src = src
+  }, [src])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      className="modal-backdrop"
+      style={{ zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="modal"
+        style={{
+          width: 'min(900px, 92vw)',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 20,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 14,
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
+            Picture Viewer {dim ? `(${dim.w} × ${dim.h} px)` : ''}
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 12 }}
+              onClick={() => setZoom((z) => Math.max(0.25, Number((z - 0.25).toFixed(2))))}
+            >
+              −
+            </button>
+            <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 12 }}
+              onClick={() => setZoom((z) => Math.min(4, Number((z + 0.25).toFixed(2))))}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 12 }}
+              onClick={() => setZoom(1)}
+            >
+              100%
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 12 }}
+              onClick={() => onSaveAs?.(src)}
+            >
+              💾 Save Picture As…
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 12 }}
+              onClick={onClose}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <div
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'repeating-conic-gradient(#e0e0e0 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px',
+            borderRadius: 8,
+            border: '1px solid var(--border-subtle)',
+            minHeight: 300,
+            padding: 16,
+          }}
+        >
+          <img
+            src={src}
+            alt="View picture"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: 'center center',
+              transition: 'transform 0.1s ease-out',
+              maxWidth: zoom === 1 ? '100%' : undefined,
+              maxHeight: zoom === 1 ? '70vh' : undefined,
+              objectFit: 'contain',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            }}
+          />
         </div>
       </div>
     </div>

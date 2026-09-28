@@ -16,6 +16,8 @@ export interface SelectedElementData {
     margin: string
     borderRadius: string
     display: string
+    width?: string
+    height?: string
   }
 }
 
@@ -63,7 +65,8 @@ export function ElementRestyler({
         }}
       >
         <span style={{ fontSize: 24, marginBottom: 8 }}>👆</span>
-        Click any element in the live preview to inspect, restyle, or ask AI to change just that part.
+        Click any element in the live preview to inspect, restyle, or ask AI to change just that
+        part.
       </div>
     )
   }
@@ -116,15 +119,36 @@ export function ElementRestyler({
         <button
           type="button"
           onClick={onClose}
-          style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 14 }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#71717a',
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
         >
           ✕
         </button>
       </div>
 
       {/* Ask AI on selected element */}
-      <div style={{ padding: 12, borderBottom: '1px solid #27272a', background: 'rgba(59, 130, 246, 0.05)' }}>
-        <div style={{ fontWeight: 600, color: '#60a5fa', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div
+        style={{
+          padding: 12,
+          borderBottom: '1px solid #27272a',
+          background: 'rgba(59, 130, 246, 0.05)',
+        }}
+      >
+        <div
+          style={{
+            fontWeight: 600,
+            color: '#60a5fa',
+            marginBottom: 6,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
           <span>✨</span> Ask AI on This Element
         </div>
         <textarea
@@ -169,7 +193,9 @@ export function ElementRestyler({
       </div>
 
       {/* Quick Actions */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #27272a', display: 'flex', gap: 6 }}>
+      <div
+        style={{ padding: '8px 12px', borderBottom: '1px solid #27272a', display: 'flex', gap: 6 }}
+      >
         <button
           type="button"
           onClick={onDuplicateElement}
@@ -234,39 +260,71 @@ export function ElementRestyler({
         {/* Colors */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div>
-            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>Text Color</label>
+            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+              Text Color
+            </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input
                 type="color"
                 defaultValue={element.styles.color || '#000000'}
                 onChange={(e) => onApplyStyle('color', e.target.value)}
-                style={{ width: 28, height: 28, border: 'none', borderRadius: 4, background: 'none', cursor: 'pointer' }}
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: 'none',
+                  borderRadius: 4,
+                  background: 'none',
+                  cursor: 'pointer',
+                }}
               />
-              <span style={{ fontSize: 11, fontFamily: 'monospace' }}>{element.styles.color || 'inherit'}</span>
+              <span style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                {element.styles.color || 'inherit'}
+              </span>
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>Background</label>
+            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+              Background
+            </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input
                 type="color"
                 defaultValue={element.styles.backgroundColor || '#ffffff'}
                 onChange={(e) => onApplyStyle('backgroundColor', e.target.value)}
-                style={{ width: 28, height: 28, border: 'none', borderRadius: 4, background: 'none', cursor: 'pointer' }}
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: 'none',
+                  borderRadius: 4,
+                  background: 'none',
+                  cursor: 'pointer',
+                }}
               />
-              <span style={{ fontSize: 11, fontFamily: 'monospace' }}>{element.styles.backgroundColor || 'none'}</span>
+              <span style={{ fontSize: 11, fontFamily: 'monospace' }}>
+                {element.styles.backgroundColor || 'none'}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Typography */}
         <div>
-          <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>Font Size & Weight</label>
+          <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+            Font Size & Weight
+          </label>
           <div style={{ display: 'flex', gap: 6 }}>
             <select
               defaultValue={element.styles.fontSize || '16px'}
               onChange={(e) => onApplyStyle('fontSize', e.target.value)}
-              style={{ flex: 1, padding: 4, fontSize: 11, background: '#27272a', border: '1px solid #3f3f46', borderRadius: 4, color: '#fff' }}
+              style={{
+                flex: 1,
+                padding: 4,
+                fontSize: 11,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#fff',
+              }}
             >
               <option value="12px">Small (12px)</option>
               <option value="14px">Normal (14px)</option>
@@ -279,7 +337,15 @@ export function ElementRestyler({
             <select
               defaultValue={element.styles.fontWeight || '400'}
               onChange={(e) => onApplyStyle('fontWeight', e.target.value)}
-              style={{ flex: 1, padding: 4, fontSize: 11, background: '#27272a', border: '1px solid #3f3f46', borderRadius: 4, color: '#fff' }}
+              style={{
+                flex: 1,
+                padding: 4,
+                fontSize: 11,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#fff',
+              }}
             >
               <option value="300">Light (300)</option>
               <option value="400">Regular (400)</option>
@@ -292,7 +358,9 @@ export function ElementRestyler({
 
         {/* Text Alignment */}
         <div>
-          <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>Alignment</label>
+          <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+            Alignment
+          </label>
           <div style={{ display: 'flex', gap: 4 }}>
             {['left', 'center', 'right', 'justify'].map((align) => (
               <button
@@ -303,7 +371,8 @@ export function ElementRestyler({
                   flex: 1,
                   padding: '4px 0',
                   fontSize: 11,
-                  background: element.styles.textAlign === align ? 'rgba(59, 130, 246, 0.3)' : '#27272a',
+                  background:
+                    element.styles.textAlign === align ? 'rgba(59, 130, 246, 0.3)' : '#27272a',
                   border: '1px solid #3f3f46',
                   borderRadius: 4,
                   color: element.styles.textAlign === align ? '#60a5fa' : '#ccc',
@@ -317,33 +386,99 @@ export function ElementRestyler({
           </div>
         </div>
 
+        {/* Size (resize) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div>
+            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+              Width
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. 100%, 320px"
+              defaultValue={element.styles.width || ''}
+              onBlur={(e) => onApplyStyle('width', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                fontSize: 11,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#fff',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+              Height
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. auto, 240px"
+              defaultValue={element.styles.height || ''}
+              onBlur={(e) => onApplyStyle('height', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                fontSize: 11,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#fff',
+              }}
+            />
+          </div>
+        </div>
+
         {/* Spacing & Borders */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div>
-            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>Padding</label>
+            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+              Padding
+            </label>
             <input
               type="text"
               placeholder="e.g. 12px 20px"
               defaultValue={element.styles.padding || ''}
               onBlur={(e) => onApplyStyle('padding', e.target.value)}
-              style={{ width: '100%', padding: '4px 6px', fontSize: 11, background: '#27272a', border: '1px solid #3f3f46', borderRadius: 4, color: '#fff' }}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                fontSize: 11,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#fff',
+              }}
             />
           </div>
           <div>
-            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>Border Radius</label>
+            <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+              Border Radius
+            </label>
             <input
               type="text"
               placeholder="e.g. 8px, 9999px"
               defaultValue={element.styles.borderRadius || ''}
               onBlur={(e) => onApplyStyle('borderRadius', e.target.value)}
-              style={{ width: '100%', padding: '4px 6px', fontSize: 11, background: '#27272a', border: '1px solid #3f3f46', borderRadius: 4, color: '#fff' }}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                fontSize: 11,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#fff',
+              }}
             />
           </div>
         </div>
 
         {/* Quick Style Presets */}
         <div>
-          <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>Style Presets</label>
+          <label style={{ fontSize: 10, color: '#71717a', display: 'block', marginBottom: 4 }}>
+            Style Presets
+          </label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             <button
               type="button"
@@ -354,7 +489,15 @@ export function ElementRestyler({
                 onApplyStyle('borderRadius', '12px')
                 onApplyStyle('boxShadow', '0 8px 32px 0 rgba(0, 0, 0, 0.37)')
               }}
-              style={{ padding: '3px 8px', fontSize: 10, background: '#27272a', border: '1px solid #3f3f46', borderRadius: 4, color: '#e4e4e7', cursor: 'pointer' }}
+              style={{
+                padding: '3px 8px',
+                fontSize: 10,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#e4e4e7',
+                cursor: 'pointer',
+              }}
             >
               Glassmorphism
             </button>
@@ -366,18 +509,37 @@ export function ElementRestyler({
                 onApplyStyle('borderRadius', '8px')
                 onApplyStyle('border', 'none')
               }}
-              style={{ padding: '3px 8px', fontSize: 10, background: '#27272a', border: '1px solid #3f3f46', borderRadius: 4, color: '#e4e4e7', cursor: 'pointer' }}
+              style={{
+                padding: '3px 8px',
+                fontSize: 10,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#e4e4e7',
+                cursor: 'pointer',
+              }}
             >
               Purple Gradient
             </button>
             <button
               type="button"
               onClick={() => {
-                onApplyStyle('boxShadow', '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)')
+                onApplyStyle(
+                  'boxShadow',
+                  '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                )
                 onApplyStyle('border', '1px solid #e2e8f0')
                 onApplyStyle('borderRadius', '8px')
               }}
-              style={{ padding: '3px 8px', fontSize: 10, background: '#27272a', border: '1px solid #3f3f46', borderRadius: 4, color: '#e4e4e7', cursor: 'pointer' }}
+              style={{
+                padding: '3px 8px',
+                fontSize: 10,
+                background: '#27272a',
+                border: '1px solid #3f3f46',
+                borderRadius: 4,
+                color: '#e4e4e7',
+                cursor: 'pointer',
+              }}
             >
               Card Shadow
             </button>

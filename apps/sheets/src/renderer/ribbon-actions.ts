@@ -598,7 +598,8 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
         )
         return
       }
-      const wbSnapshot = typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
+      const wbSnapshot =
+        typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
       const result = collectDependents(wbSnapshot, worksheet.getSheetName(), {
         row,
         column,
@@ -642,7 +643,8 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
     case 'workbook-statistics': {
       const workbook = runtime.univerAPI.getActiveWorkbook()
       if (!workbook) return
-      const snapshot = typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
+      const snapshot =
+        typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
       let cells = 0
       let formulas = 0
       for (const sheet of Object.values(snapshot.sheets)) {
@@ -793,6 +795,48 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
         Math.round(characterWidthToPixels(value)),
       )
     }
+    return
+  }
+  if (command === 'autofit-row' || command === 'autofit-col') {
+    const active = runtime.univerAPI.getActiveWorkbook()?.getActiveRange()
+    if (!worksheet || !active) {
+      ctx.setMessage(t('appSelectCellFirst'))
+      return
+    }
+    const area = active.getRange()
+    if (command === 'autofit-row') {
+      void runtime.univerAPI.executeCommand('sheet.command.set-worksheet-row-is-auto-height', {
+        unitId: runtime.univerAPI.getActiveWorkbook()?.getId(),
+        subUnitId: worksheet.getSheetId(),
+        ranges: [
+          {
+            startRow: area.startRow,
+            endRow: area.endRow,
+            startColumn: area.startColumn,
+            endColumn: area.endColumn,
+          },
+        ],
+      })
+      ctx.setMessage('AutoFit Row Height')
+    } else {
+      void runtime.univerAPI.executeCommand('sheet.command.set-worksheet-col-is-auto-width', {
+        unitId: runtime.univerAPI.getActiveWorkbook()?.getId(),
+        subUnitId: worksheet.getSheetId(),
+        ranges: [
+          {
+            startRow: area.startRow,
+            endRow: area.endRow,
+            startColumn: area.startColumn,
+            endColumn: area.endColumn,
+          },
+        ],
+      })
+      ctx.setMessage('AutoFit Column Width')
+    }
+    return
+  }
+  if (command === 'toggle-filter') {
+    void runtime.univerAPI.executeCommand('sheet.command.smart-toggle-filter')
     return
   }
   if (command.startsWith('zoom:')) {

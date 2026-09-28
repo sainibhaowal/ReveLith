@@ -18,6 +18,7 @@ import { Ribbon } from './components/Ribbon'
 import { SlashMenu, type SlashMenuHandle } from './components/SlashMenu'
 import { TableMenu } from './components/TableMenu'
 import { FrontmatterPanel } from './components/FrontmatterPanel'
+import { OutlinePanel } from './components/OutlinePanel'
 import { FindReplaceBar } from './components/FindReplaceBar'
 import { AiPanel, ReveLithAiMark, type AiPreset, type MarkdownAiDeps } from './ai/AiPanel'
 import { DOCX_MAX_IMAGE_PX, exportDocxBytes } from './export/docxExport'
@@ -78,6 +79,8 @@ export default function App() {
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [filePath, setFilePath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [outlineOpen, setOutlineOpen] = useState(false)
+  const [spellcheck, setSpellcheck] = useState(true)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [slashState, setSlashState] = useState<SlashMenuState | null>(null)
   const [fmOpen, setFmOpen] = useState(false)
@@ -85,6 +88,34 @@ export default function App() {
   const [findOpen, setFindOpen] = useState(false)
   const [findReplaceMode, setFindReplaceMode] = useState(false)
   const [aiOpen, setAiOpen] = useState(true)
+  const [aiDockSide, setAiDockSide] = useState<'left' | 'right'>(() => {
+    try {
+      return (localStorage.getItem('revelith.aiPanelDock') as 'left' | 'right') || 'left'
+    } catch {
+      return 'left'
+    }
+  })
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (
+        e.data?.type === 'ai-dock-change' &&
+        (e.data.side === 'left' || e.data.side === 'right')
+      ) {
+        setAiDockSide(e.data.side)
+      }
+    }
+    const onCustom = (e: Event) => {
+      const side = (e as CustomEvent).detail?.side
+      if (side === 'left' || side === 'right') setAiDockSide(side)
+    }
+    window.addEventListener('message', onMsg)
+    window.addEventListener('revelith-ai-dock-changed', onCustom)
+    return () => {
+      window.removeEventListener('message', onMsg)
+      window.removeEventListener('revelith-ai-dock-changed', onCustom)
+    }
+  }, [])
   const [aiPreset, setAiPreset] = useState<AiPreset | null>(null)
   const [autoSave, setAutoSave] = useState(() => localStorage.getItem('mdapp.autoSave') === '1')
 
@@ -139,6 +170,11 @@ export default function App() {
   })
   editorRef.current = editor
   filePathRef.current = filePath
+
+  useEffect(() => {
+    if (!editor) return
+    editor.view.dom.setAttribute('spellcheck', spellcheck ? 'true' : 'false')
+  }, [editor, spellcheck])
 
   useEffect(() => {
     setImageBaseDir(filePath ? dirOf(filePath) : null)
@@ -399,13 +435,20 @@ export default function App() {
         }}
         aiOpen={aiOpen}
         onToggleAi={() => setAiOpen((v) => !v)}
+        outlineOpen={outlineOpen}
+        onToggleOutline={() => setOutlineOpen((v) => !v)}
+        spellcheck={spellcheck}
+        onToggleSpellcheck={() => setSpellcheck((v) => !v)}
         onAiPreset={(text) => {
           setAiOpen(true)
           setAiPreset((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }))
         }}
       />
       {status === 'loading' && <div className="center-note">{t('loading')}</div>}
-      <div className="app-main" style={status === 'ready' ? undefined : { display: 'none' }}>
+      <div
+        className={`app-main${aiDockSide === 'right' ? ' ai-dock-right' : ''}`}
+        style={status === 'ready' ? undefined : { display: 'none' }}
+      >
         <div className={`ai-dock${aiOpen ? '' : ' collapsed'}`}>
           {!aiOpen && (
             <button
@@ -427,6 +470,7 @@ export default function App() {
             />
           )}
         </div>
+        {outlineOpen && <OutlinePanel editor={editor} onClose={() => setOutlineOpen(false)} />}
         <div className="app-content">
           {editor && (
             <FindReplaceBar

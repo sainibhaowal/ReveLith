@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Ribbon, type ViewLayout } from './components/Ribbon'
 import { LayerTree, parseDomToTree, type DomNodeInfo } from './components/LayerTree'
 import { ElementRestyler, type SelectedElementData } from './components/ElementRestyler'
@@ -149,7 +149,9 @@ const INJECTED_PREVIEW_SCRIPT = `
         padding: comp.padding,
         margin: comp.margin,
         borderRadius: comp.borderRadius,
-        display: comp.display
+        display: comp.display,
+        width: comp.width,
+        height: comp.height
       }
     }, '*');
   }, true);
@@ -314,31 +316,43 @@ export default function App() {
 
   // Restyler handlers
   const handleApplyStyle = (property: string, value: string) => {
-    iframeRef.current?.contentWindow?.postMessage({
-      type: 'revelith:apply-style',
-      property,
-      value,
-    }, '*')
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: 'revelith:apply-style',
+        property,
+        value,
+      },
+      '*',
+    )
   }
 
   const handleUpdateText = (text: string) => {
-    iframeRef.current?.contentWindow?.postMessage({
-      type: 'revelith:update-text',
-      text,
-    }, '*')
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: 'revelith:update-text',
+        text,
+      },
+      '*',
+    )
   }
 
   const handleDeleteElement = () => {
-    iframeRef.current?.contentWindow?.postMessage({
-      type: 'revelith:delete-element',
-    }, '*')
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: 'revelith:delete-element',
+      },
+      '*',
+    )
     setSelectedElement(null)
   }
 
   const handleDuplicateElement = () => {
-    iframeRef.current?.contentWindow?.postMessage({
-      type: 'revelith:duplicate-element',
-    }, '*')
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: 'revelith:duplicate-element',
+      },
+      '*',
+    )
   }
 
   // Targeted "Ask AI to change just this part"
@@ -364,10 +378,13 @@ export default function App() {
       offStream()
       const cleanHtml = buffer.replace(/^```html\s*|\s*```$/gi, '').trim()
       if (cleanHtml) {
-        iframeRef.current?.contentWindow?.postMessage({
-          type: 'revelith:replace-selected-html',
-          html: cleanHtml,
-        }, '*')
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            type: 'revelith:replace-selected-html',
+            html: cleanHtml,
+          },
+          '*',
+        )
       }
     } catch (err) {
       console.error('[ReveLith HTML] AI Element Refine error:', err)
@@ -388,11 +405,16 @@ export default function App() {
           buffer += chunk.text
         }
       })
-      const settings = (await window.htmlApi?.getAiSettings?.()) ?? { provider: 'openai', model: 'gpt-4o', apiKey: '' }
+      const settings = (await window.htmlApi?.getAiSettings?.()) ?? {
+        provider: 'openai',
+        model: 'gpt-4o',
+        apiKey: '',
+      }
       await window.htmlApi?.aiStream?.({
         requestId,
         settings,
-        system: 'You are an expert web designer. Return only complete, self-contained HTML documents with embedded CSS.',
+        system:
+          'You are an expert web designer. Return only complete, self-contained HTML documents with embedded CSS.',
         messages: [{ role: 'user', text: prompt }],
       })
       offStream?.()
@@ -422,11 +444,16 @@ export default function App() {
           buffer += chunk.text
         }
       })
-      const settings = (await window.htmlApi?.getAiSettings?.()) ?? { provider: 'openai', model: 'gpt-4o', apiKey: '' }
+      const settings = (await window.htmlApi?.getAiSettings?.()) ?? {
+        provider: 'openai',
+        model: 'gpt-4o',
+        apiKey: '',
+      }
       await window.htmlApi?.aiStream?.({
         requestId,
         settings,
-        system: 'You are an expert technical writer and document designer. Return only complete, clean, beautifully formatted HTML documents with embedded CSS.',
+        system:
+          'You are an expert technical writer and document designer. Return only complete, clean, beautifully formatted HTML documents with embedded CSS.',
         messages: [{ role: 'user', text: prompt }],
       })
       offStream?.()
@@ -441,6 +468,81 @@ export default function App() {
       console.error('[ReveLith HTML] AI Document Generation error:', err)
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const SNIPPETS: Record<string, string> = {
+    hero: '<section class="hero"><h1>New Hero</h1><p class="lead">Drop-in section.</p></section>',
+    cards:
+      '<section class="cards-grid"><div class="card"><h3>Card</h3><p>Text.</p></div></section>',
+    table:
+      '<table border="1" style="width:100%"><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>',
+    form: '<form><input placeholder="Name"><button>Submit</button></form>',
+    nav: '<nav style="display:flex;gap:12px"><a href="#">Home</a><a href="#">Docs</a></nav>',
+  }
+
+  const handleInsertSnippet = (kind: string): void => {
+    const snippet = SNIPPETS[kind] ?? `<div>${kind}</div>`
+    setHtml((prev) => prev.replace(/<\/body>/i, `${snippet}\n</body>`))
+    setDirty(true)
+    window.htmlApi?.notifyDirty(true)
+  }
+
+  const handleInsertImageUrl = (): void => {
+    const url = window.prompt('Image URL (https://…):', 'https://')
+    if (!url || url === 'https://') return
+    const safe = /^https?:\/\//.test(url.trim()) ? url.trim() : ''
+    if (!safe) return
+    setHtml((prev) =>
+      prev.replace(/<\/body>/i, `<img src="${safe}" alt="image" style="max-width:100%">\n</body>`),
+    )
+    setDirty(true)
+    window.htmlApi?.notifyDirty(true)
+  }
+
+  const handleExportSingleFile = async (): Promise<void> => {
+    try {
+      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'ReveLith_Document'
+      await window.htmlApi?.saveSingleFile({ html, suggestedName })
+    } catch (err) {
+      console.error('[ReveLith HTML] Single-file export error:', err)
+    }
+  }
+
+  const handleMoveLayer = (selector: string, direction: 'up' | 'down'): void => {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html')
+      const el = doc.querySelector(selector)
+      const sibling = direction === 'up' ? el?.previousElementSibling : el?.nextElementSibling
+      if (!el || !sibling) return
+      if (direction === 'up') el.parentElement?.insertBefore(el, sibling)
+      else el.parentElement?.insertBefore(sibling, el)
+      setHtml(`<!DOCTYPE html>\n${doc.documentElement.outerHTML}`)
+      setDirty(true)
+      window.htmlApi?.notifyDirty(true)
+    } catch (err) {
+      console.error('[ReveLith HTML] Move layer error:', err)
+    }
+  }
+
+  const handleReorderLayer = (
+    source: string,
+    target: string,
+    position: 'before' | 'after',
+  ): void => {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html')
+      const src = doc.querySelector(source)
+      const dst = doc.querySelector(target)
+      if (!src || !dst || src === dst || dst.contains(src)) return
+      const parent = dst.parentElement
+      if (!parent) return
+      parent.insertBefore(src, position === 'before' ? dst : dst.nextSibling)
+      setHtml(`<!DOCTYPE html>\n${doc.documentElement.outerHTML}`)
+      setDirty(true)
+      window.htmlApi?.notifyDirty(true)
+    } catch (err) {
+      console.error('[ReveLith HTML] Reorder layer error:', err)
     }
   }
 
@@ -476,7 +578,15 @@ export default function App() {
   const previewHtml = `${html}\n${INJECTED_PREVIEW_SCRIPT}`
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#09090b', color: '#f4f4f5' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        background: '#09090b',
+        color: '#f4f4f5',
+      }}
+    >
       <Ribbon
         viewLayout={viewLayout}
         onChangeViewLayout={setViewLayout}
@@ -491,6 +601,9 @@ export default function App() {
         onSaveAs={() => void handleSave('saveAs')}
         onExportWord={handleExportWord}
         onExportPdf={handleExportPdf}
+        onExportSingleFile={() => void handleExportSingleFile()}
+        onInsertSnippet={handleInsertSnippet}
+        onInsertImageUrl={handleInsertImageUrl}
         dirty={dirty}
         autoSave={autoSave}
         onToggleAutoSave={setAutoSave}
@@ -502,12 +615,17 @@ export default function App() {
           <LayerTree
             tree={domTree}
             selectedSelector={selectedSelector}
+            onMove={handleMoveLayer}
+            onReorder={handleReorderLayer}
             onSelect={(selector) => {
               setSelectedSelector(selector)
-              iframeRef.current?.contentWindow?.postMessage({
-                type: 'revelith:highlight-selector',
-                selector,
-              }, '*')
+              iframeRef.current?.contentWindow?.postMessage(
+                {
+                  type: 'revelith:highlight-selector',
+                  selector,
+                },
+                '*',
+              )
             }}
           />
         )}
@@ -516,8 +634,25 @@ export default function App() {
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
           {/* Code Editor View (Split or Code only) */}
           {(viewLayout === 'split' || viewLayout === 'code') && (
-            <div style={{ flex: viewLayout === 'split' ? '0 0 45%' : '1 1 auto', borderRight: '1px solid #27272a', display: 'flex', flexDirection: 'column', background: '#121214' }}>
-              <div style={{ padding: '6px 12px', borderBottom: '1px solid #27272a', fontSize: 11, color: '#a1a1aa', display: 'flex', justifyContent: 'space-between' }}>
+            <div
+              style={{
+                flex: viewLayout === 'split' ? '0 0 45%' : '1 1 auto',
+                borderRight: '1px solid #27272a',
+                display: 'flex',
+                flexDirection: 'column',
+                background: '#121214',
+              }}
+            >
+              <div
+                style={{
+                  padding: '6px 12px',
+                  borderBottom: '1px solid #27272a',
+                  fontSize: 11,
+                  color: '#a1a1aa',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}
+              >
                 <span>HTML Code</span>
                 <span>{html.length.toLocaleString()} chars</span>
               </div>
@@ -546,7 +681,15 @@ export default function App() {
 
           {/* Live Interactive Preview */}
           {(viewLayout === 'preview' || viewLayout === 'split') && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#27272a', position: 'relative' }}>
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                background: '#27272a',
+                position: 'relative',
+              }}
+            >
               <iframe
                 ref={iframeRef}
                 title="Live Preview"
@@ -578,12 +721,7 @@ export default function App() {
       </div>
 
       {/* Present Mode */}
-      {showPresent && (
-        <PresentMode
-          html={html}
-          onClose={() => setShowPresent(false)}
-        />
-      )}
+      {showPresent && <PresentMode html={html} onClose={() => setShowPresent(false)} />}
 
       {/* AI Design Mode Modal */}
       <AiDesignModal

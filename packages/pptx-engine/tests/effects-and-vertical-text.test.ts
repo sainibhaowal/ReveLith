@@ -7,12 +7,10 @@ import {
   patchElementEffects,
   patchBodyPrVert,
   setBodyPrVert,
-  setElementEffects,
   copyElementData,
   pasteElements,
   type Slide,
   type TextElement,
-  type OpenedPptx,
 } from '../src/index'
 
 describe('Effects patch (patchElementEffects)', () => {
@@ -48,10 +46,14 @@ describe('Effects patch (patchElementEffects)', () => {
     })
 
     expect(patched).toContain('<a:effectLst>')
-    expect(patched).toContain('<a:outerShdw blurRad="50800" dist="38100" dir="2700000"><a:srgbClr val="000000"/></a:outerShdw>')
+    expect(patched).toContain(
+      '<a:outerShdw blurRad="50800" dist="38100" dir="2700000"><a:srgbClr val="000000"/></a:outerShdw>',
+    )
     expect(patched).toContain('<a:glow rad="63500"><a:srgbClr val="00FF00"/></a:glow>')
     expect(patched).toContain('<a:softEdge rad="25400"/>')
-    expect(patched).toContain('<a:reflection blurRad="12700" stA="60000" endA="500" dist="10000" dir="5400000"/>')
+    expect(patched).toContain(
+      '<a:reflection blurRad="12700" stA="60000" endA="500" dist="10000" dir="5400000"/>',
+    )
   })
 
   it('updates existing effects and can selectively remove them', () => {
@@ -76,7 +78,9 @@ describe('Effects patch (patchElementEffects)', () => {
       glow: null,
     })
 
-    expect(patched).toContain('<a:outerShdw blurRad="99999" dist="88888" dir="10800000"><a:srgbClr val="0000FF"/></a:outerShdw>')
+    expect(patched).toContain(
+      '<a:outerShdw blurRad="99999" dist="88888" dir="10800000"><a:srgbClr val="0000FF"/></a:outerShdw>',
+    )
     expect(patched).not.toContain('<a:glow')
   })
 })
@@ -147,7 +151,8 @@ describe('Vertical text patch (patchBodyPrVert & setBodyPrVert)', () => {
   })
 })
 
-const fx = (name: string) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures', name))
+const fx = (name: string) =>
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures', name))
 
 describe('Cross-window copy/paste with media parts', () => {
   it('serializes and deserializes embedded mediaParts for cross-deck paste', async () => {

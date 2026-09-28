@@ -55,18 +55,59 @@ function collectParagraphs(nodes: readonly unknown[], out: string[]): void {
   }
 }
 
-/** extract slide text from a pptx: one "## Slide N" section per slide, a line per paragraph */
+/** extract slide text from a pptx: one "## Slide N" section per slide, a line per paragraph in presentation order */
 export async function pptxToText(bytes: Uint8Array): Promise<string> {
   const zip = await JSZip.loadAsync(bytes)
-  const slidePaths = Object.keys(zip.files)
-    .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-    .sort((a, b) => slideNumber(a) - slideNumber(b))
+  let slidePaths: string[] = []
+  const presFile = zip.file('ppt/presentation.xml')
+  const relsFile = zip.file('ppt/_rels/presentation.xml.rels')
+  if (presFile && relsFile) {
+    try {
+      const presXml = await presFile.async('text')
+      const relsXml = await relsFile.async('text')
+      const relsMap = new Map<string, string>()
+      const relRe =
+        /<Relationship\b[^>]*\bId=(?:"([^"]*)"|'([^']*)')[^>]*\bTarget=(?:"([^"]*)"|'([^']*)')/g
+      let m: RegExpExecArray | null
+      while ((m = relRe.exec(relsXml)) !== null) {
+        const id = m[1] ?? m[2]
+        const target = m[3] ?? m[4]
+        if (id && target) relsMap.set(id, target)
+      }
+      const sldIdRe = /<p:sldId\b[^>]*\br:id=(?:"([^"]*)"|'([^']*)')/g
+      while ((m = sldIdRe.exec(presXml)) !== null) {
+        const rId = m[1] ?? m[2]
+        if (rId && relsMap.has(rId)) {
+          let target = relsMap.get(rId)!
+          if (!target.startsWith('ppt/')) {
+            target = target.startsWith('slides/') ? `ppt/${target}` : `ppt/slides/${target}`
+          }
+          if (zip.file(target)) {
+            slidePaths.push(target)
+          }
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  if (slidePaths.length === 0) {
+    slidePaths = Object.keys(zip.files)
+      .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
+      .sort((a, b) => slideNumber(a) - slideNumber(b))
+  }
+
   const sections: string[] = []
-  for (const path of slidePaths) {
-    const xml = await zip.files[path]!.async('text')
+  for (let i = 0; i < slidePaths.length; i++) {
+    const path = slidePaths[i]
+    const file = zip.file(path)
+    if (!file) continue
+    const xml = await file.async('text')
     const paras: string[] = []
     collectParagraphs(parser.parse(xml), paras)
-    sections.push([`## Slide ${slideNumber(path)}`, ...paras].join('\n'))
+    const num = slideNumber(path) || i + 1
+    sections.push([`## Slide ${num}`, ...paras].join('\n'))
   }
   return sections.join('\n\n')
 }

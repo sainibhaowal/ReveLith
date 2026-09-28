@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 
 export interface DomNodeInfo {
   id: string // generated unique key for tree
@@ -16,7 +16,8 @@ export function parseDomToTree(root: Element, depth = 0, maxDepth = 15): DomNode
   if (tagName === 'script' || tagName === 'style' || tagName === 'svg') return null
 
   const elementId = root.id || undefined
-  const className = root.className && typeof root.className === 'string' ? root.className.trim() : undefined
+  const className =
+    root.className && typeof root.className === 'string' ? root.className.trim() : undefined
   const directText = Array.from(root.childNodes)
     .filter((n) => n.nodeType === Node.TEXT_NODE)
     .map((n) => n.textContent?.trim())
@@ -51,6 +52,8 @@ interface LayerTreeProps {
   selectedSelector: string | null
   onSelect: (selector: string, node: DomNodeInfo) => void
   onHover?: (selector: string | null) => void
+  onMove?: (selector: string, direction: 'up' | 'down') => void
+  onReorder?: (source: string, target: string, position: 'before' | 'after') => void
 }
 
 function TreeNode({
@@ -58,12 +61,16 @@ function TreeNode({
   selectedSelector,
   onSelect,
   onHover,
+  onMove,
+  onReorder,
   depth = 0,
 }: {
   node: DomNodeInfo
   selectedSelector: string | null
   onSelect: (selector: string, node: DomNodeInfo) => void
   onHover?: (selector: string | null) => void
+  onMove?: (selector: string, direction: 'up' | 'down') => void
+  onReorder?: (source: string, target: string, position: 'before' | 'after') => void
   depth?: number
 }) {
   const [collapsed, setCollapsed] = useState(depth > 2)
@@ -88,6 +95,25 @@ function TreeNode({
         onClick={() => onSelect(node.selectorPath, node)}
         onMouseEnter={() => onHover?.(node.selectorPath)}
         onMouseLeave={() => onHover?.(null)}
+        draggable={onReorder ? true : undefined}
+        onDragStart={(e) => {
+          if (!onReorder) return
+          e.dataTransfer.setData('text/revelith-layer', node.selectorPath)
+          e.dataTransfer.effectAllowed = 'move'
+        }}
+        onDragOver={(e) => {
+          if (onReorder) e.preventDefault()
+        }}
+        onDrop={(e) => {
+          if (!onReorder) return
+          e.preventDefault()
+          e.stopPropagation()
+          const source = e.dataTransfer.getData('text/revelith-layer')
+          if (!source || source === node.selectorPath) return
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          const position = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
+          onReorder(source, node.selectorPath, position)
+        }}
       >
         {hasChildren ? (
           <button
@@ -112,15 +138,62 @@ function TreeNode({
           <span style={{ width: 14 }} />
         )}
         <span style={{ fontWeight: 600, color: '#f43f5e' }}>&lt;{node.tagName}&gt;</span>
-        {node.elementId && <span style={{ color: '#3b82f6', fontSize: 11 }}>#{node.elementId}</span>}
+        {node.elementId && (
+          <span style={{ color: '#3b82f6', fontSize: 11 }}>#{node.elementId}</span>
+        )}
         {node.className && (
-          <span style={{ color: '#10b981', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
+          <span
+            style={{
+              color: '#10b981',
+              fontSize: 11,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: 100,
+            }}
+          >
             .{node.className.split(' ')[0]}
           </span>
         )}
         {node.textContent && (
-          <span style={{ color: '#6b7280', fontSize: 11, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>
+          <span
+            style={{
+              color: '#6b7280',
+              fontSize: 11,
+              fontStyle: 'italic',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: 80,
+            }}
+          >
             "{node.textContent}"
+          </span>
+        )}
+        {isSelected && onMove && (
+          <span style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
+            <button
+              type="button"
+              title="Move up"
+              onClick={(e) => {
+                e.stopPropagation()
+                onMove(node.selectorPath, 'up')
+              }}
+              style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              title="Move down"
+              onClick={(e) => {
+                e.stopPropagation()
+                onMove(node.selectorPath, 'down')
+              }}
+              style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}
+            >
+              ↓
+            </button>
           </span>
         )}
       </div>
@@ -134,6 +207,8 @@ function TreeNode({
               selectedSelector={selectedSelector}
               onSelect={onSelect}
               onHover={onHover}
+              onMove={onMove}
+              onReorder={onReorder}
               depth={depth + 1}
             />
           ))}
@@ -143,7 +218,14 @@ function TreeNode({
   )
 }
 
-export function LayerTree({ tree, selectedSelector, onSelect, onHover }: LayerTreeProps) {
+export function LayerTree({
+  tree,
+  selectedSelector,
+  onSelect,
+  onHover,
+  onMove,
+  onReorder,
+}: LayerTreeProps) {
   const [filter, setFilter] = useState('')
 
   return (
@@ -158,8 +240,25 @@ export function LayerTree({ tree, selectedSelector, onSelect, onHover }: LayerTr
         overflow: 'hidden',
       }}
     >
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #27272a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#f3f4f6', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          borderBottom: '1px solid #27272a',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#f3f4f6',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
           <span>🌳</span> Layers
         </span>
         <span style={{ fontSize: 11, color: '#71717a' }}>DOM Tree</span>
@@ -191,6 +290,8 @@ export function LayerTree({ tree, selectedSelector, onSelect, onHover }: LayerTr
             selectedSelector={selectedSelector}
             onSelect={onSelect}
             onHover={onHover}
+            onMove={onMove}
+            onReorder={onReorder}
           />
         ) : (
           <div style={{ color: '#71717a', fontSize: 12, padding: 12, textAlign: 'center' }}>

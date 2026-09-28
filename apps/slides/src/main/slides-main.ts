@@ -3708,7 +3708,15 @@ export function registerSlidesIpc(): void {
         const imgPath = join(tmpDir, `slide-${i}.png`)
         await writeFile(imgPath, Buffer.from(op.pngsBase64[i]!, 'base64'))
         const imgUrl = 'file:///' + imgPath.replace(/\\/g, '/')
-        imgTags.push(`<div class="page"><img src="${imgUrl}"></div>`)
+        const slideLinks = (op.links?.[i] ?? [])
+          .map((l) => {
+            const href = l.url.replace(/"/g, '&quot;')
+            return `<a href="${href}" style="position:absolute;left:${l.xPct}%;top:${l.yPct}%;width:${l.wPct}%;height:${l.hPct}%;display:block;text-decoration:none;" target="_blank"></a>`
+          })
+          .join('')
+        imgTags.push(
+          `<div class="page" style="position:relative;"><img src="${imgUrl}">${slideLinks}</div>`,
+        )
       }
       const htmlPath = join(tmpDir, 'print.html')
       const html = `<!doctype html><html><head><meta charset="utf-8"><style>

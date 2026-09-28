@@ -5,8 +5,8 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createWorker } from 'tesseract.js'
@@ -132,41 +132,41 @@ try {
 
   try {
     writeFileSync(scriptPath, script)
-    
+
     // Compile Swift script
     execFileSync('swiftc', ['-o', executablePath, scriptPath])
-    
+
     // Map common language codes to Vision framework format
     const langMap: Record<string, string> = {
-      'en': 'en-US',
-      'es': 'es-ES',
-      'fr': 'fr-FR',
-      'de': 'de-DE',
-      'it': 'it-IT',
-      'pt': 'pt-PT',
-      'zh': 'zh-Hans',
-      'ja': 'ja-JP',
-      'ko': 'ko-KR',
-      'ru': 'ru-RU',
-      'ar': 'ar-SA'
+      en: 'en-US',
+      es: 'es-ES',
+      fr: 'fr-FR',
+      de: 'de-DE',
+      it: 'it-IT',
+      pt: 'pt-PT',
+      zh: 'zh-Hans',
+      ja: 'ja-JP',
+      ko: 'ko-KR',
+      ru: 'ru-RU',
+      ar: 'ar-SA',
     }
-    
+
     const visionLang = langMap[options.language || 'en'] || 'en-US'
-    
+
     // Execute OCR
-    const result = execFileSync(executablePath, [imagePath, visionLang], { 
+    const result = execFileSync(executablePath, [imagePath, visionLang], {
       encoding: 'utf8',
-      timeout: 30000 
+      timeout: 30000,
     })
-    
+
     // Parse output
     const lines: OcrResult['lines'] = []
     let fullText = ''
     let avgConfidence = 0
-    
+
     const outputLines = result.split('\n')
     let currentLine: Partial<OcrResult['lines'][0]> = {}
-    
+
     for (const line of outputLines) {
       if (line.startsWith('LINE:')) {
         currentLine.text = line.substring(5)
@@ -178,24 +178,24 @@ try {
           x: coords[0] || 0,
           y: coords[1] || 0,
           width: coords[2] || 0,
-          height: coords[3] || 0
+          height: coords[3] || 0,
         }
       } else if (line.startsWith('AVG_CONF:')) {
         avgConfidence = parseFloat(line.substring(9))
       } else if (line.startsWith('FULL_TEXT:')) {
         fullText = line.substring(9)
       }
-      
+
       if (currentLine.text && currentLine.bbox && currentLine.confidence !== undefined) {
         lines.push(currentLine as OcrResult['lines'][0])
         currentLine = {}
       }
     }
-    
+
     return {
       text: fullText,
       confidence: avgConfidence,
-      lines
+      lines,
     }
   } finally {
     // Cleanup
@@ -274,19 +274,19 @@ try {
 `
 
   try {
-    const result = execFileSync('powershell', ['-Command', script], { 
+    const result = execFileSync('powershell', ['-Command', script], {
       encoding: 'utf8',
-      timeout: 30000 
+      timeout: 30000,
     })
-    
+
     // Parse output (same format as macOS)
     const lines: OcrResult['lines'] = []
     let fullText = ''
     let avgConfidence = 0
-    
+
     const outputLines = result.split('\n')
     let currentLine: Partial<OcrResult['lines'][0]> = {}
-    
+
     for (const line of outputLines) {
       if (line.startsWith('LINE:')) {
         currentLine.text = line.substring(5)
@@ -298,27 +298,27 @@ try {
           x: coords[0] || 0,
           y: coords[1] || 0,
           width: coords[2] || 0,
-          height: coords[3] || 0
+          height: coords[3] || 0,
         }
       } else if (line.startsWith('AVG_CONF:')) {
         avgConfidence = parseFloat(line.substring(9))
       } else if (line.startsWith('FULL_TEXT:')) {
         fullText = line.substring(9)
       }
-      
+
       if (currentLine.text && currentLine.bbox && currentLine.confidence !== undefined) {
         lines.push(currentLine as OcrResult['lines'][0])
         currentLine = {}
       }
     }
-    
+
     return {
       text: fullText,
       confidence: avgConfidence,
-      lines
+      lines,
     }
   } catch (error) {
-    throw new Error(`Windows OCR failed: ${error}`)
+    throw new Error(`Windows OCR failed: ${error}`, { cause: error })
   }
 }
 
@@ -327,31 +327,30 @@ try {
  */
 async function ocrTesseract(imagePath: string, options: OcrOptions): Promise<OcrResult> {
   const worker = await createWorker(options.language || 'eng', 1, {
-    logger: () => {} // Suppress logs
+    logger: () => {}, // Suppress logs
   })
-  
+
   try {
     const { data } = await worker.recognize(imagePath)
-    
-    const lines: OcrResult['lines'] = data.lines.map(line => ({
+
+    const lines: OcrResult['lines'] = data.lines.map((line) => ({
       text: line.text,
       bbox: {
         x: line.bbox.x0,
         y: line.bbox.y0,
         width: line.bbox.x1 - line.bbox.x0,
-        height: line.bbox.y1 - line.bbox.y0
+        height: line.bbox.y1 - line.bbox.y0,
       },
-      confidence: line.confidence
+      confidence: line.confidence,
     }))
-    
-    const avgConfidence = lines.length > 0 
-      ? lines.reduce((sum, line) => sum + line.confidence, 0) / lines.length 
-      : 0
-    
+
+    const avgConfidence =
+      lines.length > 0 ? lines.reduce((sum, line) => sum + line.confidence, 0) / lines.length : 0
+
     return {
       text: data.text,
       confidence: avgConfidence,
-      lines
+      lines,
     }
   } finally {
     await worker.terminate()
@@ -361,16 +360,13 @@ async function ocrTesseract(imagePath: string, options: OcrOptions): Promise<Ocr
 /**
  * Main OCR function that automatically selects the best available OCR engine
  */
-export async function performOcr(
-  imagePath: string, 
-  options: OcrOptions = {}
-): Promise<OcrResult> {
+export async function performOcr(imagePath: string, options: OcrOptions = {}): Promise<OcrResult> {
   if (!existsSync(imagePath)) {
     throw new Error(`Image file not found: ${imagePath}`)
   }
-  
+
   const platform = getPlatform()
-  
+
   // Try native OCR first
   if (platform === 'darwin' && isNativeOcrAvailable()) {
     try {
@@ -385,7 +381,7 @@ export async function performOcr(
       console.warn('Windows OCR failed, falling back to Tesseract:', error)
     }
   }
-  
+
   // Fallback to Tesseract.js
   return await ocrTesseract(imagePath, options)
 }
@@ -396,54 +392,54 @@ export async function performOcr(
 export async function ocrPdfPage(
   pdfPath: string,
   pageIndex: number,
-  options: OcrOptions = {}
+  options: OcrOptions = {},
 ): Promise<OcrResult> {
   const { loadPdfium } = await import('./text-edit')
   const pdfium = await loadPdfium()
-  
+
   // Load PDF
   const pdfBytes = readFileSync(pdfPath)
   const pdfBuffer = new Uint8Array(pdfBytes)
   const pdfDocPtr = pdfium._FPDF_LoadMemDocument(
     pdfium._malloc(pdfBuffer.length),
     pdfBuffer.length,
-    0
+    0,
   )
-  
+
   if (!pdfDocPtr) {
     throw new Error('Failed to load PDF document')
   }
-  
+
   try {
     const pageCount = pdfium._FPDF_GetPageCount(pdfDocPtr)
     if (pageIndex < 0 || pageIndex >= pageCount) {
       throw new Error(`Invalid page index: ${pageIndex}`)
     }
-    
+
     // Load page
     const pagePtr = pdfium._FPDF_LoadPage(pdfDocPtr, pageIndex)
     if (!pagePtr) {
       throw new Error('Failed to load PDF page')
     }
-    
+
     try {
       // Get page dimensions
       const pageWidth = pdfium._FPDF_GetPageWidthF(pagePtr)
       const pageHeight = pdfium._FPDF_GetPageHeightF(pagePtr)
-      
+
       // Create bitmap for rendering
       const bitmapPtr = pdfium._FPDFBitmap_CreateEx(
         Math.floor(pageWidth),
         Math.floor(pageHeight),
         4, // BGRA
         0,
-        0
+        0,
       )
-      
+
       if (!bitmapPtr) {
         throw new Error('Failed to create bitmap')
       }
-      
+
       try {
         // Render page to bitmap
         pdfium._FPDF_RenderPageBitmap(
@@ -454,23 +450,19 @@ export async function ocrPdfPage(
           Math.floor(pageWidth),
           Math.floor(pageHeight),
           0,
-          0
+          0,
         )
-        
+
         // Get bitmap data
         const bufferPtr = pdfium._FPDFBitmap_GetBuffer(bitmapPtr)
         const stride = pdfium._FPDFBitmap_GetStride(bitmapPtr)
         const width = pdfium._FPDFBitmap_GetWidth(bitmapPtr)
         const height = pdfium._FPDFBitmap_GetHeight(bitmapPtr)
-        
+
         // Calculate buffer size
         const bufferSize = stride * height
-        const bitmapData = new Uint8Array(
-          pdfium.HEAPU8.buffer,
-          bufferPtr,
-          bufferSize
-        )
-        
+        const bitmapData = new Uint8Array(pdfium.HEAPU8.buffer, bufferPtr, bufferSize)
+
         // Convert BGRA to RGBA and save as PNG using pure Node.js
         const rgbaData = new Uint8Array(width * height * 4)
         for (let i = 0; i < bitmapData.length; i += 4) {
@@ -481,11 +473,11 @@ export async function ocrPdfPage(
           rgbaData[targetIndex + 2] = bitmapData[i] // B <- R
           rgbaData[targetIndex + 3] = bitmapData[i + 3] // A
         }
-        
+
         // Simple PNG header creation (basic PNG with IHDR and IDAT)
         const createPngBuffer = (data: Uint8Array, w: number, h: number): Buffer => {
-          const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-          
+          const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
           // IHDR chunk
           const ihdr = Buffer.alloc(13)
           ihdr.writeUInt32BE(w, 0)
@@ -495,18 +487,18 @@ export async function ocrPdfPage(
           ihdr[10] = 0 // compression
           ihdr[11] = 0 // filter
           ihdr[12] = 0 // interlace
-          
+
           const ihdrChunk = createChunk('IHDR', ihdr)
-          
+
           // IDAT chunk (simplified - just wraps raw data)
           const idatChunk = createChunk('IDAT', Buffer.from(data))
-          
+
           // IEND chunk
           const iendChunk = createChunk('IEND', Buffer.alloc(0))
-          
+
           return Buffer.concat([PNG_SIGNATURE, ihdrChunk, idatChunk, iendChunk])
         }
-        
+
         const createChunk = (type: string, data: Buffer): Buffer => {
           const length = Buffer.alloc(4)
           length.writeUInt32BE(data.length, 0)
@@ -516,25 +508,25 @@ export async function ocrPdfPage(
           crcBuffer.writeUInt32BE(crc, 0)
           return Buffer.concat([length, typeBuffer, data, crcBuffer])
         }
-        
+
         const crc32 = (data: Buffer): number => {
-          let crc = 0xFFFFFFFF
+          let crc = 0xffffffff
           for (let i = 0; i < data.length; i++) {
             crc ^= data[i]
             for (let j = 0; j < 8; j++) {
-              crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1))
+              crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1))
             }
           }
-          return (crc ^ 0xFFFFFFFF) >>> 0
+          return (crc ^ 0xffffffff) >>> 0
         }
-        
+
         const pngBuffer = createPngBuffer(rgbaData, width, height)
-        
+
         // Save to temporary file
         const tempDir = await mkdtemp(join(tmpdir(), 'revelith-ocr-'))
         const imagePath = join(tempDir, `page-${pageIndex}.png`)
         writeFileSync(imagePath, pngBuffer)
-        
+
         try {
           // Perform OCR on the rendered image
           return await performOcr(imagePath, options)

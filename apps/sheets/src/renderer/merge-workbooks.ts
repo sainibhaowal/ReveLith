@@ -17,7 +17,7 @@ export interface MergeSourceSheet {
 /// Stay under the IPC schema's MAX_RANGE_CELLS (100k) with headroom.
 const READ_CHUNK_CELLS = 90_000
 /** set_range value grids cap at 500 rows (DSL schema); columns cap at 100 */
-const WRITE_CHUNK_ROWS = 500
+const _WRITE_CHUNK_ROWS = 500
 const WRITE_CHUNK_COLS = 100
 /** Total imported cells per merge call before stopping with a note */
 const MAX_IMPORT_CELLS = 500_000
@@ -63,7 +63,10 @@ export interface MergeRunnerDeps {
   propose(
     operations: Record<string, unknown>[],
     summary: string,
-  ): { ok: true } | { ok: false; error: string } | Promise<{ ok: true } | { ok: false; error: string }>
+  ):
+    | { ok: true }
+    | { ok: false; error: string }
+    | Promise<{ ok: true } | { ok: false; error: string }>
   /** Sheet id for a name present in the current workbook (after add_sheet applies) */
   resolveSheetId(name: string): string | null
   closeSession(sessionId: string): Promise<void>
@@ -102,7 +105,10 @@ export async function mergeSources(
       }
       const as = dedupeSheetName(sheet.name, taken)
       taken.add(as.toLowerCase())
-      const added = await deps.propose([{ op: 'add_sheet', name: as }], `Import ${file.name} / ${sheet.name}`)
+      const added = await deps.propose(
+        [{ op: 'add_sheet', name: as }],
+        `Import ${file.name} / ${sheet.name}`,
+      )
       if (!added.ok) {
         skipped.push(`${file.name} / ${sheet.name} (${added.error})`)
         continue

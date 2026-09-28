@@ -130,6 +130,7 @@ export type MenuCommand =
   | 'find'
   | 'print'
   | 'export-pdf'
+  | 'export-images'
   | 'word-count'
 
 export type UiTheme = 'light' | 'dark' | 'system'
@@ -195,6 +196,16 @@ export interface DesktopApi {
     pageWidthTwips: number,
     pageHeightTwips: number,
     outPath?: string,
+  ): Promise<{ ok: boolean; path?: string; error?: string }>
+  /** export document pages as individual PNG images to a user selected folder */
+  exportImages(
+    defaultName: string,
+    pageRects: Array<{ x: number; y: number; width: number; height: number }>,
+  ): Promise<{ ok: boolean; dir?: string; files?: string[]; error?: string }>
+  /** save a single image from the document to a file */
+  savePicture(
+    dataUrl: string,
+    defaultName?: string,
   ): Promise<{ ok: boolean; path?: string; error?: string }>
   /** Mixed paper-size export: produce a set of PDF bytes (base64) at given sizes per the current print layout */
   printPdfBuffer(

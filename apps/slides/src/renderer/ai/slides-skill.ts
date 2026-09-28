@@ -351,7 +351,10 @@ async function generateNativeDeck(
   for (let i = 0; i < pages.length; i++) {
     const index = start + i
     if (index > 0) {
-      const added = await window.slidesApi.addBlankSlide({ sourceIndex: index - 1, fitWidthPx: access.fitWidthPx })
+      const added = await window.slidesApi.addBlankSlide({
+        sourceIndex: index - 1,
+        fitWidthPx: access.fitWidthPx,
+      })
       if (!added) return { ok: false, done: i, error: `Could not create slide ${i + 1}.` }
       all = added.slides
       access.applyDeck(all, added.index)
@@ -359,11 +362,30 @@ async function generateNativeDeck(
     const page = pages[i]!
     const background = i === 0 ? '#0A1931' : '#F8FAFC'
     const foreground = i === 0 ? '#FFFFFF' : '#111827'
-    const bg = await window.slidesApi.editBackground({ slideIndex: index, color: background, fitWidthPx: access.fitWidthPx })
+    const bg = await window.slidesApi.editBackground({
+      slideIndex: index,
+      color: background,
+      fitWidthPx: access.fitWidthPx,
+    })
     if (bg) access.applyDeck(bg, index)
-    const addText = async (x: number, y: number, w: number, h: number, text: string, size: number, color: string, bold = false) => {
+    const addText = async (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      text: string,
+      size: number,
+      color: string,
+      bold = false,
+    ) => {
       const result = await window.slidesApi.addElement({
-        slideIndex: index, kind: 'textbox', xPx: x, yPx: y, wPx: w, hPx: h, fitWidthPx: access.fitWidthPx,
+        slideIndex: index,
+        kind: 'textbox',
+        xPx: x,
+        yPx: y,
+        wPx: w,
+        hPx: h,
+        fitWidthPx: access.fitWidthPx,
         paragraphs: [{ runs: [{ text, fontSize: size, color, ...(bold ? { bold: true } : {}) }] }],
       })
       if (result) access.applySlide(index, result.slide)
@@ -371,11 +393,38 @@ async function generateNativeDeck(
     }
     const title = String(page.title ?? 'Untitled').trim() || 'Untitled'
     const brief = nativeSlideCopy(String(page.brief ?? ''), title)
-    const titleOk = await addText(80, i === 0 ? 210 : 72, 1120, 100, title, i === 0 ? 44 : 34, foreground, true)
-    const bodyOk = await addText(80, i === 0 ? 335 : 200, 1120, i === 0 ? 130 : 360, brief || ' ', i === 0 ? 22 : 18, foreground)
-    if (!titleOk || !bodyOk) return { ok: false, done: i, error: `Could not add content to slide ${i + 1}.` }
+    const titleOk = await addText(
+      80,
+      i === 0 ? 210 : 72,
+      1120,
+      100,
+      title,
+      i === 0 ? 44 : 34,
+      foreground,
+      true,
+    )
+    const bodyOk = await addText(
+      80,
+      i === 0 ? 335 : 200,
+      1120,
+      i === 0 ? 130 : 360,
+      brief || ' ',
+      i === 0 ? 22 : 18,
+      foreground,
+    )
+    if (!titleOk || !bodyOk)
+      return { ok: false, done: i, error: `Could not add content to slide ${i + 1}.` }
     if (i > 0) {
-      const bar = await window.slidesApi.addElement({ slideIndex: index, kind: 'rect', xPx: 80, yPx: 155, wPx: 150, hPx: 8, fitWidthPx: access.fitWidthPx, fillColor: '#4D96FF' })
+      const bar = await window.slidesApi.addElement({
+        slideIndex: index,
+        kind: 'rect',
+        xPx: 80,
+        yPx: 155,
+        wPx: 150,
+        hPx: 8,
+        fitWidthPx: access.fitWidthPx,
+        fillColor: '#4D96FF',
+      })
       if (bar) access.applySlide(index, bar.slide)
     }
   }
@@ -385,7 +434,10 @@ async function generateNativeDeck(
 /** Never expose the planner's design instructions as visible slide copy. */
 function nativeSlideCopy(brief: string, title: string): string {
   const clean = brief.replace(/\s+/g, ' ').trim().slice(0, 700)
-  const instruction = /\b(redesign|design|layout|use a|include a|background|accent|visually|style|heading)\b/i.test(clean)
+  const instruction =
+    /\b(redesign|design|layout|use a|include a|background|accent|visually|style|heading)\b/i.test(
+      clean,
+    )
   if (!instruction) return clean || title
   if (/\bmobile\b/i.test(clean) && /\blaptop\b/i.test(clean))
     return 'Seamless work across mobile and laptop devices.\n• Stay connected wherever work happens\n• Keep projects synchronized in real time\n• Give every team member the same current view'
@@ -414,9 +466,24 @@ async function regenerateNativeSlide(
     fitWidthPx: access.fitWidthPx,
   })
   if (bg) access.applyDeck(bg, slideIndex)
-  const add = async (x: number, y: number, w: number, h: number, text: string, fontSize: number, color: string, bold = false) => {
+  const add = async (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    text: string,
+    fontSize: number,
+    color: string,
+    bold = false,
+  ) => {
     const result = await window.slidesApi.addElement({
-      slideIndex, kind: 'textbox', xPx: x, yPx: y, wPx: w, hPx: h, fitWidthPx: access.fitWidthPx,
+      slideIndex,
+      kind: 'textbox',
+      xPx: x,
+      yPx: y,
+      wPx: w,
+      hPx: h,
+      fitWidthPx: access.fitWidthPx,
       paragraphs: [{ runs: [{ text, fontSize, color, ...(bold ? { bold: true } : {}) }] }],
     })
     if (result) access.applySlide(slideIndex, result.slide)
@@ -426,8 +493,14 @@ async function regenerateNativeSlide(
   const titleOk = await add(80, 72, 1120, 100, title || 'Untitled', 34, '#111827', true)
   const bodyOk = await add(80, 200, 1120, 360, cleanBrief || ' ', 18, '#111827')
   const accent = await window.slidesApi.addElement({
-    slideIndex, kind: 'rect', xPx: 80, yPx: 155, wPx: 150, hPx: 8,
-    fitWidthPx: access.fitWidthPx, fillColor: '#4D96FF',
+    slideIndex,
+    kind: 'rect',
+    xPx: 80,
+    yPx: 155,
+    wPx: 150,
+    hPx: 8,
+    fitWidthPx: access.fitWidthPx,
+    fillColor: '#4D96FF',
   })
   if (accent) access.applySlide(slideIndex, accent.slide)
   return titleOk && bodyOk ? { ok: true } : { ok: false, error: 'Could not write slide content.' }
@@ -2384,7 +2457,10 @@ async function executeTool(
         }
       }
       if (!access.regenerateSlide || !access.generatePageCloud)
-        return fail(t('aiFailRegen'), 'The current environment does not support the page-redo pipeline')
+        return fail(
+          t('aiFailRegen'),
+          'The current environment does not support the page-redo pipeline',
+        )
       // Figure-provenance gate
       if (countSpecificFigures(`${String(call.input.title ?? '')}\n${brief}`) >= 2) {
         const gateErr = dataSourceGateError(call, state)
@@ -2455,7 +2531,8 @@ async function executeTool(
       // ── Self-driven pipeline:
       //   1) Plan: use pages if passed; with topic, the tool plans the outline via LLM (batched recursion over threshold) : fixes missing pages at the input side.
       //   2) Generate: batched page generation, **each batch lands immediately → frontend shows pages one by one**.
-      const cloudPageGeneration = !!access.generatePageCloud && (await access.isCloudPageGenEnabled?.().catch(() => false))
+      const cloudPageGeneration =
+        !!access.generatePageCloud && (await access.isCloudPageGenEnabled?.().catch(() => false))
       if (cloudPageGeneration && !access.generateFromHtml)
         return fail(
           t('aiFailGenDeck'),
@@ -2768,7 +2845,11 @@ async function executeTool(
         const native = await generateNativeDeck(access, pages, insertMode)
         if (!native.ok)
           return fail(t('aiFailGenDeck'), native.error ?? 'Native deck generation failed.')
-        for (let i = 0; i < native.done; i++) state?.pageDone && (state.pageDone[i] = true)
+        if (state?.pageDone) {
+          for (let i = 0; i < native.done; i++) {
+            state.pageDone[i] = true
+          }
+        }
         access.onProgress?.({
           stage: 'done',
           total: native.done,

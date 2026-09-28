@@ -193,11 +193,37 @@ export async function handleExportPdf(ctx: PageLayoutContext): Promise<void> {
   try {
     const pageSetup = state?.editJournal.pageSetup.get(worksheet.getSheetId()) ?? {}
     const baseName = (state?.file.name ?? 'Book1').replace(/\.[^.]+$/, '')
+    // Snapshot live chart/picture visuals into the print payload (best-effort,
+    // capped; grid still prints when no visuals are on screen).
+    const visuals: Array<{ dataUrl: string; alt?: string }> = []
+    try {
+      const imgs = document.querySelectorAll(
+        '.wb-visual img[src^="data:image/"], .wb-visual img[src^="http"]',
+      )
+      imgs.forEach((img) => {
+        if (visuals.length >= 20) return
+        const src = (img as HTMLImageElement).src
+        if (src) visuals.push({ dataUrl: src, alt: (img as HTMLImageElement).alt || 'picture' })
+      })
+      const canvases = document.querySelectorAll('.wb-visual canvas')
+      canvases.forEach((canvas) => {
+        if (visuals.length >= 20) return
+        try {
+          const url = (canvas as HTMLCanvasElement).toDataURL('image/png')
+          if (url && url.length > 100) visuals.push({ dataUrl: url, alt: 'chart' })
+        } catch {
+          /* tainted canvas: skip */
+        }
+      })
+    } catch {
+      /* snapshot is best-effort */
+    }
     const payload = buildSheetPrintPayload(
       worksheet as unknown as PrintWorksheet,
       pageSetup,
       `${baseName}.pdf`,
       worksheet.getSheetName(),
+      visuals,
     )
     ctx.setMessage(t('appPdfRendering'))
     const result = await window.desktopApi.exportPdf(payload)

@@ -1,4 +1,4 @@
-﻿import type { PDFDocumentProxy } from 'pdfjs-dist'
+import type { PDFDocumentProxy } from 'pdfjs-dist'
 import type { AgentToolCall, AgentToolDef, ToolExecution } from '@revelith/agent-core'
 import type { OutlineNode } from '../OutlinePanel'
 import type { PageEntry, SearchIndex } from '../search'
@@ -24,7 +24,7 @@ import type {
 } from '../../shared/ipc'
 import { groupPageBlocks } from '../text-block'
 import { joinBlockLines, measurePt, wrapText } from '../text-wrap'
-import { cropRect, flipPixels, multiplyAlpha } from '../image-bake'
+import { cropRect as _cropRect, flipPixels, multiplyAlpha } from '../image-bake'
 import type { CropFractions } from '../image-bake'
 import { removeBackground } from '../cutout'
 import type { PixelImage } from '../cutout'
@@ -160,7 +160,12 @@ export interface PdfAiDeps {
   /** Replace pages with a picked file's pages (open dialog; rewrites in place) */
   replaceFilePages(pages: number[]): Promise<ReplacePagesResult>
   /** Build a fresh document (save dialog; the current file is untouched) */
-  createFileDocument(pages: number, title?: string, text?: string, suggestedName?: string): Promise<CreateDocumentResult>
+  createFileDocument(
+    pages: number,
+    title?: string,
+    text?: string,
+    suggestedName?: string,
+  ): Promise<CreateDocumentResult>
   searchWeb(query: string, maxResults: number): Promise<WebSearchResult>
   searchImages(query: string, maxResults: number): Promise<ImageSearchResponse>
   generateImage(op: { prompt: string; aspectRatio?: string }): Promise<{
@@ -258,10 +263,17 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         },
         occurrence: {
           type: 'integer',
-          description: 'Which occurrence of anchor_text on the page to use (1-based); defaults to 1',
+          description:
+            'Which occurrence of anchor_text on the page to use (1-based); defaults to 1',
         },
-        x: { type: 'number', description: 'Pin x in PDF points (used when anchor_text is omitted)' },
-        y: { type: 'number', description: 'Pin y in PDF points (used when anchor_text is omitted)' },
+        x: {
+          type: 'number',
+          description: 'Pin x in PDF points (used when anchor_text is omitted)',
+        },
+        y: {
+          type: 'number',
+          description: 'Pin y in PDF points (used when anchor_text is omitted)',
+        },
       },
       required: ['page', 'text'],
     },
@@ -326,12 +338,22 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       properties: {
         page: { type: 'integer', description: 'Page number (1-based)' },
         text: { type: 'string', description: 'Text to write; "\\n" forces a line break' },
-        x: { type: 'number', description: 'Placement x in points from the page left edge as displayed' },
+        x: {
+          type: 'number',
+          description: 'Placement x in points from the page left edge as displayed',
+        },
         y: { type: 'number', description: 'Placement y in points from the page top as displayed' },
-        max_width: { type: 'number', description: 'Wrap width in points; defaults to the page width minus margins' },
+        max_width: {
+          type: 'number',
+          description: 'Wrap width in points; defaults to the page width minus margins',
+        },
         font_size: { type: 'number', description: 'Font size in PDF points; defaults to 14' },
         color: { type: 'string', description: 'Text color as #RRGGBB; defaults to #111111' },
-        align: { type: 'string', enum: ['left', 'center', 'right'], description: 'Paragraph alignment; defaults to left' },
+        align: {
+          type: 'string',
+          enum: ['left', 'center', 'right'],
+          description: 'Paragraph alignment; defaults to left',
+        },
       },
       required: ['page', 'text', 'x', 'y'],
     },
@@ -379,8 +401,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   },
   {
     name: 'delete_inserted_text',
-    description:
-      'Discard an unsaved inserted text block by id (use list_inserted_text for ids).',
+    description: 'Discard an unsaved inserted text block by id (use list_inserted_text for ids).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -820,20 +841,59 @@ export const AGENT_TOOLS: AgentToolDef[] = [
                   'remove_inserted_text',
                 ],
               },
-              pages: { type: 'array', items: { type: 'integer' }, description: 'Pages (1-based) for rotate_pages / delete_pages' },
-              direction: { type: 'string', enum: ['left', 'right'], description: 'Turn direction for rotate_pages' },
-              order: { type: 'array', items: { type: 'integer' }, description: 'Visible page numbers in their new order for set_page_order' },
-              name: { type: 'string', description: 'Field name for set_form_value (from list_form_fields)' },
+              pages: {
+                type: 'array',
+                items: { type: 'integer' },
+                description: 'Pages (1-based) for rotate_pages / delete_pages',
+              },
+              direction: {
+                type: 'string',
+                enum: ['left', 'right'],
+                description: 'Turn direction for rotate_pages',
+              },
+              order: {
+                type: 'array',
+                items: { type: 'integer' },
+                description: 'Visible page numbers in their new order for set_page_order',
+              },
+              name: {
+                type: 'string',
+                description: 'Field name for set_form_value (from list_form_fields)',
+              },
               value: { type: 'string', description: 'New value for text/radio/choice fields' },
               checked: { type: 'boolean', description: 'New state for checkbox fields' },
-              title: { type: 'string', description: 'Document title for set_metadata (empty clears)' },
-              author: { type: 'string', description: 'Document author for set_metadata (empty clears)' },
-              subject: { type: 'string', description: 'Document subject for set_metadata (empty clears)' },
-              keywords: { type: 'string', description: 'Document keywords for set_metadata (empty clears)' },
-              markup_id: { type: 'string', description: 'Markup id from read_annotations for remove_markup' },
-              page: { type: 'integer', description: 'Page the markup is on (for remove_markup of a saved id)' },
-              note_id: { type: 'string', description: 'Note id from read_annotations for remove_note' },
-              block_id: { type: 'string', description: 'Block id from list_inserted_text for remove_inserted_text' },
+              title: {
+                type: 'string',
+                description: 'Document title for set_metadata (empty clears)',
+              },
+              author: {
+                type: 'string',
+                description: 'Document author for set_metadata (empty clears)',
+              },
+              subject: {
+                type: 'string',
+                description: 'Document subject for set_metadata (empty clears)',
+              },
+              keywords: {
+                type: 'string',
+                description: 'Document keywords for set_metadata (empty clears)',
+              },
+              markup_id: {
+                type: 'string',
+                description: 'Markup id from read_annotations for remove_markup',
+              },
+              page: {
+                type: 'integer',
+                description: 'Page the markup is on (for remove_markup of a saved id)',
+              },
+              note_id: {
+                type: 'string',
+                description: 'Note id from read_annotations for remove_note',
+              },
+              block_id: {
+                type: 'string',
+                description: 'Block id from list_inserted_text for remove_inserted_text',
+              },
             },
             required: ['op'],
           },
@@ -855,11 +915,17 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Watermark text; empty removes the session watermark' },
+        text: {
+          type: 'string',
+          description: 'Watermark text; empty removes the session watermark',
+        },
         angle: { type: 'number', description: 'Counterclockwise degrees; defaults to 35' },
         opacity: { type: 'number', description: 'Opacity percent 0..100; defaults to 18' },
         color: { type: 'string', description: 'Text color as #RRGGBB; defaults to #d0342c' },
-        size_ratio: { type: 'number', description: 'Font size as percent of page width (2..50); defaults to 11' },
+        size_ratio: {
+          type: 'number',
+          description: 'Font size as percent of page width (2..50); defaults to 11',
+        },
       },
       required: ['text'],
     },
@@ -875,11 +941,20 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         header_center: { type: 'string', description: 'Header center text' },
         header_right: { type: 'string', description: 'Header right text' },
         footer_left: { type: 'string', description: 'Footer left text' },
-        footer_center: { type: 'string', description: 'Footer center text (ignored when page_number is true)' },
+        footer_center: {
+          type: 'string',
+          description: 'Footer center text (ignored when page_number is true)',
+        },
         footer_right: { type: 'string', description: 'Footer right text' },
-        page_number: { type: 'boolean', description: 'Auto page number in the footer center; defaults to true' },
+        page_number: {
+          type: 'boolean',
+          description: 'Auto page number in the footer center; defaults to true',
+        },
         start_at: { type: 'integer', description: 'First page number; defaults to 1' },
-        font_size: { type: 'number', description: 'Font size in PDF points (6..72); defaults to 9' },
+        font_size: {
+          type: 'number',
+          description: 'Font size in PDF points (6..72); defaults to 9',
+        },
         color: { type: 'string', description: 'Text color as #RRGGBB; defaults to #666666' },
       },
     },
@@ -892,8 +967,14 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       type: 'object',
       properties: {
         after_page: { type: 'integer', description: 'Insert after this page (1-based); 0 = front' },
-        width: { type: 'number', description: 'Blank width in pt (36..2880); omit for neighbor size' },
-        height: { type: 'number', description: 'Blank height in pt (36..2880); omit for neighbor size' },
+        width: {
+          type: 'number',
+          description: 'Blank width in pt (36..2880); omit for neighbor size',
+        },
+        height: {
+          type: 'number',
+          description: 'Blank height in pt (36..2880); omit for neighbor size',
+        },
         confirm: { type: 'boolean', description: 'Required: true after the user confirms' },
       },
       required: ['after_page', 'confirm'],
@@ -924,10 +1005,22 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       properties: {
         page: { type: 'integer', description: 'Single page (1-based); omit to use pages' },
         pages: { type: 'array', items: { type: 'integer' }, description: 'Pages (1-based)' },
-        left: { type: 'number', description: 'Kept-region left in points from the displayed left edge' },
-        top: { type: 'number', description: 'Kept-region top in points from the displayed top edge' },
-        right: { type: 'number', description: 'Kept-region right in points from the displayed left edge' },
-        bottom: { type: 'number', description: 'Kept-region bottom in points from the displayed top edge' },
+        left: {
+          type: 'number',
+          description: 'Kept-region left in points from the displayed left edge',
+        },
+        top: {
+          type: 'number',
+          description: 'Kept-region top in points from the displayed top edge',
+        },
+        right: {
+          type: 'number',
+          description: 'Kept-region right in points from the displayed left edge',
+        },
+        bottom: {
+          type: 'number',
+          description: 'Kept-region bottom in points from the displayed top edge',
+        },
         confirm: { type: 'boolean', description: 'Required: true after the user confirms' },
       },
       required: ['left', 'top', 'right', 'bottom', 'confirm'],
@@ -979,7 +1072,11 @@ export const AGENT_TOOLS: AgentToolDef[] = [
       type: 'object',
       properties: {
         page: { type: 'integer', description: 'Single page (1-based); omit to use pages' },
-        pages: { type: 'array', items: { type: 'integer' }, description: 'Pages (1-based) to replace' },
+        pages: {
+          type: 'array',
+          items: { type: 'integer' },
+          description: 'Pages (1-based) to replace',
+        },
         confirm: { type: 'boolean', description: 'Required: true after the user confirms' },
       },
       required: ['confirm'],
@@ -1332,7 +1429,10 @@ async function editBlock(deps: PdfAiDeps, input: Record<string, unknown>): Promi
 }
 
 /** Shift one clustered paragraph by a display-space delta, keeping its text */
-async function moveTextBlock(deps: PdfAiDeps, input: Record<string, unknown>): Promise<ToolExecution> {
+async function moveTextBlock(
+  deps: PdfAiDeps,
+  input: Record<string, unknown>,
+): Promise<ToolExecution> {
   const summary = `Move paragraph on page ${Number(input.page)}`
   if (deps.readOnly()) return err(READONLY_OUTPUT, summary)
   const r = resolvePage(deps, input.page)
@@ -1570,7 +1670,13 @@ async function readAnnotations(
   const total = deps.pageCount()
   const start = input.start === undefined ? 1 : Number(input.start)
   const end = input.end === undefined ? total : Number(input.end)
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || start > total) {
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 1 ||
+    end < start ||
+    start > total
+  ) {
     return err(`Invalid page range (document has ${total} pages)`, summary)
   }
   const last = Math.min(end, total)
@@ -1612,7 +1718,7 @@ async function addNoteTool(
   if ('bad' in r) return err(r.bad, summary)
   const text = String(input.text ?? '').trim()
   if (!text) return err('text must not be empty', summary)
-  let at: [number, number] | null = null
+  let at: [number, number]
   const anchor = String(input.anchor_text ?? '').trim()
   if (anchor) {
     const indexPromise = deps.searchIndex()
@@ -1638,7 +1744,11 @@ async function addNoteTool(
   }
   deps.addNote(r.origIdx + 1, at, text)
   deps.gotoPage(r.origIdx + 1)
-  return { output: `Note added on page ${r.origIdx + 1} (unsaved; the user saves with ⌘S)`, mutated: true, summary }
+  return {
+    output: `Note added on page ${r.origIdx + 1} (unsaved; the user saves with ⌘S)`,
+    mutated: true,
+    summary,
+  }
 }
 
 async function editNoteTool(
@@ -1699,7 +1809,11 @@ async function deleteMarkupTool(
     if (!Number.isInteger(objNum)) return err(`Invalid markup id "${raw}"`, summary)
     const reason = await deps.deleteSavedMarkup(r.origIdx + 1, objNum)
     if (reason) return err(reason, summary)
-    return { output: `Saved markup removed from page ${r.origIdx + 1} (unsaved)`, mutated: true, summary }
+    return {
+      output: `Saved markup removed from page ${r.origIdx + 1} (unsaved)`,
+      mutated: true,
+      summary,
+    }
   }
   return err(`Invalid markup id "${raw}"; use read_annotations for markup ids`, summary)
 }
@@ -1809,7 +1923,12 @@ async function editInsertedText(
   if (deps.readOnly()) return err(READONLY_OUTPUT, summary)
   const id = String(input.block_id ?? '').replace(/^T/, '')
   if (!id) return err('block_id must not be empty', summary)
-  const patch: { text?: string; fontSize?: number; color?: [number, number, number]; align?: 'left' | 'center' | 'right' } = {}
+  const patch: {
+    text?: string
+    fontSize?: number
+    color?: [number, number, number]
+    align?: 'left' | 'center' | 'right'
+  } = {}
   if (input.text !== undefined) {
     const text = String(input.text).trim()
     if (!text) return err('text must not be empty', summary)
@@ -1817,7 +1936,8 @@ async function editInsertedText(
   }
   if (input.font_size !== undefined) {
     const fontSize = Number(input.font_size)
-    if (!(fontSize >= 4 && fontSize <= 144)) return err('font_size must be between 4 and 144', summary)
+    if (!(fontSize >= 4 && fontSize <= 144))
+      return err('font_size must be between 4 and 144', summary)
     patch.fontSize = fontSize
   }
   if (input.color !== undefined) {
@@ -1948,10 +2068,18 @@ async function flipImageTool(
   if (!b64) return err('Could not render that image (the file may be unreadable)', summary)
   const img = await decodePngPixels(b64)
   if (!img) return err('Could not decode that image', summary)
-  const png = encodePixels(flipPixels(img, direction === 'horizontal' ? 'h' : 'v'), img.width, img.height)
+  const png = encodePixels(
+    flipPixels(img, direction === 'horizontal' ? 'h' : 'v'),
+    img.width,
+    img.height,
+  )
   if (!png) return err('Could not encode the flipped image', summary)
   deps.bakeReplace(target.ref, png)
-  return { output: `Image flipped ${direction}ly (unsaved; the user saves with ⌘S)`, mutated: true, summary }
+  return {
+    output: `Image flipped ${direction}ly (unsaved; the user saves with ⌘S)`,
+    mutated: true,
+    summary,
+  }
 }
 
 async function cropImageTool(
@@ -2023,7 +2151,11 @@ async function setImageOpacityTool(
   const png = encodePixels(multiplyAlpha(img, opacity / 100), img.width, img.height)
   if (!png) return err('Could not encode the faded image', summary)
   deps.bakeReplace(target.ref, png)
-  return { output: `Image opacity set to ${opacity}% (unsaved; the user saves with ⌘S)`, mutated: true, summary }
+  return {
+    output: `Image opacity set to ${opacity}% (unsaved; the user saves with ⌘S)`,
+    mutated: true,
+    summary,
+  }
 }
 
 async function removeImageBackgroundTool(
@@ -2044,7 +2176,10 @@ async function removeImageBackgroundTool(
   if (!img) return err('Could not decode that image', summary)
   const cut = removeBackground(img, tolerance)
   if (cut.removedCount === 0) {
-    return err('No background found (nothing edge-connected matched the tolerance; try a higher tolerance)', summary)
+    return err(
+      'No background found (nothing edge-connected matched the tolerance; try a higher tolerance)',
+      summary,
+    )
   }
   const png = encodePixels(cut.data, img.width, img.height)
   if (!png) return err('Could not encode the cut-out image', summary)
@@ -2418,7 +2553,8 @@ async function setWatermarkTool(
     return { output: 'Session watermark removed', mutated: true, summary }
   }
   const angle = input.angle === undefined ? DEFAULT_WATERMARK.angle : Number(input.angle)
-  const opacity = input.opacity === undefined ? DEFAULT_WATERMARK.opacity * 100 : Number(input.opacity)
+  const opacity =
+    input.opacity === undefined ? DEFAULT_WATERMARK.opacity * 100 : Number(input.opacity)
   const sizeRatio =
     input.size_ratio === undefined ? DEFAULT_WATERMARK.sizeRatio * 100 : Number(input.size_ratio)
   const color = String(input.color ?? DEFAULT_WATERMARK.color)
@@ -2433,7 +2569,11 @@ async function setWatermarkTool(
   }
   if (!HEX_COLOR.test(color)) return err(`Invalid color "${color}"; use #RRGGBB`, summary)
   deps.setWatermark({ text, angle, opacity: opacity / 100, color, sizeRatio: sizeRatio / 100 })
-  return { output: `Watermark "${text}" set (unsaved; the user saves with ⌘S)`, mutated: true, summary }
+  return {
+    output: `Watermark "${text}" set (unsaved; the user saves with ⌘S)`,
+    mutated: true,
+    summary,
+  }
 }
 
 async function setHeaderFooterTool(
@@ -2452,7 +2592,8 @@ async function setHeaderFooterTool(
     footerRight: str(input.footer_right),
     pageNumber: input.page_number === undefined ? true : input.page_number === true,
     startAt: input.start_at === undefined ? 1 : Number(input.start_at),
-    fontSize: input.font_size === undefined ? DEFAULT_HEADER_FOOTER.fontSize : Number(input.font_size),
+    fontSize:
+      input.font_size === undefined ? DEFAULT_HEADER_FOOTER.fontSize : Number(input.font_size),
     color: str(input.color) || DEFAULT_HEADER_FOOTER.color,
   }
   if (!Number.isInteger(hf.startAt) || hf.startAt < 1) {
@@ -2463,11 +2604,18 @@ async function setHeaderFooterTool(
   }
   if (!HEX_COLOR.test(hf.color)) return err(`Invalid color "${hf.color}"; use #RRGGBB`, summary)
   const empty =
-    !hf.headerLeft && !hf.headerCenter && !hf.headerRight &&
-    !hf.footerLeft && !hf.footerCenter && !hf.footerRight && !hf.pageNumber
+    !hf.headerLeft &&
+    !hf.headerCenter &&
+    !hf.headerRight &&
+    !hf.footerLeft &&
+    !hf.footerCenter &&
+    !hf.footerRight &&
+    !hf.pageNumber
   deps.setHeaderFooter(empty ? null : hf)
   return {
-    output: empty ? 'Session header-footer removed' : 'Header-footer set (unsaved; the user saves with ⌘S)',
+    output: empty
+      ? 'Session header-footer removed'
+      : 'Header-footer set (unsaved; the user saves with ⌘S)',
     mutated: true,
     summary,
   }
@@ -2490,7 +2638,8 @@ async function applyOps(deps: PdfAiDeps, input: Record<string, unknown>): Promis
   const pendingBlocks = new Set(deps.listTextInserts().map((b) => `T${b.id}`))
   const ops: PageOp[] = []
   const notes: string[] = []
-  const validPage = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= total
+  const validPage = (n: unknown): n is number =>
+    Number.isInteger(n) && (n as number) >= 1 && (n as number) <= total
 
   for (const [i, raw] of (input.operations as unknown[]).entries()) {
     const o = (raw ?? {}) as Record<string, unknown>
@@ -2504,7 +2653,11 @@ async function applyOps(deps: PdfAiDeps, input: Record<string, unknown>): Promis
         if (o.direction !== 'left' && o.direction !== 'right') {
           return err(`${tag}: direction must be "left" or "right"`, summary)
         }
-        ops.push({ kind: 'rotate', pages: pages as number[], dir: o.direction === 'left' ? -90 : 90 })
+        ops.push({
+          kind: 'rotate',
+          pages: pages as number[],
+          dir: o.direction === 'left' ? -90 : 90,
+        })
         notes.push(`rotated ${pages.length} page(s) ${o.direction}`)
         break
       }
@@ -2528,7 +2681,10 @@ async function applyOps(deps: PdfAiDeps, input: Record<string, unknown>): Promis
           !order.every(validPage) ||
           sorted.some((v, k) => v !== want[k])
         ) {
-          return err(`${tag}: order must list each visible page exactly once: [${visible.join(', ')}]`, summary)
+          return err(
+            `${tag}: order must list each visible page exactly once: [${visible.join(', ')}]`,
+            summary,
+          )
         }
         ops.push({ kind: 'order', order: order as number[] })
         notes.push('reordered pages')
@@ -2542,12 +2698,16 @@ async function applyOps(deps: PdfAiDeps, input: Record<string, unknown>): Promis
         }
         let edit: FormValueInput
         if (field.kind === 'checkbox') {
-          if (typeof o.checked !== 'boolean') return err(`${tag}: checkbox requires the checked parameter`, summary)
+          if (typeof o.checked !== 'boolean')
+            return err(`${tag}: checkbox requires the checked parameter`, summary)
           edit = { name, kind: 'checkbox', checked: o.checked }
         } else {
           const value = String(o.value ?? '')
           if (field.kind !== 'text' && value && !field.options.includes(value)) {
-            return err(`${tag}: value "${value}" is not among the options: [${field.options.join(', ')}]`, summary)
+            return err(
+              `${tag}: value "${value}" is not among the options: [${field.options.join(', ')}]`,
+              summary,
+            )
           }
           edit = { name, kind: field.kind as 'text' | 'radio' | 'choice', value }
         }
@@ -2560,7 +2720,8 @@ async function applyOps(deps: PdfAiDeps, input: Record<string, unknown>): Promis
         for (const k of ['title', 'author', 'subject', 'keywords'] as const) {
           if (o[k] !== undefined) metadata[k] = String(o[k])
         }
-        if (Object.keys(metadata).length === 0) return err(`${tag}: pass at least one of title/author/subject/keywords`, summary)
+        if (Object.keys(metadata).length === 0)
+          return err(`${tag}: pass at least one of title/author/subject/keywords`, summary)
         ops.push({ kind: 'metadata', metadata })
         notes.push('set document properties')
         break
@@ -2586,7 +2747,10 @@ async function applyOps(deps: PdfAiDeps, input: Record<string, unknown>): Promis
       case 'remove_note': {
         const id = String(o.note_id ?? '')
         if (!pendingNotes.has(id)) {
-          return err(`${tag}: unknown pending note "${id}" (only session notes can be removed)`, summary)
+          return err(
+            `${tag}: unknown pending note "${id}" (only session notes can be removed)`,
+            summary,
+          )
         }
         ops.push({ kind: 'removeNote', id: id.slice(1) })
         notes.push(`removed ${id}`)
@@ -2595,7 +2759,10 @@ async function applyOps(deps: PdfAiDeps, input: Record<string, unknown>): Promis
       case 'remove_inserted_text': {
         const id = String(o.block_id ?? '')
         if (!pendingBlocks.has(id)) {
-          return err(`${tag}: unknown inserted block "${id}" (only unsaved blocks can be removed)`, summary)
+          return err(
+            `${tag}: unknown inserted block "${id}" (only unsaved blocks can be removed)`,
+            summary,
+          )
         }
         ops.push({ kind: 'removeInsert', id: id.slice(1) })
         notes.push(`removed ${id}`)
@@ -2628,7 +2795,8 @@ function fileOpPages(
   deps: PdfAiDeps,
   input: Record<string, unknown>,
 ): { pages: number[] } | { bad: string } {
-  const raw = input.page !== undefined ? [input.page] : Array.isArray(input.pages) ? input.pages : []
+  const raw =
+    input.page !== undefined ? [input.page] : Array.isArray(input.pages) ? input.pages : []
   const total = deps.pageCount()
   const pages = raw.map(Number)
   if (pages.length === 0 || !pages.every((p) => Number.isInteger(p) && p >= 1 && p <= total)) {
@@ -2683,7 +2851,7 @@ async function insertBlankPageTool(
   ) {
     return err('width/height must each be 36..2880 pt', summary)
   }
-  if (width === undefined !== (height === undefined)) {
+  if ((width === undefined) !== (height === undefined)) {
     return err('pass both width and height, or neither (neighbor size)', summary)
   }
   const done = await runFilePageOp(
@@ -2694,7 +2862,11 @@ async function insertBlankPageTool(
     () => deps.fileInsertBlankPage(after - 1, width, height),
   )
   if (done.mutated) {
-    return { output: `Blank page inserted after page ${after}; the document reloaded`, mutated: true, summary }
+    return {
+      output: `Blank page inserted after page ${after}; the document reloaded`,
+      mutated: true,
+      summary,
+    }
   }
   return done
 }
@@ -2716,10 +2888,19 @@ async function setPageSizeTool(
     summary,
     `I'll resize ${pages.pages.length} page(s) to ${width} x ${height} pt (content stays bottom-left; this saves and rewrites the file).`,
     input,
-    () => deps.fileSetPageSize(pages.pages.map((p) => p - 1), width, height),
+    () =>
+      deps.fileSetPageSize(
+        pages.pages.map((p) => p - 1),
+        width,
+        height,
+      ),
   )
   if (done.mutated) {
-    return { output: `Resized ${pages.pages.length} page(s); the document reloaded`, mutated: true, summary }
+    return {
+      output: `Resized ${pages.pages.length} page(s); the document reloaded`,
+      mutated: true,
+      summary,
+    }
   }
   return done
 }
@@ -2739,10 +2920,18 @@ async function cropPagesTool(
   const firstGeom = deps.pageGeom(pages.pages[0]! - 1)
   if (!firstGeom) return err('Document not ready', summary)
   const firstDisp = geomDispSize(firstGeom)
-  if (
-    !(left < right && top < bottom && left >= 0 && top >= 0 && right <= firstDisp.width && bottom <= firstDisp.height)
-  ) {
-    return err(`Box exceeds page ${pages.pages[0]} (${firstDisp.width} x ${firstDisp.height} pt as displayed)`, summary)
+  if (!(
+    left < right &&
+    top < bottom &&
+    left >= 0 &&
+    top >= 0 &&
+    right <= firstDisp.width &&
+    bottom <= firstDisp.height
+  )) {
+    return err(
+      `Box exceeds page ${pages.pages[0]} (${firstDisp.width} x ${firstDisp.height} pt as displayed)`,
+      summary,
+    )
   }
   for (const p of pages.pages.slice(1)) {
     const g = deps.pageGeom(p - 1)
@@ -2765,10 +2954,18 @@ async function cropPagesTool(
     summary,
     `I'll crop ${pages.pages.length} page(s) to the selected region (this saves and rewrites the file).`,
     input,
-    () => deps.fileCropPages(pages.pages.map((p) => p - 1), box),
+    () =>
+      deps.fileCropPages(
+        pages.pages.map((p) => p - 1),
+        box,
+      ),
   )
   if (done.mutated) {
-    return { output: `Cropped ${pages.pages.length} page(s); the document reloaded`, mutated: true, summary }
+    return {
+      output: `Cropped ${pages.pages.length} page(s); the document reloaded`,
+      mutated: true,
+      summary,
+    }
   }
   return done
 }
@@ -2797,14 +2994,20 @@ async function extractPagesTool(
   if ('bad' in pages) return err(pages.bad, summary)
   return runExportOp(deps, summary, async () => {
     const base = deps.fileName().replace(/\.pdf$/i, '') || 'pages'
-    const name = String(input.name ?? `${base}-p${pages.pages[0]}-p${pages.pages[pages.pages.length - 1]}`)
+    const name = String(
+      input.name ?? `${base}-p${pages.pages[0]}-p${pages.pages[pages.pages.length - 1]}`,
+    )
     const r = await deps.extractFilePages(
       pages.pages.map((p) => p - 1),
       name,
     )
     if (!r.ok) return err(`Extract failed: ${r.error}`, summary)
     if ('canceled' in r) return { output: 'Extract canceled; nothing changed', summary }
-    return { output: `Extracted ${pages.pages.length} page(s) to ${r.savedPath}`, mutated: false, summary }
+    return {
+      output: `Extracted ${pages.pages.length} page(s) to ${r.savedPath}`,
+      mutated: false,
+      summary,
+    }
   })
 }
 
@@ -2901,7 +3104,11 @@ async function replacePagesTool(
   if (!r.ok) return err(`Replace failed: ${r.error}`, summary)
   if ('canceled' in r) return { output: 'Replace canceled; nothing changed', summary }
   await deps.reloadAfterFileOp()
-  return { output: `Replaced ${pages.pages.length} page(s); the document reloaded`, mutated: true, summary }
+  return {
+    output: `Replaced ${pages.pages.length} page(s); the document reloaded`,
+    mutated: true,
+    summary,
+  }
 }
 
 async function createDocumentTool(
@@ -2915,7 +3122,12 @@ async function createDocumentTool(
   }
   const title = String(input.title ?? '').slice(0, 120)
   const text = String(input.text ?? '').slice(0, 20000)
-  const r = await deps.createFileDocument(pages, title || undefined, text || undefined, title || undefined)
+  const r = await deps.createFileDocument(
+    pages,
+    title || undefined,
+    text || undefined,
+    title || undefined,
+  )
   if (!r.ok) return err(`Create failed: ${r.error}`, summary)
   if ('canceled' in r) return { output: 'Create canceled; nothing changed', summary }
   return { output: `Created ${r.savedPath} (${pages} page(s))`, mutated: false, summary }

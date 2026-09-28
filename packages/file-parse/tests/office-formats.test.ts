@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { parseFileToText } from '../src/index'
+import JSZip from 'jszip'
 import {
   buildDocxFixture,
   buildPptxFixture,
   buildXlsxFixture,
+  slideXml,
+  XML_DECL,
   writeFixture,
 } from './helpers/fixtures'
 
@@ -54,6 +57,36 @@ describe('parseFileToText: pptx', () => {
     expect(result.text).not.toMatch(/Before\n[^\S\n]/)
     // and the comment the slide carries is markup, not text
     expect(result.text).not.toContain('authoring note')
+  })
+
+  it('extracts slides in presentation order when presentation.xml reorders them', async () => {
+    const zip = new JSZip()
+    zip.file('ppt/slides/slide1.xml', slideXml([['Original First Slide']]))
+    zip.file('ppt/slides/slide2.xml', slideXml([['Original Second Slide']]))
+    // presentation.xml lists slide 2 first (rId2), then slide 1 (rId1)
+    zip.file(
+      'ppt/presentation.xml',
+      `${XML_DECL}<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ` +
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<p:sldIdLst>' +
+        '<p:sldId id="257" r:id="rId2"/>' +
+        '<p:sldId id="256" r:id="rId1"/>' +
+        '</p:sldIdLst></p:presentation>',
+    )
+    zip.file(
+      'ppt/_rels/presentation.xml.rels',
+      `${XML_DECL}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>' +
+        '</Relationships>',
+    )
+    const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+    const path = writeFixture('reordered.pptx', bytes)
+    const result = await parseFileToText(path)
+    expect(result.ok).toBe(true)
+    const posSlide2 = result.text!.indexOf('Original Second Slide')
+    const posSlide1 = result.text!.indexOf('Original First Slide')
+    expect(posSlide2).toBeLessThan(posSlide1)
   })
 })
 

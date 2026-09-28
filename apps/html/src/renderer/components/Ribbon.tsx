@@ -16,6 +16,9 @@ interface RibbonProps {
   onSaveAs: () => void
   onExportWord: () => void
   onExportPdf: () => void
+  onExportSingleFile: () => void
+  onInsertSnippet: (kind: string) => void
+  onInsertImageUrl: () => void
   dirty: boolean
   autoSave: boolean
   onToggleAutoSave: (enabled: boolean) => void
@@ -32,12 +35,15 @@ export function Ribbon({
   onOpenDocument,
   onPresent,
   onSave,
-  onSaveAs,
+  onSaveAs: _onSaveAs,
   onExportWord,
   onExportPdf,
+  onExportSingleFile,
+  onInsertSnippet,
+  onInsertImageUrl,
   dirty,
-  autoSave,
-  onToggleAutoSave,
+  autoSave: _autoSave,
+  onToggleAutoSave: _onToggleAutoSave,
 }: RibbonProps) {
   return (
     <div
@@ -56,12 +62,16 @@ export function Ribbon({
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
           <span style={{ fontSize: 18 }}>🌐</span>
-          <span style={{ fontWeight: 700, fontSize: 13, color: '#f43f5e', letterSpacing: '-0.2px' }}>
+          <span
+            style={{ fontWeight: 700, fontSize: 13, color: '#f43f5e', letterSpacing: '-0.2px' }}
+          >
             ReveLith HTML
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, borderRight: '1px solid #27272a', paddingRight: 12 }}>
+        <div
+          style={{ display: 'flex', gap: 6, borderRight: '1px solid #27272a', paddingRight: 12 }}
+        >
           <button
             type="button"
             onClick={onOpenDesign}
@@ -251,6 +261,69 @@ export function Ribbon({
           title="Export to PDF"
         >
           <span>📑</span> PDF
+        </button>
+        <button
+          type="button"
+          onClick={onExportSingleFile}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '4px 8px',
+            background: '#27272a',
+            border: '1px solid #3f3f46',
+            borderRadius: 5,
+            color: '#22c55e',
+            fontSize: 11,
+            cursor: 'pointer',
+          }}
+          title="Export as Single-File HTML"
+        >
+          <span>📦</span> Single File
+        </button>
+        <select
+          aria-label="Insert"
+          defaultValue=""
+          onChange={(e) => {
+            if (e.target.value) {
+              onInsertSnippet(e.target.value)
+              e.target.value = ''
+            }
+          }}
+          style={{
+            background: '#27272a',
+            color: '#e4e4e7',
+            border: '1px solid #3f3f46',
+            borderRadius: 5,
+            fontSize: 11,
+            padding: '4px 6px',
+          }}
+          title="Insert menu"
+        >
+          <option value="" disabled>
+            ＋ Insert
+          </option>
+          <option value="hero">Hero section</option>
+          <option value="cards">Cards grid</option>
+          <option value="table">Table</option>
+          <option value="form">Form</option>
+          <option value="nav">Navbar</option>
+        </select>
+        <button
+          type="button"
+          onClick={onInsertImageUrl}
+          style={{
+            background: '#27272a',
+            border: '1px solid #3f3f46',
+            borderRadius: 5,
+            color: '#e4e4e7',
+            fontSize: 11,
+            padding: '4px 8px',
+            cursor: 'pointer',
+          }}
+          title="Image from URL"
+        >
+          🖼 URL
         </button>
 
         <div style={{ height: 16, width: 1, background: '#27272a', margin: '0 4px' }} />

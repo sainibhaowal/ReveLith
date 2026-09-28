@@ -1534,6 +1534,24 @@ select.select-like {
   grid-template-columns: 34px minmax(0, 1fr);
 }
 
+.sheet-body.ai-dock-right {
+  grid-template-columns: minmax(0, 1fr) var(--copilot-width, 360px);
+}
+
+.sheet-body.ai-dock-right .copilot {
+  order: 2;
+  border-left: 1px solid var(--border-subtle);
+  border-right: none;
+}
+
+.sheet-body.ai-dock-right .sheet-main {
+  order: 1;
+}
+
+.app-shell.copilot-collapsed .sheet-body.ai-dock-right {
+  grid-template-columns: minmax(0, 1fr) 34px;
+}
+
 .spreadsheet {
   min-width: 0;
   min-height: 0;

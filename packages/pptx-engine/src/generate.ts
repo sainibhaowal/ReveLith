@@ -145,7 +145,7 @@ export function patchParagraphPPrXml(paraXml: string, p: Paragraph, which: PPrDi
 
   // Attribute patch
   const setPPrAttr = (name: string, value: string | undefined) => {
-    const re = new RegExp(`\\s${name}="[^"]*"`)
+    const re = new RegExp(`\\s${name}=(?:"[^"]*"|'[^']*')`)
     if (value === undefined) {
       openTag = openTag.replace(re, '')
       return
@@ -290,31 +290,31 @@ function patchRunProps(runXml: string, run: TextRun): string {
       ? run.underlineImplicit
         ? undefined
         : (run.underlineStyle ?? 'sng')
-      : /\su="[^"]*"/.test(tag)
+      : /\su=(?:"[^"]*"|'[^']*')/.test(tag)
         ? 'none'
         : undefined
-    tag = setAttr(tag, 'u', uVal, /\su="[^"]*"/)
+    tag = setAttr(tag, 'u', uVal, /\su=(?:"[^"]*"|'[^']*')/)
     // Strikethrough: same semantics as underline : on removal an existing strike becomes noStrike, none injected when absent
     const strikeVal = run.strike
       ? (run.strikeStyle ?? 'sngStrike')
-      : /\sstrike="[^"]*"/.test(tag)
+      : /\sstrike=(?:"[^"]*"|'[^']*')/.test(tag)
         ? 'noStrike'
         : undefined
-    tag = setAttr(tag, 'strike', strikeVal, /\sstrike="[^"]*"/)
+    tag = setAttr(tag, 'strike', strikeVal, /\sstrike=(?:"[^"]*"|'[^']*')/)
     // Superscript/subscript: 0 = none (with an existing attribute write an explicit 0 to disable; none injected when absent)
     const blVal = run.baseline
       ? String(Math.round(run.baseline * 1000))
-      : /\sbaseline="[^"]*"/.test(tag)
+      : /\sbaseline=(?:"[^"]*"|'[^']*')/.test(tag)
         ? '0'
         : undefined
-    tag = setAttr(tag, 'baseline', blVal, /\sbaseline="[^"]*"/)
+    tag = setAttr(tag, 'baseline', blVal, /\sbaseline=(?:"[^"]*"|'[^']*')/)
     tag = setAttr(
       tag,
       'sz',
       run.fontSize != null && !run.fontSizeImplicit
         ? String(Math.round(run.fontSize * 100))
         : undefined,
-      /\ssz="[^"]*"/,
+      /\ssz=(?:"[^"]*"|'[^']*')/,
     )
     return tag
   }
@@ -593,7 +593,7 @@ function buildRPrAttrs(run: TextRun): string {
 /** Set a boolean attribute (true→="1", false→explicit ="0" overriding inheritance, undefined→untouched). */
 function setBoolAttr(tag: string, name: string, val: boolean | undefined): string {
   if (val === undefined) return tag
-  return setAttr(tag, name, val ? '1' : '0', new RegExp(`\\s${name}="[^"]*"`))
+  return setAttr(tag, name, val ? '1' : '0', new RegExp(`\\s${name}=(?:"[^"]*"|'[^']*')`))
 }
 
 /** Set/replace/delete an attribute. value=undefined means untouched (keep the original value). */

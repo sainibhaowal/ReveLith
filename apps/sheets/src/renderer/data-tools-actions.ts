@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cell navigation (Name Box / Go To / formula / symbol) and data tools
  * (advanced filter, subtotal, consolidate, outline, format-as-table).
  * Extracted from App.tsx; the App component passes a DataToolsContext built
@@ -75,6 +75,59 @@ export function handleImportCsv(ctx: DataToolsContext): void {
   input.click()
 }
 
+export function parseTypedCell(raw: string): { v: any; t?: number } {
+  if (raw === '') return { v: '' }
+  const trimmed = raw.trim()
+
+  // 1. Booleans
+  if (/^true$/i.test(trimmed)) return { v: true, t: 3 }
+  if (/^false$/i.test(trimmed)) return { v: false, t: 3 }
+
+  // 2. Leading zero preservation ("0123" is text, unless single "0")
+  if (/^0\d+$/.test(trimmed)) return { v: raw, t: 1 }
+
+  // 3. Percentage: "45.5%" -> 0.455
+  if (/^-?\d+(?:\.\d+)?%$/.test(trimmed)) {
+    const num = parseFloat(trimmed) / 100
+    if (Number.isFinite(num)) return { v: num, t: 2 }
+  }
+
+  // 4. Currency: "$1,234.56", "€100", "£50.25", "¥500"
+  const currencyMatch = trimmed.match(/^[$€£¥]\s*(-?[\d,]+(?:\.\d+)?)$/)
+  if (currencyMatch && currencyMatch[1]) {
+    const cleanNum = currencyMatch[1].replace(/,/g, '')
+    const num = parseFloat(cleanNum)
+    if (Number.isFinite(num)) return { v: num, t: 2 }
+  }
+
+  // 5. Number with commas: "1,234,567.89"
+  if (/^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(trimmed)) {
+    const num = parseFloat(trimmed.replace(/,/g, ''))
+    if (Number.isFinite(num)) return { v: num, t: 2 }
+  }
+
+  // 6. Plain numeric
+  if (isNumericCell(trimmed)) {
+    return { v: Number(trimmed), t: 2 }
+  }
+
+  // 7. Date: YYYY-MM-DD or YYYY/MM/DD
+  const dateMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)
+  if (dateMatch && dateMatch[1] && dateMatch[2] && dateMatch[3]) {
+    const y = parseInt(dateMatch[1], 10)
+    const m = parseInt(dateMatch[2], 10)
+    const d = parseInt(dateMatch[3], 10)
+    if (y >= 1900 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      const date = new Date(Date.UTC(y, m - 1, d))
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30))
+      const serial = Math.round((date.getTime() - excelEpoch.getTime()) / (24 * 3600 * 1000))
+      return { v: serial, t: 2 }
+    }
+  }
+
+  return { v: raw, t: 1 }
+}
+
 function importCsvText(ctx: DataToolsContext, text: string): void {
   const runtime = ctx.univerRef.current
   const workbook = runtime?.univerAPI.getActiveWorkbook()
@@ -97,7 +150,7 @@ function importCsvText(ctx: DataToolsContext, text: string): void {
   const values = rows.map((row) =>
     Array.from({ length: columns }, (_, index) => {
       const cell = row[index] ?? ''
-      return isNumericCell(cell) ? { v: Number(cell) } : { v: cell }
+      return parseTypedCell(cell)
     }),
   )
   const row = range.getRow()
@@ -522,6 +575,100 @@ export function handleOutline(
 }
 
 /// Home → Format as Table: the manual entry over the same engine as the
+function inferCurrentRegion(
+  worksheet: any,
+  anchorRow: number,
+  anchorCol: number,
+): { startRow: number; startColumn: number; endRow: number; endColumn: number } {
+  const windowStartRow = Math.max(0, anchorRow - 40)
+  const windowStartCol = Math.max(0, anchorCol - 15)
+  const sampleRows = 80
+  const sampleCols = 30
+
+  try {
+    const vals = worksheet
+      .getRange(windowStartRow, windowStartCol, sampleRows, sampleCols)
+      .getValues()
+    const rOffset = anchorRow - windowStartRow
+    const cOffset = anchorCol - windowStartCol
+
+    const isEmpty = (v: any) =>
+      v == null || v === '' || (typeof v === 'object' && (v.v == null || v.v === ''))
+
+    let minR = rOffset
+    let maxR = rOffset
+    let minC = cOffset
+    let maxC = cOffset
+
+    // Expand rows up
+    while (minR > 0) {
+      let hasData = false
+      for (let c = minC; c <= maxC; c++) {
+        if (!isEmpty(vals[minR - 1]?.[c])) {
+          hasData = true
+          break
+        }
+      }
+      if (!hasData) break
+      minR--
+    }
+    // Expand rows down
+    while (maxR < sampleRows - 1) {
+      let hasData = false
+      for (let c = minC; c <= maxC; c++) {
+        if (!isEmpty(vals[maxR + 1]?.[c])) {
+          hasData = true
+          break
+        }
+      }
+      if (!hasData) break
+      maxR++
+    }
+    // Expand cols left
+    while (minC > 0) {
+      let hasData = false
+      for (let r = minR; r <= maxR; r++) {
+        if (!isEmpty(vals[r]?.[minC - 1])) {
+          hasData = true
+          break
+        }
+      }
+      if (!hasData) break
+      minC--
+    }
+    // Expand cols right
+    while (maxC < sampleCols - 1) {
+      let hasData = false
+      for (let r = minR; r <= maxR; r++) {
+        if (!isEmpty(vals[r]?.[maxC + 1])) {
+          hasData = true
+          break
+        }
+      }
+      if (!hasData) break
+      maxC++
+    }
+
+    const finalStartRow = windowStartRow + minR
+    const finalEndRow = Math.max(finalStartRow + 1, windowStartRow + maxR)
+    const finalStartCol = windowStartCol + minC
+    const finalEndCol = windowStartCol + maxC
+    return {
+      startRow: finalStartRow,
+      startColumn: finalStartCol,
+      endRow: finalEndRow,
+      endColumn: finalEndCol,
+    }
+  } catch {
+    return {
+      startRow: anchorRow,
+      startColumn: anchorCol,
+      endRow: anchorRow + 1,
+      endColumn: anchorCol,
+    }
+  }
+}
+
 /// AI add_table op (Univer table rendering + journal + native table part).
 export function handleFormatAsTable(ctx: DataToolsContext, style: string): void {
   const runtime = ctx.univerRef.current
@@ -540,10 +687,21 @@ export function handleFormatAsTable(ctx: DataToolsContext, style: string): void 
   }
   const sheetId = worksheet.getSheetId()
   if (isSheetRemoved(state.editJournal, sheetId)) return
-  const startRow = range.getRow()
-  const startColumn = range.getColumn()
-  const endRow = startRow + range.getHeight() - 1
-  const endColumn = startColumn + range.getWidth() - 1
+
+  const isSingleCell = range.getHeight() === 1 && range.getWidth() === 1
+  let startRow = range.getRow()
+  let startColumn = range.getColumn()
+  let endRow = startRow + range.getHeight() - 1
+  let endColumn = startColumn + range.getWidth() - 1
+
+  if (isSingleCell) {
+    const region = inferCurrentRegion(worksheet, startRow, startColumn)
+    startRow = region.startRow
+    startColumn = region.startColumn
+    endRow = region.endRow
+    endColumn = region.endColumn
+  }
+
   try {
     applyAiTableAdd(runtime, state, {
       op: 'add_table',

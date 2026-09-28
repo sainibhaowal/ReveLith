@@ -547,6 +547,26 @@ export function ReferencesTab({
                 >
                   {t('ribbonAddNewSource')}
                 </button>
+                <label style={{ display: 'block', padding: '4px 8px', cursor: 'pointer' }}>
+                  Import RIS/BibTeX…
+                  <input
+                    type="file"
+                    accept=".ris,.bib,.bibtex"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      void file.text().then(async (text) => {
+                        const { parseRis, parseBibtex } = await import('./zotero-import')
+                        const name = file.name.toLowerCase()
+                        const parsed = name.endsWith('.ris') ? parseRis(text) : parseBibtex(text)
+                        parsed.forEach((s) => onAddSource(s))
+                        setDropdown(() => null)
+                      })
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
               </div>
             )}
           </div>

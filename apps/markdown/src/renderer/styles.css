@@ -1920,6 +1920,10 @@ button {
   min-height: 0;
 }
 
+.app-main.ai-dock-right {
+  flex-direction: row-reverse;
+}
+
 .app-content {
   display: flex;
   flex-direction: column;
@@ -2271,4 +2275,3 @@ button {
   background: rgba(255, 150, 0, 0.65);
   outline: 1px solid rgba(255, 130, 0, 0.9);
 }
-

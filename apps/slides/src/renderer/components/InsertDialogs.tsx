@@ -248,3 +248,78 @@ export function EquationDialog({ onInsert, onClose }: EquationDialogProps) {
     </div>
   )
 }
+
+// ── Insert Table ────────────────────────────────────────────────────────
+
+interface TableDialogProps {
+  onInsert: (rows: number, cols: number, headerRow: boolean, style: string) => void
+  onClose: () => void
+}
+
+export function TableDialog({ onInsert, onClose }: TableDialogProps) {
+  const { t } = useI18n()
+  const [rows, setRows] = useState(3)
+  const [cols, setCols] = useState(3)
+  const [headerRow, setHeaderRow] = useState(true)
+  const [style, setStyle] = useState('medium2')
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const clamp = (v: number): number => Math.min(50, Math.max(1, Math.floor(v) || 1))
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Insert Table</h2>
+        <label>
+          Rows
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={rows}
+            onChange={(e) => setRows(clamp(Number(e.target.value)))}
+          />
+        </label>
+        <label>
+          Columns
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={cols}
+            onChange={(e) => setCols(clamp(Number(e.target.value)))}
+          />
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={headerRow}
+            onChange={(e) => setHeaderRow(e.target.checked)}
+          />
+          Header row
+        </label>
+        <label>
+          Style
+          <select value={style} onChange={(e) => setStyle(e.target.value)}>
+            <option value="light1">Light 1</option>
+            <option value="medium2">Medium 2</option>
+            <option value="dark1">Dark 1</option>
+          </select>
+        </label>
+        <div className="modal-actions">
+          <button onClick={onClose}>{t('ribbonCancel')}</button>
+          <button
+            className="primary"
+            onClick={() => onInsert(clamp(rows), clamp(cols), headerRow, style)}
+          >
+            {t('ribbonInsert')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

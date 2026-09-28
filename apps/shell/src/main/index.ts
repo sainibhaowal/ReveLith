@@ -2,8 +2,11 @@ import { execSync, spawn } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
@@ -120,21 +123,16 @@ import {
   setMarkdownDocxExportedHook,
   setMarkdownFileSavedHook,
 } from '../../../markdown/src/main/markdown-main'
-import {
-  configureHtmlRuntime,
-  registerHtmlIpc,
-  requestHtmlSave,
-  htmlFileRenamed,
-} from '../../../html/src/main/html-main'
+import { configureHtmlRuntime } from '../../../html/src/main/html-main'
 import type {
   RecentEntry,
   RecentPage,
   RenameResult,
   UiTheme,
   SearchQuery,
-  SearchResult,
   SearchPage,
   SearchStats,
+  SaveFolderEntry,
 } from '../shared/home-api'
 import { HOME_CHANNELS } from '../shared/home-api'
 import type { TabKind } from '../shared/tabs-api'
@@ -146,6 +144,7 @@ import { applyUpdateChannel, checkForUpdatesNow, initAutoUpdater } from './updat
 import { ensureShellMenu } from './win-shell-menu'
 import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
 import { getSearchIndex } from './search-index'
+import { startInAppMcpServer, type InAppMcpServerHandle } from './mcp-server'
 
 /**
  * Revelith unified shell: ONE Electron app, ONE BrowserWindow, hosting the
@@ -278,7 +277,6 @@ function currentTheme(): UiTheme {
 // Stable short link served by the revelith.ai site; it 302s to the tokened
 // invite link, which stays out of this repo and rotates server-side.
 const GENTEAM_URL = 'https://revelith.ai/join'
-
 
 const tMain = createI18n({
   zh: {
@@ -1266,7 +1264,8 @@ const tMain = createI18n({
     pdfDocxBtnConvert: 'המשך',
     btnCancel: 'ביטול',
     pdfDocxFailedMsg: 'הייצוא כ-Word נכשל',
-    pdfDocxNoCliMsg: 'לא ניתן להתחבר ל-ReveLith: רכיב נדרש (account) חסר. נא להתקין מחדש את האפליקציה.',
+    pdfDocxNoCliMsg:
+      'לא ניתן להתחבר ל-ReveLith: רכיב נדרש (account) חסר. נא להתקין מחדש את האפליקציה.',
     pdfDocxBusyMsg: 'ייצוא ל-Word כבר מתבצע. נא להמתין לסיומו.',
     dlgPickSaveDir: 'בחירת מיקום שמירה כברירת מחדל',
     errSaveDirUnusable:
@@ -1395,6 +1394,7 @@ const tm = (key: Parameters<typeof tMain>[1], params?: Parameters<typeof tMain>[
 
 let shellWindow: BrowserWindow | null = null
 let tabManager: TabManager | null = null
+let inAppMcpServer: InAppMcpServerHandle | null = null
 
 /**
  * When the user creates a file from a specific project view, remember which
@@ -1462,7 +1462,17 @@ function createShellWindow(): void {
     // thumbnail pane) through to the desktop
     ...(process.platform === 'darwin'
       ? { titleBarStyle: 'hiddenInset' as const, vibrancy: 'sidebar' as const }
-      : {}),
+      : {
+          // Windows/Linux: hide the native title + menu bar (custom tab chrome owns it)
+          autoHideMenuBar: true,
+          titleBarOverlay: { color: '#18181b', symbolColor: '#e4e4e7', height: 32 } as unknown as {
+            color: string
+            symbolColor: string
+            height: number
+          },
+        }),
+    show: false,
+    backgroundColor: '#18181b',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -1471,6 +1481,9 @@ function createShellWindow(): void {
     },
   })
   shellWindow = win
+  // Faster perceived open: show as soon as the chrome can paint (background
+  // color avoids white flash); content tabs stream in after.
+  win.once('ready-to-show', () => win.show())
   // dragging the window by the tab strip's blank (draggable) area produces no
   // DOM event anywhere : will-move is the only signal to dismiss popovers
   win.on('will-move', broadcastChromePressed)
@@ -2037,6 +2050,28 @@ function registerHomeIpc(): void {
   // the same setting themselves (configuredDefaultSaveDir via docs' defaultSaveDir)
   ipcMain.handle(HOME_CHANNELS.getDefaultSaveDir, (): string => defaultSaveDir())
 
+  // One-click skill install for coding agents (Claude Code, Codex, OpenCode).
+  ipcMain.handle('skill:install', async () => {
+    try {
+      const { installRevelithSkill } = await import('./skill-install.js')
+      const { join, dirname } = await import('node:path')
+      const { fileURLToPath } = await import('node:url')
+      const here = dirname(fileURLToPath(import.meta.url))
+      // dist layout: apps/shell/dist/main -> repo root skills/revelith/SKILL.md
+      const skillSrc = join(here, '..', '..', '..', '..', 'skills', 'revelith', 'SKILL.md')
+      return installRevelithSkill(skillSrc)
+    } catch (err) {
+      return [
+        {
+          agent: 'all',
+          path: '',
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        },
+      ]
+    }
+  })
+
   ipcMain.handle(HOME_CHANNELS.pickDefaultSaveDir, async (): Promise<string | null> => {
     const result = await showOpenDialogWithMemory(dialog, shellWindow, {
       title: tm('dlgPickSaveDir'),
@@ -2059,6 +2094,66 @@ function registerHomeIpc(): void {
     })
   })
 
+  ipcMain.handle(HOME_CHANNELS.listSaveFolders, async (): Promise<SaveFolderEntry[]> => {
+    const dir = defaultSaveDir()
+    try {
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true })
+      }
+      const entries = readdirSync(dir, { withFileTypes: true })
+      const folders: SaveFolderEntry[] = []
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const subPath = join(dir, entry.name)
+          let fileCount = 0
+          let subfolderCount = 0
+          let mtimeMs = Date.now()
+          try {
+            const stat = statSync(subPath)
+            mtimeMs = stat.mtimeMs
+            const subEntries = readdirSync(subPath, { withFileTypes: true })
+            for (const sub of subEntries) {
+              if (sub.isDirectory()) subfolderCount++
+              else if (sub.isFile()) fileCount++
+            }
+          } catch {}
+          folders.push({
+            name: entry.name,
+            path: subPath,
+            fileCount,
+            subfolderCount,
+            mtimeMs,
+          })
+        }
+      }
+      return folders.sort((a, b) => a.name.localeCompare(b.name))
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle(HOME_CHANNELS.createSaveFolder, async (_e, name: unknown): Promise<boolean> => {
+    const dir = defaultSaveDir()
+    if (!name || typeof name !== 'string') return false
+    const cleanName = name.trim().replace(/[\\/:*?"<>|]/g, '')
+    if (!cleanName) return false
+    const target = join(dir, cleanName)
+    try {
+      if (!existsSync(target)) {
+        mkdirSync(target, { recursive: true })
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  })
+
+  ipcMain.handle(HOME_CHANNELS.openPathInExplorer, async (_e, path: unknown): Promise<void> => {
+    if (typeof path === 'string' && path) {
+      void shell.openPath(path)
+    }
+  })
 
   // Live model discovery runs in the main process so it works in the packaged
   // app too (the renderer is loaded from file:// where /api/proxy-models, a
@@ -2091,7 +2186,7 @@ function registerHomeIpc(): void {
   ipcMain.handle(HOME_CHANNELS.reindexFiles, async (_event, paths: unknown): Promise<void> => {
     const searchIndex = getSearchIndex()
     const filePaths = stringPaths(paths)
-    await Promise.all(filePaths.map(p => searchIndex.indexFile(p)))
+    await Promise.all(filePaths.map((p) => searchIndex.indexFile(p)))
   })
 }
 
@@ -2312,6 +2407,53 @@ async function openFileViaDialog(): Promise<void> {
   if (!result.canceled && result.filePaths[0]) openDocumentPath(result.filePaths[0])
 }
 
+function showAboutDialog(): void {
+  const version = app.getVersion()
+  const titles: Partial<Record<Lang, string>> = {
+    zh: '关于 ReveLith',
+    'zh-TW': '關於 ReveLith',
+    ja: 'ReveLith について',
+    ko: 'ReveLith 정보',
+    fr: 'À propos de ReveLith',
+    de: 'Über ReveLith',
+    es: 'Acerca de ReveLith',
+    ru: 'О программе ReveLith',
+    it: 'Informazioni su ReveLith',
+    pt: 'Sobre o ReveLith',
+    cs: 'O aplikaci ReveLith',
+  }
+  const title = titles[currentLang()] ?? 'About ReveLith'
+  const options = {
+    type: 'info' as const,
+    title,
+    message: `ReveLith v${version}`,
+    detail: `ReveLith — AI-Native Office Suite\nVersion: ${version}\nPlatform: ${process.platform} (${process.arch})\nElectron: ${process.versions.electron}\nNode: ${process.versions.node}\nChrome: ${process.versions.chrome}\nLicense: Apache-2.0 Open Source`,
+    buttons: ['OK'],
+  }
+  if (shellWindow) {
+    void dialog.showMessageBox(shellWindow, options)
+  } else {
+    void dialog.showMessageBox(options)
+  }
+}
+
+function aboutMenuLabel(): string {
+  const titles: Partial<Record<Lang, string>> = {
+    zh: '关于 ReveLith',
+    'zh-TW': '關於 ReveLith',
+    ja: 'ReveLith について',
+    ko: 'ReveLith 정보',
+    fr: 'À propos de ReveLith',
+    de: 'Über ReveLith',
+    es: 'Acerca de ReveLith',
+    ru: 'О программе ReveLith',
+    it: 'Informazioni su ReveLith',
+    pt: 'Sobre o ReveLith',
+    cs: 'O aplikaci ReveLith',
+  }
+  return titles[currentLang()] ?? 'About ReveLith'
+}
+
 function buildHomeMenu(): void {
   const isMac = process.platform === 'darwin'
   const template: MenuItemConstructorOptions[] = [
@@ -2347,6 +2489,8 @@ function buildHomeMenu(): void {
       role: 'help',
       label: tm('menuHelp'),
       submenu: [
+        { label: aboutMenuLabel(), click: () => showAboutDialog() },
+        { type: 'separator' },
         { label: tm('menuCheckUpdates'), click: () => checkForUpdatesNow() },
         { label: tm('thirdPartyNotices'), click: () => void openThirdPartyNotices() },
       ],
@@ -2408,6 +2552,8 @@ function buildPdfMenu(): void {
       role: 'help',
       label: tm('menuHelp'),
       submenu: [
+        { label: aboutMenuLabel(), click: () => showAboutDialog() },
+        { type: 'separator' },
         { label: tm('menuCheckUpdates'), click: () => checkForUpdatesNow() },
         { label: tm('thirdPartyNotices'), click: () => void openThirdPartyNotices() },
       ],
@@ -2496,6 +2642,8 @@ function buildMarkdownMenu(): void {
       role: 'help',
       label: tm('menuHelp'),
       submenu: [
+        { label: aboutMenuLabel(), click: () => showAboutDialog() },
+        { type: 'separator' },
         { label: tm('menuCheckUpdates'), click: () => checkForUpdatesNow() },
         { label: tm('thirdPartyNotices'), click: () => void openThirdPartyNotices() },
       ],
@@ -2630,8 +2778,10 @@ function installDockMenu(): void {
 // Prefer proxy env vars (terminal launch); a packaged app launched from Finder inherits no shell
 // env vars, so fall back to the system HTTP proxy. The renderer uses Chromium's system proxy and
 // is unaffected. Same bootstrap as slides-main startSlidesStandalone.
-// awaited by login IPC so the first status probe / login click cannot race the proxy resolution
 let proxyBootstrap: Promise<void> = Promise.resolve()
+export function getProxyBootstrap(): Promise<void> {
+  return proxyBootstrap
+}
 
 async function installMainProcessProxy(): Promise<void> {
   let proxyUrl = [
@@ -2789,6 +2939,9 @@ app.whenReady().then(async () => {
   if (!pendingLaunchPath || !openDocumentPath(pendingLaunchPath)) tabManager?.openHomeTab()
   pendingLaunchPath = null
 
+  // Start in-app MCP live editor server (http://127.0.0.1:3928/mcp)
+  inAppMcpServer = startInAppMcpServer(() => tabManager)
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createShellWindow()
   })
@@ -2799,6 +2952,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  inAppMcpServer?.close()
   // No close prompt may fall through to "Save" during shutdown
   markSheetsShuttingDown()
   stopSheetsSidecar()

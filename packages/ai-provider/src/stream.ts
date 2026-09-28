@@ -729,6 +729,9 @@ async function openAiCompatibleTurn(
   const reqHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${effectiveApiKey}`,
+    // OpenCode session affinity: the Zen gateway routes follow-ups to the same
+    // session when the header is present; harmless for other providers.
+    ...(config.sessionId ? { 'x-opencode-session': config.sessionId } : {}),
   }
 
   const formattedMsgs = openAiMessages(system, messages)
@@ -873,6 +876,7 @@ const OPENAI_COMPATIBLE_BASE_URLS: Partial<Record<AiProviderId, string>> = {
   deepseek: 'https://api.deepseek.com/v1',
   openai: 'https://api.openai.com/v1',
   'opencode-zen': 'https://opencode.ai/zen/v1',
+  opper: 'https://api.opper.ai/v1',
 }
 
 /**
@@ -955,8 +959,9 @@ export async function streamForProvider(
       case 'deepseek':
       case 'openai':
       case 'opencode-zen':
+      case 'opper':
         return streamOpenAiCompatible(
-          OPENAI_COMPATIBLE_BASE_URLS[provider]!,
+          config.baseUrl || OPENAI_COMPATIBLE_BASE_URLS[provider]!,
           config,
           system,
           messages,

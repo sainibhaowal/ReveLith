@@ -39,7 +39,7 @@ export interface LevelTextStyle {
   csFont?: string
   align?: TextAlign
   /** Bullet default (master bodyStyle levels commonly use buChar '•') */
-  bullet?: { type: 'none' | 'char' | 'number'; char?: string }
+  bullet?: { type: 'none' | 'char' | 'number' | 'picture'; char?: string }
   /** Paragraph left indent (EMU) */
   marL?: number
   /** First-line indent (EMU, negative = hanging) */

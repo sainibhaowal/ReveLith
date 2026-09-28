@@ -14,10 +14,11 @@
  */
 
 import { app } from 'electron'
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, extname, basename } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { createHash } from 'node:crypto'
+import { createRequire } from 'node:module'
+
+const _require = createRequire(import.meta.url)
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ export interface SearchResult {
 
 export interface SearchQuery {
   query: string
-  extensions?: string[]  // e.g. ['docx', 'pdf']
+  extensions?: string[] // e.g. ['docx', 'pdf']
   limit?: number
   offset?: number
 }
@@ -47,7 +48,16 @@ export interface IndexStats {
 
 // ─── Constants ──────────────────────────────────────────────────
 
-const SUPPORTED_EXTENSIONS = new Set(['docx', 'xlsx', 'pptx', 'pdf', 'md', 'markdown', 'html', 'htm'])
+const SUPPORTED_EXTENSIONS = new Set([
+  'docx',
+  'xlsx',
+  'pptx',
+  'pdf',
+  'md',
+  'markdown',
+  'html',
+  'htm',
+])
 const INDEX_DB_NAME = 'search-index.db'
 const INDEX_BATCH_SIZE = 50
 const INDEX_DEBOUNCE_MS = 2000
@@ -55,13 +65,12 @@ const INDEX_DEBOUNCE_MS = 2000
 // ─── SQLite Setup (using better-sqlite3 if available, fallback to custom) ─────────────────
 
 let Database: any = null
-let dbInitialized = false
 
 function loadSqlite(): boolean {
   if (Database !== null) return true
   try {
     // Try to load better-sqlite3 (bundled native module)
-    Database = require('better-sqlite3')
+    Database = _require('better-sqlite3')
     return true
   } catch {
     // Fallback: use a simple JSON-based index for development
@@ -146,10 +155,13 @@ class JsonFallbackIndex {
 
   search(query: SearchQuery): SearchResult[] {
     this.load()
-    const terms = query.query.toLowerCase().split(/\s+/).filter(t => t.length > 0)
+    const terms = query.query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 0)
     if (terms.length === 0) return []
 
-    const exts = query.extensions ? new Set(query.extensions.map(e => e.toLowerCase())) : null
+    const exts = query.extensions ? new Set(query.extensions.map((e) => e.toLowerCase())) : null
     const limit = query.limit ?? 50
     const offset = query.offset ?? 0
 
@@ -300,9 +312,7 @@ class SqliteFtsIndex {
     // Databases created before the content column existed need the migration:
     // CREATE TABLE IF NOT EXISTS won't add it, and every upsert + trigger
     // references new.content/old.content.
-    const columns = this.db
-      .prepare(`PRAGMA table_info(files)`)
-      .all() as Array<{ name: string }>
+    const columns = this.db.prepare(`PRAGMA table_info(files)`).all() as Array<{ name: string }>
     if (!columns.some((c) => c.name === 'content')) {
       this.db.exec(`ALTER TABLE files ADD COLUMN content TEXT NOT NULL DEFAULT ''`)
     }
@@ -329,7 +339,9 @@ class SqliteFtsIndex {
   }
 
   private updateStats(): void {
-    const row = this.db.prepare('SELECT COUNT(*) as count, SUM(size) as size, MAX(indexedAt) as last FROM files').get()
+    const row = this.db
+      .prepare('SELECT COUNT(*) as count, SUM(size) as size, MAX(indexedAt) as last FROM files')
+      .get()
     this.stats = {
       totalFiles: row?.count ?? 0,
       totalSize: row?.size ?? 0,
@@ -339,7 +351,14 @@ class SqliteFtsIndex {
     }
   }
 
-  upsert(filePath: string, fileName: string, extension: string, content: string, mtimeMs: number, size: number): void {
+  upsert(
+    filePath: string,
+    fileName: string,
+    extension: string,
+    content: string,
+    mtimeMs: number,
+    size: number,
+  ): void {
     const indexedAt = new Date().toISOString()
     const stmt = this.db.prepare(`
       INSERT INTO files (filePath, fileName, extension, content, mtimeMs, size, indexedAt)
@@ -363,11 +382,14 @@ class SqliteFtsIndex {
   }
 
   search(query: SearchQuery): SearchResult[] {
-    const terms = query.query.trim().split(/\s+/).filter(t => t.length > 0)
+    const terms = query.query
+      .trim()
+      .split(/\s+/)
+      .filter((t) => t.length > 0)
     if (terms.length === 0) return []
 
     // Build FTS5 query with prefix matching
-    const ftsQuery = terms.map(t => `${t}*`).join(' ')
+    const ftsQuery = terms.map((t) => `${t}*`).join(' ')
 
     let sql = `
       SELECT f.filePath, f.fileName, f.extension, f.mtimeMs,
@@ -382,7 +404,7 @@ class SqliteFtsIndex {
     if (query.extensions && query.extensions.length > 0) {
       const placeholders = query.extensions.map(() => '?').join(',')
       sql += ` AND f.extension IN (${placeholders})`
-      params.push(...query.extensions.map(e => e.toLowerCase()))
+      params.push(...query.extensions.map((e) => e.toLowerCase()))
     }
 
     sql += ` ORDER BY score ASC LIMIT ? OFFSET ?`
@@ -468,12 +490,7 @@ async function getExtractors(): Promise<Map<string, (filePath: string) => Promis
     extractors.set('csv', extractors.get('xlsx')!)
   } catch {}
 
-  // PPTX text extraction
-  try {
-    const PptxGenJS = await import('pptxgenjs')
-    // pptxgenjs is for generation, not parsing. Use a different approach.
-    // For now, skip PPTX extraction or use a simple zip+xml parse
-  } catch {}
+  // PPTX text extraction via zip+xml parse (pptxgenjs is generation-only, skipped)
 
   // Markdown/HTML - plain text
   extractors.set('md', async (filePath: string) => readFileSync(filePath, 'utf8'))
@@ -521,7 +538,7 @@ export class SearchIndexService {
     // Check if already indexed with same mtime
     // (In JSON fallback, we'd need to check; in SQLite we just upsert)
 
-    let content = ''
+    let content: string
     try {
       const extractors = await getExtractors()
       const extractor = extractors.get(ext)
@@ -552,7 +569,7 @@ export class SearchIndexService {
 
     const timeout = setTimeout(() => {
       this.pendingIndex.delete(filePath)
-      this.indexFile(filePath).catch(err => {
+      this.indexFile(filePath).catch((err) => {
         console.warn('[search-index] Scheduled index failed:', err)
       })
     }, INDEX_DEBOUNCE_MS)
@@ -573,15 +590,15 @@ export class SearchIndexService {
   /** Start background indexing of all known files */
   async indexAllFiles(filePaths: string[]): Promise<void> {
     if ('setIndexing' in this.index) {
-      (this.index as SqliteFtsIndex).setIndexing(true, { current: 0, total: filePaths.length })
+      ;(this.index as SqliteFtsIndex).setIndexing(true, { current: 0, total: filePaths.length })
     }
 
     for (let i = 0; i < filePaths.length; i += INDEX_BATCH_SIZE) {
       const batch = filePaths.slice(i, i + INDEX_BATCH_SIZE)
-      await Promise.all(batch.map(p => this.indexFile(p)))
+      await Promise.all(batch.map((p) => this.indexFile(p)))
 
       if ('setIndexing' in this.index) {
-        (this.index as SqliteFtsIndex).setIndexing(true, {
+        ;(this.index as SqliteFtsIndex).setIndexing(true, {
           current: Math.min(i + INDEX_BATCH_SIZE, filePaths.length),
           total: filePaths.length,
         })
@@ -589,7 +606,7 @@ export class SearchIndexService {
     }
 
     if ('setIndexing' in this.index) {
-      (this.index as SqliteFtsIndex).setIndexing(false)
+      ;(this.index as SqliteFtsIndex).setIndexing(false)
     }
   }
 
@@ -600,7 +617,7 @@ export class SearchIndexService {
     }
     this.pendingIndex.clear()
     if ('close' in this.index) {
-      (this.index as SqliteFtsIndex).close()
+      ;(this.index as SqliteFtsIndex).close()
     }
   }
 }

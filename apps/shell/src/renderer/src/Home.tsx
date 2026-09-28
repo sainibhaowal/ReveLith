@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import logoLockup from './assets/revelith-logo.svg'
 import iconDocx from './assets/file-docx.svg'
 import iconXlsx from './assets/file-xlsx.svg'
 import iconPptx from './assets/file-pptx.svg'
@@ -14,11 +13,10 @@ import type {
   SearchQuery,
   SearchResult,
   SearchPage,
+  SaveFolderEntry,
 } from '../../shared/home-api'
 import { fileCountKey, visiblePageCount } from './counts'
-import { useI18n } from './locale'
-import type { I18n, StringKey } from './locale'
-import { SettingsModal } from './SettingsModal'
+import { useI18n, type StringKey, type I18n } from './locale'
 import './home-search.css'
 
 declare global {
@@ -145,6 +143,147 @@ function SortCheck({ visible }: { visible: boolean }): ReactElement {
 }
 
 // â”€â”€ Project sidebar component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+interface FoldersPanelProps {
+  saveDir: string
+  folders: SaveFolderEntry[]
+  selectedFolder: string | null
+  onSelect: (folderPath: string | null) => void
+  onRefresh: () => void
+}
+
+function FoldersPanel({
+  saveDir,
+  folders,
+  selectedFolder,
+  onSelect,
+  onRefresh,
+}: FoldersPanelProps) {
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (creating && inputRef.current) inputRef.current.focus()
+  }, [creating])
+
+  const commitCreate = async () => {
+    const name = newName.trim()
+    setCreating(false)
+    setNewName('')
+    if (!name) return
+    await window.aiOffice?.createSaveFolder?.(name)
+    onRefresh()
+  }
+
+  const saveDirName = saveDir ? saveDir.split(/[\\/]/).pop() || saveDir : 'Save Folder'
+
+  return (
+    <div className="proj-panel folders-panel">
+      <div className="proj-panel-head">
+        <span className="proj-panel-title" title={saveDir}>
+          Folders
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {saveDir && (
+            <button
+              className="proj-add-btn"
+              title="Reveal in Explorer"
+              onClick={() => void window.aiOffice?.openPathInExplorer?.(saveDir)}
+              aria-label="Reveal in Explorer"
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M1.5 3.5A1.5 1.5 0 013 2h3.586a1.5 1.5 0 011.06.44l1.415 1.414A1.5 1.5 0 0010.12 4.5H13A1.5 1.5 0 0114.5 6v6.5A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-9z"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+              </svg>
+            </button>
+          )}
+          <button
+            className="proj-add-btn"
+            title="New Folder"
+            onClick={() => setCreating(true)}
+            aria-label="New Folder"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path
+                d="M7 1v12M1 7h12"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {creating && (
+        <div className="proj-new-row">
+          <input
+            ref={inputRef}
+            className="proj-rename-input"
+            placeholder="Folder name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onBlur={() => void commitCreate()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void commitCreate()
+              if (e.key === 'Escape') {
+                setCreating(false)
+                setNewName('')
+              }
+            }}
+          />
+        </div>
+      )}
+
+      <ul className="proj-list">
+        <li className={`proj-item${selectedFolder === null ? ' active' : ''}`}>
+          <div className="proj-item-main" onClick={() => onSelect(null)}>
+            <span
+              className="proj-item-dot"
+              style={{
+                backgroundColor: selectedFolder === null ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+            />
+            <span className="proj-item-name">{saveDirName} (All)</span>
+          </div>
+        </li>
+        {folders.map((f) => {
+          const isActive = selectedFolder === f.path
+          return (
+            <li key={f.path} className={`proj-item${isActive ? ' active' : ''}`}>
+              <div className="proj-item-main" onClick={() => onSelect(f.path)} title={f.path}>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  style={{ marginRight: 6, flexShrink: 0, color: 'var(--text-muted)' }}
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M1.5 3.5A1.5 1.5 0 013 2h3.586a1.5 1.5 0 011.06.44l1.415 1.414A1.5 1.5 0 0010.12 4.5H13A1.5 1.5 0 0114.5 6v6.5A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-9z"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                  />
+                </svg>
+                <span className="proj-item-name">{f.name}</span>
+                {f.fileCount > 0 && (
+                  <span className="nav-count" style={{ marginLeft: 'auto', fontSize: 11 }}>
+                    {f.fileCount}
+                  </span>
+                )}
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
 
 interface ProjectPanelProps {
   projects: ProjectSummaryEntry[]
@@ -421,7 +560,7 @@ function ProjectPanel({ projects, selectedId, onSelect, onRefresh }: ProjectPane
 
 export function Home() {
   const i18n = useI18n()
-  const { t, lang } = i18n
+  const { t } = i18n
   // â”€â”€ Paged list state (rows loaded for the current view + filter) â”€â”€
   const [entries, setEntries] = useState<RecentEntry[]>([])
   /** total count under the current view + filter (not just the loaded rows) */
@@ -456,8 +595,25 @@ export function Home() {
   // â”€â”€ Project state â”€â”€
   const [projects, setProjects] = useState<ProjectSummaryEntry[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-
   const projectMode = hasProjectApi()
+
+  // ── Save Folders state ──
+  const [saveDir, setSaveDir] = useState<string>('')
+  const [saveFolders, setSaveFolders] = useState<SaveFolderEntry[]>([])
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+
+  const refreshFolders = useCallback(() => {
+    void window.aiOffice?.getDefaultSaveDir?.().then((dir) => {
+      if (dir) setSaveDir(dir)
+    })
+    void window.aiOffice?.listSaveFolders?.().then((f) => {
+      if (f) setSaveFolders(f)
+    })
+  }, [])
+
+  useEffect(() => {
+    refreshFolders()
+  }, [refreshFolders])
 
   // â”€â”€ Paged loading â”€â”€
   // stale responses are dropped via a request sequence number (when views/filters switch quickly)
@@ -527,18 +683,21 @@ export function Home() {
         limit: 50,
         offset: 0,
       }
-      window.aiOffice.searchFiles(searchQueryObj).then((page: SearchPage) => {
-        if (seq !== searchSeqRef.current) return
-        setSearchResults(page.results)
-        setSearchTotal(page.total)
-        setSearchTookMs(page.tookMs)
-        setSearchLoading(false)
-      }).catch(() => {
-        if (seq !== searchSeqRef.current) return
-        setSearchResults([])
-        setSearchTotal(0)
-        setSearchLoading(false)
-      })
+      window.aiOffice
+        .searchFiles(searchQueryObj)
+        .then((page: SearchPage) => {
+          if (seq !== searchSeqRef.current) return
+          setSearchResults(page.results)
+          setSearchTotal(page.total)
+          setSearchTookMs(page.tookMs)
+          setSearchLoading(false)
+        })
+        .catch(() => {
+          if (seq !== searchSeqRef.current) return
+          setSearchResults([])
+          setSearchTotal(0)
+          setSearchLoading(false)
+        })
     }, 200)
   }, [])
 
@@ -906,9 +1065,7 @@ export function Home() {
   }
 
   const handleNewHtml = () => {
-    void window.aiOffice.newHtml(
-      selectedProjectId ? { projectId: selectedProjectId } : undefined,
-    )
+    void window.aiOffice.newHtml(selectedProjectId ? { projectId: selectedProjectId } : undefined)
   }
 
   const NEW_ITEMS = [
@@ -937,9 +1094,22 @@ export function Home() {
             </span>
           </button>
         ))}
-        <button className="quick-card quick-card-browse" onClick={() => void window.aiOffice.browse()}>
+        <button
+          className="quick-card quick-card-browse"
+          onClick={() => void window.aiOffice.browse()}
+        >
           <div className="quick-icon-wrapper folder-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
             </svg>
           </div>
@@ -1303,7 +1473,6 @@ export function Home() {
           : hour < 18
             ? 'greetAfternoon'
             : 'greetEvening'
-    const cjk = lang === 'zh' || lang === 'zh-TW' || lang === 'ja'
     const greeting = t(greetKey)
     return (
       <main className="content">
@@ -1362,9 +1531,21 @@ export function Home() {
             {/* Search bar (right side, like .cloud-search) */}
             <div className="search-bar-wrapper">
               <div className="search-input-wrapper">
-                <svg className="search-icon" width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <svg
+                  className="search-icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden="true"
+                >
                   <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path
+                    d="M11 11l3.5 3.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
                 </svg>
                 <input
                   type="search"
@@ -1383,7 +1564,12 @@ export function Home() {
                     aria-label={t('searchClear')}
                   >
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <path
+                        d="M4 4l8 8M12 4l-8 8"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
                     </svg>
                   </button>
                 )}
@@ -1397,27 +1583,37 @@ export function Home() {
             <section className="search-results" aria-label={t('searchResultsAria')}>
               <div className="search-results-header">
                 <span className="search-results-count">
-                  {t('searchResultsCount', { n: searchTotal, query: searchQuery, time: searchTookMs })}
+                  {t('searchResultsCount', {
+                    n: searchTotal,
+                    query: searchQuery,
+                    time: searchTookMs,
+                  })}
                 </span>
                 {searchTotal > 50 && (
-                  <button className="search-load-more" onClick={() => {
-                    const seq = ++searchSeqRef.current
-                    setSearchLoading(true)
-                    window.aiOffice.searchFiles({
-                      query: searchQuery,
-                      limit: 50,
-                      offset: searchResults.length,
-                    }).then((page: SearchPage) => {
-                      if (seq !== searchSeqRef.current) return
-                      setSearchResults(prev => [...prev, ...page.results])
-                      setSearchTotal(page.total)
-                      setSearchTookMs(page.tookMs)
-                      setSearchLoading(false)
-                    }).catch(() => {
-                      if (seq !== searchSeqRef.current) return
-                      setSearchLoading(false)
-                    })
-                  }}>
+                  <button
+                    className="search-load-more"
+                    onClick={() => {
+                      const seq = ++searchSeqRef.current
+                      setSearchLoading(true)
+                      window.aiOffice
+                        .searchFiles({
+                          query: searchQuery,
+                          limit: 50,
+                          offset: searchResults.length,
+                        })
+                        .then((page: SearchPage) => {
+                          if (seq !== searchSeqRef.current) return
+                          setSearchResults((prev) => [...prev, ...page.results])
+                          setSearchTotal(page.total)
+                          setSearchTookMs(page.tookMs)
+                          setSearchLoading(false)
+                        })
+                        .catch(() => {
+                          if (seq !== searchSeqRef.current) return
+                          setSearchLoading(false)
+                        })
+                    }}
+                  >
                     {searchLoading ? t('searchLoading') : t('searchLoadMore')}
                   </button>
                 )}
@@ -1425,8 +1621,21 @@ export function Home() {
               {searchResults.length === 0 && searchQuery.trim() ? (
                 <p className="empty search-empty">
                   <svg width="48" height="48" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" opacity="0.4" />
-                    <path d="M11 11l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+                    <circle
+                      cx="7"
+                      cy="7"
+                      r="5.5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      opacity="0.4"
+                    />
+                    <path
+                      d="M11 11l3.5 3.5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      opacity="0.4"
+                    />
                   </svg>
                   <span className="empty-hint">{t('searchNoResults', { query: searchQuery })}</span>
                 </p>
@@ -1447,11 +1656,18 @@ export function Home() {
                         <div className="search-result-content">
                           <span className="search-result-name">{result.fileName}</span>
                           <span className="search-result-path">{parentDir(result.filePath)}</span>
-                          <span className="search-result-snippet" dangerouslySetInnerHTML={{ __html: result.snippet }} />
+                          <span
+                            className="search-result-snippet"
+                            dangerouslySetInnerHTML={{ __html: result.snippet }}
+                          />
                         </div>
                         <span className="search-result-meta">
-                          <span className="search-result-time">{formatModified(result.mtimeMs, i18n)}</span>
-                          <span className="search-result-size">{formatSize(result.sizeBytes ?? 0)}</span>
+                          <span className="search-result-time">
+                            {formatModified(result.mtimeMs, i18n)}
+                          </span>
+                          <span className="search-result-size">
+                            {formatSize(result.sizeBytes ?? 0)}
+                          </span>
                         </span>
                       </button>
                     </li>
@@ -1491,34 +1707,124 @@ export function Home() {
               </span>
             </p>
           ) : (
-            <div className={`recent-table${selectedPaths.length > 0 ? ' has-selection' : ''}`}>
-              <div className="recent-columns">
-                <span className="col-check">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleSelectAll}
-                    aria-label={t('selectAll')}
-                  />
-                </span>
-                <span className="col-name">{t('colName')}</span>
-                <span>{t('colLocation')}</span>
-                {renderModifiedHeader()}
-                <span className="col-size">{t('colSize')}</span>
-                <span />
-                <span />
-              </div>
-              <ul className="recent-list">
-                {(fileSort === 'oldest' ? [...entries].reverse() : entries).map((entry) =>
-                  renderFileRow(entry, 'global'),
-                )}
-              </ul>
-              {hasMore && (
-                <div ref={sentinelRef} className="load-more" aria-hidden="true">
-                  <span className="load-more-spinner" />
+            <>
+              {selectedFolder && (
+                <div
+                  className="folder-filter-banner"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 14px',
+                    background: 'var(--surface-subtle)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path
+                        d="M1.5 3.5A1.5 1.5 0 013 2h3.586a1.5 1.5 0 011.06.44l1.415 1.414A1.5 1.5 0 0010.12 4.5H13A1.5 1.5 0 0114.5 6v6.5A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-9z"
+                        stroke="var(--accent)"
+                        strokeWidth="1.5"
+                      />
+                    </svg>
+                    <span>
+                      Folder: <strong>{selectedFolder.split(/[\\/]/).pop()}</strong>
+                    </span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                      (
+                      {selectedFolder
+                        ? entries.filter(
+                            (e) =>
+                              e.path.toLowerCase().startsWith(selectedFolder.toLowerCase()) ||
+                              parentDir(e.path).toLowerCase() ===
+                                (selectedFolder.split(/[\\/]/).pop() || '').toLowerCase(),
+                          ).length
+                        : entries.length}{' '}
+                      files)
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      className="btn-chip"
+                      onClick={() => void window.aiOffice?.openPathInExplorer?.(selectedFolder)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--accent)',
+                        fontSize: 12,
+                        padding: '2px 6px',
+                      }}
+                    >
+                      Reveal in Explorer
+                    </button>
+                    <button
+                      className="btn-chip"
+                      onClick={() => setSelectedFolder(null)}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        fontSize: 13,
+                        padding: '2px 6px',
+                      }}
+                    >
+                      ✕ Clear
+                    </button>
+                  </div>
                 </div>
               )}
-            </div>
+              <div className={`recent-table${selectedPaths.length > 0 ? ' has-selection' : ''}`}>
+                <div className="recent-columns">
+                  <span className="col-check">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label={t('selectAll')}
+                    />
+                  </span>
+                  <span className="col-name">{t('colName')}</span>
+                  <span>{t('colLocation')}</span>
+                  {renderModifiedHeader()}
+                  <span className="col-size">{t('colSize')}</span>
+                  <span />
+                  <span />
+                </div>
+                <ul className="recent-list">
+                  {(fileSort === 'oldest'
+                    ? [
+                        ...(selectedFolder
+                          ? entries.filter(
+                              (e) =>
+                                e.path.toLowerCase().startsWith(selectedFolder.toLowerCase()) ||
+                                parentDir(e.path).toLowerCase() ===
+                                  (selectedFolder.split(/[\\/]/).pop() || '').toLowerCase(),
+                            )
+                          : entries),
+                      ].reverse()
+                    : selectedFolder
+                      ? entries.filter(
+                          (e) =>
+                            e.path.toLowerCase().startsWith(selectedFolder.toLowerCase()) ||
+                            parentDir(e.path).toLowerCase() ===
+                              (selectedFolder.split(/[\\/]/).pop() || '').toLowerCase(),
+                        )
+                      : entries
+                  ).map((entry) => renderFileRow(entry, 'global'))}
+                </ul>
+                {hasMore && (
+                  <div ref={sentinelRef} className="load-more" aria-hidden="true">
+                    <span className="load-more-spinner" />
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </section>
       </main>
@@ -1530,19 +1836,49 @@ export function Home() {
       <aside className="sidebar">
         <div className="sidebar-logo brand-header">
           <div className="brand-badge">
-            <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg
+              width="34"
+              height="34"
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
               {/* Pure orbital glyph with bold lines and no enclosing border or background box */}
               {/* Central Core Nucleus */}
               <circle cx="16" cy="16" r="2.2" fill="#38bdf8" />
-              
+
               {/* Bold Interlocking Elliptical Orbitals */}
-              <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#38bdf8" strokeWidth="2" transform="rotate(0 16 16)" />
+              <ellipse
+                cx="16"
+                cy="16"
+                rx="13"
+                ry="5.5"
+                stroke="#38bdf8"
+                strokeWidth="2"
+                transform="rotate(0 16 16)"
+              />
               <circle cx="28" cy="16" r="2" fill="#67e8f9" />
-              
-              <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#60a5fa" strokeWidth="2" transform="rotate(60 16 16)" />
+
+              <ellipse
+                cx="16"
+                cy="16"
+                rx="13"
+                ry="5.5"
+                stroke="#60a5fa"
+                strokeWidth="2"
+                transform="rotate(60 16 16)"
+              />
               <circle cx="10" cy="5.6" r="2" fill="#93c5fd" />
-              
-              <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#818cf8" strokeWidth="2" transform="rotate(120 16 16)" />
+
+              <ellipse
+                cx="16"
+                cy="16"
+                rx="13"
+                ry="5.5"
+                stroke="#818cf8"
+                strokeWidth="2"
+                transform="rotate(120 16 16)"
+              />
               <circle cx="10" cy="26.4" r="2" fill="#c7d2fe" />
             </svg>
           </div>
@@ -1592,6 +1928,20 @@ export function Home() {
           </button>
         </nav>
 
+        {/* save folders panel */}
+        <div className="sidebar-divider" />
+        <FoldersPanel
+          saveDir={saveDir}
+          folders={saveFolders}
+          selectedFolder={selectedFolder}
+          onSelect={(folderPath) => {
+            setSelectedFolder(folderPath)
+            setSelected(new Set())
+            setRowMenu(null)
+          }}
+          onRefresh={refreshFolders}
+        />
+
         {/* project sidebar */}
         {projectMode && (
           <>
@@ -1610,14 +1960,9 @@ export function Home() {
             />
           </>
         )}
-
       </aside>
 
-      {selectedProjectId ? (
-        renderProjectContent()
-      ) : (
-        renderGlobalContent()
-      )}
+      {selectedProjectId ? renderProjectContent() : renderGlobalContent()}
 
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>

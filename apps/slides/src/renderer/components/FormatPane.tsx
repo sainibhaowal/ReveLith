@@ -34,7 +34,13 @@ interface Props {
       shadow?: { color?: string; blurRad?: number; dist?: number; dirDeg?: number } | null
       glow?: { color?: string; radius?: number } | null
       softEdge?: number | null
-      reflection?: { blurRad?: number; stA?: number; endA?: number; dist?: number; dirDeg?: number } | null
+      reflection?: {
+        blurRad?: number
+        stA?: number
+        endA?: number
+        dist?: number
+        dirDeg?: number
+      } | null
     },
   ) => void
   onStroke: (
@@ -103,7 +109,6 @@ export function FormatPane({
   onChartPointColor,
 }: Props) {
   const { t } = useI18n()
-  const effectsTimer = useRef<number | null>(null)
   const [effectsOpen, setEffectsOpen] = useState(true)
   const [shadowExpanded, setShadowExpanded] = useState(false)
   const [reflectionExpanded, setReflectionExpanded] = useState(false)
@@ -362,7 +367,9 @@ export function FormatPane({
               )}
               {shape.text && onVerticalText && (
                 <>
-                  <div className="fp-section">{getLang() === 'zh' ? '文字方向' : 'Text Direction'}</div>
+                  <div className="fp-section">
+                    {getLang() === 'zh' ? '文字方向' : 'Text Direction'}
+                  </div>
                   <div className="fp-row">
                     {(
                       [
@@ -494,18 +501,40 @@ export function FormatPane({
             <>
               <div
                 className="fp-section fp-section-toggle"
-                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                style={{
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
                 onClick={() => setEffectsOpen((v) => !v)}
               >
                 <span>{getLang() === 'zh' ? '效果' : 'Effects'}</span>
                 <span>{effectsOpen ? '▾' : '▸'}</span>
               </div>
               {effectsOpen && (
-                <div className="fp-effects-subsections" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div
+                  className="fp-effects-subsections"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                >
                   {/* Shadow */}
-                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                  <div
+                    className="fp-group-box"
+                    style={{
+                      border: '1px solid var(--border-subtle, #e0e0e0)',
+                      borderRadius: 4,
+                      padding: '6px 8px',
+                    }}
+                  >
                     <div
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                      }}
                       onClick={() => setShadowExpanded((v) => !v)}
                     >
                       <span>{getLang() === 'zh' ? '阴影 (Shadow)' : 'Shadow'}</span>
@@ -516,7 +545,14 @@ export function FormatPane({
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              onEffects(node.sourceId, { shadow: { color: 'rgba(0,0,0,0.5)', blurRad: 50800, dist: 38100, dirDeg: 54 } })
+                              onEffects(node.sourceId, {
+                                shadow: {
+                                  color: 'rgba(0,0,0,0.5)',
+                                  blurRad: 50800,
+                                  dist: 38100,
+                                  dirDeg: 54,
+                                },
+                              })
                             } else {
                               onEffects(node.sourceId, { shadow: null })
                             }
@@ -526,7 +562,9 @@ export function FormatPane({
                       </div>
                     </div>
                     {shadowExpanded && (shape ?? pic)?.shadow && (
-                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div
+                        style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}
+                      >
                         <div className="fp-row">
                           <label className="fp-field" style={{ flex: 1 }}>
                             <span>{getLang() === 'zh' ? '颜色' : 'Color'}</span>
@@ -540,7 +578,9 @@ export function FormatPane({
                                   shadow: {
                                     color: e.target.value,
                                     blurRad: cur ? Math.round(cur.blurPx * 9525) : 50800,
-                                    dist: cur ? Math.round(Math.hypot(cur.offsetX, cur.offsetY) * 9525) : 38100,
+                                    dist: cur
+                                      ? Math.round(Math.hypot(cur.offsetX, cur.offsetY) * 9525)
+                                      : 38100,
                                   },
                                 })
                               }}
@@ -553,7 +593,9 @@ export function FormatPane({
                               min={0}
                               max={100}
                               step={1}
-                              defaultValue={Math.round(((shape ?? pic)?.shadow?.blurPx ?? 4) * 0.75)}
+                              defaultValue={Math.round(
+                                ((shape ?? pic)?.shadow?.blurPx ?? 4) * 0.75,
+                              )}
                               onChange={(e) => {
                                 const pt = Number(e.target.value) || 0
                                 onEffects(node.sourceId, {
@@ -574,7 +616,12 @@ export function FormatPane({
                               min={0}
                               max={100}
                               step={1}
-                              defaultValue={Math.round(Math.hypot((shape ?? pic)?.shadow?.offsetX ?? 3, (shape ?? pic)?.shadow?.offsetY ?? 3) * 0.75)}
+                              defaultValue={Math.round(
+                                Math.hypot(
+                                  (shape ?? pic)?.shadow?.offsetX ?? 3,
+                                  (shape ?? pic)?.shadow?.offsetY ?? 3,
+                                ) * 0.75,
+                              )}
                               onChange={(e) => {
                                 const pt = Number(e.target.value) || 0
                                 onEffects(node.sourceId, {
@@ -593,7 +640,16 @@ export function FormatPane({
                               min={0}
                               max={360}
                               step={5}
-                              defaultValue={Math.round(((Math.atan2((shape ?? pic)?.shadow?.offsetY ?? 3, (shape ?? pic)?.shadow?.offsetX ?? 3) * 180) / Math.PI + 360) % 360)}
+                              defaultValue={Math.round(
+                                ((Math.atan2(
+                                  (shape ?? pic)?.shadow?.offsetY ?? 3,
+                                  (shape ?? pic)?.shadow?.offsetX ?? 3,
+                                ) *
+                                  180) /
+                                  Math.PI +
+                                  360) %
+                                  360,
+                              )}
                               onChange={(e) => {
                                 const deg = Number(e.target.value) || 0
                                 onEffects(node.sourceId, {
@@ -611,9 +667,23 @@ export function FormatPane({
                   </div>
 
                   {/* Reflection */}
-                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                  <div
+                    className="fp-group-box"
+                    style={{
+                      border: '1px solid var(--border-subtle, #e0e0e0)',
+                      borderRadius: 4,
+                      padding: '6px 8px',
+                    }}
+                  >
                     <div
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                      }}
                       onClick={() => setReflectionExpanded((v) => !v)}
                     >
                       <span>{getLang() === 'zh' ? '倒影 (Reflection)' : 'Reflection'}</span>
@@ -624,7 +694,9 @@ export function FormatPane({
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              onEffects(node.sourceId, { reflection: { blurRad: 6350, dist: 25400, stA: 50000, endA: 300 } })
+                              onEffects(node.sourceId, {
+                                reflection: { blurRad: 6350, dist: 25400, stA: 50000, endA: 300 },
+                              })
                             } else {
                               onEffects(node.sourceId, { reflection: null })
                             }
@@ -634,7 +706,9 @@ export function FormatPane({
                       </div>
                     </div>
                     {reflectionExpanded && (shape ?? pic)?.reflection && (
-                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div
+                        style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}
+                      >
                         <div className="fp-row">
                           <label className="fp-field" style={{ flex: 1 }}>
                             <span>{getLang() === 'zh' ? '模糊 (pt)' : 'Blur (pt)'}</span>
@@ -643,10 +717,14 @@ export function FormatPane({
                               min={0}
                               max={50}
                               step={0.5}
-                              defaultValue={Math.round(((shape ?? pic)?.reflection?.blurPx ?? 1) * 0.75)}
+                              defaultValue={Math.round(
+                                ((shape ?? pic)?.reflection?.blurPx ?? 1) * 0.75,
+                              )}
                               onChange={(e) => {
                                 const pt = Number(e.target.value) || 0
-                                onEffects(node.sourceId, { reflection: { blurRad: Math.round(pt * 12700) } })
+                                onEffects(node.sourceId, {
+                                  reflection: { blurRad: Math.round(pt * 12700) },
+                                })
                               }}
                             />
                           </label>
@@ -657,10 +735,14 @@ export function FormatPane({
                               min={0}
                               max={100}
                               step={1}
-                              defaultValue={Math.round(((shape ?? pic)?.reflection?.distancePx ?? 2) * 0.75)}
+                              defaultValue={Math.round(
+                                ((shape ?? pic)?.reflection?.distancePx ?? 2) * 0.75,
+                              )}
                               onChange={(e) => {
                                 const pt = Number(e.target.value) || 0
-                                onEffects(node.sourceId, { reflection: { dist: Math.round(pt * 12700) } })
+                                onEffects(node.sourceId, {
+                                  reflection: { dist: Math.round(pt * 12700) },
+                                })
                               }}
                             />
                           </label>
@@ -670,9 +752,23 @@ export function FormatPane({
                   </div>
 
                   {/* Glow */}
-                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                  <div
+                    className="fp-group-box"
+                    style={{
+                      border: '1px solid var(--border-subtle, #e0e0e0)',
+                      borderRadius: 4,
+                      padding: '6px 8px',
+                    }}
+                  >
                     <div
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                      }}
                       onClick={() => setGlowExpanded((v) => !v)}
                     >
                       <span>{getLang() === 'zh' ? '发光 (Glow)' : 'Glow'}</span>
@@ -683,7 +779,9 @@ export function FormatPane({
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              onEffects(node.sourceId, { glow: { color: '#ffff00', radius: 101600 } })
+                              onEffects(node.sourceId, {
+                                glow: { color: '#ffff00', radius: 101600 },
+                              })
                             } else {
                               onEffects(node.sourceId, { glow: null })
                             }
@@ -693,7 +791,9 @@ export function FormatPane({
                       </div>
                     </div>
                     {glowExpanded && (shape ?? pic)?.glow && (
-                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div
+                        style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}
+                      >
                         <div className="fp-row">
                           <label className="fp-field" style={{ flex: 1 }}>
                             <span>{getLang() === 'zh' ? '颜色' : 'Color'}</span>
@@ -705,7 +805,9 @@ export function FormatPane({
                                 onEffects(node.sourceId, {
                                   glow: {
                                     color: e.target.value,
-                                    radius: Math.round(((shape ?? pic)?.glow?.blurPx ?? 8) * 0.75 * 12700),
+                                    radius: Math.round(
+                                      ((shape ?? pic)?.glow?.blurPx ?? 8) * 0.75 * 12700,
+                                    ),
                                   },
                                 })
                               }}
@@ -736,9 +838,23 @@ export function FormatPane({
                   </div>
 
                   {/* Soft Edges */}
-                  <div className="fp-group-box" style={{ border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: 4, padding: '6px 8px' }}>
+                  <div
+                    className="fp-group-box"
+                    style={{
+                      border: '1px solid var(--border-subtle, #e0e0e0)',
+                      borderRadius: 4,
+                      padding: '6px 8px',
+                    }}
+                  >
                     <div
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                      }}
                       onClick={() => setSoftEdgeExpanded((v) => !v)}
                     >
                       <span>{getLang() === 'zh' ? '柔化边缘 (Soft Edges)' : 'Soft Edges'}</span>
@@ -759,7 +875,9 @@ export function FormatPane({
                       </div>
                     </div>
                     {softEdgeExpanded && ((shape ?? pic)?.softEdgePx ?? 0) > 0 && (
-                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div
+                        style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}
+                      >
                         <div className="fp-row">
                           <label className="fp-field" style={{ flex: 1 }}>
                             <span>{getLang() === 'zh' ? '大小 (pt)' : 'Size (pt)'}</span>
@@ -767,11 +885,15 @@ export function FormatPane({
                               value={Math.round(((shape ?? pic)?.softEdgePx ?? 0) * 0.75)}
                               onChange={(e) => {
                                 const pt = Number(e.target.value) || 0
-                                onEffects(node.sourceId, { softEdge: pt > 0 ? Math.round(pt * 12700) : null })
+                                onEffects(node.sourceId, {
+                                  softEdge: pt > 0 ? Math.round(pt * 12700) : null,
+                                })
                               }}
                             >
                               {[1, 2.5, 5, 10, 25, 50].map((pt) => (
-                                <option key={pt} value={pt}>{pt} pt</option>
+                                <option key={pt} value={pt}>
+                                  {pt} pt
+                                </option>
                               ))}
                             </select>
                           </label>

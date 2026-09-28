@@ -13,6 +13,7 @@ export const HTML_CHANNELS = {
   fileRenamed: 'html:file-renamed',
   exportDocx: 'html:export-docx',
   exportPdf: 'html:export-pdf',
+  saveSingleFile: 'html:save-single-file',
   getLanguage: 'app:get-language',
   languageChanged: 'app:language-changed',
   getTheme: 'app:get-theme',
@@ -29,9 +30,7 @@ export interface SaveHtmlRequest {
 }
 
 export type SaveHtmlResult =
-  | { ok: true; path: string }
-  | { ok: true; canceled: true }
-  | { ok: false; error: string }
+  { ok: true; path: string } | { ok: true; canceled: true } | { ok: false; error: string }
 
 export interface ExportDocxRequest {
   base64: string
@@ -62,6 +61,7 @@ export interface HtmlDesktopApi {
   onFileRenamed(handler: (newPath: string) => void): () => void
   exportDocx(req: ExportDocxRequest): Promise<ExportResult>
   exportPdf(req: ExportPdfRequest): Promise<ExportResult>
+  saveSingleFile(req: ExportPdfRequest): Promise<ExportResult>
   getLanguage(): Promise<Lang>
   onLanguageChanged(handler: (lang: Lang) => void): () => void
   getTheme(): Promise<UiTheme>
@@ -73,7 +73,10 @@ export interface HtmlDesktopApi {
   aiStream(request: AiStreamRequest): Promise<void>
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
   aiStreamCancel(requestId: string): Promise<void>
-  webSearch?(query: string, maxResults?: number): Promise<{ results: Array<{ title: string; url: string; snippet: string }> }>
+  webSearch?(
+    query: string,
+    maxResults?: number,
+  ): Promise<{ results: Array<{ title: string; url: string; snippet: string }> }>
 }
 
 declare global {

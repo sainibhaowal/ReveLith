@@ -98,11 +98,17 @@ const PAPER_WIDTH_INCHES: Record<string, number> = {
   A5: 5.83,
 }
 
+export interface PrintVisual {
+  readonly dataUrl: string
+  readonly alt?: string
+}
+
 export function buildSheetPrintPayload(
   worksheet: PrintWorksheet,
   pageSetup: PageSetupJournalState,
   fileName: string,
   sheetName: string,
+  visuals: readonly PrintVisual[] = [],
 ): WorkbookExportPdfRequest {
   const area = pageSetup.printArea ? parseArea(pageSetup.printArea) : usedArea(worksheet)
   const rows = area.endRow - area.startRow + 1
@@ -200,9 +206,10 @@ td.hf { padding: 6pt 0 0; }
 .hf span { flex: 1; white-space: pre; }
 .hf span:nth-child(2) { text-align: center; }
 .hf span:last-child { text-align: right; }
+.print-visuals img { max-width: 100%; height: auto; }
 </style></head><body><table>${colgroup}<thead>${headParts.join('')}</thead>` +
     `<tbody>${bodyParts.join('')}</tbody>` +
-    `${footerRow === '' ? '' : `<tfoot>${footerRow}</tfoot>`}</table></body></html>`
+    `${footerRow === '' ? '' : `<tfoot>${footerRow}</tfoot>`}</table>${printVisualsHtml(visuals)}</body></html>`
 
   const margins = MARGIN_PRESETS[pageSetup.margins ?? 'normal']
   const pageSize = PAPER_SIZES[pageSetup.paperSize ?? 9] ?? 'A4'
@@ -221,6 +228,17 @@ td.hf { padding: 6pt 0 0; }
       rowHeaderPt + columnWidthsPt.reduce((total, width) => total + width, 0),
     ),
   }
+}
+
+/// Charts/pictures snapshot block appended after the grid table.
+/// Only http(s)/data URLs that passed the main-process allowlist are embedded.
+function printVisualsHtml(visuals: readonly PrintVisual[]): string {
+  const safe = visuals.filter((v) => /^data:image\/|^https?:\/\//.test(v.dataUrl)).slice(0, 50)
+  if (safe.length === 0) return ''
+  const figs = safe
+    .map((v) => `<figure><img src="${v.dataUrl}" alt="${escapeHtml(v.alt ?? 'chart')}"></figure>`)
+    .join('')
+  return `<section class="print-visuals">${figs}</section>`
 }
 
 /// Resolves the field codes a static layout can know (&D date, &T time,

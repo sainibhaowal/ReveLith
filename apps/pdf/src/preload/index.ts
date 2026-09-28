@@ -3,7 +3,7 @@ import type { Lang } from '@revelith/i18n'
 import type { AiStreamChunk } from '@revelith/ai-provider'
 import type { ProjectApi } from '@revelith/project-store'
 import { AI_CHANNELS, PDF_CHANNELS } from '../shared/ipc'
-import type { PdfApi, UiTheme, OcrPageRequest, OcrPageResponse, OcrAvailabilityResult } from '../shared/ipc'
+import type { PdfApi, UiTheme } from '../shared/ipc'
 
 const api: PdfApi = {
   consumePending: () => ipcRenderer.invoke(PDF_CHANNELS.consumePending),
@@ -23,8 +23,7 @@ const api: PdfApi = {
   replacePages: (request) => ipcRenderer.invoke(PDF_CHANNELS.replacePages, request),
   createDocument: (request) => ipcRenderer.invoke(PDF_CHANNELS.createDocument, request),
   exportImages: (request) => ipcRenderer.invoke(PDF_CHANNELS.exportImages, request),
-  webSearch: (query, maxResults) =>
-    ipcRenderer.invoke(AI_CHANNELS.webSearch, query, maxResults),
+  webSearch: (query, maxResults) => ipcRenderer.invoke(AI_CHANNELS.webSearch, query, maxResults),
   imageSearch: (query, maxResults) =>
     ipcRenderer.invoke(AI_CHANNELS.imageSearch, query, maxResults),
   fetchImage: (url) => ipcRenderer.invoke(AI_CHANNELS.fetchImage, url),

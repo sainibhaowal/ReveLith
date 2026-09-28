@@ -91,6 +91,7 @@ const result = spawnSync(
   {
     cwd: repoRoot,
     stdio: 'inherit',
+    shell: process.platform === 'win32',
     env: {
       ...process.env,
       PATH: `${join(repoRoot, 'node_modules', '.bin')}${delimiter}${process.env.PATH}`,

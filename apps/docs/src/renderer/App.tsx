@@ -37,6 +37,7 @@ import { AiPanel } from './ai/AiPanel'
 import { asianCharCount, countWords, nonAsianWordCount } from './word-count'
 import { toRoman } from './note-format'
 import { CommentsPanel } from './components/CommentsPanel'
+import { PasteOptionsChip } from './components/PasteOptionsChip'
 import { EquationModal } from './components/EquationModal'
 import { HeaderFooterArea } from './components/HeaderFooterArea'
 import { PaginationPreview } from './components/PaginationPreview'
@@ -107,6 +108,7 @@ import {
   ParagraphDialog,
   type ContextMenuState,
 } from './components/ContextMenu'
+import { ViewPictureModal } from './components/PictureDialogs'
 import { PromptModal } from './components/PromptModal'
 import { t, useI18n } from './i18n/locale'
 import {
@@ -143,6 +145,7 @@ import {
 } from './doc-state'
 import {
   exportPdf as exportPdfImpl,
+  exportImages as exportImagesImpl,
   loadFile as loadFileImpl,
   newFile as newFileImpl,
   save as saveImpl,
@@ -346,6 +349,35 @@ export function App() {
   const [titlePgDirty, setTitlePgDirty] = useState(false)
   const [evenOddHf, setEvenOddHf] = useState(false)
   const [evenOddHfDirty, setEvenOddHfDirty] = useState(false)
+  const [aiDockSide, setAiDockSide] = useState<'left' | 'right'>(() => {
+    try {
+      return (localStorage.getItem('revelith.aiPanelDock') as 'left' | 'right') || 'left'
+    } catch {
+      return 'left'
+    }
+  })
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (
+        e.data?.type === 'ai-dock-change' &&
+        (e.data.side === 'left' || e.data.side === 'right')
+      ) {
+        setAiDockSide(e.data.side)
+      }
+    }
+    const onCustom = (e: Event) => {
+      const side = (e as CustomEvent).detail?.side
+      if (side === 'left' || side === 'right') setAiDockSide(side)
+    }
+    window.addEventListener('message', onMsg)
+    window.addEventListener('revelith-ai-dock-changed', onCustom)
+    return () => {
+      window.removeEventListener('message', onMsg)
+      window.removeEventListener('revelith-ai-dock-changed', onCustom)
+    }
+  }, [])
+
   const [hfView, setHfViewState] = useState<HfView>('default')
   /** false until the user picks a variant (chip/toggle); resting areas then follow their page's variant instead */
   const [hfViewTouched, setHfViewTouched] = useState(false)
@@ -507,6 +539,7 @@ export function App() {
   const [commentsDirty, setCommentsDirty] = useState(false)
   const [watermark, setWatermark] = useState<string | null>(null)
   const [watermarkDirty, setWatermarkDirty] = useState(false)
+  const [viewPictureSrc, setViewPictureSrc] = useState<string | null>(null)
   const [inkAnnotations, setInkAnnotations] = useState<InkAnnotation[]>([])
   const [inksDirty, setInksDirty] = useState(false)
   const [inkTool, setInkTool] = useState<InkTool>('select')
@@ -689,6 +722,28 @@ export function App() {
         }
         return false
       },
+      handleDrop: (view, event) => {
+        const files = event.dataTransfer?.files
+        if (!files || files.length === 0) return false
+        const images = Array.from(files).filter((f: File) => f.type.startsWith('image/'))
+        if (images.length === 0) return false
+        event.preventDefault()
+        const at =
+          view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ??
+          view.state.selection.from
+        images.forEach((file: File) => {
+          const reader = new FileReader()
+          reader.onload = () => {
+            const ed = editorRef.current
+            if (ed && typeof reader.result === 'string') {
+              void insertImageFromDataUrl(ed, reader.result, file.name || 'Image (dropped)')
+            }
+          }
+          reader.readAsDataURL(file)
+        })
+        void at
+        return true
+      },
     },
     onSelectionUpdate: () => forceRender(),
     // typing in the main document takes ribbon routing back from any textbox
@@ -705,6 +760,40 @@ export function App() {
       editor.view.dom.setAttribute('spellcheck', spellcheckEnabled ? 'true' : 'false')
     }
   }, [spellcheckEnabled, editor])
+
+  // Clickable SDT checkboxes + streamed AI writing into the page.
+  useEffect(() => {
+    const dom = editor?.view?.dom as HTMLElement | undefined
+    if (!dom) return
+    const onClick = (e: MouseEvent): void => {
+      const target = e.target as HTMLElement
+      const sdt = target.closest?.('[data-sdt-checkbox]') as HTMLElement | null
+      const box = (sdt ?? target.closest?.('input[type="checkbox"]')) as HTMLElement | null
+      if (!box) return
+      e.preventDefault()
+      const checked = box.getAttribute('data-checked') === '1'
+      box.setAttribute('data-checked', checked ? '0' : '1')
+      box.setAttribute('aria-checked', checked ? 'false' : 'true')
+      dirtyRef.current = true
+      forceRender()
+    }
+    const onStream = (e: Event): void => {
+      const text = (e as CustomEvent<string>).detail
+      if (!text || !editor) return
+      try {
+        editor.chain().focus().insertContent(text).run()
+        dirtyRef.current = true
+      } catch {
+        /* noop */
+      }
+    }
+    dom.addEventListener('click', onClick)
+    window.addEventListener('docs:ai-stream-insert', onStream as EventListener)
+    return () => {
+      dom.removeEventListener('click', onClick)
+      window.removeEventListener('docs:ai-stream-insert', onStream as EventListener)
+    }
+  }, [editor])
 
   // textbox sub-editors: re-render the ribbon on focus/selection changes and
   // mark the document dirty when their content changes
@@ -1263,6 +1352,8 @@ export function App() {
     [],
   )
 
+  const exportImages = useCallback(() => exportImagesImpl(fileCtxRef.current), [])
+
   // for real-device verification: trigger export directly via CDP (same as __pageDebug)
   useEffect(() => {
     ;(window as unknown as Record<string, unknown>).__exportPdf = exportPdf
@@ -1767,7 +1858,12 @@ export function App() {
         tSlice = performance.now() - t1
         return { blocks, secList, hfHs, s }
       }
-      let measured: { blocks: BlockBox[]; secList: ReturnType<typeof liveSections> | null; hfHs: SectionHfHeights[] | null; s: PageSlice[] }
+      let measured: {
+        blocks: BlockBox[]
+        secList: ReturnType<typeof liveSections> | null
+        hfHs: SectionHfHeights[] | null
+        s: PageSlice[]
+      }
       if (pm.childElementCount > PAGINATE_CHUNK_THRESHOLD) {
         // large-document path: identical measurement output, but chunked with
         // yields so the editor stays editable while measuring. Slicing still
@@ -2554,6 +2650,9 @@ export function App() {
         case 'export-pdf':
           void exportPdf()
           break
+        case 'export-images':
+          void exportImages()
+          break
       }
     })
   }, [
@@ -2877,6 +2976,24 @@ export function App() {
         activeSection={sections.length > 1 ? activeSection : null}
         pageColor={pageColor}
         watermark={watermark}
+        onPictureWatermark={(dataUrl) => {
+          if (!doc) return
+          if (dataUrl) {
+            const newImg: HfImage = {
+              dataUrl,
+              floating: true,
+              behind: true,
+              posH: 'center',
+              posV: 'center',
+              washout: true,
+            }
+            const current = (doc.parsed.headerImages ?? []).filter((im) => !im.floating)
+            doc.parsed.headerImages = [...current, newImg]
+          } else {
+            doc.parsed.headerImages = (doc.parsed.headerImages ?? []).filter((im) => !im.floating)
+          }
+          setWatermarkDirty(true)
+        }}
         themeFonts={themeFonts}
         themeColors={themeColors}
         inkTool={inkTool}
@@ -2910,7 +3027,7 @@ export function App() {
         {...ribbonActions}
       />
 
-      <div className="app-main">
+      <div className={`app-main${aiDockSide === 'right' ? ' ai-dock-right' : ''}`}>
         {doc && (
           <div className={`ai-dock${showAi ? '' : ' collapsed'}`}>
             {/* always mounted: collapse must not drop state or in-flight runs */}
@@ -2972,6 +3089,44 @@ export function App() {
                           {watermark}
                         </div>
                       )}
+                      {(doc?.parsed.headerImages ?? [])
+                        .filter((img) => img.floating)
+                        .map((img, k) => (
+                          <img
+                            key={`doc-wm-${k}`}
+                            className="pv-watermark-img"
+                            src={img.dataUrl}
+                            alt=""
+                            aria-hidden="true"
+                            style={{
+                              position: 'absolute',
+                              pointerEvents: 'none',
+                              zIndex: 0,
+                              left:
+                                img.posH === 'center'
+                                  ? '50%'
+                                  : img.posH === 'right'
+                                    ? undefined
+                                    : section?.marginLeft
+                                      ? twipsToPx(section.marginLeft)
+                                      : 72,
+                              right:
+                                img.posH === 'right'
+                                  ? section?.marginRight
+                                    ? twipsToPx(section.marginRight)
+                                    : 72
+                                  : undefined,
+                              top: img.posV === 'center' ? '50%' : '72px',
+                              transform: `translate(${img.posH === 'center' ? '-50%' : '0'}, ${img.posV === 'center' ? '-50%' : '0'})`,
+                              ...(img.widthPx ? { width: img.widthPx } : {}),
+                              ...(img.heightPx ? { height: img.heightPx } : {}),
+                              filter:
+                                img.washout !== false
+                                  ? 'brightness(1.6) contrast(0.35)'
+                                  : undefined,
+                            }}
+                          />
+                        ))}
                       {!readMode && (
                         <div
                           className={`hf-variant-chips${titlePg || evenOddHf ? '' : ' hf-chips-idle'}`}
@@ -3028,6 +3183,20 @@ export function App() {
                         />
                       )}
                       <EditorContent editor={editor} />
+                      <PasteOptionsChip
+                        onPick={(mode) => {
+                          if (!editor) return
+                          try {
+                            if (mode === 'text') {
+                              editor.chain().focus().clearNodes().unsetAllMarks().run()
+                            }
+                            dirtyRef.current = true
+                            forceRender()
+                          } catch {
+                            /* noop */
+                          }
+                        }}
+                      />
                       {footnotes.some((n) => !gapNoteIds.has(n.id)) && (
                         <div className="page-notes">
                           {/* footnotes already shown per page in page gaps aren't repeated at the end (last page's footnotes still live here) */}
@@ -3242,6 +3411,15 @@ export function App() {
           onRestartNumbering={restartNumbering}
           onContinueNumbering={continueNumbering}
           onUpdateFields={updateFields}
+          onViewPicture={(src) => setViewPictureSrc(src)}
+          onSavePicture={(src) => void window.desktop.savePicture(src, 'picture.png')}
+        />
+      )}
+      {viewPictureSrc && (
+        <ViewPictureModal
+          src={viewPictureSrc}
+          onClose={() => setViewPictureSrc(null)}
+          onSaveAs={(src) => void window.desktop.savePicture(src, 'picture.png')}
         />
       )}
       {doc && showFontDialog && (

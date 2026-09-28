@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Document lifecycle: open/new (full state reset from a parsed docx), the
  * save pipeline (PM doc → save plan → docx bytes → reparse), and PDF export.
  * Extracted from App.tsx; the App component passes a FileActionContext built
@@ -839,4 +839,40 @@ export async function exportPdf(ctx: FileActionContext, outPath?: string): Promi
         ? t('appExportPdfFailed', { error: result.error })
         : t('appExportPdfCanceled'),
   )
+}
+
+export async function exportImages(ctx: FileActionContext): Promise<void> {
+  const { doc } = ctx
+  if (!doc) return
+  const pvPages = [...document.querySelectorAll('.pv-page')] as HTMLElement[]
+  if (pvPages.length === 0) {
+    ctx.setShowPagePreview(true)
+    ctx.setStatus('Opening page layout preview for image export…')
+    setTimeout(() => {
+      void exportImages(ctx)
+    }, 400)
+    return
+  }
+
+  ctx.setStatus('Exporting pages as images…')
+  const pageRects = pvPages.map((page) => {
+    const rect = page.getBoundingClientRect()
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+    }
+  })
+
+  const result = await window.desktop.exportImages(doc.fileName, pageRects)
+  if (result.ok && result.files) {
+    ctx.setStatus(
+      `Exported ${result.files.length} page images to ${result.dir ?? 'selected folder'}`,
+    )
+  } else if (result.error) {
+    ctx.setStatus(`Image export failed: ${result.error}`)
+  } else {
+    ctx.setStatus('')
+  }
 }

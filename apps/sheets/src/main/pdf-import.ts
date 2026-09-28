@@ -3,11 +3,12 @@
  * Handles PDF file import and table extraction with Excel conversion
  */
 
-import { dialog } from 'electron'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import type { IpcMainInvokeEvent } from 'electron'
-import { extractTablesFromPdf, tablesToExcelWorkbook, type ExtractionOptions } from './pdf-table-extractor'
+import {
+  extractTablesFromPdf,
+  tablesToExcelWorkbook,
+  type ExtractionOptions,
+} from './pdf-table-extractor'
 import { Workbook } from 'exceljs'
 
 export interface PdfImportRequest {
@@ -15,25 +16,30 @@ export interface PdfImportRequest {
   options?: ExtractionOptions | undefined
 }
 
-export type PdfImportResult = {
-  ok: true
-  worksheets: Record<string, {
-    cells: Record<string, string>
-    merges: string[]
-  }>
-  metadata: {
-    totalTables: number
-    totalRows: number
-    totalColumns: number
-  }
-} | {
-  ok: false
-  error: string
-}
+export type PdfImportResult =
+  | {
+      ok: true
+      worksheets: Record<
+        string,
+        {
+          cells: Record<string, string>
+          merges: string[]
+        }
+      >
+      metadata: {
+        totalTables: number
+        totalRows: number
+        totalColumns: number
+      }
+    }
+  | {
+      ok: false
+      error: string
+    }
 
 export async function importPdfToExcel(
   event: IpcMainInvokeEvent,
-  request: PdfImportRequest
+  request: PdfImportRequest,
 ): Promise<PdfImportResult> {
   const { pdfPath, options = {} } = request
 
@@ -44,7 +50,7 @@ export async function importPdfToExcel(
     if (tables.length === 0) {
       return {
         ok: false,
-        error: 'No tables detected in the PDF'
+        error: 'No tables detected in the PDF',
       }
     }
 
@@ -53,12 +59,12 @@ export async function importPdfToExcel(
 
     return {
       ok: true,
-      ...workbookData
+      ...workbookData,
     }
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 }
@@ -66,7 +72,7 @@ export async function importPdfToExcel(
 export async function saveExcelFromPdf(
   pdfPath: string,
   outputPath: string,
-  options?: ExtractionOptions
+  options?: ExtractionOptions,
 ): Promise<{ ok: true; savedPath: string } | { ok: false; error: string }> {
   try {
     // Extract tables from PDF
@@ -75,7 +81,7 @@ export async function saveExcelFromPdf(
     if (tables.length === 0) {
       return {
         ok: false,
-        error: 'No tables detected in the PDF'
+        error: 'No tables detected in the PDF',
       }
     }
 
@@ -86,14 +92,14 @@ export async function saveExcelFromPdf(
     // Add worksheets
     Object.entries(workbookData.worksheets).forEach(([sheetName, sheetData]) => {
       const worksheet = workbook.addWorksheet(sheetName)
-      
+
       // Add cells
       Object.entries(sheetData.cells).forEach(([cellRef, value]) => {
         worksheet.getCell(cellRef).value = value
       })
 
       // Add merges
-      sheetData.merges.forEach(mergeRange => {
+      sheetData.merges.forEach((mergeRange) => {
         worksheet.mergeCells(mergeRange)
       })
     })
@@ -103,12 +109,12 @@ export async function saveExcelFromPdf(
 
     return {
       ok: true,
-      savedPath: outputPath
+      savedPath: outputPath,
     }
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 }

@@ -4,10 +4,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { extractTablesFromPdf, tablesToExcelWorkbook, type TableCell, type Table } from '../src/main/pdf-table-extractor'
+import {
+  extractTablesFromPdf,
+  tablesToExcelWorkbook,
+  type Table,
+} from '../src/main/pdf-table-extractor'
 
 describe('PDF Table Extraction', () => {
   let testDir: string
@@ -30,17 +34,59 @@ describe('PDF Table Extraction', () => {
         pages: [0],
         rows: [
           [
-            { rowIndex: 0, colIndex: 0, text: 'Name:', bbox: { x: 0, y: 0, width: 100, height: 20 }, confidence: 0.9, isLabel: true },
-            { rowIndex: 0, colIndex: 1, text: 'John Doe', bbox: { x: 100, y: 0, width: 150, height: 20 }, confidence: 0.95, isValue: true }
+            {
+              rowIndex: 0,
+              colIndex: 0,
+              text: 'Name:',
+              bbox: { x: 0, y: 0, width: 100, height: 20 },
+              confidence: 0.9,
+              isLabel: true,
+            },
+            {
+              rowIndex: 0,
+              colIndex: 1,
+              text: 'John Doe',
+              bbox: { x: 100, y: 0, width: 150, height: 20 },
+              confidence: 0.95,
+              isValue: true,
+            },
           ],
           [
-            { rowIndex: 1, colIndex: 0, text: 'Age:', bbox: { x: 0, y: 20, width: 100, height: 20 }, confidence: 0.85, isLabel: true },
-            { rowIndex: 1, colIndex: 1, text: '25', bbox: { x: 100, y: 20, width: 150, height: 20 }, confidence: 0.9, isValue: true }
+            {
+              rowIndex: 1,
+              colIndex: 0,
+              text: 'Age:',
+              bbox: { x: 0, y: 20, width: 100, height: 20 },
+              confidence: 0.85,
+              isLabel: true,
+            },
+            {
+              rowIndex: 1,
+              colIndex: 1,
+              text: '25',
+              bbox: { x: 100, y: 20, width: 150, height: 20 },
+              confidence: 0.9,
+              isValue: true,
+            },
           ],
           [
-            { rowIndex: 2, colIndex: 0, text: 'City:', bbox: { x: 0, y: 40, width: 100, height: 20 }, confidence: 0.9, isLabel: true },
-            { rowIndex: 2, colIndex: 1, text: 'New York', bbox: { x: 100, y: 40, width: 150, height: 20 }, confidence: 0.88, isValue: true }
-          ]
+            {
+              rowIndex: 2,
+              colIndex: 0,
+              text: 'City:',
+              bbox: { x: 0, y: 40, width: 100, height: 20 },
+              confidence: 0.9,
+              isLabel: true,
+            },
+            {
+              rowIndex: 2,
+              colIndex: 1,
+              text: 'New York',
+              bbox: { x: 100, y: 40, width: 150, height: 20 },
+              confidence: 0.88,
+              isValue: true,
+            },
+          ],
         ],
         headers: ['Label', 'Value'],
         bbox: { x: 0, y: 0, width: 250, height: 60 },
@@ -50,14 +96,14 @@ describe('PDF Table Extraction', () => {
           isLabelValueGrid: false,
           isRuleLessBand: false,
           columnCount: 2,
-          rowCount: 3
-        }
+          rowCount: 3,
+        },
       }
 
       // Simulate label/value detection
-      const firstColumn = table.rows.map(row => row[0]?.text || '')
+      const firstColumn = table.rows.map((row) => row[0]?.text || '')
       const labelPattern = /^[^:]+:?\s*$/
-      const labelCount = firstColumn.filter(cell => labelPattern.test(cell)).length
+      const labelCount = firstColumn.filter((cell) => labelPattern.test(cell)).length
       const labelRatio = labelCount / firstColumn.length
 
       expect(labelRatio).toBeGreaterThan(0.7)
@@ -70,14 +116,32 @@ describe('PDF Table Extraction', () => {
         pages: [0],
         rows: [
           [
-            { rowIndex: 0, colIndex: 0, text: 'Band 1', bbox: { x: 0, y: 0, width: 200, height: 20 }, confidence: 0.9 }
+            {
+              rowIndex: 0,
+              colIndex: 0,
+              text: 'Band 1',
+              bbox: { x: 0, y: 0, width: 200, height: 20 },
+              confidence: 0.9,
+            },
           ],
           [
-            { rowIndex: 1, colIndex: 0, text: 'Band 2', bbox: { x: 0, y: 25, width: 200, height: 20 }, confidence: 0.9 }
+            {
+              rowIndex: 1,
+              colIndex: 0,
+              text: 'Band 2',
+              bbox: { x: 0, y: 25, width: 200, height: 20 },
+              confidence: 0.9,
+            },
           ],
           [
-            { rowIndex: 2, colIndex: 0, text: 'Band 3', bbox: { x: 0, y: 50, width: 200, height: 20 }, confidence: 0.9 }
-          ]
+            {
+              rowIndex: 2,
+              colIndex: 0,
+              text: 'Band 3',
+              bbox: { x: 0, y: 50, width: 200, height: 20 },
+              confidence: 0.9,
+            },
+          ],
         ],
         headers: [],
         bbox: { x: 0, y: 0, width: 200, height: 70 },
@@ -87,8 +151,8 @@ describe('PDF Table Extraction', () => {
           isLabelValueGrid: false,
           isRuleLessBand: false,
           columnCount: 1,
-          rowCount: 3
-        }
+          rowCount: 3,
+        },
       }
 
       // Simulate rule-less band detection
@@ -105,7 +169,8 @@ describe('PDF Table Extraction', () => {
       }
 
       const avgGap = rowGaps.reduce((sum, gap) => sum + gap, 0) / rowGaps.length
-      const variance = rowGaps.reduce((sum, gap) => sum + Math.pow(gap - avgGap, 2), 0) / rowGaps.length
+      const variance =
+        rowGaps.reduce((sum, gap) => sum + Math.pow(gap - avgGap, 2), 0) / rowGaps.length
       const stdDev = Math.sqrt(variance)
 
       // Consistent gaps suggest rule-less bands
@@ -119,8 +184,25 @@ describe('PDF Table Extraction', () => {
         id: 'table-page-1',
         pages: [0],
         rows: [
-          [{ rowIndex: 0, colIndex: 0, text: 'Header', bbox: { x: 0, y: 0, width: 100, height: 20 }, confidence: 0.9, isHeader: true }],
-          [{ rowIndex: 1, colIndex: 0, text: 'Row 1', bbox: { x: 0, y: 20, width: 100, height: 20 }, confidence: 0.9 }]
+          [
+            {
+              rowIndex: 0,
+              colIndex: 0,
+              text: 'Header',
+              bbox: { x: 0, y: 0, width: 100, height: 20 },
+              confidence: 0.9,
+              isHeader: true,
+            },
+          ],
+          [
+            {
+              rowIndex: 1,
+              colIndex: 0,
+              text: 'Row 1',
+              bbox: { x: 0, y: 20, width: 100, height: 20 },
+              confidence: 0.9,
+            },
+          ],
         ],
         headers: ['Column'],
         bbox: { x: 0, y: 0, width: 100, height: 40 },
@@ -130,16 +212,32 @@ describe('PDF Table Extraction', () => {
           isLabelValueGrid: false,
           isRuleLessBand: false,
           columnCount: 1,
-          rowCount: 2
-        }
+          rowCount: 2,
+        },
       }
 
       const table2: Table = {
         id: 'table-page-2',
         pages: [1],
         rows: [
-          [{ rowIndex: 0, colIndex: 0, text: 'Row 2', bbox: { x: 0, y: 0, width: 100, height: 20 }, confidence: 0.9 }],
-          [{ rowIndex: 1, colIndex: 0, text: 'Row 3', bbox: { x: 0, y: 20, width: 100, height: 20 }, confidence: 0.9 }]
+          [
+            {
+              rowIndex: 0,
+              colIndex: 0,
+              text: 'Row 2',
+              bbox: { x: 0, y: 0, width: 100, height: 20 },
+              confidence: 0.9,
+            },
+          ],
+          [
+            {
+              rowIndex: 1,
+              colIndex: 0,
+              text: 'Row 3',
+              bbox: { x: 0, y: 20, width: 100, height: 20 },
+              confidence: 0.9,
+            },
+          ],
         ],
         headers: [],
         bbox: { x: 0, y: 0, width: 100, height: 40 },
@@ -149,8 +247,8 @@ describe('PDF Table Extraction', () => {
           isLabelValueGrid: false,
           isRuleLessBand: false,
           columnCount: 1,
-          rowCount: 2
-        }
+          rowCount: 2,
+        },
       }
 
       // Check structure similarity
@@ -165,8 +263,7 @@ describe('PDF Table Extraction', () => {
 
     it('should adjust row indices when merging', () => {
       const baseRows = 2
-      const additionalRows = 2
-      
+
       const adjustedRowIndex = baseRows // First row of second table
       expect(adjustedRowIndex).toBeGreaterThan(0)
     })
@@ -191,15 +288,51 @@ describe('PDF Table Extraction', () => {
         pages: [0],
         rows: [
           [
-            { rowIndex: 0, colIndex: 0, text: 'A1', bbox: { x: 0, y: 0, width: 50, height: 20 }, confidence: 0.9 },
-            { rowIndex: 0, colIndex: 1, text: 'B1', bbox: { x: 50, y: 0, width: 50, height: 20 }, confidence: 0.9 },
-            { rowIndex: 0, colIndex: 2, text: 'C1', bbox: { x: 100, y: 0, width: 50, height: 20 }, confidence: 0.9 }
+            {
+              rowIndex: 0,
+              colIndex: 0,
+              text: 'A1',
+              bbox: { x: 0, y: 0, width: 50, height: 20 },
+              confidence: 0.9,
+            },
+            {
+              rowIndex: 0,
+              colIndex: 1,
+              text: 'B1',
+              bbox: { x: 50, y: 0, width: 50, height: 20 },
+              confidence: 0.9,
+            },
+            {
+              rowIndex: 0,
+              colIndex: 2,
+              text: 'C1',
+              bbox: { x: 100, y: 0, width: 50, height: 20 },
+              confidence: 0.9,
+            },
           ],
           [
-            { rowIndex: 1, colIndex: 0, text: 'A2', bbox: { x: 0, y: 20, width: 50, height: 20 }, confidence: 0.9 },
-            { rowIndex: 1, colIndex: 1, text: 'B2', bbox: { x: 50, y: 20, width: 50, height: 20 }, confidence: 0.9 },
-            { rowIndex: 1, colIndex: 2, text: 'C2', bbox: { x: 100, y: 20, width: 50, height: 20 }, confidence: 0.9 }
-          ]
+            {
+              rowIndex: 1,
+              colIndex: 0,
+              text: 'A2',
+              bbox: { x: 0, y: 20, width: 50, height: 20 },
+              confidence: 0.9,
+            },
+            {
+              rowIndex: 1,
+              colIndex: 1,
+              text: 'B2',
+              bbox: { x: 50, y: 20, width: 50, height: 20 },
+              confidence: 0.9,
+            },
+            {
+              rowIndex: 1,
+              colIndex: 2,
+              text: 'C2',
+              bbox: { x: 100, y: 20, width: 50, height: 20 },
+              confidence: 0.9,
+            },
+          ],
         ],
         headers: ['Col A', 'Col B', 'Col C'],
         bbox: { x: 0, y: 0, width: 150, height: 40 },
@@ -209,12 +342,12 @@ describe('PDF Table Extraction', () => {
           isLabelValueGrid: false,
           isRuleLessBand: false,
           columnCount: 3,
-          rowCount: 2
-        }
+          rowCount: 2,
+        },
       }
 
       const workbookData = tablesToExcelWorkbook([table])
-      
+
       expect(workbookData.worksheets).toHaveProperty('Table1')
       expect(workbookData.worksheets.Table1?.cells).toHaveProperty('A1')
       expect(workbookData.worksheets.Table1?.cells).toHaveProperty('B1')
@@ -235,7 +368,7 @@ describe('PDF Table Extraction', () => {
         detectLabelValueGrids: true,
         detectRuleLessBands: true,
         minConfidence: 0.7,
-        language: 'en'
+        language: 'en',
       }
 
       expect(options.mergeCrossPageTables).toBe(true)
@@ -251,7 +384,7 @@ describe('PDF Table Extraction', () => {
         detectLabelValueGrids: true,
         detectRuleLessBands: true,
         minConfidence: 0.5,
-        language: 'en'
+        language: 'en',
       }
 
       expect(defaultOptions.minConfidence).toBe(0.5)
@@ -262,7 +395,7 @@ describe('PDF Table Extraction', () => {
   describe('Error handling', () => {
     it('should handle missing PDF files', async () => {
       const nonExistentPath = join(testDir, 'nonexistent.pdf')
-      
+
       await expect(async () => {
         await extractTablesFromPdf(nonExistentPath)
       }).rejects.toThrow()
@@ -279,12 +412,12 @@ describe('PDF Table Extraction', () => {
 function excelCellRef(row: number, col: number): string {
   const colLetters = []
   let colNum = col
-  
+
   while (colNum > 0) {
     colNum--
     colLetters.unshift(String.fromCharCode(65 + (colNum % 26)))
     colNum = Math.floor(colNum / 26)
   }
-  
+
   return colLetters.join('') + row
 }

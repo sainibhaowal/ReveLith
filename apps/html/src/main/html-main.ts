@@ -1,13 +1,6 @@
-import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
-import {
-  BrowserWindow,
-  WebContentsView,
-  app,
-  dialog,
-  ipcMain,
-} from 'electron'
+import { dirname, join } from 'node:path'
+import { BrowserWindow, WebContentsView, app, dialog, ipcMain } from 'electron'
 import type { WebContents } from 'electron'
 
 interface HtmlRuntimeConfig {
@@ -23,12 +16,7 @@ let runtime: HtmlRuntimeConfig = {
 export function configureHtmlRuntime(cfg: HtmlRuntimeConfig): void {
   runtime = { ...runtime, ...cfg }
 }
-import {
-  configuredDefaultSaveDir,
-  showOpenDialogWithMemory,
-  showSaveDialogWithMemory,
-} from '@revelith/electron-utils'
-import { getUiLang } from '@revelith/i18n'
+import { configuredDefaultSaveDir, showSaveDialogWithMemory } from '@revelith/electron-utils'
 import { HTML_CHANNELS } from '../shared/ipc'
 import type {
   ExportDocxRequest,
@@ -96,35 +84,38 @@ export function registerHtmlIpc() {
     return await readFile(path, 'utf8')
   })
 
-  ipcMain.handle(HTML_CHANNELS.save, async (event, req: SaveHtmlRequest): Promise<SaveHtmlResult> => {
-    const wcId = event.sender.id
-    const session = tabSessions.get(wcId)
-    let targetPath = session?.filePath
+  ipcMain.handle(
+    HTML_CHANNELS.save,
+    async (event, req: SaveHtmlRequest): Promise<SaveHtmlResult> => {
+      const wcId = event.sender.id
+      const session = tabSessions.get(wcId)
+      let targetPath = session?.filePath
 
-    if (req.mode === 'saveAs' || !targetPath) {
-      const parent = BrowserWindow.fromWebContents(event.sender)
-      const defaultName = req.suggestedName ? `${req.suggestedName}.html` : 'Untitled.html'
-      const startDir = targetPath ? dirname(targetPath) : configuredDefaultSaveDir(app)
-      const res = await showSaveDialogWithMemory(dialog, parent, {
-        title: 'Save HTML Document',
-        defaultPath: targetPath || join(startDir, defaultName),
-        filters: [{ name: 'HTML Document', extensions: ['html', 'htm'] }],
-      })
-      if (res.canceled || !res.filePath) return { ok: true, canceled: true }
-      targetPath = res.filePath
-    }
-
-    try {
-      await writeFile(targetPath, req.html, 'utf8')
-      if (session) {
-        session.filePath = targetPath
-        session.dirty = false
+      if (req.mode === 'saveAs' || !targetPath) {
+        const parent = BrowserWindow.fromWebContents(event.sender)
+        const defaultName = req.suggestedName ? `${req.suggestedName}.html` : 'Untitled.html'
+        const startDir = targetPath ? dirname(targetPath) : configuredDefaultSaveDir(app)
+        const res = await showSaveDialogWithMemory(dialog, parent, {
+          title: 'Save HTML Document',
+          defaultPath: targetPath || join(startDir, defaultName),
+          filters: [{ name: 'HTML Document', extensions: ['html', 'htm'] }],
+        })
+        if (res.canceled || !res.filePath) return { ok: true, canceled: true }
+        targetPath = res.filePath
       }
-      return { ok: true, path: targetPath }
-    } catch (err: any) {
-      return { ok: false, error: err?.message || 'Failed to write HTML file' }
-    }
-  })
+
+      try {
+        await writeFile(targetPath, req.html, 'utf8')
+        if (session) {
+          session.filePath = targetPath
+          session.dirty = false
+        }
+        return { ok: true, path: targetPath }
+      } catch (err: any) {
+        return { ok: false, error: err?.message || 'Failed to write HTML file' }
+      }
+    },
+  )
 
   ipcMain.on(HTML_CHANNELS.dirtyChanged, (event, dirty: boolean) => {
     const session = tabSessions.get(event.sender.id)
@@ -141,48 +132,76 @@ export function registerHtmlIpc() {
     session?.pendingCloseResult?.(saved)
   })
 
-  ipcMain.handle(HTML_CHANNELS.exportDocx, async (event, req: ExportDocxRequest): Promise<ExportResult> => {
-    const parent = BrowserWindow.fromWebContents(event.sender)
-    const res = await showSaveDialogWithMemory(dialog, parent, {
-      title: 'Export to Word (.docx)',
-      defaultPath: `${req.suggestedName}.docx`,
-      filters: [{ name: 'Word Document', extensions: ['docx'] }],
-    })
-    if (res.canceled || !res.filePath) return { ok: true, canceled: true }
-    try {
-      const buffer = Buffer.from(req.base64, 'base64')
-      await writeFile(res.filePath, buffer)
-      return { ok: true, path: res.filePath }
-    } catch (err: any) {
-      return { ok: false, error: err?.message || 'Failed to export Word document' }
-    }
-  })
-
-  ipcMain.handle(HTML_CHANNELS.exportPdf, async (event, req: ExportPdfRequest): Promise<ExportResult> => {
-    const parent = BrowserWindow.fromWebContents(event.sender)
-    const res = await showSaveDialogWithMemory(dialog, parent, {
-      title: 'Export to PDF',
-      defaultPath: `${req.suggestedName}.pdf`,
-      filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
-    })
-    if (res.canceled || !res.filePath) return { ok: true, canceled: true }
-    try {
-      const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
+  ipcMain.handle(
+    HTML_CHANNELS.exportDocx,
+    async (event, req: ExportDocxRequest): Promise<ExportResult> => {
+      const parent = BrowserWindow.fromWebContents(event.sender)
+      const res = await showSaveDialogWithMemory(dialog, parent, {
+        title: 'Export to Word (.docx)',
+        defaultPath: `${req.suggestedName}.docx`,
+        filters: [{ name: 'Word Document', extensions: ['docx'] }],
+      })
+      if (res.canceled || !res.filePath) return { ok: true, canceled: true }
       try {
-        await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(req.html))
-        const pdfBytes = await win.webContents.printToPDF({
-          printBackground: true,
-          margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
-        })
-        await writeFile(res.filePath, pdfBytes)
+        const buffer = Buffer.from(req.base64, 'base64')
+        await writeFile(res.filePath, buffer)
         return { ok: true, path: res.filePath }
-      } finally {
-        win.destroy()
+      } catch (err: any) {
+        return { ok: false, error: err?.message || 'Failed to export Word document' }
       }
-    } catch (err: any) {
-      return { ok: false, error: err?.message || 'Failed to export PDF' }
-    }
-  })
+    },
+  )
+
+  ipcMain.handle(
+    HTML_CHANNELS.exportPdf,
+    async (event, req: ExportPdfRequest): Promise<ExportResult> => {
+      const parent = BrowserWindow.fromWebContents(event.sender)
+      const res = await showSaveDialogWithMemory(dialog, parent, {
+        title: 'Export to PDF',
+        defaultPath: `${req.suggestedName}.pdf`,
+        filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
+      })
+      if (res.canceled || !res.filePath) return { ok: true, canceled: true }
+      try {
+        const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true } })
+        try {
+          await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(req.html))
+          const pdfBytes = await win.webContents.printToPDF({
+            printBackground: true,
+            margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
+          })
+          await writeFile(res.filePath, pdfBytes)
+          return { ok: true, path: res.filePath }
+        } finally {
+          win.destroy()
+        }
+      } catch (err: any) {
+        return { ok: false, error: err?.message || 'Failed to export PDF' }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    HTML_CHANNELS.saveSingleFile,
+    async (event, req: ExportPdfRequest): Promise<ExportResult> => {
+      const parent = BrowserWindow.fromWebContents(event.sender)
+      const res = await showSaveDialogWithMemory(dialog, parent, {
+        title: 'Export as Single-File HTML',
+        defaultPath: `${req.suggestedName}.html`,
+        filters: [{ name: 'HTML Document', extensions: ['html'] }],
+      })
+      if (res.canceled || !res.filePath) return { ok: true, canceled: true }
+      try {
+        // Single-file contract: inline <style>/<script>, absolute http(s) images kept,
+        // data: images embedded. Already self-contained by construction.
+        const single = req.html.includes('</html>') ? req.html : `<!doctype html>\n${req.html}`
+        await writeFile(res.filePath, single, 'utf8')
+        return { ok: true, path: res.filePath }
+      } catch (err: any) {
+        return { ok: false, error: err?.message || 'Failed to export HTML' }
+      }
+    },
+  )
 }
 
 export function createHtmlView(openPath?: string | null): WebContentsView {

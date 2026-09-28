@@ -10,7 +10,17 @@ import {
 } from 'node:fs'
 import { copyFile, mkdir, readFile, readdir, stat, unlink } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { BrowserWindow, Menu, WebContentsView, app, dialog, ipcMain, net, shell, webContents } from 'electron'
+import {
+  BrowserWindow,
+  Menu,
+  WebContentsView,
+  app,
+  dialog,
+  ipcMain,
+  net,
+  shell,
+  webContents,
+} from 'electron'
 import {
   appMenuLabels,
   configuredDefaultSaveDir,
@@ -49,10 +59,7 @@ import {
   type AiStreamRequest,
   type LegacyAiSettings,
 } from '@revelith/ai-provider'
-import {
-  webSearch,
-  imageSearch,
-} from '@revelith/ai-search'
+import { webSearch, imageSearch } from '@revelith/ai-search'
 import type {
   AttachmentAddResult,
   AttachmentImageResult,
@@ -869,7 +876,8 @@ const tMain = createI18n({
     errImageNoText:
       'Lampiran gambar tidak menyediakan teks; gambar dikirim bersama pesan pengguna dan dapat dilihat langsung',
     errNotImage: 'bukan jenis gambar yang didukung',
-    errAccountNotLoggedIn: 'Belum masuk ke ReveLith: klik “Masuk ke ReveLith” di bawah, lalu coba lagi',
+    errAccountNotLoggedIn:
+      'Belum masuk ke ReveLith: klik “Masuk ke ReveLith” di bawah, lalu coba lagi',
     errNoApiKey: 'API Key untuk {provider} belum dikonfigurasi',
     errNoModel: 'Nama model belum dikonfigurasi',
     menuFile: 'File',
@@ -2502,9 +2510,7 @@ export function registerAiIpc(): void {
     let config = settings.providers?.[provider]
     // the revelith key never enters the settings file; requests take it from the account login state
     if (
-      (provider === 'lmstudio' ||
-        provider === 'ollama' ||
-        provider === 'custom') &&
+      (provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') &&
       config &&
       !config.apiKey
     ) {
@@ -2581,7 +2587,10 @@ export function registerAiIpc(): void {
   })
   ipcMain.handle('ai:image-search', async (_event, query: string, maxResults?: number) => {
     try {
-      const result = await imageSearch(String(query), typeof maxResults === 'number' ? maxResults : 8)
+      const result = await imageSearch(
+        String(query),
+        typeof maxResults === 'number' ? maxResults : 8,
+      )
       // Search engines often return hotlink-protected thumbnails or HTML pages.
       // Keep only URLs that the same safe downloader used by insert_image can
       // retrieve as image bytes, so the agent never selects a dead result.
@@ -2592,7 +2601,10 @@ export function registerAiIpc(): void {
           return response?.ok && type.startsWith('image/') ? image : null
         }),
       )
-      return { ...result, images: checks.filter((image): image is NonNullable<typeof image> => image !== null) }
+      return {
+        ...result,
+        images: checks.filter((image): image is NonNullable<typeof image> => image !== null),
+      }
     } catch (err) {
       return { images: [], method: 'error', error: String(err) }
     }
@@ -2628,9 +2640,7 @@ export function registerAiIpc(): void {
     const provider = settings.provider
     let config = settings.providers?.[provider]
     if (
-      (provider === 'lmstudio' ||
-        provider === 'ollama' ||
-        provider === 'custom') &&
+      (provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') &&
       config &&
       !config.apiKey
     ) {
@@ -3210,6 +3220,68 @@ export function registerDocsIpc(): void {
     },
   )
 
+  ipcMain.handle(
+    'docs:export-images',
+    async (
+      event,
+      defaultName: string,
+      pageRects: Array<{ x: number; y: number; width: number; height: number }>,
+    ) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const res = await dialog.showOpenDialog(win ?? (undefined as any), {
+        title: 'Export Pages as Images',
+        defaultPath: defaultName.replace(/\.docx$/i, ''),
+        properties: ['openDirectory', 'createDirectory'],
+        buttonLabel: 'Select Folder',
+      })
+      if (res.canceled || !res.filePaths[0]) return { ok: false }
+      const targetDir = res.filePaths[0]
+      const results: string[] = []
+      try {
+        for (let i = 0; i < pageRects.length; i++) {
+          const r = pageRects[i]
+          const img = await event.sender.capturePage({
+            x: Math.round(r.x),
+            y: Math.round(r.y),
+            width: Math.round(r.width),
+            height: Math.round(r.height),
+          })
+          const outName = `Page-${i + 1}.png`
+          const outPath = join(targetDir, outName)
+          writeFileSync(outPath, img.toPNG())
+          results.push(outPath)
+        }
+        return { ok: true, dir: targetDir, files: results }
+      } catch (err) {
+        return { ok: false, error: String(err) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'docs:save-picture',
+    async (event, dataUrl: string, defaultName = 'picture.png') => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const res = await dialog.showSaveDialog(win ?? (undefined as any), {
+        title: 'Save Picture As',
+        defaultPath: defaultName,
+        filters: [
+          { name: 'PNG Image', extensions: ['png'] },
+          { name: 'JPEG Image', extensions: ['jpg', 'jpeg'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      })
+      if (res.canceled || !res.filePath) return { ok: false }
+      try {
+        const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '')
+        writeFileSync(res.filePath, Buffer.from(base64Data, 'base64'))
+        return { ok: true, path: res.filePath }
+      } catch (err) {
+        return { ok: false, error: String(err) }
+      }
+    },
+  )
+
   ipcMain.handle('win:new', (_event, openPath: string | null) => {
     // A pathless new tab/window starts as a blank document, not the start screen
     const path = openPath ?? undefined
@@ -3370,6 +3442,7 @@ export function buildDocsMenu(): void {
         { type: 'separator' },
         { label: tm('menuPageSetup'), click: () => sendCommand('page-setup') },
         { label: tm('menuExportPdf'), click: () => sendCommand('export-pdf') },
+        { label: 'Export as Images…', click: () => sendCommand('export-images') },
         {
           label: tm('menuPrint'),
           accelerator: 'CmdOrCtrl+P',
@@ -3504,7 +3577,23 @@ export function buildDocsMenu(): void {
     {
       label: tm('menuHelp'),
       role: 'help',
-      submenu: [{ label: tm('menuDocsHelp'), enabled: false }],
+      submenu: [
+        {
+          label: 'About ReveLith',
+          click: () => {
+            const version = app.getVersion()
+            void dialog.showMessageBox({
+              type: 'info',
+              title: 'About ReveLith',
+              message: `ReveLith v${version}`,
+              detail: `ReveLith Docs — AI-Native Office Suite\nVersion: ${version}\nPlatform: ${process.platform} (${process.arch})\nLicense: Apache-2.0 Open Source`,
+              buttons: ['OK'],
+            })
+          },
+        },
+        { type: 'separator' },
+        { label: tm('menuDocsHelp'), enabled: false },
+      ],
     },
   ]
 

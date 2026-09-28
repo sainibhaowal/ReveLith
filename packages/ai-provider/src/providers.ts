@@ -43,14 +43,14 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    models: ['deepseek-chat', 'deepseek-reasoner'],
-    defaultModel: 'deepseek-chat',
+    models: ['deepseek-v4.1-flash', 'deepseek-chat', 'deepseek-reasoner'],
+    defaultModel: 'deepseek-v4.1-flash',
     keyPlaceholder: 'sk-...',
   },
   {
     id: 'openai',
     label: 'OpenAI',
-    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'],
+    models: ['gpt-6-astra', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'],
     defaultModel: 'gpt-4.1-mini',
     keyPlaceholder: 'sk-...',
   },
@@ -69,6 +69,14 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     defaultModel: 'codex-1',
     keyPlaceholder: 'Codex API Key / Access Token',
     needsBaseUrl: true,
+  },
+  {
+    id: 'opper',
+    label: 'Opper',
+    models: ['opper-default', 'opper-fast', 'opper-smart'],
+    defaultModel: 'opper-default',
+    keyPlaceholder: 'opp-...',
+    needsBaseUrl: false,
   },
   {
     id: 'custom',
@@ -94,6 +102,7 @@ export function defaultAiSettings(
     lmstudio: 'http://localhost:1234/v1',
     'opencode-zen': 'https://opencode.ai/zen/v1',
     'codex-app-server': 'http://localhost:8765/v1',
+    opper: 'https://api.opper.ai/v1',
     custom: 'http://localhost:8080/v1',
   }
   const providers = {} as AiSettings['providers']
@@ -101,7 +110,7 @@ export function defaultAiSettings(
     providers[meta.id] = {
       apiKey: defaultApiKeys?.[meta.id] ?? '',
       model: meta.defaultModel,
-      baseUrl: meta.needsBaseUrl ? (DEFAULT_BASE_URLS[meta.id] ?? '') : undefined,
+      baseUrl: DEFAULT_BASE_URLS[meta.id] ?? (meta.needsBaseUrl ? '' : undefined),
     }
   }
   // Local-first default. Users can select any hosted provider in Settings; a

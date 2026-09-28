@@ -5,7 +5,7 @@ import { fetchWithSsrfGuard, type FetchWithSsrfGuardOptions } from './safe-remot
 
 const RETRY_DELAYS_MS: readonly number[] = [500, 1500]
 
-export function remoteImageHeaders(rawUrl: string): Record<string, string> {
+export function remoteImageHeaders(_rawUrl: string): Record<string, string> {
   const headers: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0',
     // Only advertise formats the insert pipelines can label correctly: callers

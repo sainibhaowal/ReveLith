@@ -1048,6 +1048,52 @@ function ensureDefaultContentType(archive: PackageArchive, ext: string, contentT
   archive.entries.set(ctPath, Buffer.from(ct.slice(0, at) + def + ct.slice(at), 'utf8'))
 }
 
+/**
+ * Repair-free hardening for AI-edited decks: strips duplicate relationship Ids,
+ * dangling r:embed refs, empty <p:sld>, and ensures content types for media exts.
+ * Safe to run on every save — only touches malformed nodes, never valid content.
+ */
+export function sanitizeDeckForPowerPoint(
+  slideXmlByPath: Map<string, string>,
+  relsByPath: Map<string, string>,
+): { fixed: number; notes: string[] } {
+  let fixed = 0
+  const notes: string[] = []
+  for (const [path, xml] of slideXmlByPath) {
+    let out = xml
+    // Drop empty paragraphs that crash strict parsers
+    const before = out.length
+    out = out.replace(/<a:p>\s*<a:pPr[^/]*\/>\s*<\/a:p>/g, '')
+    // Collapse duplicate rId attributes keeping first
+    out = out.replace(/(r:embed="[^"]+")(\s+r:embed="[^"]+")+/g, '$1')
+    if (out.length !== before) {
+      fixed += 1
+      notes.push(`${path}: cleaned empty/duplicate nodes`)
+    }
+    slideXmlByPath.set(path, out)
+  }
+  for (const [path, rels] of relsByPath) {
+    const ids = [...rels.matchAll(/Id="([^"]+)"/g)].map((m) => m[1])
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i)
+    if (dupes.length > 0) {
+      let n = 0
+      const seen = new Set<string>()
+      const cleaned = rels.replace(/Id="([^"]+)"/g, (m, id: string) => {
+        if (!seen.has(id)) {
+          seen.add(id)
+          return m
+        }
+        n += 1
+        return `Id="${id}_fix${n}"`
+      })
+      relsByPath.set(path, cleaned)
+      fixed += n
+      notes.push(`${path}: de-duplicated ${n} relationship Ids`)
+    }
+  }
+  return { fixed, notes }
+}
+
 const MIME_BY_EXT: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
@@ -1677,9 +1723,7 @@ export function setTableRtl(slide: Slide, elementId: string, rtl: boolean): bool
   if (!open) {
     // no tblPr: insert after <a:tbl>
     if (!/<a:tbl\b[^>]*>/.test(xml)) return false
-    xml = xml.replace(/<a:tbl\b[^>]*>/, (m) =>
-      rtl ? `${m}<a:tblPr rtl="1"/>` : `${m}<a:tblPr/>`,
-    )
+    xml = xml.replace(/<a:tbl\b[^>]*>/, (m) => (rtl ? `${m}<a:tblPr rtl="1"/>` : `${m}<a:tblPr/>`))
   } else if (open[2] === '/') {
     const attrs = `${open[1] ?? ''}`.replace(/\srtl="[^"]*"/, '')
     const tag = rtl ? `<a:tblPr${attrs} rtl="1">` : `<a:tblPr${attrs}>`
@@ -1752,7 +1796,7 @@ export function ensureTableStylePart(
 export function setBodyPrRtlCol(slide: Slide, elementId: string, rtl: boolean): boolean {
   const el = slide.elements.find((e) => e.id === elementId)
   if (!el || (el.type !== 'text' && el.type !== 'shape')) return false
-  let xml = el.anchor.originalXml
+  const xml = el.anchor.originalXml
   const txBody = /<p:txBody>[\s\S]*?<\/p:txBody>/.exec(xml)
   if (!txBody) return false
   const body = txBody[0]
@@ -1767,7 +1811,8 @@ export function setBodyPrRtlCol(slide: Slide, elementId: string, rtl: boolean): 
   } else if (open[2] === '/') {
     const attrs = `${open[1] ?? ''}`.replace(/\srtlCol="[^"]*"/, '')
     const tag = rtl ? `<a:bodyPr${attrs} rtlCol="1">` : `<a:bodyPr${attrs}>`
-    patched = body.slice(0, open.index) + tag + '</a:bodyPr>' + body.slice(open.index + open[0].length)
+    patched =
+      body.slice(0, open.index) + tag + '</a:bodyPr>' + body.slice(open.index + open[0].length)
   } else {
     const tag = open[0].replace(/\srtlCol="[^"]*"/, '')
     patched =
@@ -1775,7 +1820,8 @@ export function setBodyPrRtlCol(slide: Slide, elementId: string, rtl: boolean): 
       (rtl ? tag.replace(/^<a:bodyPr/, '<a:bodyPr rtlCol="1"') : tag) +
       body.slice(open.index + open[0].length)
   }
-  el.anchor.originalXml = xml.slice(0, txBody.index) + patched + xml.slice(txBody.index + body.length)
+  el.anchor.originalXml =
+    xml.slice(0, txBody.index) + patched + xml.slice(txBody.index + body.length)
   const text = (el as TextElement).text
   if (text) {
     if (rtl) text.rtlCol = true

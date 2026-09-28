@@ -125,6 +125,8 @@ export interface HomeApi {
   setAiSettings?(settings: any): Promise<void>
   /** discover live model names for a provider (real API query, runs in the main process so it works in the packaged app) */
   discoverAiModels?(provider: string, baseUrl: string, apiKey: string): Promise<string[]>
+  /** one-click ReveLith skill install into detected coding agents */
+  installSkill?(): Promise<Array<{ agent: string; ok: boolean; path: string }>>
   /** make shell-owned modals appear above native editor views */
   setSettingsOverlay?(open: boolean): Promise<void>
   /** full-text search across all indexed files */
@@ -133,11 +135,25 @@ export interface HomeApi {
   getSearchStats(): Promise<SearchStats>
   /** trigger re-indexing of specific files */
   reindexFiles(paths: string[]): Promise<void>
+  /** list subfolders in the default save directory */
+  listSaveFolders?(): Promise<SaveFolderEntry[]>
+  /** create a new folder in the default save directory */
+  createSaveFolder?(name: string): Promise<boolean>
+  /** reveal a folder in the OS file explorer */
+  openPathInExplorer?(path: string): Promise<void>
+}
+
+export interface SaveFolderEntry {
+  name: string
+  path: string
+  fileCount: number
+  subfolderCount: number
+  mtimeMs: number
 }
 
 export interface SearchQuery {
   query: string
-  extensions?: string[]  // e.g. ['docx', 'pdf']
+  extensions?: string[] // e.g. ['docx', 'pdf']
   limit?: number
   offset?: number
 }
@@ -248,6 +264,9 @@ export const HOME_CHANNELS = {
   searchFiles: 'home:search-files',
   getSearchStats: 'home:get-search-stats',
   reindexFiles: 'home:reindex-files',
+  listSaveFolders: 'home:list-save-folders',
+  createSaveFolder: 'home:create-save-folder',
+  openPathInExplorer: 'home:open-path-in-explorer',
 } as const
 
 export const PROJECT_CHANNELS = {

@@ -34,6 +34,9 @@ interface EditorContextMenuProps {
   onContinueNumbering?: () => void
   /** F9 update fields (shown when the cursor is on an inline field) */
   onUpdateFields?: () => void
+  /** Image context actions */
+  onViewPicture?: (src: string) => void
+  onSavePicture?: (src: string) => void
 }
 
 /** target languages mirrored from the Review → Translate dropdown; the localized label also goes into the LLM prompt */
@@ -61,6 +64,8 @@ export function EditorContextMenu({
   onRestartNumbering,
   onContinueNumbering,
   onUpdateFields,
+  onViewPicture,
+  onSavePicture,
 }: EditorContextMenuProps) {
   const { t } = useI18n()
   const ref = useRef<HTMLDivElement>(null)
@@ -300,6 +305,23 @@ export function EditorContextMenu({
       <div className="ctx-sep" />
       {item(t('appHyperlinkMenu'), { key: '⌘K', onClick: run(onLink) })}
       {item(t('appNewComment'), { disabled: !hasSelection, onClick: run(onNewComment) })}
+      {isImage && (
+        <>
+          <div className="ctx-sep" />
+          {item('View Picture…', {
+            onClick: run(() => {
+              const src = (protAttrs?.image as any)?.src || (protAttrs as any)?.src
+              if (src) onViewPicture?.(src)
+            }),
+          })}
+          {item('Save Picture As…', {
+            onClick: run(() => {
+              const src = (protAttrs?.image as any)?.src || (protAttrs as any)?.src
+              if (src) onSavePicture?.(src)
+            }),
+          })}
+        </>
+      )}
     </div>
   )
 }

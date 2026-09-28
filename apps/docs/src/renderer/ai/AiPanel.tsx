@@ -673,10 +673,18 @@ export function AiPanel({
 
   const [selectedQuote, setSelectedQuote] = useState('')
   const [panelFontSize, setPanelFontSize] = useState(() => {
-    try { return localStorage.getItem('revelith.aiPanelFontSize') || '14px' } catch { return '14px' }
+    try {
+      return localStorage.getItem('revelith.aiPanelFontSize') || '14px'
+    } catch {
+      return '14px'
+    }
   })
-  const [panelSpellcheck, setPanelSpellcheck] = useState(() => {
-    try { return localStorage.getItem('revelith.aiSpellcheck') !== 'false' } catch { return true }
+  const [, setPanelSpellcheck] = useState(() => {
+    try {
+      return localStorage.getItem('revelith.aiSpellcheck') !== 'false'
+    } catch {
+      return true
+    }
   })
 
   useEffect(() => {
@@ -1519,11 +1527,12 @@ function ModelSelectorDropdown() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  const visibleSettings =
-    settings ?? {
-      provider: 'lmstudio',
-      providers: { lmstudio: { apiKey: '', model: 'local-model', baseUrl: 'http://localhost:1234/v1' } },
-    }
+  const visibleSettings = settings ?? {
+    provider: 'lmstudio',
+    providers: {
+      lmstudio: { apiKey: '', model: 'local-model', baseUrl: 'http://localhost:1234/v1' },
+    },
+  }
   const provider = visibleSettings.provider || 'lmstudio'
   const config = visibleSettings.providers?.[provider] || {}
   const currentModel = config.model || 'default-model'
@@ -1531,17 +1540,32 @@ function ModelSelectorDropdown() {
     deepseek: ['deepseek-chat', 'deepseek-reasoner'],
     openai: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini'],
     'opencode-zen': [
-      'deepseek-v4-pro', 'deepseek-v4-flash', 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5',
-      'glm-5.2', 'glm-5.1', 'glm-5', 'kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3',
-      'big-pickle', 'x-preview-f-free', 'mimo-v2.5-free', 'hy3-free',
-      'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free',
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'minimax-m3',
+      'minimax-m2.7',
+      'minimax-m2.5',
+      'glm-5.2',
+      'glm-5.1',
+      'glm-5',
+      'kimi-k2.5',
+      'kimi-k2.6',
+      'kimi-k2.7-code',
+      'kimi-k3',
+      'big-pickle',
+      'x-preview-f-free',
+      'mimo-v2.5-free',
+      'hy3-free',
+      'nemotron-3-ultra-free',
+      'nemotron-3.5-lightning-free',
     ],
     anthropic: ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5'],
     gemini: ['gemini-2.5-pro', 'gemini-2.5-flash'],
     'codex-app-server': ['codex-1', 'codex-2', 'codex-pro', 'codex-mini'],
   }
-  const discoveredModels: string[] =
-    config.discoveredModels?.length ? config.discoveredModels : fallbackModels[provider] || [currentModel]
+  const discoveredModels: string[] = config.discoveredModels?.length
+    ? config.discoveredModels
+    : fallbackModels[provider] || [currentModel]
 
   const handleSelectModel = (modelName: string) => {
     const baseSettings = settings ?? visibleSettings
@@ -1593,6 +1617,7 @@ function ModelSelectorDropdown() {
   }
 
   const currentProviderMeta = providerLabels[provider] || { label: provider, icon: '🤖' }
+  const showEngineSwitcher = false
 
   return (
     <div style={{ position: 'relative', display: 'inline-block' }} ref={menuRef}>
@@ -1642,121 +1667,133 @@ function ModelSelectorDropdown() {
         <span style={{ fontSize: 8, opacity: 0.7 }}>▼</span>
       </button>
 
-      {open && createPortal(
-        <div
-          data-model-picker
-          style={{
-            position: 'fixed',
-            top: menuPosition.top,
-            left: menuPosition.left,
-            width: 304,
-            maxHeight: 'min(480px, calc(100vh - 72px))',
-            overflowY: 'auto',
-            background: '#1e1e24',
-            border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: 10,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-            padding: 8,
-            zIndex: 99999,
-          }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>
-            ENGINE: {currentProviderMeta.icon} {currentProviderMeta.label}
-          </div>
+      {open &&
+        createPortal(
+          <div
+            data-model-picker
+            style={{
+              position: 'fixed',
+              top: menuPosition.top,
+              left: menuPosition.left,
+              width: 304,
+              maxHeight: 'min(480px, calc(100vh - 72px))',
+              overflowY: 'auto',
+              background: '#1e1e24',
+              border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+              padding: 8,
+              zIndex: 99999,
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>
+              ENGINE: {currentProviderMeta.icon} {currentProviderMeta.label}
+            </div>
 
-          {discoveredModels.length > 0 ? (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>
-                Discovered Models ({discoveredModels.length}):
+            {discoveredModels.length > 0 ? (
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>
+                  Discovered Models ({discoveredModels.length}):
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {discoveredModels.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '5px 8px',
+                        borderRadius: 5,
+                        border: 'none',
+                        background: m === currentModel ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
+                        color: m === currentModel ? '#60a5fa' : '#ddd',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                      onClick={() => handleSelectModel(m)}
+                    >
+                      <span style={{ wordBreak: 'break-all' }}>{m}</span>
+                      {m === currentModel && <span>✓</span>}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {discoveredModels.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '5px 8px',
-                      borderRadius: 5,
-                      border: 'none',
-                      background: m === currentModel ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
-                      color: m === currentModel ? '#60a5fa' : '#ddd',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                    onClick={() => handleSelectModel(m)}
-                  >
-                    <span style={{ wordBreak: 'break-all' }}>{m}</span>
-                    {m === currentModel && <span>✓</span>}
-                  </button>
-                ))}
+            ) : (
+              <div style={{ fontSize: 10, color: '#888', padding: '4px 0', marginBottom: 6 }}>
+                No discovered list stored yet. Fetch models in settings.
               </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 10, color: '#888', padding: '4px 0', marginBottom: 6 }}>
-              No discovered list stored yet. Fetch models in settings.
-            </div>
-          )}
+            )}
 
-          {false && <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6 }}>
-            <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>
-              Switch AI Engine:
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-              {Object.entries(providerLabels).map(([pId, meta]) => (
+            {showEngineSwitcher && (
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6 }}>
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>
+                  Switch AI Engine:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                  {Object.entries(providerLabels).map(([pId, meta]) => (
+                    <button
+                      key={pId}
+                      type="button"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 6px',
+                        borderRadius: 5,
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        background: pId === provider ? 'rgba(255,255,255,0.12)' : 'transparent',
+                        color: pId === provider ? '#fff' : '#aaa',
+                        fontSize: 10,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleSelectProvider(pId)}
+                    >
+                      <span>{meta.icon}</span>
+                      <span
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {meta.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
                 <button
-                  key={pId}
                   type="button"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '4px 6px',
+                    width: '100%',
+                    padding: '5px 8px',
+                    marginTop: 6,
                     borderRadius: 5,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    background: pId === provider ? 'rgba(255,255,255,0.12)' : 'transparent',
-                    color: pId === provider ? '#fff' : '#aaa',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'rgba(255,255,255,0.08)',
+                    color: '#fff',
                     fontSize: 10,
+                    fontWeight: 500,
                     cursor: 'pointer',
+                    textAlign: 'center',
                   }}
-                  onClick={() => handleSelectProvider(pId)}
+                  onClick={() => {
+                    setOpen(false)
+                    window.dispatchEvent(new CustomEvent('open-ai-settings'))
+                    try {
+                      window.parent?.postMessage({ type: 'open-ai-settings' }, '*')
+                    } catch {}
+                  }}
                 >
-                  <span>{meta.icon}</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {meta.label}
-                  </span>
+                  ⚙️ Open Full Settings Modal
                 </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              style={{
-                width: '100%',
-                padding: '5px 8px',
-                marginTop: 6,
-                borderRadius: 5,
-                border: '1px solid rgba(255,255,255,0.15)',
-                background: 'rgba(255,255,255,0.08)',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 500,
-                cursor: 'pointer',
-                textAlign: 'center',
-              }}
-              onClick={() => {
-                setOpen(false)
-                window.dispatchEvent(new CustomEvent('open-ai-settings'))
-                try { window.parent?.postMessage({ type: 'open-ai-settings' }, '*') } catch {}
-              }}
-            >
-              ⚙️ Open Full Settings Modal
-            </button>
-          </div>}
-        </div>
-      , document.body)}
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

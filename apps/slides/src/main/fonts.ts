@@ -615,9 +615,9 @@ export function createSystemFontMetrics(): FontMetricsProvider {
  * Scan all text runs in the deck and detect fonts that are not installed on the system
  * and rely on script/generic substitutions.
  */
-export function detectMissingFonts(
-  deck: { slides: import('@revelith/pptx-engine').Slide[] },
-): import('../shared/ipc').MissingFontInfo[] {
+export function detectMissingFonts(deck: {
+  slides: import('@revelith/pptx-engine').Slide[]
+}): import('../shared/ipc').MissingFontInfo[] {
   const counts = new Map<string, number>()
   for (const slide of deck.slides) {
     for (const el of slide.elements) {
@@ -674,7 +674,7 @@ export async function installFont(
     const { mkdirSync, writeFileSync } = await import('node:fs')
     mkdirSync(targetDir, { recursive: true })
 
-    const safeName = fileName || `${family.replace(/[^a-zA-Z0-9_\-]/g, '')}.ttf`
+    const safeName = fileName || `${family.replace(/[^a-zA-Z0-9_-]/g, '')}.ttf`
     const targetPath = join(targetDir, safeName)
 
     if (fileBytes && fileBytes.length > 0) {

@@ -54,6 +54,7 @@ import { LinkLayer } from './LinkLayer'
 import { OutlinePanel } from './OutlinePanel'
 import type { OutlineNode } from './OutlinePanel'
 import { printPdf } from './print'
+import { PrintRangeDialog } from './PrintRangeDialog'
 import { PropertiesDialog } from './PropertiesDialog'
 import { OcrPanel } from './OcrPanel'
 import { SignatureDialog, fileToCanvas } from './SignatureDialog'
@@ -145,12 +146,7 @@ function toSavedMarkups(
         objNum: Number(objNum[1]),
         type,
         quads,
-        rect: [a.rect[0]!, a.rect[1]!, a.rect[2]!, a.rect[3]!] as [
-          number,
-          number,
-          number,
-          number,
-        ],
+        rect: [a.rect[0]!, a.rect[1]!, a.rect[2]!, a.rect[3]!] as [number, number, number, number],
       },
     ]
   })
@@ -170,7 +166,7 @@ function measureTextWidth(text: string, font: string): number {
   return measureCtx.measureText(text).width
 }
 
-const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4]
+const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 6, 8]
 const MIN_SCALE = ZOOM_STEPS[0]
 const MAX_SCALE = ZOOM_STEPS[ZOOM_STEPS.length - 1]
 const PAGE_GAP = 16
@@ -683,7 +679,13 @@ const IconTextRecognition = () => (
   <Icon>
     <path d="M4 4h16v16H4z" fill="none" stroke="currentColor" strokeWidth="2" />
     <path d="M7 8h10M7 12h7M7 16h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <path d="M18 6l2 2-2 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M18 6l2 2-2 2"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </Icon>
 )
 const IconPrint = () => (
@@ -1504,31 +1506,34 @@ export default function App() {
   const [ocrPanelOpen, setOcrPanelOpen] = useState(false)
   const [ocrAvailable, setOcrAvailable] = useState(false)
   const [ocrAvailability, setOcrAvailability] = useState<OcrAvailabilityResult | null>(null)
-  
+
   // Check OCR availability on mount
   useEffect(() => {
-    window.pdfApi.ocrCheckAvailability().then((result) => {
-      if (result.ok) {
-        setOcrAvailable(result.available)
-        setOcrAvailability(result)
-      }
-    }).catch(() => {
-      setOcrAvailable(false)
-    })
+    window.pdfApi
+      .ocrCheckAvailability()
+      .then((result) => {
+        if (result.ok) {
+          setOcrAvailable(result.available)
+          setOcrAvailability(result)
+        }
+      })
+      .catch(() => {
+        setOcrAvailable(false)
+      })
   }, [])
-  
+
   const handleOcrPage = async (pageIndex: number, language?: string): Promise<any> => {
     if (!filePath) return { ok: false, error: 'No file loaded' }
-    
+
     return await window.pdfApi.ocrPage({
       path: filePath,
       pageIndex,
       language,
       preprocessImage: true,
-      enhanceContrast: false
+      enhanceContrast: false,
     })
   }
-  
+
   /** Markup bar over the current selection; quads (PDF space, keyed by original page
       index) drive the Word-style toggle state of the buttons */
   const [selPopup, setSelPopup] = useState<{
@@ -1558,6 +1563,7 @@ export default function App() {
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([])
   const [searchCur, setSearchCur] = useState(0)
   const [printing, setPrinting] = useState(false)
+  const [printRangeOpen, setPrintRangeOpen] = useState(false)
   const [undoStack, setUndoStack] = useState<EditSnapshot[]>([])
   const [redoStack, setRedoStack] = useState<EditSnapshot[]>([])
   const [pwInput, setPwInput] = useState('')
@@ -1649,6 +1655,48 @@ export default function App() {
     },
     [],
   )
+
+  async function deriveOutlineFromHeadings(
+    loaded: PDFDocumentProxy,
+  ): Promise<OutlineNode[] | null> {
+    try {
+      const nodes: OutlineNode[] = []
+      const numPages = Math.min(loaded.numPages, 100)
+      for (let i = 1; i <= numPages; i++) {
+        const page = await loaded.getPage(i)
+        const content = await page.getTextContent()
+        const lines: Map<number, { text: string; maxFont: number }> = new Map()
+        for (const item of content.items as any[]) {
+          if (!item.str || !item.str.trim()) continue
+          const fontHeight = Math.abs(item.transform?.[0] || item.transform?.[3] || 12)
+          const y = Math.round(item.transform?.[5] || 0)
+          const existing = lines.get(y)
+          if (existing) {
+            existing.text += ' ' + item.str.trim()
+            existing.maxFont = Math.max(existing.maxFont, fontHeight)
+          } else {
+            lines.set(y, { text: item.str.trim(), maxFont: fontHeight })
+          }
+        }
+        const sortedY = [...lines.keys()].sort((a, b) => b - a)
+        for (const y of sortedY) {
+          const line = lines.get(y)!
+          if (line.maxFont >= 15 && line.text.length >= 3 && line.text.length <= 90) {
+            if (!nodes.some((n) => n.title === line.text)) {
+              nodes.push({
+                title: line.text,
+                bold: true,
+                dest: [i - 1, { name: 'Fit' }],
+              })
+            }
+          }
+        }
+      }
+      return nodes.length > 0 ? nodes : null
+    } catch {
+      return null
+    }
+  }
 
   const loadDoc = useCallback(
     async (
@@ -1857,8 +1905,20 @@ export default function App() {
       setUndoStack([])
       setRedoStack([])
       void loaded.getOutline().then(
-        (o) => setOutline(o && o.length > 0 ? (o as OutlineNode[]) : null),
-        () => setOutline(null),
+        (o) => {
+          if (o && o.length > 0) {
+            setOutline(o as OutlineNode[])
+          } else {
+            void deriveOutlineFromHeadings(loaded).then((derived) => {
+              setOutline(derived && derived.length > 0 ? derived : null)
+            })
+          }
+        },
+        () => {
+          void deriveOutlineFromHeadings(loaded).then((derived) => {
+            setOutline(derived && derived.length > 0 ? derived : null)
+          })
+        },
       )
       // pdfjs-dist 6.x removed PDFDocumentProxy.destroy(); go through the loading task
       if (previous) void previous.loadingTask.destroy()
@@ -2049,15 +2109,31 @@ export default function App() {
   )
 
   /** Scale scroll position proportionally when zooming so the visual anchor doesn't jump */
-  const applyScale = (next: number, mode: FitMode) => {
+  const applyScale = (
+    next: number,
+    mode: FitMode,
+    anchor?: { clientX: number; clientY: number },
+  ) => {
     fitModeRef.current = mode
     const el = scrollRef.current
     const clamped = clampScale(next)
     if (el && scale > 0) {
       const ratio = clamped / scale
-      requestAnimationFrame(() => {
-        el.scrollTop *= ratio
-      })
+      if (anchor) {
+        const rect = el.getBoundingClientRect()
+        const mouseX = anchor.clientX - rect.left
+        const mouseY = anchor.clientY - rect.top
+        const contentX = (el.scrollLeft + mouseX) / scale
+        const contentY = (el.scrollTop + mouseY) / scale
+        requestAnimationFrame(() => {
+          el.scrollLeft = contentX * clamped - mouseX
+          el.scrollTop = contentY * clamped - mouseY
+        })
+      } else {
+        requestAnimationFrame(() => {
+          el.scrollTop *= ratio
+        })
+      }
     }
     setScale(clamped)
   }
@@ -2209,7 +2285,6 @@ export default function App() {
   useEffect(() => {
     setPageBlocks(new Map())
     clearBlockHover()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc])
 
   /** Cluster paragraph boxes for pages scrolled into view while edit-text mode is on.
@@ -4545,7 +4620,7 @@ export default function App() {
     })
 
   /** Print: save first (markups/forms/page ops all into the file), then reload from the file to render, avoiding a destroyed old doc */
-  const printDoc = () =>
+  const printDoc = (range?: string) =>
     flushThen(async () => {
       if (printing) return
       setPrinting(true)
@@ -4553,7 +4628,7 @@ export default function App() {
         const data = await window.pdfApi.readFile(filePath)
         const pdoc = await getDocument({ data: new Uint8Array(data), ...DOC_OPTS }).promise
         try {
-          await printPdf(pdoc)
+          await printPdf(pdoc, range)
         } finally {
           void pdoc.loadingTask.destroy()
         }
@@ -4672,13 +4747,19 @@ export default function App() {
         return null
       }
     },
-    listPendingMarkups: () => markups.map((m) => ({ id: m.id, page: m.pageIndex + 1, type: m.type })),
+    listPendingMarkups: () =>
+      markups.map((m) => ({ id: m.id, page: m.pageIndex + 1, type: m.type })),
     listPendingNotes: () =>
       drawings
         .filter((d) => d.input.kind === 'note')
         .map((d) => {
           const note = d.input as Extract<DrawingInput, { kind: 'note' }>
-          return { id: d.id, page: d.input.pageIndex + 1, contents: note.contents, replyCount: note.replies?.length ?? 0 }
+          return {
+            id: d.id,
+            page: d.input.pageIndex + 1,
+            contents: note.contents,
+            replyCount: note.replies?.length ?? 0,
+          }
         }),
     addNote: (page, at, contents) => {
       pushUndoRef.current()
@@ -4709,7 +4790,10 @@ export default function App() {
       setDrawings((prev) =>
         prev.map((d) =>
           d.id === id && d.input.kind === 'note'
-            ? { ...d, input: { ...d.input, replies: [...(d.input.replies ?? []), { author, text }] } }
+            ? {
+                ...d,
+                input: { ...d.input, replies: [...(d.input.replies ?? []), { author, text }] },
+              }
             : d,
         ),
       )
@@ -4820,7 +4904,8 @@ export default function App() {
       ])
     },
     visiblePages: () => visList.map((i) => i + 1),
-    applyPageOps: async (ops) => {      // Saved-markup removals need full annot records: resolve first so the
+    applyPageOps: async (ops) => {
+      // Saved-markup removals need full annot records: resolve first so the
       // single undo below covers a fully-validated batch
       const saved: { id: string; annot: SavedMarkupAnnot }[] = []
       for (const op of ops) {
@@ -4908,11 +4993,15 @@ export default function App() {
     stampConfig: () => stampCfg,
     setWatermark: (wm) => {
       pushUndoRef.current()
-      setStampCfg((prev) => (wm ? { wm, hf: prev?.hf ?? null } : prev?.hf ? { wm: null, hf: prev.hf } : null))
+      setStampCfg((prev) =>
+        wm ? { wm, hf: prev?.hf ?? null } : prev?.hf ? { wm: null, hf: prev.hf } : null,
+      )
     },
     setHeaderFooter: (hf) => {
       pushUndoRef.current()
-      setStampCfg((prev) => (hf ? { wm: prev?.wm ?? null, hf } : prev?.wm ? { wm: prev.wm, hf: null } : null))
+      setStampCfg((prev) =>
+        hf ? { wm: prev?.wm ?? null, hf } : prev?.wm ? { wm: prev.wm, hf: null } : null,
+      )
     },
     filePath: () => filePath || null,
     selectionText: () => {
@@ -4926,13 +5015,20 @@ export default function App() {
       if (filePath) await loadDoc(filePath, doc)
     },
     fileInsertBlankPage: async (afterPage, width, height) =>
-      window.pdfApi.insertBlankPage({ path: filePath, pages: [], afterPageIndex: afterPage, width, height }),
+      window.pdfApi.insertBlankPage({
+        path: filePath,
+        pages: [],
+        afterPageIndex: afterPage,
+        width,
+        height,
+      }),
     fileSetPageSize: async (pages, width, height) =>
       window.pdfApi.setPageSize({ path: filePath, pages, width, height }),
     fileCropPages: async (pages, box) => window.pdfApi.cropPages({ path: filePath, pages, box }),
     extractFilePages: async (pages, suggestedName) =>
       window.pdfApi.extractPages({ path: filePath, pages, suggestedName }),
-    mergeFile: async (afterPage) => window.pdfApi.insertPdf({ path: filePath, afterPageIndex: afterPage }),
+    mergeFile: async (afterPage) =>
+      window.pdfApi.insertPdf({ path: filePath, afterPageIndex: afterPage }),
     replaceFilePages: async (pages) => window.pdfApi.replacePages({ path: filePath, pages }),
     createFileDocument: async (pages, title, text, suggestedName) =>
       window.pdfApi.createDocument({ pages, title, text, suggestedName }),
@@ -5040,7 +5136,7 @@ export default function App() {
           openSearch(true)
         } else if (k === 'p' && !e.shiftKey) {
           e.preventDefault()
-          void printDoc()
+          setPrintRangeOpen(true)
         } else if (e.key === '=' || e.key === '+') {
           e.preventDefault()
           zoomIn()
@@ -5113,8 +5209,14 @@ export default function App() {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return
       e.preventDefault()
-      if (e.deltaY < 0) zoomIn()
-      else zoomOut()
+      const anchor = { clientX: e.clientX, clientY: e.clientY }
+      if (e.deltaY < 0) {
+        const next = ZOOM_STEPS.find((s) => s > scale + 0.001) ?? MAX_SCALE
+        applyScale(next, null, anchor)
+      } else {
+        const next = [...ZOOM_STEPS].reverse().find((s) => s < scale - 0.001) ?? MIN_SCALE
+        applyScale(next, null, anchor)
+      }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
@@ -5554,7 +5656,7 @@ export default function App() {
                     className="rb-big"
                     data-tip={`${t('print')} (${platformShortcuts('⌘P')})`}
                     disabled={printing}
-                    onClick={() => void printDoc()}
+                    onClick={() => setPrintRangeOpen(true)}
                   >
                     <span className="rb-big-icon">
                       <IconPrint />
@@ -5965,7 +6067,12 @@ export default function App() {
               <ReveLithAiMark size={22} />
             </button>
           )}
-          <AiPanel api={aiApi} preset={aiPreset} filePath={filePath || null} onCollapse={() => setAiCollapsed(true)} />
+          <AiPanel
+            api={aiApi}
+            preset={aiPreset}
+            filePath={filePath || null}
+            onCollapse={() => setAiCollapsed(true)}
+          />
         </div>
         <div className="app-content">
           <div className="pdf-body">
@@ -7540,6 +7647,13 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            )}
+            {printRangeOpen && (
+              <PrintRangeDialog
+                pageCount={pageCount}
+                onPrint={(range) => void printDoc(range)}
+                onClose={() => setPrintRangeOpen(false)}
+              />
             )}
             {ocrPanelOpen && (
               <div className="pdf-modal-mask" onClick={() => setOcrPanelOpen(false)}>

@@ -58,7 +58,12 @@ export function installPasteGuard(
         const text = await item.getType('text/plain').then((b) => b.text())
         const cells = estimatePasteCells(text)
         if (cells > PASTE_CELL_LIMIT) {
-          setMessage(t('appPasteTooLarge', { cells: cells.toLocaleString(), max: PASTE_CELL_LIMIT.toLocaleString() }))
+          setMessage(
+            t('appPasteTooLarge', {
+              cells: cells.toLocaleString(),
+              max: PASTE_CELL_LIMIT.toLocaleString(),
+            }),
+          )
           return false
         }
       }
@@ -75,14 +80,17 @@ export function installPasteGuard(
       if (!res || !res.pastedRange || !target?.selection?.range) return res
 
       const selRange = target.selection.range
-      const targetRowLen = (selRange.endRow - selRange.startRow + 1)
-      const targetColLen = (selRange.endColumn - selRange.startColumn + 1)
+      const targetRowLen = selRange.endRow - selRange.startRow + 1
+      const targetColLen = selRange.endColumn - selRange.startColumn + 1
 
       const { startColumn, endColumn, startRow, endRow } = cellMatrix.getDataRange()
       const srcRowCount = endRow - startRow + 1
       const srcColCount = endColumn - startColumn + 1
 
-      if ((targetRowLen > srcRowCount || targetColLen > srcColCount) && (targetRowLen > 1 || targetColLen > 1)) {
+      if (
+        (targetRowLen > srcRowCount || targetColLen > srcColCount) &&
+        (targetRowLen > 1 || targetColLen > 1)
+      ) {
         for (let r = 0; r < targetRowLen; r++) {
           for (let c = 0; c < targetColLen; c++) {
             const cell = cellMatrix.getValue(r % srcRowCount, c % srcColCount)
@@ -92,10 +100,16 @@ export function installPasteGuard(
           }
         }
         if (res.pastedRange.rows && res.pastedRange.rows.length < targetRowLen) {
-          res.pastedRange.rows = Array.from({ length: targetRowLen }, (_, i) => selRange.startRow + i)
+          res.pastedRange.rows = Array.from(
+            { length: targetRowLen },
+            (_, i) => selRange.startRow + i,
+          )
         }
         if (res.pastedRange.cols && res.pastedRange.cols.length < targetColLen) {
-          res.pastedRange.cols = Array.from({ length: targetColLen }, (_, i) => selRange.startColumn + i)
+          res.pastedRange.cols = Array.from(
+            { length: targetColLen },
+            (_, i) => selRange.startColumn + i,
+          )
         }
       }
       return res
@@ -108,6 +122,40 @@ export function installPasteGuard(
       if (originalGetPastedRange) {
         clipboardService._getPastedRange = originalGetPastedRange
       }
+    },
+  }
+}
+
+/**
+ * Clipboard image paste into the grid. Listens for native paste events carrying
+ * image/* items and forwards data URLs to the visuals inserter. Safe no-op when
+ * the handler is absent; never blocks text paste.
+ */
+export function installClipboardImagePaste(onImage: (dataUrl: string, mime: string) => void): {
+  dispose(): void
+} {
+  const listener = (event: ClipboardEvent): void => {
+    const items = event.clipboardData?.items
+    if (!items) return
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (!file) continue
+        const reader = new FileReader()
+        reader.onload = () => {
+          const url = String(reader.result ?? '')
+          if (url.startsWith('data:image/')) onImage(url, item.type)
+        }
+        reader.readAsDataURL(file)
+        event.preventDefault()
+        return
+      }
+    }
+  }
+  document.addEventListener('paste', listener)
+  return {
+    dispose() {
+      document.removeEventListener('paste', listener)
     },
   }
 }

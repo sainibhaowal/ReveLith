@@ -1,10 +1,12 @@
-﻿import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { Editor } from '@tiptap/core'
+import { buildExtensions } from '../src/renderer/editor/extensions'
 import { buildSlashItems, filterSlashItems } from '../src/renderer/editor/slashCommand'
 import { resolveImageSrc, unresolveImageSrc } from '../src/renderer/editor/localImage'
 
 // Undestroyed views leave DOMObserver flush timers that fire after jsdom teardown
 // ("document is not defined" unhandled error) : destroy every editor we create.
-const editors: import('@tiptap/core').Editor[] = []
+const editors: Editor[] = []
 afterEach(() => {
   for (const e of editors.splice(0)) e.destroy()
 })
@@ -59,9 +61,7 @@ describe('resolveImageSrc', () => {
 })
 
 describe('slash block commands inside a list (lift-first behavior)', () => {
-  async function editorWith(md: string) {
-    const { Editor } = await import('@tiptap/core')
-    const { buildExtensions } = await import('../src/renderer/editor/extensions')
+  function editorWith(md: string) {
     const editor = new Editor({
       extensions: buildExtensions({
         slashController: { onOpen() {}, onUpdate() {}, onKeyDown: () => false, onClose() {} },

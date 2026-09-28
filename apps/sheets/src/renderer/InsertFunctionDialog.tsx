@@ -10,7 +10,7 @@ interface FunctionSpec {
   /// Stable English id; displayed through CATEGORY_LABELS.
   readonly category: string
   readonly syntax: string
-  readonly descKey: StringKey
+  readonly descKey?: StringKey
 }
 
 const FUNCTION_CATALOG: readonly FunctionSpec[] = [
@@ -280,6 +280,29 @@ const FUNCTION_CATALOG: readonly FunctionSpec[] = [
     descKey: 'dlgFnDescNpv',
   },
   { name: 'IRR', category: 'Financial', syntax: 'IRR(values, [guess])', descKey: 'dlgFnDescIrr' },
+  { name: 'XLOOKUP', category: 'Lookup', syntax: 'XLOOKUP(lookup, array, return, [not_found])' },
+  { name: 'XMATCH', category: 'Lookup', syntax: 'XMATCH(lookup, array, [match_mode])' },
+  { name: 'FILTER', category: 'Lookup', syntax: 'FILTER(array, include, [if_empty])' },
+  { name: 'SORT', category: 'Lookup', syntax: 'SORT(array, [index], [order])' },
+  { name: 'UNIQUE', category: 'Lookup', syntax: 'UNIQUE(array, [by_col], [once])' },
+  { name: 'SEQUENCE', category: 'Math', syntax: 'SEQUENCE(rows, [cols], [start], [step])' },
+  { name: 'RANDARRAY', category: 'Math', syntax: 'RANDARRAY([rows], [cols])' },
+  { name: 'LET', category: 'Logical', syntax: 'LET(name1, value1, …, calc)' },
+  { name: 'LAMBDA', category: 'Logical', syntax: 'LAMBDA([param], calc)' },
+  { name: 'TEXTJOIN', category: 'Text', syntax: 'TEXTJOIN(delim, ignore_empty, text1, …)' },
+  { name: 'TEXTSPLIT', category: 'Text', syntax: 'TEXTSPLIT(text, col_delim, [row_delim])' },
+  { name: 'XIRR', category: 'Financial', syntax: 'XIRR(values, dates, [guess])' },
+  { name: 'XNPV', category: 'Financial', syntax: 'XNPV(rate, values, dates)' },
+  { name: 'DEC2HEX', category: 'Engineering', syntax: 'DEC2HEX(number, [places])' },
+  { name: 'HEX2DEC', category: 'Engineering', syntax: 'HEX2DEC(number)' },
+  { name: 'CONVERT', category: 'Engineering', syntax: 'CONVERT(number, from, to)' },
+  { name: 'ISNUMBER', category: 'Information', syntax: 'ISNUMBER(value)' },
+  { name: 'ISERROR', category: 'Information', syntax: 'ISERROR(value)' },
+  { name: 'ISBLANK', category: 'Information', syntax: 'ISBLANK(value)' },
+  { name: 'NA', category: 'Information', syntax: 'NA()' },
+  { name: 'EDATE2', category: 'Date & Time', syntax: 'EOMONTH(start, months)' },
+  { name: 'NETWORKDAYS', category: 'Date & Time', syntax: 'NETWORKDAYS(start, end, [holidays])' },
+  { name: 'WORKDAY', category: 'Date & Time', syntax: 'WORKDAY(start, days, [holidays])' },
 ]
 
 const CATEGORIES = ['All', ...new Set(FUNCTION_CATALOG.map((spec) => spec.category))]
@@ -293,6 +316,8 @@ const CATEGORY_LABELS: Record<string, StringKey> = {
   Text: 'dlgFnCatText',
   'Date & Time': 'dlgFnCatDateTime',
   Financial: 'dlgFnCatFinancial',
+  Engineering: 'dlgFnCatMath',
+  Information: 'dlgFnCatLogical',
 }
 
 export function InsertFunctionDialog({
@@ -325,7 +350,8 @@ export function InsertFunctionDialog({
         (category === 'All' || spec.category === category) &&
         (needle === '' ||
           spec.name.includes(needle) ||
-          t(spec.descKey).toUpperCase().includes(needle)),
+          spec.syntax.toUpperCase().includes(needle) ||
+          (spec.descKey ? t(spec.descKey).toUpperCase().includes(needle) : false)),
     )
   }, [query, category, lang])
 
@@ -369,7 +395,7 @@ export function InsertFunctionDialog({
               onClick={() => pick(spec)}
             >
               <strong>{spec.name}</strong>
-              <span>{t(spec.descKey)}</span>
+              <span>{spec.descKey ? t(spec.descKey) : spec.syntax}</span>
             </button>
           ))}
           {matches.length === 0 && <p className="dialog-note">{t('dlgFnNoMatch')}</p>}

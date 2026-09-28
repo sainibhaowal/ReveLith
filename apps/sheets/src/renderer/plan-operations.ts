@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AI change-plan builders for the sheets renderer.
  *
  * proposeOperations validates agent-provided DSL operations and builds a
@@ -290,14 +290,6 @@ export function proposeOperations(
           continue
         }
         if (operation.op === 'duplicate_sheet') {
-          const isAdded = state.editJournal.sheets.added.has(operation.sheetId)
-          if (!isAdded && (!state.formulaMode || !state.flags.preloadComplete)) {
-            return {
-              ok: false,
-              error:
-                'Duplicating a sheet needs the fully-loaded mode : this workbook is too large and streams partially.',
-            }
-          }
           const sheetMeta = state.file.sheets.find((sheet) => sheet.id === operation.sheetId)
           if (sheetMeta && sheetMeta.pivotRanges.length > 0) {
             return {

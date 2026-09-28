@@ -135,13 +135,13 @@ function slideBackgroundIsDark(slide: RenderSlide, images: Map<string, HTMLImage
   return (lum ?? 1) < 0.5
 }
 
-/** Selection/edit chrome color for a slide: white on dark backgrounds, near-black otherwise
- * (shared with the text-edit overlay so the edit frame matches the selection frame). */
+/** Selection/edit chrome color for a slide: white on dark backgrounds, vibrant blue (#0969da)
+ * on light/white backgrounds for crisp, prominent visibility (shared with text-edit overlay). */
 export function selectionChromeColor(
   slide: RenderSlide,
   images: Map<string, HTMLImageElement>,
 ): string {
-  return slideBackgroundIsDark(slide, images) ? '#ffffff' : '#232425'
+  return slideBackgroundIsDark(slide, images) ? '#ffffff' : '#0969da'
 }
 
 /** PowerPoint-style rotate handle: white disc with a clockwise circular arrow.
@@ -1069,9 +1069,10 @@ export function SlideCanvas({
           borderStroke={selStroke}
           anchorStroke={selStroke}
           anchorFill="#ffffff"
+          anchorCornerRadius={2}
           // The canvas is CSS-scaled: divide every chrome size by zoom so the frame keeps a constant on-screen weight
-          borderStrokeWidth={hairline}
-          anchorStrokeWidth={hairline}
+          borderStrokeWidth={Math.max(hairline * 1.5, 1.2)}
+          anchorStrokeWidth={Math.max(hairline * 1.5, 1.2)}
           anchorSize={(8 * chromeScale) / Math.max(zoom, 0.1)}
           rotateAnchorOffset={(50 * chromeScale) / Math.max(zoom, 0.1)}
           anchorStyleFunc={(a) =>
@@ -1675,6 +1676,29 @@ function NodeView({
             onDblClick: (e: Konva.KonvaEventObject<MouseEvent>) =>
               onEditText(node.sourceId, { x: e.evt.clientX, y: e.evt.clientY }),
             onDblTap: () => onEditText(node.sourceId),
+            // Single-click edits text when the shape is already selected
+            // (PowerPoint-style): first click selects, second click edits.
+            onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
+              try {
+                if (localStorage.getItem('slides:single-click-edit') === '0') return
+              } catch {
+                /* default on */
+              }
+              const already =
+                (e.target.getStage()?.attrs as { __selId?: string } | undefined)?.__selId ===
+                node.sourceId
+              if (already && !e.evt.shiftKey && !e.evt.ctrlKey && !e.evt.metaKey) {
+                onEditText(node.sourceId, { x: e.evt.clientX, y: e.evt.clientY })
+              } else {
+                try {
+                  ;(
+                    (e.target.getStage()?.attrs as Record<string, unknown> | undefined) ?? {}
+                  ).__selId = node.sourceId
+                } catch {
+                  /* noop */
+                }
+              }
+            },
           }
         : node.type === 'group' && !insideGroupId && onEnterGroup
           ? { onDblClick: onGroupDblClick, onDblTap: onGroupDblClick }

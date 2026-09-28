@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copy materializes its selection first. On streamed workbooks the
  * clipboard serializes whatever the lazy loader has put in the cell matrix:
  * rows the viewport never passed lose their text constants entirely and
@@ -51,13 +51,29 @@ async function materializeSelection(
     return
   }
   const cells = (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1)
-  if (cells > MATERIALIZE_CELL_LIMIT) {
+  const MAX_COPY_CELLS = 100_000
+  if (cells > MAX_COPY_CELLS) {
     const rangeText = `${formatAddress(range.startRow, range.startColumn)}:${formatAddress(range.endRow, range.endColumn)}`
-    setMessage(t('appRangeTooManyCells', { range: rangeText, max: MATERIALIZE_CELL_LIMIT }))
+    setMessage(t('appRangeTooManyCells', { range: rangeText, max: MAX_COPY_CELLS }))
     return
   }
   try {
-    await ensureLazyRangeLoaded(runtime, lazyWorkbookRef, worksheet, range, setMessage)
+    if (cells <= MATERIALIZE_CELL_LIMIT) {
+      await ensureLazyRangeLoaded(runtime, lazyWorkbookRef, worksheet, range, setMessage)
+    } else {
+      // Large range copy: chunk by row groups so each IPC read stays within protocol cap
+      const colCount = Math.max(1, range.endColumn - range.startColumn + 1)
+      const chunkRows = Math.max(1, Math.floor(MATERIALIZE_CELL_LIMIT / colCount))
+      for (let r = range.startRow; r <= range.endRow; r += chunkRows) {
+        const subRange = {
+          startRow: r,
+          endRow: Math.min(r + chunkRows - 1, range.endRow),
+          startColumn: range.startColumn,
+          endColumn: range.endColumn,
+        }
+        await ensureLazyRangeLoaded(runtime, lazyWorkbookRef, worksheet, subRange, setMessage)
+      }
+    }
   } catch {
     // Copy still runs on whatever is materialized; same as before the fix.
   }

@@ -47,8 +47,21 @@ function CustomSelect<T extends string>({
         aria-expanded={open}
       >
         <span className="custom-select-value">{selectedOption?.label ?? value}</span>
-        <svg className="custom-select-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <svg
+          className="custom-select-chevron"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M2.5 4.5L6 8L9.5 4.5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
       {open && (
@@ -70,7 +83,13 @@ function CustomSelect<T extends string>({
                 <span className="custom-select-item-label">{opt.label}</span>
                 {isSelected && (
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d="M3.5 8.5L6.5 11.5L12.5 4.5"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 )}
               </button>
@@ -118,15 +137,16 @@ const THEME_OPTIONS = [
   { value: 'dark', labelKey: 'themeDark' },
 ] as const satisfies readonly { value: UiTheme; labelKey: StringKey }[]
 
-const CHANNEL_OPTIONS = [
+const _CHANNEL_OPTIONS = [
   { value: 'stable', labelKey: 'channelStable' },
   { value: 'beta', labelKey: 'channelBeta' },
 ] as const satisfies readonly { value: 'stable' | 'beta'; labelKey: StringKey }[]
 
-type SectionId = 'ai' | 'general' | 'about'
+type SectionId = 'ai' | 'integrations' | 'general' | 'about'
 
 const SECTIONS: readonly { id: SectionId; label: string }[] = [
   { id: 'ai', label: 'AI & Models' },
+  { id: 'integrations', label: 'Integrations' },
   { id: 'general', label: 'General' },
   { id: 'about', label: 'About' },
 ]
@@ -134,10 +154,20 @@ const SECTIONS: readonly { id: SectionId; label: string }[] = [
 function SectionIcon({ id }: { id: SectionId }) {
   if (id === 'ai') {
     return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
-        <path d="M12 6a6 6 0 0 0-6 6c0 2.5 1.5 4.5 3.5 5.5"/>
-        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
+        <path d="M12 6a6 6 0 0 0-6 6c0 2.5 1.5 4.5 3.5 5.5" />
+        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
       </svg>
     )
   }
@@ -168,7 +198,10 @@ function ProviderIcon({ id }: { id: string }) {
   if (id === 'ollama') {
     return (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2C8.5 2 7 4.5 7 7v4H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1v1h2v-1h6v1h2v-1h1a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V7c0-2.5-1.5-5-5-5z" fill="#F3F4F6" />
+        <path
+          d="M12 2C8.5 2 7 4.5 7 7v4H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1v1h2v-1h6v1h2v-1h1a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V7c0-2.5-1.5-5-5-5z"
+          fill="#F3F4F6"
+        />
         <circle cx="9.5" cy="13.5" r="1.5" fill="#111827" />
         <circle cx="14.5" cy="13.5" r="1.5" fill="#111827" />
         <path d="M10 6.5h4M10 8.5h4" stroke="#111827" strokeWidth="1.2" strokeLinecap="round" />
@@ -180,7 +213,10 @@ function ProviderIcon({ id }: { id: string }) {
     return (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
         <rect width="24" height="24" rx="6" fill="#1E293B" />
-        <path d="M5 6.5C5 5.67 5.67 5 6.5 5h11c.83 0 1.5.67 1.5 1.5v8c0 .83-.67 1.5-1.5 1.5h-11C5.67 16 5 15.33 5 14.5v-8z" fill="#0284C7" />
+        <path
+          d="M5 6.5C5 5.67 5.67 5 6.5 5h11c.83 0 1.5.67 1.5 1.5v8c0 .83-.67 1.5-1.5 1.5h-11C5.67 16 5 15.33 5 14.5v-8z"
+          fill="#0284C7"
+        />
         <rect x="7" y="7" width="10" height="7" rx="1" fill="#38BDF8" />
         <path d="M10 18.5h4M12 16v2.5" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
@@ -199,7 +235,10 @@ function ProviderIcon({ id }: { id: string }) {
   if (id === 'anthropic') {
     return (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M14.5 3H18L24 21h-3.6l-1.8-4.2h-6.2l-1.8 4.2H7L14.5 3zm2.5 9.8l-1.8-4.3-1.8 4.3H17zM0 21L7.5 3h3.6L3.6 21H0z" fill="#D97706" />
+        <path
+          d="M14.5 3H18L24 21h-3.6l-1.8-4.2h-6.2l-1.8 4.2H7L14.5 3zm2.5 9.8l-1.8-4.3-1.8 4.3H17zM0 21L7.5 3h3.6L3.6 21H0z"
+          fill="#D97706"
+        />
       </svg>
     )
   }
@@ -214,7 +253,10 @@ function ProviderIcon({ id }: { id: string }) {
             <stop offset="100%" stopColor="#EA4335" />
           </linearGradient>
         </defs>
-        <path d="M12 0C12 6.627 17.373 12 24 12C17.373 12 12 17.373 12 24C12 17.373 6.627 12 0 12C6.627 12 12 6.627 12 0Z" fill="url(#geminiGrad2)" />
+        <path
+          d="M12 0C12 6.627 17.373 12 24 12C17.373 12 12 17.373 12 24C12 17.373 6.627 12 0 12C6.627 12 12 6.627 12 0Z"
+          fill="url(#geminiGrad2)"
+        />
       </svg>
     )
   }
@@ -222,7 +264,12 @@ function ProviderIcon({ id }: { id: string }) {
     return (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="12" r="11" fill="#1D4ED8" />
-        <path d="M5.5 13.5C7.2 9.5 11 8.5 15.5 10C17.5 10.7 18.5 12.2 18.5 14C18.5 16 16.8 17.5 14.5 17.5C11.5 17.5 9.5 16 8.5 14.5" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
+        <path
+          d="M5.5 13.5C7.2 9.5 11 8.5 15.5 10C17.5 10.7 18.5 12.2 18.5 14C18.5 16 16.8 17.5 14.5 17.5C11.5 17.5 9.5 16 8.5 14.5"
+          stroke="#FFFFFF"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
         <circle cx="10" cy="11.5" r="1.3" fill="#FFFFFF" />
         <circle cx="15.5" cy="12" r="1.3" fill="#FFFFFF" />
       </svg>
@@ -233,6 +280,14 @@ function ProviderIcon({ id }: { id: string }) {
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-label="OpenCode Zen">
         <rect width="24" height="24" fill="#0B0B0B" />
         <path d="M7 5H17V19H7V5ZM10 8V16H14V8H10Z" fill="#FFFFFF" fillRule="evenodd" />
+      </svg>
+    )
+  }
+  if (id === 'opper') {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-label="Opper">
+        <rect width="24" height="24" rx="6" fill="#6366F1" />
+        <circle cx="12" cy="12" r="5" fill="#FFFFFF" />
       </svg>
     )
   }
@@ -263,8 +318,8 @@ const PROVIDER_METAS = [
     id: 'openai',
     label: 'OpenAI',
     defaultUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o-mini',
-    desc: 'Direct OpenAI API (GPT-4o, Mini)',
+    defaultModel: 'gpt-4.1-mini',
+    desc: 'Direct OpenAI API (gpt-6-astra, GPT-4o, Mini)',
   },
   {
     id: 'opencode-zen',
@@ -291,8 +346,8 @@ const PROVIDER_METAS = [
     id: 'deepseek',
     label: 'DeepSeek',
     defaultUrl: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
-    desc: 'DeepSeek V3 / R1 Reasoner',
+    defaultModel: 'deepseek-v4.1-flash',
+    desc: 'DeepSeek V4.1 Flash / V3 / R1 Reasoner',
   },
   {
     id: 'codex-app-server',
@@ -300,6 +355,13 @@ const PROVIDER_METAS = [
     defaultUrl: 'http://localhost:8765/v1',
     defaultModel: 'codex-1',
     desc: 'Local / Remote Codex App Server',
+  },
+  {
+    id: 'opper',
+    label: 'Opper',
+    defaultUrl: 'https://api.opper.ai/v1',
+    defaultModel: 'opper-default',
+    desc: 'Opper AI Gateway & Orchestration',
   },
   {
     id: 'custom',
@@ -310,11 +372,475 @@ const PROVIDER_METAS = [
   },
 ] as const
 
+function IntegrationsSection() {
+  const [skillStatus, setSkillStatus] = useState<string>('')
+  const [busy, setBusy] = useState(false)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<
+    'claude-code' | 'claude-desktop' | 'cursor' | 'in-app' | 'cli'
+  >('claude-code')
+
+  const copyToClipboard = (text: string, key: string) => {
+    void navigator.clipboard.writeText(text)
+    setCopiedKey(key)
+    setTimeout(() => setCopiedKey(null), 2000)
+  }
+
+  const claudeCodeCmd = `claude mcp add revelith -- npx revelith mcp`
+  const claudeDesktopConfig = `{
+  "mcpServers": {
+    "revelith": {
+      "command": "revelith",
+      "args": ["mcp"]
+    }
+  }
+}`
+  const cursorConfig = `{
+  "mcpServers": {
+    "revelith": {
+      "command": "revelith",
+      "args": ["mcp"]
+    }
+  }
+}`
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <h3 className="set-pane-title" style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 600 }}>
+          Integrations & Agent Protocol (MCP)
+        </h3>
+        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }}>
+          Connect AI coding agents to ReveLith via the <strong>Model Context Protocol (MCP)</strong>
+          . Agents can inspect, generate, and edit presentations, spreadsheets, and Word documents
+          in real time.
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          borderBottom: '1px solid var(--border-subtle)',
+          paddingBottom: 6,
+        }}
+      >
+        {[
+          { id: 'claude-code', label: 'Claude Code' },
+          { id: 'claude-desktop', label: 'Claude Desktop' },
+          { id: 'cursor', label: 'Cursor IDE' },
+          { id: 'in-app', label: 'In-App Live MCP' },
+          { id: 'cli', label: 'CLI & Skills' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className="btn-chip"
+            onClick={() => setActiveTab(tab.id as any)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border:
+                activeTab === tab.id ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
+              background:
+                activeTab === tab.id
+                  ? 'var(--accent-subtle, rgba(99, 102, 241, 0.1))'
+                  : 'transparent',
+              color: activeTab === tab.id ? 'var(--accent)' : 'var(--text-secondary)',
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              fontSize: 12,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Active Tab Content */}
+      <div
+        style={{
+          background: 'var(--surface-sunken)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 10,
+          padding: 18,
+        }}
+      >
+        {activeTab === 'claude-code' && (
+          <div>
+            <h4
+              style={{
+                margin: '0 0 8px',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>⚡</span> Claude Code One-Line Setup
+            </h4>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+              Run this single command in your terminal to register the ReveLith MCP tools with
+              Claude Code. Works even when ReveLith is not running.
+            </p>
+            <div style={{ position: 'relative' }}>
+              <pre
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '12px 14px',
+                  fontFamily: 'monospace',
+                  fontSize: 12.5,
+                  margin: 0,
+                  overflowX: 'auto',
+                }}
+              >
+                <code>{claudeCodeCmd}</code>
+              </pre>
+              <button
+                type="button"
+                className="btn-chip"
+                onClick={() => copyToClipboard(claudeCodeCmd, 'claude-code')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 8,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  color: copiedKey === 'claude-code' ? '#22c55e' : 'var(--text-primary)',
+                }}
+              >
+                {copiedKey === 'claude-code' ? '✓ Copied' : 'Copy Command'}
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
+              💡 Example prompt in Claude Code:{' '}
+              <code>"Build an 8-slide pitch deck on Renewable Energy trends using revelith"</code>
+            </p>
+          </div>
+        )}
+
+        {activeTab === 'claude-desktop' && (
+          <div>
+            <h4
+              style={{
+                margin: '0 0 8px',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>🖥️</span> Claude Desktop Configuration
+            </h4>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+              Add ReveLith to your <code>claude_desktop_config.json</code> under{' '}
+              <code>mcpServers</code>:
+            </p>
+            <div style={{ position: 'relative' }}>
+              <pre
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '12px 14px',
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  margin: 0,
+                  overflowX: 'auto',
+                }}
+              >
+                <code>{claudeDesktopConfig}</code>
+              </pre>
+              <button
+                type="button"
+                className="btn-chip"
+                onClick={() => copyToClipboard(claudeDesktopConfig, 'claude-desktop')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 8,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  color: copiedKey === 'claude-desktop' ? '#22c55e' : 'var(--text-primary)',
+                }}
+              >
+                {copiedKey === 'claude-desktop' ? '✓ Copied' : 'Copy Config'}
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
+              Location on Windows: <code>%APPDATA%\Claude\claude_desktop_config.json</code>
+            </p>
+          </div>
+        )}
+
+        {activeTab === 'cursor' && (
+          <div>
+            <h4
+              style={{
+                margin: '0 0 8px',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>🖱️</span> Cursor IDE MCP Integration
+            </h4>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+              Configure Cursor Settings → Features → MCP or add to <code>.cursor/mcp.json</code> in
+              your project:
+            </p>
+            <div style={{ position: 'relative' }}>
+              <pre
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '12px 14px',
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  margin: 0,
+                  overflowX: 'auto',
+                }}
+              >
+                <code>{cursorConfig}</code>
+              </pre>
+              <button
+                type="button"
+                className="btn-chip"
+                onClick={() => copyToClipboard(cursorConfig, 'cursor')}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 8,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  color: copiedKey === 'cursor' ? '#22c55e' : 'var(--text-primary)',
+                }}
+              >
+                {copiedKey === 'cursor' ? '✓ Copied' : 'Copy Config'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'in-app' && (
+          <div>
+            <h4
+              style={{
+                margin: '0 0 8px',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>🔴</span> Local In-App Live Editor Server
+            </h4>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+              When ReveLith is open, the built-in local MCP server allows AI agents to inspect and
+              edit your open Word documents, spreadsheets, and presentation slides live in real
+              time.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '10px 14px',
+                background: 'var(--surface)',
+                borderRadius: 6,
+                border: '1px solid var(--border-subtle)',
+                marginBottom: 12,
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#22c55e',
+                }}
+              />
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>Endpoint:</span>
+              <code style={{ fontSize: 12, color: 'var(--accent)' }}>
+                http://127.0.0.1:3928/mcp
+              </code>
+              <button
+                type="button"
+                className="btn-chip"
+                onClick={() => copyToClipboard('http://127.0.0.1:3928/mcp', 'in-app-url')}
+                style={{
+                  marginLeft: 'auto',
+                  padding: '3px 8px',
+                  fontSize: 11,
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  color: copiedKey === 'in-app-url' ? '#22c55e' : 'var(--text-primary)',
+                }}
+              >
+                {copiedKey === 'in-app-url' ? '✓ Copied' : 'Copy URL'}
+              </button>
+            </div>
+            <ul
+              style={{
+                margin: 0,
+                paddingLeft: 18,
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                lineHeight: 1.6,
+              }}
+            >
+              <li>Real-time bidirectional document tree inspection and node patching</li>
+              <li>Live paragraph, table, cell, and slide manipulation without file reload</li>
+              <li>Protected by local-loopback only binding (127.0.0.1)</li>
+            </ul>
+          </div>
+        )}
+
+        {activeTab === 'cli' && (
+          <div>
+            <h4
+              style={{
+                margin: '0 0 8px',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>📦</span> ReveLith CLI & Agent Skills
+            </h4>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+              One-click installer for local coding agents (Claude Code, Codex, OpenCode). Installs
+              the native ReveLith skill definitions into agent config directories.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <button
+                type="button"
+                className="set-btn primary"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true)
+                  setSkillStatus('Installing skills…')
+                  void (
+                    window as unknown as {
+                      aiOffice?: {
+                        installSkill?: () => Promise<
+                          Array<{ agent: string; ok: boolean; path: string }>
+                        >
+                      }
+                    }
+                  ).aiOffice
+                    ?.installSkill?.()
+                    .then((res) =>
+                      setSkillStatus(
+                        res
+                          ?.map(
+                            (r) =>
+                              `${r.agent}: ${r.ok ? '✓ installed (' + r.path + ')' : 'skipped'}`,
+                          )
+                          .join('\n') || 'Done',
+                      ),
+                    )
+                    .catch((e: unknown) =>
+                      setSkillStatus(e instanceof Error ? e.message : String(e)),
+                    )
+                    .finally(() => setBusy(false))
+                }}
+                style={{ height: 32, padding: '0 16px', fontSize: 13, fontWeight: 600 }}
+              >
+                {busy ? 'Installing…' : '⚡ Install ReveLith Skills'}
+              </button>
+            </div>
+            {skillStatus && (
+              <pre
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  margin: '0 0 12px',
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {skillStatus}
+              </pre>
+            )}
+            <div style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginBottom: 6,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                Common CLI Commands:
+              </div>
+              <pre
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  fontFamily: 'monospace',
+                  fontSize: 11.5,
+                  margin: 0,
+                  lineHeight: 1.6,
+                }}
+              >
+                {`revelith mcp                               # Start standard MCP server
+revelith docs apply doc.docx --spec spec.json  # Apply document styles & content
+revelith sheet apply sheet.xlsx --spec spec.json # Apply formulas & conditional formats
+revelith slides apply deck.pptx --spec spec.json # Apply slide templates & shapes
+revelith check file.docx                   # Quality & validation check`}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function AiSettingsSection() {
   const [settings, setSettings] = useState<any>(null)
   const [selectedId, setSelectedId] = useState<string>('ollama')
   const [showKey, setShowKey] = useState(false)
-  const [testStatus, setTestStatus] = useState<{ state: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ state: 'idle' })
+  const [testStatus, setTestStatus] = useState<{
+    state: 'idle' | 'testing' | 'success' | 'error'
+    message?: string
+  }>({ state: 'idle' })
   const [discoveredModels, setDiscoveredModels] = useState<string[]>([])
   const [fetchingModels, setFetchingModels] = useState(false)
   const [discoveryError, setDiscoveryError] = useState<string | null>(null)
@@ -355,14 +881,35 @@ function AiSettingsSection() {
       }
       if (alive && s) {
         setSettings(s)
-        const validSelected = PROVIDER_METAS.some((p) => p.id === s.provider) ? s.provider : 'ollama'
+        const validSelected = PROVIDER_METAS.some((p) => p.id === s.provider)
+          ? s.provider
+          : 'ollama'
         setSelectedId(validSelected)
       }
     })()
-    return () => { alive = false }
+    return () => {
+      alive = false
+    }
   }, [])
 
-  const activeProvider = PROVIDER_METAS.some((p) => p.id === settings?.provider) ? settings.provider : 'ollama'
+  const [aiFontSize, setAiFontSize] = useState(() => {
+    try {
+      return localStorage.getItem('revelith.aiPanelFontSize') || '14px'
+    } catch {
+      return '14px'
+    }
+  })
+  const [aiSpellcheck, setAiSpellcheck] = useState(() => {
+    try {
+      return localStorage.getItem('revelith.aiSpellcheck') !== 'false'
+    } catch {
+      return true
+    }
+  })
+
+  const activeProvider = PROVIDER_METAS.some((p) => p.id === settings?.provider)
+    ? settings.provider
+    : 'ollama'
   const currentMeta = PROVIDER_METAS.find((p) => p.id === selectedId) || PROVIDER_METAS[0]
   const currentConfig = settings?.providers?.[selectedId] || {
     apiKey: '',
@@ -377,7 +924,7 @@ function AiSettingsSection() {
     } else {
       setDiscoveredModels([])
     }
-  }, [selectedId, settings])
+  }, [selectedId, settings, currentConfig.discoveredModels])
 
   if (!settings) return <div style={{ padding: 20 }}>Loading AI settings...</div>
 
@@ -393,7 +940,9 @@ function AiSettingsSection() {
       },
     }
     setSettings(next)
-    try { localStorage.setItem('revelith.aiSettings', JSON.stringify(next)) } catch {}
+    try {
+      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
+    } catch {}
     void window.aiOffice?.setAiSettings?.(next)
   }
 
@@ -406,33 +955,38 @@ function AiSettingsSection() {
       },
     }
     setSettings(next)
-    try { localStorage.setItem('revelith.aiSettings', JSON.stringify(next)) } catch {}
+    try {
+      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
+    } catch {}
     void window.aiOffice?.setAiSettings?.(next)
   }
 
-  const [aiFontSize, setAiFontSize] = useState(() => {
-    try { return localStorage.getItem('revelith.aiPanelFontSize') || '14px' } catch { return '14px' }
-  })
-  const [aiSpellcheck, setAiSpellcheck] = useState(() => {
-    try { return localStorage.getItem('revelith.aiSpellcheck') !== 'false' } catch { return true }
-  })
-
   const changeAiFontSize = (size: string) => {
     setAiFontSize(size)
-    try { localStorage.setItem('revelith.aiPanelFontSize', size) } catch {}
-    window.dispatchEvent(new CustomEvent('revelith-ai-panel-settings-changed', { detail: { fontSize: size } }))
+    try {
+      localStorage.setItem('revelith.aiPanelFontSize', size)
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { fontSize: size } }),
+    )
   }
 
   const toggleAiSpellcheck = (val: boolean) => {
     setAiSpellcheck(val)
-    try { localStorage.setItem('revelith.aiSpellcheck', String(val)) } catch {}
-    window.dispatchEvent(new CustomEvent('revelith-ai-panel-settings-changed', { detail: { spellcheck: val } }))
+    try {
+      localStorage.setItem('revelith.aiSpellcheck', String(val))
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { spellcheck: val } }),
+    )
   }
 
   const setActiveProvider = (id: string) => {
     const next = { ...settings, provider: id }
     setSettings(next)
-    try { localStorage.setItem('revelith.aiSettings', JSON.stringify(next)) } catch {}
+    try {
+      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
+    } catch {}
     void window.aiOffice?.setAiSettings?.(next)
   }
 
@@ -446,8 +1000,18 @@ function AiSettingsSection() {
         return
       }
 
-      if ((selectedId === 'openai' || selectedId === 'opencode-zen' || selectedId === 'anthropic' || selectedId === 'gemini' || selectedId === 'deepseek') && !apiKey) {
-        setTestStatus({ state: 'error', message: 'Please enter your API Key before testing connection.' })
+      if (
+        (selectedId === 'openai' ||
+          selectedId === 'opencode-zen' ||
+          selectedId === 'anthropic' ||
+          selectedId === 'gemini' ||
+          selectedId === 'deepseek') &&
+        !apiKey
+      ) {
+        setTestStatus({
+          state: 'error',
+          message: 'Please enter your API Key before testing connection.',
+        })
         return
       }
 
@@ -456,7 +1020,10 @@ function AiSettingsSection() {
       if (typeof window.aiOffice?.discoverAiModels === 'function') {
         const models = await window.aiOffice.discoverAiModels(selectedId, url, apiKey)
         if (models.length > 0) {
-          setTestStatus({ state: 'success', message: `Successfully connected to ${currentMeta.label}` })
+          setTestStatus({
+            state: 'success',
+            message: `Successfully connected to ${currentMeta.label}`,
+          })
           return
         }
         ok = false
@@ -466,7 +1033,10 @@ function AiSettingsSection() {
         status = res?.status ?? 0
         ok = !!res?.ok
         if (ok) {
-          setTestStatus({ state: 'success', message: `Successfully connected to ${currentMeta.label}` })
+          setTestStatus({
+            state: 'success',
+            message: `Successfully connected to ${currentMeta.label}`,
+          })
           return
         }
       }
@@ -549,7 +1119,10 @@ function AiSettingsSection() {
       }
 
       // 2. Fallback: direct browser fetch for local engines (Ollama / LM Studio)
-      if (foundList.length === 0 && (selectedId === 'ollama' || selectedId === 'lmstudio' || selectedId === 'custom')) {
+      if (
+        foundList.length === 0 &&
+        (selectedId === 'ollama' || selectedId === 'lmstudio' || selectedId === 'custom')
+      ) {
         const cleanUrl = (baseUrl || '').replace(/\/$/, '')
         const rootUrl = cleanUrl.replace(/\/v1$/, '')
         const headers: Record<string, string> = { Accept: 'application/json' }
@@ -560,8 +1133,12 @@ function AiSettingsSection() {
           `${rootUrl}/v1/models`,
           `${rootUrl}/api/tags`,
           `${cleanUrl}/tags`,
-          cleanUrl.includes('localhost') ? cleanUrl.replace('localhost', '127.0.0.1') + '/models' : null,
-          cleanUrl.includes('127.0.0.1') ? cleanUrl.replace('127.0.0.1', 'localhost') + '/models' : null,
+          cleanUrl.includes('localhost')
+            ? cleanUrl.replace('localhost', '127.0.0.1') + '/models'
+            : null,
+          cleanUrl.includes('127.0.0.1')
+            ? cleanUrl.replace('127.0.0.1', 'localhost') + '/models'
+            : null,
         ].filter(Boolean) as string[]
 
         for (const url of candidateUrls) {
@@ -571,9 +1148,7 @@ function AiSettingsSection() {
               const json = await resp.json().catch(() => null)
               if (json) {
                 if (Array.isArray(json.data)) {
-                  foundList = json.data
-                    .map((m: any) => m.id || m.name || String(m))
-                    .filter(Boolean)
+                  foundList = json.data.map((m: any) => m.id || m.name || String(m)).filter(Boolean)
                 } else if (Array.isArray(json.models)) {
                   foundList = json.models
                     .map((m: any) => m.name || m.model || m.id || String(m))
@@ -618,14 +1193,18 @@ function AiSettingsSection() {
             [selectedId]: {
               ...(settings.providers?.[selectedId] || {}),
               discoveredModels: uniqueList,
-              ...(!currentConfig.model || currentConfig.model === currentMeta.defaultModel ? { model: uniqueList[0] } : {}),
+              ...(!currentConfig.model || currentConfig.model === currentMeta.defaultModel
+                ? { model: uniqueList[0] }
+                : {}),
             },
           },
         }
         setSettings(next)
         void window.aiOffice.setAiSettings?.(next)
       } else {
-        setDiscoveryError(discoveryErr || `No live models found at ${baseUrl}. Ensure server is active.`)
+        setDiscoveryError(
+          discoveryErr || `No live models found at ${baseUrl}. Ensure server is active.`,
+        )
       }
     } catch (err: any) {
       setDiscoveryError(err?.message || 'Failed to connect to server endpoint.')
@@ -637,9 +1216,14 @@ function AiSettingsSection() {
   return (
     <div className="ai-settings-container">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 className="set-pane-title" style={{ margin: 0 }}>AI & Provider Settings</h3>
+        <h3 className="set-pane-title" style={{ margin: 0 }}>
+          AI & Provider Settings
+        </h3>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Active Engine: <strong style={{ color: 'var(--color-btn-primary)' }}>{PROVIDER_METAS.find(p => p.id === activeProvider)?.label}</strong>
+          Active Engine:{' '}
+          <strong style={{ color: 'var(--color-btn-primary)' }}>
+            {PROVIDER_METAS.find((p) => p.id === activeProvider)?.label}
+          </strong>
         </span>
       </div>
 
@@ -660,10 +1244,21 @@ function AiSettingsSection() {
                   setDiscoveryError(null)
                 }}
               >
-                <span className="ai-provider-card-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span
+                  className="ai-provider-card-icon"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
                   <ProviderIcon id={meta.id} />
                 </span>
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {meta.label}
                 </span>
                 {isCurrentActive && <span className="ai-provider-card-badge">Active</span>}
@@ -674,16 +1269,32 @@ function AiSettingsSection() {
 
         {/* Right Provider Configuration Detail */}
         <div className="ai-provider-detail">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid var(--border-subtle)',
+              paddingBottom: 10,
+            }}
+          >
             <div>
-              <h4 style={{ margin: 0, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ display: 'flex', alignItems: 'center' }}><ProviderIcon id={currentMeta.id} /></span> {currentMeta.label}
+              <h4
+                style={{ margin: 0, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center' }}>
+                  <ProviderIcon id={currentMeta.id} />
+                </span>{' '}
+                {currentMeta.label}
               </h4>
               <div className="ai-form-desc">{currentMeta.desc}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {activeProvider === selectedId ? (
-                <span className="ai-provider-card-badge" style={{ padding: '4px 10px', fontSize: 12 }}>
+                <span
+                  className="ai-provider-card-badge"
+                  style={{ padding: '4px 10px', fontSize: 12 }}
+                >
                   ✓ Current Active Engine
                 </span>
               ) : (
@@ -755,7 +1366,10 @@ function AiSettingsSection() {
             <div style={{ marginTop: 8 }}>
               {discoveredModels.length > 0 ? (
                 <div>
-                  <div className="ai-input-wrap" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div
+                    className="ai-input-wrap"
+                    style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+                  >
                     <select
                       className="ai-input"
                       style={{ cursor: 'pointer', flex: 1 }}
@@ -773,7 +1387,19 @@ function AiSettingsSection() {
                     <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
                       Quick Pick from Live Models ({discoveredModels.length}):
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 110, overflowY: 'auto', padding: 6, background: 'var(--bg-content)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 6,
+                        maxHeight: 110,
+                        overflowY: 'auto',
+                        padding: 6,
+                        background: 'var(--bg-content)',
+                        borderRadius: 8,
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    >
                       {discoveredModels.map((m) => {
                         const isSelected = (currentConfig.model || discoveredModels[0]) === m
                         return (
@@ -781,7 +1407,14 @@ function AiSettingsSection() {
                             key={m}
                             type="button"
                             className={`set-btn${isSelected ? ' primary' : ''}`}
-                            style={{ height: 26, fontSize: 12, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                            style={{
+                              height: 26,
+                              fontSize: 12,
+                              padding: '0 10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
                             onClick={() => updateConfig('model', m)}
                           >
                             {isSelected && <span>✓</span>}
@@ -813,9 +1446,25 @@ function AiSettingsSection() {
           </div>
 
           {/* Test & Save Action Bar */}
-          <div className="ai-test-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
+          <div
+            className="ai-test-bar"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+              marginTop: 16,
+              paddingTop: 14,
+              borderTop: '1px solid var(--border-subtle)',
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="set-btn" onClick={handleTestConnection} disabled={testStatus.state === 'testing'}>
+              <button
+                className="set-btn"
+                onClick={handleTestConnection}
+                disabled={testStatus.state === 'testing'}
+              >
                 {testStatus.state === 'testing' ? 'Testing...' : 'Test Connection'}
               </button>
               {testStatus.state === 'success' && (
@@ -838,7 +1487,13 @@ function AiSettingsSection() {
               <button
                 type="button"
                 className="set-btn primary"
-                style={{ height: 32, padding: '0 16px', fontSize: 13, fontWeight: 600, boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' }}
+                style={{
+                  height: 32,
+                  padding: '0 16px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
+                }}
                 onClick={handleSaveAndApply}
               >
                 💾 Update & Set Model
@@ -849,13 +1504,44 @@ function AiSettingsSection() {
       </div>
 
       {/* BYOK Keys Section */}
-      <div style={{ marginTop: 20, padding: 16, borderRadius: 8, background: 'var(--surface-sunken)', border: '1px solid var(--border-subtle)' }}>
-        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div
+        style={{
+          marginTop: 20,
+          padding: 16,
+          borderRadius: 8,
+          background: 'var(--surface-sunken)',
+          border: '1px solid var(--border-subtle)',
+        }}
+      >
+        <h4
+          style={{
+            margin: '0 0 10px',
+            fontSize: 14,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
           <span>🔑</span> Dedicated BYOK Keys (Search, Image & Media)
         </h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: 'var(--text-secondary)' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 500,
+                marginBottom: 4,
+                color: 'var(--text-secondary)',
+              }}
+            >
               Web Search API Key (Serper / Google)
             </label>
             <input
@@ -867,7 +1553,15 @@ function AiSettingsSection() {
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: 'var(--text-secondary)' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 500,
+                marginBottom: 4,
+                color: 'var(--text-secondary)',
+              }}
+            >
               Image Generation Key (OpenAI / Image)
             </label>
             <input
@@ -879,7 +1573,15 @@ function AiSettingsSection() {
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: 'var(--text-secondary)' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 500,
+                marginBottom: 4,
+                color: 'var(--text-secondary)',
+              }}
+            >
               Media Analysis Key (Vision / Multimodal)
             </label>
             <input
@@ -894,11 +1596,36 @@ function AiSettingsSection() {
       </div>
 
       {/* AI Panel Preferences */}
-      <div style={{ marginTop: 14, padding: 16, borderRadius: 8, background: 'var(--surface-sunken)', border: '1px solid var(--border-subtle)' }}>
-        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div
+        style={{
+          marginTop: 14,
+          padding: 16,
+          borderRadius: 8,
+          background: 'var(--surface-sunken)',
+          border: '1px solid var(--border-subtle)',
+        }}
+      >
+        <h4
+          style={{
+            margin: '0 0 10px',
+            fontSize: 14,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
           <span>🎨</span> AI Panel Preferences
         </h4>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Panel Font Size:</label>
             <select
@@ -913,7 +1640,15 @@ function AiSettingsSection() {
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={aiSpellcheck}
@@ -971,41 +1706,80 @@ export interface SettingsModalProps {
 
 export function SettingsModal({
   status,
-  loggingOut = false,
-  loginWaiting = false,
-  loginUrl,
-  urlCopied = false,
-  onOpenLoginUrl,
-  onCopyLoginUrl,
+  loggingOut: _loggingOut = false,
+  loginWaiting: _loginWaiting = false,
+  loginUrl: _loginUrl,
+  urlCopied: _urlCopied = false,
+  onOpenLoginUrl: _onOpenLoginUrl,
+  onCopyLoginUrl: _onCopyLoginUrl,
   onClose,
-  onLogin,
-  onLogout,
+  onLogin: _onLogin,
+  onLogout: _onLogout,
 }: SettingsModalProps) {
   const i18n = useI18n()
   const { t, lang, setLang } = i18n
   const [section, setSection] = useState<SectionId>('ai')
   const [theme, setTheme] = useState<UiTheme>('system')
   const [saveDir, setSaveDir] = useState('')
-  const [channel, setChannel] = useState<'stable' | 'beta'>('stable')
+  const [_channel, setChannel] = useState<'stable' | 'beta'>('stable')
   const [appVersion, setAppVersion] = useState('')
 
   const [autoSave, setAutoSave] = useState(() => {
-    try { return localStorage.getItem('revelith.autoSaveEnabled') === 'true' } catch { return false }
+    try {
+      return localStorage.getItem('revelith.autoSaveEnabled') === 'true'
+    } catch {
+      return false
+    }
   })
   const [autoSaveInterval, setAutoSaveInterval] = useState(() => {
-    try { return Number(localStorage.getItem('revelith.autoSaveInterval') || 60) } catch { return 60 }
+    try {
+      return Number(localStorage.getItem('revelith.autoSaveInterval') || 60)
+    } catch {
+      return 60
+    }
   })
+  const [aiDock, setAiDock] = useState<'left' | 'right'>(() => {
+    try {
+      return (localStorage.getItem('revelith.aiPanelDock') as 'left' | 'right') || 'left'
+    } catch {
+      return 'left'
+    }
+  })
+
+  const applyAiDock = (next: 'left' | 'right') => {
+    setAiDock(next)
+    try {
+      localStorage.setItem('revelith.aiPanelDock', next)
+    } catch {}
+    window.dispatchEvent(new CustomEvent('revelith-ai-dock-changed', { detail: { side: next } }))
+    const iframes = document.querySelectorAll('iframe')
+    iframes.forEach((f) => {
+      try {
+        f.contentWindow?.postMessage({ type: 'ai-dock-change', side: next }, '*')
+      } catch {}
+    })
+  }
 
   const toggleAutoSave = (val: boolean) => {
     setAutoSave(val)
-    try { localStorage.setItem('revelith.autoSaveEnabled', String(val)) } catch {}
-    window.dispatchEvent(new CustomEvent('revelith-autosave-changed', { detail: { enabled: val, interval: autoSaveInterval } }))
+    try {
+      localStorage.setItem('revelith.autoSaveEnabled', String(val))
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('revelith-autosave-changed', {
+        detail: { enabled: val, interval: autoSaveInterval },
+      }),
+    )
   }
 
   const changeAutoSaveInterval = (interval: number) => {
     setAutoSaveInterval(interval)
-    try { localStorage.setItem('revelith.autoSaveInterval', String(interval)) } catch {}
-    window.dispatchEvent(new CustomEvent('revelith-autosave-changed', { detail: { enabled: autoSave, interval } }))
+    try {
+      localStorage.setItem('revelith.autoSaveInterval', String(interval))
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('revelith-autosave-changed', { detail: { enabled: autoSave, interval } }),
+    )
   }
 
   useEffect(() => {
@@ -1058,8 +1832,8 @@ export function SettingsModal({
     })
   }
 
-  const loggedIn = status?.loggedIn ?? false
-  const email = status?.email ?? ''
+  const _loggedIn = status?.loggedIn ?? false
+  const _email = status?.email ?? ''
 
   return (
     <div
@@ -1098,6 +1872,7 @@ export function SettingsModal({
           </nav>
           <div className="set-pane">
             {section === 'ai' && <AiSettingsSection />}
+            {section === 'integrations' && <IntegrationsSection />}
             {section === 'general' && (
               <>
                 <h3 className="set-pane-title">{t('setSecGeneral')}</h3>
@@ -1130,6 +1905,22 @@ export function SettingsModal({
                     onChange={(val) => applyTheme(val)}
                   />
                 </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <label className="set-field-label" htmlFor="set-ai-dock">
+                      AI Panel Position
+                    </label>
+                  </div>
+                  <CustomSelect
+                    id="set-ai-dock"
+                    value={aiDock}
+                    options={[
+                      { value: 'left', label: 'Left Side' },
+                      { value: 'right', label: 'Right Side' },
+                    ]}
+                    onChange={(val) => applyAiDock(val as 'left' | 'right')}
+                  />
+                </div>
                 <Field
                   label={t('saveLocation')}
                   value={saveDir || ':'}
@@ -1143,10 +1934,20 @@ export function SettingsModal({
                 <div className="set-field" style={{ marginTop: 14 }}>
                   <div className="set-field-text">
                     <label className="set-field-label">Global AutoSave</label>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Automatically save changes periodically across all editors</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Automatically save changes periodically across all editors
+                    </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={autoSave}

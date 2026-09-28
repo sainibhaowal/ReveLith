@@ -24,8 +24,8 @@ interface LinkTarget {
 }
 
 function anchorTarget(editor: Editor, anchor: HTMLAnchorElement): LinkTarget | null {
-  let from = -1
-  let to = -1
+  let from: number
+  let to: number
   try {
     const pos = editor.view.posAtDOM(anchor, 0)
     if (pos < 0) return null
@@ -37,14 +37,16 @@ function anchorTarget(editor: Editor, anchor: HTMLAnchorElement): LinkTarget | n
     from = pos
     while (from > 0) {
       const $before = editor.state.doc.resolve(from - 1)
-      if (!$before.marks().some((m) => m.type.name === 'link' && m.attrs.href === link.attrs.href)) break
+      if (!$before.marks().some((m) => m.type.name === 'link' && m.attrs.href === link.attrs.href))
+        break
       from--
     }
     const end = editor.state.doc.content.size
     to = pos
     while (to < end) {
       const $after = editor.state.doc.resolve(to + 1)
-      if (!$after.marks().some((m) => m.type.name === 'link' && m.attrs.href === link.attrs.href)) break
+      if (!$after.marks().some((m) => m.type.name === 'link' && m.attrs.href === link.attrs.href))
+        break
       to++
     }
     to++ // resolve() points between chars; include the last char
@@ -104,7 +106,11 @@ function LinkEditModal({
         <h2>{t('linkEditTitle')}</h2>
         <label>
           {t('ribbonLinkText')}
-          <input value={linkText} onChange={(e) => setLinkText(e.target.value)} placeholder={t('ribbonLinkTextPh')} />
+          <input
+            value={linkText}
+            onChange={(e) => setLinkText(e.target.value)}
+            placeholder={t('ribbonLinkTextPh')}
+          />
         </label>
         <label>
           {t('ribbonLinkAddress')}
@@ -182,7 +188,9 @@ export function LinkTooltip({ editor }: { editor: Editor | null }) {
     if (!editor || !target) return
     const onTx = () => {
       try {
-        const marks = editor.state.doc.resolve(Math.min(target.from, editor.state.doc.content.size)).marks()
+        const marks = editor.state.doc
+          .resolve(Math.min(target.from, editor.state.doc.content.size))
+          .marks()
         if (!marks.some((m) => m.type.name === 'link')) setTarget(null)
       } catch {
         setTarget(null)
@@ -211,7 +219,12 @@ export function LinkTooltip({ editor }: { editor: Editor | null }) {
 
   const remove = useCallback(() => {
     if (!editor || !target || !editor.isEditable) return
-    editor.chain().focus().setTextSelection({ from: target.from, to: target.to }).unsetMark('link').run()
+    editor
+      .chain()
+      .focus()
+      .setTextSelection({ from: target.from, to: target.to })
+      .unsetMark('link')
+      .run()
     setTarget(null)
   }, [editor, target])
 

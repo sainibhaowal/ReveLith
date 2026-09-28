@@ -101,8 +101,16 @@ export function buildChartNode(
   // Manual title layout wins over the centered default (same edge/factor
   // semantics as the plot frame)
   const tl = model.titleLayout
-  const tx = tl ? (tl.xMode === 'edge' ? tl.x * box.w : Math.max((box.w - tw) / 2, 4) * tl.x) : Math.max((box.w - tw) / 2, 4)
-  const ty = tl ? (tl.yMode === 'edge' ? tl.y * box.h : titleSizePx * 0.3 * tl.y) : titleSizePx * 0.3
+  const tx = tl
+    ? tl.xMode === 'edge'
+      ? tl.x * box.w
+      : Math.max((box.w - tw) / 2, 4) * tl.x
+    : Math.max((box.w - tw) / 2, 4)
+  const ty = tl
+    ? tl.yMode === 'edge'
+      ? tl.y * box.h
+      : titleSizePx * 0.3 * tl.y
+    : titleSizePx * 0.3
   node.labels.push({
     text: model.title,
     x: tx,
@@ -440,16 +448,18 @@ function buildChartNodeInner(
     // Stacked columns: one bar per category, series accumulate along the value axis (positive up, negative down)
     const gap = (model.gapWidthPct ?? 150) / 100
     const barW = slotW / (1 + gap)
-    const bar3D = model.format3D ? {
-      depth: model.format3D.depth,
-      bevelTop: model.format3D.bevelTop,
-      bevelBottom: model.format3D.bevelBottom,
-      extrusionColor: model.format3D.extrusionColor,
-      contourColor: model.format3D.contourColor,
-      contourWidth: model.format3D.contourWidth,
-      surfaceLighting: model.format3D.surfaceLighting,
-      lightRig: model.format3D.lightRig,
-    } : undefined
+    const bar3D = model.format3D
+      ? {
+          depth: model.format3D.depth,
+          bevelTop: model.format3D.bevelTop,
+          bevelBottom: model.format3D.bevelBottom,
+          extrusionColor: model.format3D.extrusionColor,
+          contourColor: model.format3D.contourColor,
+          contourWidth: model.format3D.contourWidth,
+          surfaceLighting: model.format3D.surfaceLighting,
+          lightRig: model.format3D.lightRig,
+        }
+      : undefined
     for (let i = 0; i < n; i++) {
       const x = plot.x + i * slotW + (slotW - barW) / 2
       let posAcc = 0
@@ -465,7 +475,14 @@ function buildChartNodeInner(
         else negAcc = to
         const yTop = yOf(Math.max(from, to))
         const yBot = yOf(Math.min(from, to))
-        node.bars.push({ x, y: yTop, w: barW, h: Math.max(yBot - yTop, 0.5), color, format3D: bar3D })
+        node.bars.push({
+          x,
+          y: yTop,
+          w: barW,
+          h: Math.max(yBot - yTop, 0.5),
+          color,
+          format3D: bar3D,
+        })
         dLbl(x + barW / 2, (yTop + yBot) / 2 - dlSize * 0.55, ser.values[i]!, true)
       })
     }
@@ -478,16 +495,18 @@ function buildChartNodeInner(
     const base = Math.max(min, 0) // autoZero baseline; when axis min>0, bars start from the axis bottom
     barSeriesIdx.forEach((si, slot) => {
       const ser = model.series[si]!
-      const bar3D = model.format3D ? {
-        depth: model.format3D.depth,
-        bevelTop: model.format3D.bevelTop,
-        bevelBottom: model.format3D.bevelBottom,
-        extrusionColor: model.format3D.extrusionColor,
-        contourColor: model.format3D.contourColor,
-        contourWidth: model.format3D.contourWidth,
-        surfaceLighting: model.format3D.surfaceLighting,
-        lightRig: model.format3D.lightRig,
-      } : undefined
+      const bar3D = model.format3D
+        ? {
+            depth: model.format3D.depth,
+            bevelTop: model.format3D.bevelTop,
+            bevelBottom: model.format3D.bevelBottom,
+            extrusionColor: model.format3D.extrusionColor,
+            contourColor: model.format3D.contourColor,
+            contourWidth: model.format3D.contourWidth,
+            surfaceLighting: model.format3D.surfaceLighting,
+            lightRig: model.format3D.lightRig,
+          }
+        : undefined
       ser.values.forEach((v, i) => {
         if (v == null || i >= n) return
         const x = plot.x + i * slotW + (slotW - groupW) / 2 + slot * barW
@@ -694,7 +713,11 @@ function buildPieNode(
     plotH -= legendRowH
   } else if (legendPos === 'b') plotH -= legendRowH
   {
-    const manual = applyManualPlot(model.plotLayout, { x: plotX, y: plotY, w: plotW, h: plotH }, box)
+    const manual = applyManualPlot(
+      model.plotLayout,
+      { x: plotX, y: plotY, w: plotW, h: plotH },
+      box,
+    )
     plotX = manual.x
     plotY = manual.y
     plotW = manual.w
@@ -711,16 +734,18 @@ function buildPieNode(
   vals.forEach((v, i) => {
     if (v <= 0) return
     const sweep = (v / total) * 360
-    const wedge3D = model.format3D ? {
-      depth: model.format3D.depth,
-      bevelTop: model.format3D.bevelTop,
-      bevelBottom: model.format3D.bevelBottom,
-      extrusionColor: model.format3D.extrusionColor,
-      contourColor: model.format3D.contourColor,
-      contourWidth: model.format3D.contourWidth,
-      surfaceLighting: model.format3D.surfaceLighting,
-      lightRig: model.format3D.lightRig,
-    } : undefined
+    const wedge3D = model.format3D
+      ? {
+          depth: model.format3D.depth,
+          bevelTop: model.format3D.bevelTop,
+          bevelBottom: model.format3D.bevelBottom,
+          extrusionColor: model.format3D.extrusionColor,
+          contourColor: model.format3D.contourColor,
+          contourWidth: model.format3D.contourWidth,
+          surfaceLighting: model.format3D.surfaceLighting,
+          lightRig: model.format3D.lightRig,
+        }
+      : undefined
     node.wedges!.push({
       cx,
       cy,
@@ -870,21 +895,18 @@ function buildPieOfPieNode(
   let secondPieIndices: number[] = []
   if (split.type === 'position') {
     const pos = Math.max(1, Math.min(split.position ?? 1, sliceData.length - 1))
-    secondPieIndices = sliceData.slice(0, pos).map(d => d.index)
+    secondPieIndices = sliceData.slice(0, pos).map((d) => d.index)
   } else if (split.type === 'percent') {
-    secondPieIndices = sliceData.filter(d => d.percent <= (splitValue || 10)).map(d => d.index)
+    secondPieIndices = sliceData.filter((d) => d.percent <= (splitValue || 10)).map((d) => d.index)
   } else if (split.type === 'value') {
-    secondPieIndices = sliceData.filter(d => d.value <= (splitValue || 0)).map(d => d.index)
+    secondPieIndices = sliceData.filter((d) => d.value <= (splitValue || 0)).map((d) => d.index)
   } else {
     // Custom: default to smallest 3 slices
-    secondPieIndices = sliceData.slice(0, Math.min(3, sliceData.length)).map(d => d.index)
+    secondPieIndices = sliceData.slice(0, Math.min(3, sliceData.length)).map((d) => d.index)
   }
 
   // Build first pie (main pie with "Other" slice representing second pie)
-  const firstPieValues = vals.map((v, i) =>
-    secondPieIndices.includes(i) ? 0 : v
-  )
-  const firstPieTotal = firstPieValues.reduce((a, b) => a + b, 0)
+  const firstPieValues = vals.map((v, i) => (secondPieIndices.includes(i) ? 0 : v))
   const otherValue = vals.filter((_, i) => secondPieIndices.includes(i)).reduce((a, b) => a + b, 0)
 
   // Layout: two pies side by side with gap
@@ -920,7 +942,11 @@ function buildPieOfPieNode(
     plotH -= legendRowH
   } else if (legendPos === 'b') plotH -= legendRowH
   {
-    const manual = applyManualPlot(model.plotLayout, { x: plotX, y: plotY, w: plotW, h: plotH }, box)
+    const manual = applyManualPlot(
+      model.plotLayout,
+      { x: plotX, y: plotY, w: plotW, h: plotH },
+      box,
+    )
     plotX = manual.x
     plotY = manual.y
     plotW = manual.w
@@ -935,51 +961,10 @@ function buildPieOfPieNode(
   const mainPieX = plotX
   const secondPieX = plotX + mainPieW + gapPx
 
-  // Helper to create wedges for a pie
-  const createWedges = (
-    values: number[],
-    cx: number,
-    cy: number,
-    outerR: number,
-    innerR: number,
-    startAngleOffset: number,
-    colors: number[],
-  ) => {
-    let angle = -90 + startAngleOffset
-    const valTotal = values.reduce((a, b) => a + b, 0)
-    if (valTotal <= 0) return
-    values.forEach((v, i) => {
-      if (v <= 0) return
-      const sweep = (v / valTotal) * 360
-      node.wedges!.push({
-        cx,
-        cy,
-        outerR,
-        innerR,
-        startDeg: angle,
-        sweepDeg: sweep,
-        color: sliceColor(colors[i]),
-      })
-      if (model.dataLabels) {
-        const midRad = ((angle + sweep / 2) * Math.PI) / 180
-        const r = innerR > 0 ? (innerR + outerR) / 2 : outerR * 0.66
-        const text = model.dataLabelsPct ? `${Math.round((v / valTotal) * 100)}%` : fmtNum(v)
-        node.labels.push({
-          text,
-          x: cx + Math.cos(midRad) * r - measure(text) / 2,
-          y: cy + Math.sin(midRad) * r - labelSizePx * 0.55,
-          fontSizePx: labelSizePx * 0.9,
-          color: '#FFFFFF',
-        })
-      }
-      angle += sweep
-    })
-  }
-
   // Main pie (left) - includes "Other" slice
   const mainPieVals = [...firstPieValues]
   if (otherValue > 0) mainPieVals.push(otherValue)
-  const mainPieColors = [...vals.map((_, i) => i).filter(i => !secondPieIndices.includes(i))]
+  const mainPieColors = [...vals.map((_, i) => i).filter((i) => !secondPieIndices.includes(i))]
   if (otherValue > 0) mainPieColors.push(-1) // -1 marks "Other"
 
   const mainOuterR = Math.max(Math.min(mainPieW, pieH) / 2, 5)
@@ -1018,7 +1003,7 @@ function buildPieOfPieNode(
   })
 
   // Second pie (right) - expanded small slices
-  const secondPieVals = secondPieIndices.map(i => vals[i])
+  const secondPieVals = secondPieIndices.map((i) => vals[i])
   const secondPieColors = secondPieIndices
   const secondOuterR = Math.max(Math.min(secondPieW, pieH) / 2, 5)
   const secondCx = secondPieX + secondPieW / 2
@@ -1060,8 +1045,8 @@ function buildPieOfPieNode(
   if (otherValue > 0 && secondValTotal > 0) {
     // Find the angle of the "Other" wedge in main pie (last wedge)
     // Approximate: the last wedge in main pie is "Other"
-    const otherStartDeg = angle - ((otherValue / mainValTotal) * 360)
-    const otherMidRad = ((otherStartDeg + (otherValue / mainValTotal) * 360 / 2) * Math.PI) / 180
+    const otherStartDeg = angle - (otherValue / mainValTotal) * 360
+    const otherMidRad = ((otherStartDeg + ((otherValue / mainValTotal) * 360) / 2) * Math.PI) / 180
 
     // Connect from main pie outer edge to second pie outer edge
     const x1 = mainCx + Math.cos(otherMidRad) * mainOuterR
@@ -1112,7 +1097,7 @@ function buildPieOfPieNode(
       const origin = legendOrigin(
         model.legendLayout,
         legendPos === 'l' ? pad : box.w - sideLegendW,
-        Math.max((plotY + pieH / 2) - (legendItems.length * legendRowH) / 2, pad),
+        Math.max(plotY + pieH / 2 - (legendItems.length * legendRowH) / 2, pad),
         box,
       )
       const placed = layoutLegendFlow(itemWs, labelWs, origin.x, sw, legendRtl)
@@ -1138,12 +1123,6 @@ function buildPieOfPieNode(
   }
 
   return node
-}
-
-// Helper to map slice index to color
-const sliceColor = (i: number): string => {
-  if (i < 0) return '#CCCCCC'
-  return PALETTE[i % PALETTE.length]!
 }
 
 // ── Horizontal bars (barDir='bar': categories on the y axis, values on the x axis) ──
@@ -1863,7 +1842,7 @@ function ppTicks(
 ): { min: number; max: number; ticks: number[]; isLog: boolean } {
   if (logBase && logBase > 1) {
     // Logarithmic axis: work in log space
-    let lo = rawMin > 0 ? rawMin : 1 // log scale requires positive values
+    const lo = rawMin > 0 ? rawMin : 1 // log scale requires positive values
     let hi = rawMax > 0 ? rawMax : lo * logBase
     if (hi <= lo) hi = lo * logBase
 

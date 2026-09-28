@@ -320,6 +320,35 @@ export function App() {
     return () => window.clearTimeout(t)
   }, [status])
   const [showThumbs, setShowThumbs] = useState(true)
+  const [aiDockSide, setAiDockSide] = useState<'left' | 'right'>(() => {
+    try {
+      return (localStorage.getItem('revelith.aiPanelDock') as 'left' | 'right') || 'left'
+    } catch {
+      return 'left'
+    }
+  })
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (
+        e.data?.type === 'ai-dock-change' &&
+        (e.data.side === 'left' || e.data.side === 'right')
+      ) {
+        setAiDockSide(e.data.side)
+      }
+    }
+    const onCustom = (e: Event) => {
+      const side = (e as CustomEvent).detail?.side
+      if (side === 'left' || side === 'right') setAiDockSide(side)
+    }
+    window.addEventListener('message', onMsg)
+    window.addEventListener('revelith-ai-dock-changed', onCustom)
+    return () => {
+      window.removeEventListener('message', onMsg)
+      window.removeEventListener('revelith-ai-dock-changed', onCustom)
+    }
+  }, [])
+
   // ── Thumbnail sidebar width (drag the divider to resize; persisted) ─────────
   const [thumbsW, setThumbsW] = useState(loadThumbsW)
   const thumbsListRef = useRef<HTMLDivElement | null>(null)
@@ -2443,7 +2472,7 @@ export function App() {
         onFindReplace={() => setFindOpen(true)}
         curBodyPrVert={
           selectedNode && (selectedNode.type === 'shape' || selectedNode.type === 'text')
-            ? (selectedNode as ShapeRenderNode).text?.vert ?? 'horz'
+            ? ((selectedNode as ShapeRenderNode).text?.vert ?? 'horz')
             : null
         }
         onBodyPrVertToggle={(vert) => {
@@ -2624,7 +2653,9 @@ export function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>⚠️</span>
             <span>
-              Missing font(s) detected: <strong>{missingFonts.map((f) => f.family).join(', ')}</strong> (substituting with {missingFonts.map((f) => f.substitute).join(', ')})
+              Missing font(s) detected:{' '}
+              <strong>{missingFonts.map((f) => f.family).join(', ')}</strong> (substituting with{' '}
+              {missingFonts.map((f) => f.substitute).join(', ')})
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2659,7 +2690,7 @@ export function App() {
         </div>
       )}
 
-      <div className="app-main">
+      <div className={`app-main${aiDockSide === 'right' ? ' ai-dock-right' : ''}`}>
         {slide && viewMode !== 'reading' && viewMode !== 'sorter' && (
           <div className={`ai-dock${showAi && aiSettings ? '' : ' collapsed'}`}>
             {/* always mounted once settings load: collapse must not drop state or in-flight runs */}
@@ -3543,11 +3574,15 @@ export function App() {
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
             <h3>Install Font: {fontInstallTarget.family}</h3>
             <p style={{ margin: '8px 0', fontSize: '0.88rem', color: '#666' }}>
-              This presentation uses <strong>{fontInstallTarget.family}</strong> ({fontInstallTarget.occurrences} occurrence(s)).
-              {fontInstallTarget.substitute ? ` Currently falling back to ${fontInstallTarget.substitute}.` : ''}
+              This presentation uses <strong>{fontInstallTarget.family}</strong> (
+              {fontInstallTarget.occurrences} occurrence(s)).
+              {fontInstallTarget.substitute
+                ? ` Currently falling back to ${fontInstallTarget.substitute}.`
+                : ''}
             </p>
             <p style={{ margin: '8px 0', fontSize: '0.85rem' }}>
-              Select a font file (<code>.ttf</code>, <code>.otf</code>, or <code>.woff2</code>) to install it directly into your OS user fonts:
+              Select a font file (<code>.ttf</code>, <code>.otf</code>, or <code>.woff2</code>) to
+              install it directly into your OS user fonts:
             </p>
             <div style={{ margin: '12px 0' }}>
               <input
@@ -3578,7 +3613,10 @@ export function App() {
                 }}
               />
             </div>
-            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div
+              className="modal-actions"
+              style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}
+            >
               <button onClick={() => setFontInstallTarget(null)}>{t('appSettingsCancel')}</button>
             </div>
           </div>

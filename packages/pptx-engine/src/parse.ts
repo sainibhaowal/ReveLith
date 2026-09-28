@@ -272,8 +272,8 @@ function parseSpShape(
   let stroke = parseStroke(spPr, ctx)
   let shadow = parseShadow(spPr, ctx)
   let glow = parseGlow(spPr, ctx)
-  let softEdge = parseSoftEdge(spPr)
-  let reflection = parseReflection(spPr)
+  const softEdge = parseSoftEdge(spPr)
+  const reflection = parseReflection(spPr)
 
   // <p:style> theme style reference fallback: when spPr has no explicit value, take the
   // fmtScheme template by idx (fillStyleLst/lnStyleLst/effectStyleLst) with phClr
@@ -1199,10 +1199,15 @@ function parseParagraph(
   const spaceAfter = aftNode ? spcPts(aftNode) : dflt?.spaceAfter
   const spaceAfterPct = aftNode ? spcPct(aftNode) : dflt?.spaceAfterPct
 
-  // Bullets: buNone / buChar / buAutoNum (color from buClr, defaults to the run text color)
+  // Bullets: buNone / buChar / buAutoNum / buBlip picture bullets
   let bullet: Paragraph['bullet']
   if (pPr['a:buNone'] !== undefined) bullet = { type: 'none' }
-  else if (pPr['a:buChar']?.['@_char'] != null) {
+  else if (pPr['a:buBlip'] !== undefined) {
+    bullet = { type: 'picture' }
+    const blip = pPr['a:buBlip']?.['a:blip'] as Record<string, unknown> | undefined
+    const embed = (blip?.['@_r:embed'] ?? blip?.['@_embed']) as string | undefined
+    if (embed) (bullet as { embed?: string }).embed = String(embed)
+  } else if (pPr['a:buChar']?.['@_char'] != null) {
     bullet = { type: 'char', char: decodeCharRefs(String(pPr['a:buChar']['@_char'])) }
   } else if (pPr['a:buAutoNum']) {
     bullet = { type: 'number' }
@@ -1245,9 +1250,7 @@ function parseParagraph(
   return {
     runs,
     align: pPr['@_algn'] ? alignMap[pPr['@_algn']] : dflt?.align,
-    ...(pPr['@_rtl'] != null
-      ? { rtl: pPr['@_rtl'] === '1' || pPr['@_rtl'] === 'true' }
-      : {}),
+    ...(pPr['@_rtl'] != null ? { rtl: pPr['@_rtl'] === '1' || pPr['@_rtl'] === 'true' } : {}),
     level,
     pPrExplicit,
     ...(lineHeight != null ? { lineHeight } : {}),

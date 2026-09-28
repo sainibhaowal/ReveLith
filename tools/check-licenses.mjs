@@ -27,12 +27,22 @@ const ALLOWED = new Set([
   'Python-2.0',
   'Unicode-3.0',
   'OFL-1.1',
+  // Weak-copyleft layout engine shipped as an unmodified npm bundle
+  // (mermaid -> elkjs); EPL-2.0 requires source notice for the module
+  // itself, not the whole app.
+  'EPL-2.0',
 ])
 
 /** Packages whose published package.json lacks a license field; license
  * verified manually against the LICENSE file shipped in the package. */
 const EXCEPTIONS = {
   '@univerjs/telemetry': 'Apache-2.0',
+  // Published without a license field; verified manually:
+  // khroma ships an MIT LICENSE file (Fabio Spampinato).
+  khroma: 'MIT',
+  // Substack's 2011 buffers package predates license metadata;
+  // classic MIT/X11 Substack license, tiny Buffer helper via exceljs.
+  buffers: 'MIT',
 }
 
 /** Minimal SPDX expression check: OR passes if any branch is allowed,

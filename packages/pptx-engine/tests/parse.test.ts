@@ -723,3 +723,36 @@ describe('master txStyles paragraph spacing inheritance (real template fixture)'
     expect(byPh('ctrTitle')?.spaceBeforePct).toBe(0)
   })
 })
+
+describe('single-quoted attributes and preset colors', () => {
+  it('parses single-quoted attributes correctly in slide shapes', () => {
+    const slideXml =
+      '<?xml version="1.0"?><p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+      'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      '<p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>' +
+      "<p:sp><p:nvSpPr><p:cNvPr id='42' name='Box'/><p:cNvSpPr/></p:nvSpPr>" +
+      "<p:spPr><a:xfrm><a:off x='100' y='200'/><a:ext cx='300' cy='400'/></a:xfrm></p:spPr>" +
+      "<p:txBody><a:bodyPr/><a:p><a:r><a:rPr b='1' sz='1800'/><a:t>SingleQuoted</a:t></a:r></a:p></p:txBody>" +
+      '</p:sp></p:spTree></p:cSld></p:sld>'
+    const slide = parseSlide({
+      path: 'ppt/slides/slide1.xml',
+      slideXml,
+      ctx: {},
+    })
+    const el = slide.elements[0] as any
+    expect(el).toBeDefined()
+    expect(el.text?.paragraphs[0]?.runs[0]?.text).toBe('SingleQuoted')
+    expect(el.text?.paragraphs[0]?.runs[0]?.bold).toBe(true)
+    expect(el.text?.paragraphs[0]?.runs[0]?.fontSize).toBe(18)
+    expect(el.transform?.offset?.x).toBe(100)
+    expect(el.transform?.offset?.y).toBe(200)
+  })
+
+  it('resolves preset colors case-insensitively', async () => {
+    const { resolveColorNode } = await import('../src/color')
+    expect(resolveColorNode({ 'a:prstClr': { '@_val': 'RED' } }, undefined)).toBe('#FF0000')
+    expect(resolveColorNode({ 'a:prstClr': { '@_val': 'darkBlue' } }, undefined)).toBe('#00008B')
+    expect(resolveColorNode({ 'a:prstClr': { '@_val': 'White' } }, undefined)).toBe('#FFFFFF')
+    expect(resolveColorNode({ 'a:prstClr': { '@_val': 'BLACK' } }, undefined)).toBe('#000000')
+  })
+})

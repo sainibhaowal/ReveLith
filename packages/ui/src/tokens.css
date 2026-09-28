@@ -35,6 +35,8 @@
   --danger-border: #f0c8c9;
   --color-bg-overlay: rgb(0 0 0 / 50%);
   --shadow-modal-strong: 0 20px 25px rgb(0 0 0 / 10%);
+  --shadow-dropdown: 0 8px 24px rgb(0 0 0 / 15%), 0 2px 6px rgb(0 0 0 / 6%);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 10%);
 
   /* AI panel (canonical names from the former per-app copies) */
   --gs-font-sans:
@@ -98,6 +100,8 @@
   --danger-border: #5a3030;
   --color-bg-overlay: rgb(0 0 0 / 60%);
   --shadow-modal-strong: 0 20px 25px rgb(0 0 0 / 30%);
+  --shadow-dropdown: 0 8px 24px rgb(0 0 0 / 45%);
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 40%);
 
   --color-btn-primary: #e4e4e4;
   --color-btn-primary-hover: #d0d0d0;
@@ -145,6 +149,8 @@
     --danger-border: #5a3030;
     --color-bg-overlay: rgb(0 0 0 / 60%);
     --shadow-modal-strong: 0 20px 25px rgb(0 0 0 / 30%);
+    --shadow-dropdown: 0 8px 24px rgb(0 0 0 / 45%);
+    --shadow-card: 0 1px 3px rgb(0 0 0 / 40%);
 
     --color-btn-primary: #e4e4e4;
     --color-btn-primary-hover: #d0d0d0;

@@ -9,6 +9,7 @@ export type AiProviderId =
   | 'openai'
   | 'opencode-zen'
   | 'codex-app-server'
+  | 'opper'
   | 'custom'
 
 export interface AiProviderConfig {
@@ -16,6 +17,8 @@ export interface AiProviderConfig {
   model: string
   /** used by custom/local providers and codex-app-server */
   baseUrl?: string | undefined
+  /** OpenCode session affinity header (x-opencode-session) */
+  sessionId?: string | undefined
 }
 
 export interface AiProviderMeta {

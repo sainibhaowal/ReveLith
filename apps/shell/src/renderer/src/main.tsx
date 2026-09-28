@@ -15,9 +15,13 @@ installScreenTips()
 // editor views' translucent regions (e.g. slides thumbnail pane) show it
 if (navigator.platform.toLowerCase().includes('mac')) document.body.classList.add('vib')
 
-let mockTabs: Array<{ id: string; title: string; kind: string; active: boolean; closable: boolean }> = [
-  { id: 'home', title: 'ReveLith', kind: 'home', active: true, closable: false },
-]
+let mockTabs: Array<{
+  id: string
+  title: string
+  kind: string
+  active: boolean
+  closable: boolean
+}> = [{ id: 'home', title: 'ReveLith', kind: 'home', active: true, closable: false }]
 let mockTabListeners: Array<(tabs: typeof mockTabs) => void> = []
 
 function updateMockTabs(next: typeof mockTabs) {
@@ -69,7 +73,9 @@ if (!window.aiOffice) {
     getAiSettings: async () => {
       const stored = localStorage.getItem('revelith.aiSettings')
       if (stored) {
-        try { return JSON.parse(stored) } catch {}
+        try {
+          return JSON.parse(stored)
+        } catch {}
       }
       return {
         provider: 'ollama',
@@ -80,8 +86,8 @@ if (!window.aiOffice) {
           anthropic: { apiKey: '', model: 'claude-sonnet-4-6' },
           gemini: { apiKey: '', model: 'gemini-2.5-flash' },
           deepseek: { apiKey: '', model: 'deepseek-chat' },
-          custom: { apiKey: '', model: '', baseUrl: 'http://localhost:8080/v1' }
-        }
+          custom: { apiKey: '', model: '', baseUrl: 'http://localhost:8080/v1' },
+        },
       }
     },
     setAiSettings: async (settings: any) => {
@@ -91,6 +97,9 @@ if (!window.aiOffice) {
     getDefaultSaveDir: async () => '',
     pickDefaultSaveDir: async () => null,
     openCommunity: async () => {},
+    listSaveFolders: async () => [],
+    createSaveFolder: async () => false,
+    openPathInExplorer: async () => {},
   } as any
 }
 
@@ -98,7 +107,12 @@ if (!window.aiOfficeProject) {
   window.aiOfficeProject = {
     listProjects: async () => [],
     listFiles: async () => [],
-    createProject: async () => ({ id: '1', name: 'Demo Project', fileCount: 0, updatedAt: Date.now() }),
+    createProject: async () => ({
+      id: '1',
+      name: 'Demo Project',
+      fileCount: 0,
+      updatedAt: Date.now(),
+    }),
     renameProject: async () => {},
     deleteProject: async () => {},
     moveFile: async () => {},
@@ -114,7 +128,7 @@ if (!window.aiOfficeTabs) {
     },
     close: async (id: string) => {
       if (id === 'home') return
-      let next = mockTabs.filter((t) => t.id !== id)
+      const next = mockTabs.filter((t) => t.id !== id)
       if (!next.some((t) => t.active) && next.length > 0) {
         next[0].active = true
       }

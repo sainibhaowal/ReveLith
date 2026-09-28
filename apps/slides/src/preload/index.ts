@@ -25,7 +25,6 @@ import type {
   EditTableCellOp,
   EditTableStyleOp,
   SetTableRtlOp,
-  SetBodyPrRtlColOp,
   EditChartOp,
   EditPictureSrcRectOp,
   EditPictureOpacityOp,

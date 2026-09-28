@@ -58,9 +58,27 @@ describe('resolveAiSettings', () => {
       defaults,
     )
     expect(resolved.provider).toBe('gemini')
-    expect(resolved.providers.gemini).toEqual({ apiKey: 'stored-gemini-key', model: 'gemini-2.5-pro' })
+    expect(resolved.providers.gemini).toEqual({
+      apiKey: 'stored-gemini-key',
+      model: 'gemini-2.5-pro',
+    })
     // provider not mentioned in stored.providers keeps the computed default
     expect(resolved.providers.anthropic.apiKey).toBe('preset-key')
   })
 
+  it('supports DeepSeek V4.1 Flash, gpt-6-astra, and Opper provider', () => {
+    const deepseek = AI_PROVIDERS.find((p) => p.id === 'deepseek')
+    expect(deepseek?.models).toContain('deepseek-v4.1-flash')
+    expect(deepseek?.defaultModel).toBe('deepseek-v4.1-flash')
+
+    const openai = AI_PROVIDERS.find((p) => p.id === 'openai')
+    expect(openai?.models).toContain('gpt-6-astra')
+
+    const opper = AI_PROVIDERS.find((p) => p.id === 'opper')
+    expect(opper).toBeDefined()
+    expect(opper?.defaultModel).toBe('opper-default')
+
+    const defaults = defaultAiSettings()
+    expect(defaults.providers.opper.baseUrl).toBe('https://api.opper.ai/v1')
+  })
 })

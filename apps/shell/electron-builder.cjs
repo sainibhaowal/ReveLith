@@ -14,7 +14,6 @@
  * app-update.yml into the app and in-app auto-update stays disabled.
  */
 
-const { execFileSync } = require('node:child_process')
 const { existsSync } = require('node:fs')
 const { join } = require('node:path')
 
@@ -44,55 +43,6 @@ for (const rel of [
     throw new Error(
       `electron-builder extraResources source missing: ${rel} (npm hoisting changed?)`,
     )
-  }
-}
-
-// The module trees are electron-vite outputs produced by build:all; a missing
-// one means that module's build did not run or failed. electron-builder only
-// logs "file source doesn't exist" for an absent extraResources source and
-// still exits 0, so without this the installer launches normally and is simply
-// missing that editor : it surfaces only when a user opens the tab.
-//
-// Runs from the beforePack hook, not at module load: gen-third-party-notices
-// requires this config to read extraResources, and the dist:* scripts run
-// notices before build:all, when the out dirs legitimately don't exist yet.
-// When the mac build packages BOTH arches (REVELITH_MAC_X64=1) its
-// extraResources entry is a single path shared by the two packs, so the
-// sidecar there must be a lipo fat binary : a host-arch-only build (the plain
-// `native:build` dev path) would silently ship an arm64 sidecar inside the
-// Intel dmg, where every workbook open fails. Runs from beforePack, dual-arch
-// mac packs only.
-function assertUniversalSidecar() {
-  const sidecar = join(__dirname, '../sheets/native/xlsx-engine/target/release/xlsx-sidecar')
-  if (!existsSync(sidecar)) {
-    throw new Error(
-      `mac extraResources source missing: ${sidecar} (run "npm run native:build:universal -w @revelith/sheets" first)`,
-    )
-  }
-  const archs = execFileSync('lipo', ['-archs', sidecar], { encoding: 'utf8' }).trim().split(/\s+/)
-  for (const want of ['x86_64', 'arm64']) {
-    if (!archs.includes(want)) {
-      throw new Error(
-        `xlsx-sidecar is [${archs.join(', ')}] but both mac arch packages ship it : ` +
-          'run "npm run native:build:universal -w @revelith/sheets" before packaging mac',
-      )
-    }
-  }
-}
-
-function assertModuleTreesPresent() {
-  for (const rel of [
-    '../docs/out',
-    '../sheets/out',
-    '../slides/out',
-    '../pdf/out',
-    '../markdown/out',
-  ]) {
-    if (!existsSync(join(__dirname, rel))) {
-      throw new Error(
-        `electron-builder extraResources source missing: ${rel} (run npm run build:all first)`,
-      )
-    }
   }
 }
 
@@ -220,7 +170,7 @@ const config = {
     // electron-builder's default arch-less names (Revelith-<v>.dmg /
     // Revelith-<v>-mac.zip). Both zips land in one latest-mac.yml and
     // electron-updater picks by process.arch. Dual-arch packs ship the same
-    // lipo fat xlsx-sidecar (see assertUniversalSidecar above).
+    // lipo fat xlsx-sidecar.
     target: [
       { target: 'dmg', arch: includeMacX64 ? ['arm64', 'x64'] : ['arm64'] },
       { target: 'zip', arch: includeMacX64 ? ['arm64', 'x64'] : ['arm64'] },
@@ -266,9 +216,19 @@ const config = {
     rfc3161TimeStampServer: 'http://timestamp.digicert.com',
     extraResources: [
       {
-        from: existsSync(join(__dirname, '../sheets/native/xlsx-engine/target/aarch64-pc-windows-msvc/release/xlsx-sidecar.exe'))
+        from: existsSync(
+          join(
+            __dirname,
+            '../sheets/native/xlsx-engine/target/aarch64-pc-windows-msvc/release/xlsx-sidecar.exe',
+          ),
+        )
           ? '../sheets/native/xlsx-engine/target/aarch64-pc-windows-msvc/release/xlsx-sidecar.exe'
-          : existsSync(join(__dirname, '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe'))
+          : existsSync(
+                join(
+                  __dirname,
+                  '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe',
+                ),
+              )
             ? '../sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe'
             : '../sheets/native/xlsx-engine/target/release/xlsx-sidecar.exe',
         to: 'native/xlsx-sidecar.exe',

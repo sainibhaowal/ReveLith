@@ -250,6 +250,7 @@ import { installPopulatedDataValidationArrow } from './data-validation-arrow'
 import { installFormulaNullResultFix } from './formula-null-result'
 import { installNumberFormatFix } from './numfmt-fix'
 import { installRateFallback } from './rate-function'
+import { installSubmenuFix } from './submenu-fix'
 import {
   handleRibbonCommand as handleRibbonCommandImpl,
   type RibbonCommandContext,
@@ -363,7 +364,8 @@ export function App(): React.JSX.Element {
       if (lazyWorkbookRef.current) return true
       const workbook = univerRef.current?.univerAPI.getActiveWorkbook()
       if (!workbook) return false
-      const snapshot = typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
+      const snapshot =
+        typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
       for (const sheet of Object.values(snapshot.sheets ?? {})) {
         for (const row of Object.values(sheet.cellData ?? {})) {
           for (const cell of Object.values(row ?? {}) as (ICellData | null | undefined)[]) {
@@ -1137,8 +1139,7 @@ export function App(): React.JSX.Element {
     if (!runtime || !workbook) return 'The workbook is not ready.'
     try {
       const target =
-        (sheetId ? workbook.getSheetBySheetId(sheetId) : undefined) ??
-        workbook.getActiveSheet()
+        (sheetId ? workbook.getSheetBySheetId(sheetId) : undefined) ?? workbook.getActiveSheet()
       if (!target) return 'The workbook is not ready.'
       // A jump must not leave an editor open on the previous cell (same
       // guard as the manual go-to flow); later keystrokes would land there.
@@ -1164,8 +1165,9 @@ export function App(): React.JSX.Element {
     const target = parseSheetNavHref(href)
     if (!target) return
     const sheetId = target.sheetName
-      ? getActiveSheetInfo()
-          .sheets.find((sheet) => sheet.name.toLowerCase() === target.sheetName!.toLowerCase())?.id
+      ? getActiveSheetInfo().sheets.find(
+          (sheet) => sheet.name.toLowerCase() === target.sheetName!.toLowerCase(),
+        )?.id
       : undefined
     if (target.sheetName && !sheetId) {
       setMessage(t('appGoToUnresolved', { ref: target.sheetName }))
@@ -1279,6 +1281,7 @@ export function App(): React.JSX.Element {
     })
     loadSnapshotIntoUniver(runtime, initialSnapshot, 'new-workbook', 'Untitled')
     univerRef.current = runtime
+    ;(window as any).__univerRuntime = runtime
     // live theme switching: main.tsx updates data-theme first (its listener
     // registered at bootstrap), so reading the attribute here is safe; the
     // matchMedia listener covers OS appearance flips while in system mode
@@ -1389,6 +1392,8 @@ export function App(): React.JSX.Element {
     // Rule-management panels show what each rule actually does: list options /
     // source range, CF formula text, ⚠ on #REF! dead rules.
     const ruleDetailDisposable = installRuleDetail(runtime)
+    const submenuFixDisposable = installSubmenuFix()
+    let scrollRaf = 0
     const scrollDisposable = runtime.univerAPI.addEvent(
       runtime.univerAPI.Event.Scroll,
       (params) => {
@@ -1396,46 +1401,49 @@ export function App(): React.JSX.Element {
         // The event carries the true post-scroll position; getVisibleRange
         // inside loadVisibleRange lags a frame.
         const eventStart = params as { sheetViewStartRow?: number; sheetViewStartColumn?: number }
-        void loadVisibleRange(
-          runtime,
-          lazyWorkbookRef,
-          worksheet,
-          setMessage,
-          typeof eventStart.sheetViewStartRow === 'number' &&
-            typeof eventStart.sheetViewStartColumn === 'number'
-            ? { row: eventStart.sheetViewStartRow, column: eventStart.sheetViewStartColumn }
-            : undefined,
-        )
-        let visible: ReturnType<typeof worksheet.getVisibleRange>
-        try {
-          visible = worksheet.getVisibleRange()
-        } catch {
-          // The lazy loader falls back to the top-left viewport while Univer
-          // replaces its scroll controller; visual installation can wait.
-          return
-        }
-        const viewportKey = visible
-          ? `${worksheet.getSheetId()}:${visible.startRow}:${visible.endRow}:${visible.startColumn}:${visible.endColumn}`
-          : worksheet.getSheetId()
-        if (visualViewportKeyRef.current === viewportKey) return
-        visualViewportKeyRef.current = viewportKey
-        queueVisualInstall(
-          runtime,
-          lazyWorkbookRef,
-          visualDisposablesRef,
-          visualInstallTimerRef,
-          worksheet.getSheetId(),
-          chartEditRef,
-          chartVectorRef,
-          shapeEditRef,
-        )
-        queueSparklineInstall(
-          runtime,
-          lazyWorkbookRef,
-          sparklineDisposablesRef,
-          sparklineTimerRef,
-          worksheet.getSheetId(),
-        )
+        if (scrollRaf) cancelAnimationFrame(scrollRaf)
+        scrollRaf = requestAnimationFrame(() => {
+          void loadVisibleRange(
+            runtime,
+            lazyWorkbookRef,
+            worksheet,
+            setMessage,
+            typeof eventStart.sheetViewStartRow === 'number' &&
+              typeof eventStart.sheetViewStartColumn === 'number'
+              ? { row: eventStart.sheetViewStartRow, column: eventStart.sheetViewStartColumn }
+              : undefined,
+          )
+          let visible: ReturnType<typeof worksheet.getVisibleRange>
+          try {
+            visible = worksheet.getVisibleRange()
+          } catch {
+            // The lazy loader falls back to the top-left viewport while Univer
+            // replaces its scroll controller; visual installation can wait.
+            return
+          }
+          const viewportKey = visible
+            ? `${worksheet.getSheetId()}:${visible.startRow}:${visible.endRow}:${visible.startColumn}:${visible.endColumn}`
+            : worksheet.getSheetId()
+          if (visualViewportKeyRef.current === viewportKey) return
+          visualViewportKeyRef.current = viewportKey
+          queueVisualInstall(
+            runtime,
+            lazyWorkbookRef,
+            visualDisposablesRef,
+            visualInstallTimerRef,
+            worksheet.getSheetId(),
+            chartEditRef,
+            chartVectorRef,
+            shapeEditRef,
+          )
+          queueSparklineInstall(
+            runtime,
+            lazyWorkbookRef,
+            sparklineDisposablesRef,
+            sparklineTimerRef,
+            worksheet.getSheetId(),
+          )
+        })
       },
     )
     const zoomDisposable = runtime.univerAPI.addEvent(
@@ -2090,15 +2098,6 @@ export function App(): React.JSX.Element {
           const subUnitId =
             (event.params as { subUnitId?: string } | undefined)?.subUnitId ??
             runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSheetId()
-          const isAddedSheet =
-            subUnitId !== undefined && state.editJournal.sheets.added.has(subUnitId)
-          // The Univer-side copy clones the model, so a partially streamed
-          // source would produce a copy with silently missing data.
-          if (!isAddedSheet && (!state.formulaMode || !state.flags.preloadComplete)) {
-            event.cancel = true
-            setMessage(t('appDuplicateNeedsFullLoad'))
-            return
-          }
           const sheet = state.file.sheets.find((candidate) => candidate.id === subUnitId)
           if (sheet && sheet.pivotRanges.length > 0) {
             event.cancel = true
@@ -2207,6 +2206,8 @@ export function App(): React.JSX.Element {
       findReplaceGridFixDisposable.dispose()
       dataValidationArrowDisposable.dispose()
       ruleDetailDisposable()
+      submenuFixDisposable.dispose()
+      if (scrollRaf) cancelAnimationFrame(scrollRaf)
       scrollDisposable.dispose()
       zoomDisposable.dispose()
       editStartDisposable.dispose()
@@ -2231,6 +2232,9 @@ export function App(): React.JSX.Element {
       }
       runtime.univer.dispose()
       univerRef.current = null
+      try {
+        delete (window as any).__univerRuntime
+      } catch {}
     }
   }, [])
 
@@ -3323,7 +3327,8 @@ export function App(): React.JSX.Element {
           setGridSelection(null)
         }}
         onCitation={handleCitation}
-        canUndo={lazyWorkbookRef.current ? univerHist.canUndo : adapterRef.current.canUndo}        canRedo={univerHist.canRedo}
+        canUndo={lazyWorkbookRef.current ? univerHist.canUndo : adapterRef.current.canUndo}
+        canRedo={univerHist.canRedo}
         onCommand={handleRibbonCommand}
         zoomPercent={zoomPercent}
         canSave={pendingEdits > 0}

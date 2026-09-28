@@ -1,4 +1,4 @@
-﻿/**
+/**
  * File actions extracted from App.tsx: save / save-as, image & PDF
  * export, and printing. Each function takes the ActionCtx built fresh per call.
  */
@@ -122,11 +122,51 @@ export async function exportPdf(ctx: ActionCtx): Promise<void> {
   ctx.setStatus(t('appExportPdfProgress'))
   try {
     const pngs = await renderSlidesToPngBase64(visible, ctx.images)
+    const links = visible.map((s) => {
+      const list: Array<{ url: string; xPct: number; yPct: number; wPct: number; hPct: number }> =
+        []
+      const w = s.widthPx || 1280
+      const h = s.heightPx || 720
+      for (const node of s.nodes) {
+        const box = (node as any).box
+        if (!box) continue
+        const directLink = (node as any).hyperlink || (node as any).url
+        if (typeof directLink === 'string' && directLink) {
+          list.push({
+            url: directLink,
+            xPct: (box.x / w) * 100,
+            yPct: (box.y / h) * 100,
+            wPct: (box.w / w) * 100,
+            hPct: (box.h / h) * 100,
+          })
+        }
+        const textObj = (node as any).text
+        if (textObj?.paragraphs) {
+          for (const p of textObj.paragraphs) {
+            if (p.runs) {
+              for (const run of p.runs) {
+                if (run.hyperlink) {
+                  list.push({
+                    url: run.hyperlink,
+                    xPct: (box.x / w) * 100,
+                    yPct: (box.y / h) * 100,
+                    wPct: (box.w / w) * 100,
+                    hPct: (box.h / h) * 100,
+                  })
+                }
+              }
+            }
+          }
+        }
+      }
+      return list
+    })
     const r = await window.slidesApi.exportPdf({
       filePath: target,
       pngsBase64: pngs,
       widthPx: visible[0].widthPx,
       heightPx: visible[0].heightPx,
+      links,
     })
     ctx.setStatus(
       r.ok

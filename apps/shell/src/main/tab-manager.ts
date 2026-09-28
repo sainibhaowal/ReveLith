@@ -15,11 +15,7 @@ import {
   markdownIsDirty,
   requestMarkdownClose,
 } from '../../../markdown/src/main/markdown-main'
-import {
-  createHtmlView,
-  htmlIsDirty,
-  requestHtmlCloseSave,
-} from '../../../html/src/main/html-main'
+import { createHtmlView, htmlIsDirty, requestHtmlCloseSave } from '../../../html/src/main/html-main'
 import { createPdfView, pdfIsDirty, requestPdfClose } from '../../../pdf/src/main/pdf-main'
 import {
   createSheetsView,
@@ -130,6 +126,10 @@ export class TabManager {
       closable: t.id !== HOME_ID,
       active: t.id === this.activeId,
     }))
+  }
+
+  getActiveTabRecord(): TabRecord | null {
+    return this.tabs.find((t) => t.id === this.activeId) ?? null
   }
 
   openHomeTab(): void {
@@ -356,11 +356,11 @@ export class TabManager {
           ? requestPdfClose
           : tab.kind === 'markdown' && markdownIsDirty(tab.view.webContents.id)
             ? requestMarkdownClose
-          : tab.kind === 'html' && htmlIsDirty(tab.view.webContents.id)
-            ? requestHtmlCloseSave
-          : tab.kind === 'slides' && slidesIsDirty(tab.view.webContents.id)
-            ? requestSlidesClose
-            : null)
+            : tab.kind === 'html' && htmlIsDirty(tab.view.webContents.id)
+              ? requestHtmlCloseSave
+              : tab.kind === 'slides' && slidesIsDirty(tab.view.webContents.id)
+                ? requestSlidesClose
+                : null)
     // docs dirty state lives in the renderer and needs an async query; skip the guard when clean (avoids a flash activation)
     if (!closeGuard && tab.kind === 'docs' && tab.view) {
       this.closingIds.add(id)

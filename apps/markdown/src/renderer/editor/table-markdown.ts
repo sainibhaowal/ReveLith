@@ -37,10 +37,7 @@ function escapeCellPipes(text: string): string {
   return text.replace(/\|/g, '\\|')
 }
 
-export function renderTableToMarkdown(
-  node: JSONContent,
-  h: MarkdownRendererHelpers,
-): string {
+export function renderTableToMarkdown(node: JSONContent, h: MarkdownRendererHelpers): string {
   if (!node || !node.content || node.content.length === 0) {
     return ''
   }
@@ -48,16 +45,16 @@ export function renderTableToMarkdown(
   // Build rows: each cell is { text, isHeader, align }
   const rows: { text: string; isHeader: boolean; align: CellAlign }[][] = []
 
-  node.content.forEach(rowNode => {
+  node.content.forEach((rowNode) => {
     const cells: { text: string; isHeader: boolean; align: CellAlign }[] = []
 
     if (rowNode.content) {
-      rowNode.content.forEach(cellNode => {
-        let raw = ''
+      rowNode.content.forEach((cellNode) => {
+        let raw: string
 
         if (cellNode.content && Array.isArray(cellNode.content) && cellNode.content.length > 1) {
           // Render each direct child separately and join with separator so we can split again later
-          const parts = cellNode.content.map(child =>
+          const parts = cellNode.content.map((child) =>
             h.renderChildren(child as unknown as JSONContent),
           )
           raw = parts.join(CELL_LINE_SEPARATOR)
@@ -96,7 +93,7 @@ export function renderTableToMarkdown(
   // Compute max width for each column
   const colWidths = Array.from<number>({ length: columnCount }).fill(0)
 
-  rows.forEach(r => {
+  rows.forEach((r) => {
     for (let i = 0; i < columnCount; i += 1) {
       const cell = r[i]?.text || ''
       const len = cell.length
@@ -113,12 +110,12 @@ export function renderTableToMarkdown(
   const pad = (s: string, width: number) => s + ' '.repeat(Math.max(0, width - s.length))
 
   const headerRow = rows[0]
-  const hasHeader = headerRow.some(c => c.isHeader)
+  const hasHeader = headerRow.some((c) => c.isHeader)
   const colAlignments: Array<CellAlign> = Array.from<CellAlign>({
     length: columnCount,
   }).fill(null)
 
-  rows.forEach(r => {
+  rows.forEach((r) => {
     for (let i = 0; i < columnCount; i += 1) {
       if (!colAlignments[i] && r[i]?.align) {
         colAlignments[i] = r[i].align
@@ -161,7 +158,7 @@ export function renderTableToMarkdown(
 
   // Body rows: if we had a header, skip the first row; otherwise render all rows
   const body = hasHeader ? rows.slice(1) : rows
-  body.forEach(r => {
+  body.forEach((r) => {
     out += `| ${Array.from<number>({ length: columnCount })
       .fill(0)
       .map((_, i) => pad((r[i] && r[i].text) || '', colWidths[i]))

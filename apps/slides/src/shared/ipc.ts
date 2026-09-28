@@ -9,11 +9,7 @@
  */
 import type { RenderSlide } from '@revelith/pptx-render'
 import type { SlideComment, SectionInfo } from '@revelith/pptx-engine'
-import type {
-  AiSettings,
-  AiStreamChunk,
-  AiStreamRequest,
-} from '@revelith/ai-provider'
+import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@revelith/ai-provider'
 
 export type { SlideComment, SectionInfo } from '@revelith/pptx-engine'
 
@@ -177,7 +173,8 @@ export interface SetElementParagraphFormatOp {
   slideIndex: number
   sourceIds: string[]
   /** 'char' bullet dot / 'number' numbered / 'none' explicitly none */
-  bullet?: 'char' | 'number' | 'none'  /** Custom bullet character (with bullet: 'char'; defaults to '•') */
+  bullet?:
+    'char' | 'number' | 'none' /** Custom bullet character (with bullet: 'char'; defaults to '•') */
   bulletChar?: string
   /** Bullet hanging indent (EMU); alone it adjusts existing bullets' indent */
   bulletHangEmu?: number
@@ -988,6 +985,14 @@ export interface ExportImagesResult {
   error?: string
 }
 
+export interface SlidePdfLink {
+  url: string
+  xPct: number
+  yPct: number
+  wPct: number
+  hPct: number
+}
+
 /** Export as PDF: the main process loads each page PNG in a hidden window then printToPDF. */
 export interface ExportPdfOp {
   /** Target pdf absolute path (chosen via pickExportPdfPath) */
@@ -997,6 +1002,8 @@ export interface ExportPdfOp {
   /** Rendered pixel width/height of the slide page (used to compute the PDF page aspect ratio) */
   widthPx: number
   heightPx: number
+  /** Hyperlinks per slide to overlay as clickable PDF links */
+  links?: SlidePdfLink[][]
 }
 
 export interface ExportPdfResult {
@@ -1195,7 +1202,9 @@ export interface SlidesApi {
   setVerticalText: (op: SetVerticalTextOp) => Promise<RenderSlide | null>
   setEffects: (op: SetEffectsOp) => Promise<RenderSlide | null>
   getMissingFonts: () => Promise<MissingFontInfo[]>
-  installFont: (op: InstallFontOp) => Promise<{ success: boolean; installedFamily?: string; error?: string }>
+  installFont: (
+    op: InstallFontOp,
+  ) => Promise<{ success: boolean; installedFamily?: string; error?: string }>
   /** Mirror selected elements horizontally/vertically */
   flipElements: (op: FlipElementOp) => Promise<RenderSlide | null>
   /** Returns the full affected RenderSlide array (when applied to all pages) */
@@ -1330,7 +1339,9 @@ export interface SlidesApi {
     op: EditTableStyleOp,
   ) => Promise<{ slide: RenderSlide; sourceId: string | null } | null>
   /** Table reading direction toggle; returns the updated page */
-  setTableRtl: (op: SetTableRtlOp) => Promise<{ slide: RenderSlide; sourceId: string | null } | null>
+  setTableRtl: (
+    op: SetTableRtlOp,
+  ) => Promise<{ slide: RenderSlide; sourceId: string | null } | null>
   /** Chart edit (charts created by this app, rebuilds the chart part); returns the updated page */
   /** sourceId: the chart's new element id after reparse (the renderer uses it to keep the selection), null on error */
   editChart: (op: EditChartOp) => Promise<{ slide: RenderSlide; sourceId: string | null } | null>

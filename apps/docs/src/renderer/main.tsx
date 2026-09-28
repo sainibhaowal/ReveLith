@@ -98,12 +98,16 @@ async function bootstrap(): Promise<void> {
       fontMetrics: async () => null,
       print: async () => {},
       exportPdf: async () => null,
+      exportImages: async () => ({ ok: true, files: [] }),
+      savePicture: async () => ({ ok: true }),
       printPdfBuffer: async () => null,
       saveMergedPdf: async () => null,
       getAiSettings: async () => {
         const stored = localStorage.getItem('revelith.aiSettings')
         if (stored) {
-          try { return JSON.parse(stored) } catch {}
+          try {
+            return JSON.parse(stored)
+          } catch {}
         }
         return {
           providers: {

@@ -721,7 +721,7 @@ function parseBlockquote(el: Element): PmNode | null {
 }
 
 export function markdownToSimpleHtml(md: string): string {
-  let text = md.trim()
+  const text = md.trim()
   if (!text) return ''
   if (/<(h[1-6]|p|ul|ol|li|table|div|blockquote)[^>]*>/i.test(text)) {
     return text
@@ -745,29 +745,38 @@ export function markdownToSimpleHtml(md: string): string {
     formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>')
 
     if (/^#\s+/.test(trimmed)) {
-      if (inList) { htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false }
+      if (inList) {
+        htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>')
+        inList = false
+      }
       htmlLines.push(`<h1>${formatted.replace(/^#\s+/, '')}</h1>`)
       continue
     }
     if (/^##\s+/.test(trimmed)) {
-      if (inList) { htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false }
+      if (inList) {
+        htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>')
+        inList = false
+      }
       htmlLines.push(`<h2>${formatted.replace(/^##\s+/, '')}</h2>`)
       continue
     }
     if (/^###\s+/.test(trimmed)) {
-      if (inList) { htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false }
+      if (inList) {
+        htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>')
+        inList = false
+      }
       htmlLines.push(`<h3>${formatted.replace(/^###\s+/, '')}</h3>`)
       continue
     }
 
-    if (/^[\-\*]\s+/.test(trimmed)) {
+    if (/^[-*]\s+/.test(trimmed)) {
       if (!inList || listType !== 'ul') {
         if (inList) htmlLines.push(listType === 'ul' ? '</ul>' : '</ol>')
         htmlLines.push('<ul>')
         inList = true
         listType = 'ul'
       }
-      htmlLines.push(`<li>${formatted.replace(/^[\-\*]\s+/, '')}</li>`)
+      htmlLines.push(`<li>${formatted.replace(/^[-*]\s+/, '')}</li>`)
       continue
     }
 

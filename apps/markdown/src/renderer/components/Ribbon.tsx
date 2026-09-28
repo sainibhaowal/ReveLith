@@ -35,6 +35,10 @@ interface Props {
   onToggleFrontmatter: () => void
   findOpen?: boolean
   onToggleFind?: () => void
+  spellcheck?: boolean
+  onToggleSpellcheck?: () => void
+  outlineOpen?: boolean
+  onToggleOutline?: () => void
   aiOpen: boolean
   onToggleAi: () => void
   onAiPreset: (instruction: string) => void
@@ -156,6 +160,10 @@ export function Ribbon({
   onToggleFrontmatter,
   findOpen,
   onToggleFind,
+  spellcheck,
+  onToggleSpellcheck,
+  outlineOpen,
+  onToggleOutline,
   aiOpen,
   onToggleAi,
   onAiPreset,
@@ -454,6 +462,30 @@ export function Ribbon({
 
         <div className="ribbon-group">
           <div className="ribbon-group-items">
+            {onToggleOutline && (
+              <IconBtn
+                title="Document Outline"
+                active={outlineOpen}
+                disabled={disabled}
+                onClick={onToggleOutline}
+              >
+                <svg width={ICON} height={ICON} viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M2 3h12v2H2V3zm0 4h8v2H2V7zm0 4h10v2H2v-2z" />
+                </svg>
+              </IconBtn>
+            )}
+            {onToggleSpellcheck && (
+              <IconBtn
+                title={spellcheck ? 'Spellcheck: On' : 'Spellcheck: Off'}
+                active={spellcheck}
+                disabled={disabled}
+                onClick={onToggleSpellcheck}
+              >
+                <span style={{ fontSize: '11px', fontWeight: 700, fontFamily: 'monospace' }}>
+                  ABC✓
+                </span>
+              </IconBtn>
+            )}
             {onToggleFind && (
               <IconBtn
                 title="Find & Replace (Ctrl+F / Ctrl+H)"

@@ -6,7 +6,7 @@
  */
 
 import { BinaryReader } from './utils'
-import type { EmfPlusHeader, ParsedEmfPlusRecord } from './index'
+import type { EmfPlusHeader } from './index'
 
 // ─── EMF+ Record Type Constants ────────────────────────────────
 
@@ -44,12 +44,12 @@ const EMPFPLUS_RECORD_TYPES: Record<number, string> = {
   0x00000037: 'EmfPlusSetClipPath',
   0x00000038: 'EmfPlusSetClipRegion',
   0x00000039: 'EmfPlusOffsetClip',
-  0x0000003A: 'EmfPlusSetRenderingOrigin',
-  0x0000003B: 'EmfPlusSetAntiAliasMode',
-  0x0000003C: 'EmfPlusSetTextRenderingHint',
-  0x0000003D: 'EmfPlusSetTextContrast',
-  0x0000003E: 'EmfPlusSetInterpolationMode',
-  0x0000003F: 'EmfPlusSetPixelOffsetMode',
+  0x0000003a: 'EmfPlusSetRenderingOrigin',
+  0x0000003b: 'EmfPlusSetAntiAliasMode',
+  0x0000003c: 'EmfPlusSetTextRenderingHint',
+  0x0000003d: 'EmfPlusSetTextContrast',
+  0x0000003e: 'EmfPlusSetInterpolationMode',
+  0x0000003f: 'EmfPlusSetPixelOffsetMode',
   0x00000040: 'EmfPlusSetCompositingMode',
   0x00000041: 'EmfPlusSetCompositingQuality',
   0x00000042: 'EmfPlusSetSmoothingMode',
@@ -77,11 +77,11 @@ const EMPFPLUS_RECORD_TYPES: Record<number, string> = {
   0x00000090: 'EmfPlusPath',
   0x00000091: 'EmfPlusDrawPath',
   // StringFormat
-  0x000000A0: 'EmfPlusStringFormat',
+  0x000000a0: 'EmfPlusStringFormat',
   // Metafile
-  0x000000F0: 'EmfPlusHeader',
-  0x000000F1: 'EmfPlusEndOfFile',
-  0x000000F2: 'EmfPlusComment',
+  0x000000f0: 'EmfPlusHeader',
+  0x000000f1: 'EmfPlusEndOfFile',
+  0x000000f2: 'EmfPlusComment',
 }
 
 // ─── EMF+ Header ──────────────────────────────────────────────
@@ -90,10 +90,10 @@ export function parseEmfPlusHeader(buffer: Uint8Array): EmfPlusHeader {
   const reader = new BinaryReader(buffer)
 
   const type = reader.readUint16()
-  const flags = reader.readUint16()
-  const size = reader.readUint32()
+  const _flags = reader.readUint16()
+  const _size = reader.readUint32()
 
-  if (type !== 0xF0) throw new Error('Not an EMF+ header record')
+  if (type !== 0xf0) throw new Error('Not an EMF+ header record')
 
   const version = reader.readUint32()
   const emfPlusFlags = reader.readUint32()
@@ -120,7 +120,7 @@ export function parseEmfPlusRecords(buffer: Uint8Array): any[] {
     const dataSize = size - 12
     if (reader.remaining < dataSize) break
 
-    const type = EMPFPLUS_RECORD_TYPES[typeValue] ?? ('UNKNOWN_' + typeValue.toString(16))
+    const type = EMPFPLUS_RECORD_TYPES[typeValue] ?? 'UNKNOWN_' + typeValue.toString(16)
     const data = reader.readBytes(dataSize)
     reader.align(4)
 
@@ -138,7 +138,7 @@ export function parseEmfPlus(buffer: Uint8Array): { header: any; records: any[] 
   return { header, records }
 }
 
-export function emfPlusToSvg(emfPlusData: any, options: any = {}): any {
+export function emfPlusToSvg(_emfPlusData: any, _options: any = {}): any {
   return {
     width: 800,
     height: 600,

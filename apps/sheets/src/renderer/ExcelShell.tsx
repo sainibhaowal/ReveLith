@@ -144,7 +144,11 @@ interface ExcelShellProps {
    *  resends that message's original attachments) */
   readonly onSend: (instruction?: string, attachments?: readonly AttachmentMeta[]) => void
   /** Retry a failed message in place (prunes the failed exchange, then resends) */
-  readonly onRetry: (index: number, instruction?: string, attachments?: readonly AttachmentMeta[]) => void
+  readonly onRetry: (
+    index: number,
+    instruction?: string,
+    attachments?: readonly AttachmentMeta[],
+  ) => void
   readonly onStop: () => void
   readonly onNewChat: () => void
   readonly onUndo: () => void
@@ -309,6 +313,34 @@ export function ExcelShell({
   /// Non-null while the Chart Design → Add Chart Element text prompt is open.
   const [chartTextTarget, setChartTextTarget] = useState<ChartTextTarget | null>(null)
   const [ribbonCollapsed, setRibbonCollapsed] = useState(false)
+  const [aiDockSide, setAiDockSide] = useState<'left' | 'right'>(() => {
+    try {
+      return (localStorage.getItem('revelith.aiPanelDock') as 'left' | 'right') || 'left'
+    } catch {
+      return 'left'
+    }
+  })
+
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (
+        e.data?.type === 'ai-dock-change' &&
+        (e.data.side === 'left' || e.data.side === 'right')
+      ) {
+        setAiDockSide(e.data.side)
+      }
+    }
+    const onCustom = (e: Event) => {
+      const side = (e as CustomEvent).detail?.side
+      if (side === 'left' || side === 'right') setAiDockSide(side)
+    }
+    window.addEventListener('message', onMsg)
+    window.addEventListener('revelith-ai-dock-changed', onCustom)
+    return () => {
+      window.removeEventListener('message', onMsg)
+      window.removeEventListener('revelith-ai-dock-changed', onCustom)
+    }
+  }, [])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null
@@ -317,7 +349,9 @@ export function ExcelShell({
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable ||
-          target.closest('.ai-dock, .copilot-panel, .dialog-backdrop, .dialog-content, input, textarea'))
+          target.closest(
+            '.ai-dock, .copilot-panel, .dialog-backdrop, .dialog-content, input, textarea',
+          ))
       if (isInput) return
 
       if ((event.metaKey || event.ctrlKey) && event.key === 'F1') {
@@ -454,51 +488,51 @@ export function ExcelShell({
         </nav>
 
         {!ribbonCollapsed && (
-        <Ribbon
-          activeTab={activeTab}
-          selectionFormat={selectionFormat}
-          sheetHasContent={sheetHasContent}
-          sheetProtected={onGetSheetProtection()}
-          pageLayout={pageLayout}
-          selectedChart={selectedChart}
-          onRefreshPivot={onRefreshPivot}
-          onIsSelectionInPivot={onIsSelectionInPivot}
-          onCommand={(command) => {
-            if (command === 'format-cells') setShowFormatCells(true)
-            else if (command === 'row-height-open') setAxisSizeTarget('row')
-            else if (command === 'col-width-open') setAxisSizeTarget('col')
-            else if (command === 'link-open') setShowLinkDialog(true)
-            else if (command === 'sort-custom-open') setShowSortDialog(true)
-            else if (command === 'remove-duplicates-open') setShowDedupeDialog(true)
-            else if (command === 'name-manager-open') setShowNameManager(true)
-            else if (command === 'pivot-open') setShowPivotDialog(true)
-            else if (command === 'pivot-edit') setPivotEditSeed(onGetPivotEditSeed())
-            else if (command === 'insert-function-open') setInsertFunctionCat('All')
-            else if (command.startsWith('insert-function-open:'))
-              setInsertFunctionCat(command.slice('insert-function-open:'.length))
-            else if (command === 'subtotal-open') setShowSubtotalDialog(true)
-            else if (command === 'consolidate-open') setShowConsolidateDialog(true)
-            else if (command === 'goto-open') setShowGoTo(true)
-            else if (command === 'header-footer-open') setShowHeaderFooter(true)
-            else if (command === 'ai-open-panel') setIsCopilotOpen(true)
-            else if (command === 'ai-toggle-panel') setIsCopilotOpen((v) => !v)
-            else if (command === 'chart-element-title') setChartTextTarget('title')
-            else if (command === 'chart-element-axis-cat') setChartTextTarget('axis-category')
-            else if (command === 'chart-element-axis-val') setChartTextTarget('axis-value')
-            else onCommand(command)
-          }}
-          onAiRun={(nextPrompt) => {
-            setIsCopilotOpen(true)
-            onSend(nextPrompt)
-          }}
-          aiOpen={isCopilotOpen}
-          onAiToggle={() => setIsCopilotOpen((open) => !open)}
-        />
+          <Ribbon
+            activeTab={activeTab}
+            selectionFormat={selectionFormat}
+            sheetHasContent={sheetHasContent}
+            sheetProtected={onGetSheetProtection()}
+            pageLayout={pageLayout}
+            selectedChart={selectedChart}
+            onRefreshPivot={onRefreshPivot}
+            onIsSelectionInPivot={onIsSelectionInPivot}
+            onCommand={(command) => {
+              if (command === 'format-cells') setShowFormatCells(true)
+              else if (command === 'row-height-open') setAxisSizeTarget('row')
+              else if (command === 'col-width-open') setAxisSizeTarget('col')
+              else if (command === 'link-open') setShowLinkDialog(true)
+              else if (command === 'sort-custom-open') setShowSortDialog(true)
+              else if (command === 'remove-duplicates-open') setShowDedupeDialog(true)
+              else if (command === 'name-manager-open') setShowNameManager(true)
+              else if (command === 'pivot-open') setShowPivotDialog(true)
+              else if (command === 'pivot-edit') setPivotEditSeed(onGetPivotEditSeed())
+              else if (command === 'insert-function-open') setInsertFunctionCat('All')
+              else if (command.startsWith('insert-function-open:'))
+                setInsertFunctionCat(command.slice('insert-function-open:'.length))
+              else if (command === 'subtotal-open') setShowSubtotalDialog(true)
+              else if (command === 'consolidate-open') setShowConsolidateDialog(true)
+              else if (command === 'goto-open') setShowGoTo(true)
+              else if (command === 'header-footer-open') setShowHeaderFooter(true)
+              else if (command === 'ai-open-panel') setIsCopilotOpen(true)
+              else if (command === 'ai-toggle-panel') setIsCopilotOpen((v) => !v)
+              else if (command === 'chart-element-title') setChartTextTarget('title')
+              else if (command === 'chart-element-axis-cat') setChartTextTarget('axis-category')
+              else if (command === 'chart-element-axis-val') setChartTextTarget('axis-value')
+              else onCommand(command)
+            }}
+            onAiRun={(nextPrompt) => {
+              setIsCopilotOpen(true)
+              onSend(nextPrompt)
+            }}
+            aiOpen={isCopilotOpen}
+            onAiToggle={() => setIsCopilotOpen((open) => !open)}
+          />
         )}
       </header>
 
-      {/* AI panel docks on the left, full height under the ribbon (unified with docs) */}
-      <div className="sheet-body">
+      {/* AI panel docks on the left or right, full height under the ribbon (unified with docs) */}
+      <div className={`sheet-body${aiDockSide === 'right' ? ' ai-dock-right' : ''}`}>
         <AiChatPanel
           isOpen={isCopilotOpen}
           hasContent={sheetHasContent}
@@ -2725,6 +2759,8 @@ function Ribbon({
               options={[
                 { value: 'row-height-open', label: `${t('appRowHeight')}…` },
                 { value: 'col-width-open', label: `${t('appColWidth')}…` },
+                { value: 'autofit-row', label: 'AutoFit Row Height' },
+                { value: 'autofit-col', label: 'AutoFit Column Width' },
               ]}
               onPick={(value) => onCommand(value)}
             />
@@ -2734,6 +2770,41 @@ function Ribbon({
       <RibbonGroup label={t('appGroupEditing')}>
         <div className="ribbon-rows">
           <div className="inline-tools">
+            <MenuSelect
+              className="select-like compact"
+              label="AutoSum"
+              data-tip={t('appAutoSumTitle')}
+              display={
+                <>
+                  <ToolSymbol symbol="Σ" /> {t('appAutoSum')}
+                </>
+              }
+              options={[
+                { value: 'autofn:SUM', label: `SUM` },
+                { value: 'autofn:AVERAGE', label: `AVERAGE` },
+                { value: 'autofn:COUNT', label: `COUNT` },
+                { value: 'autofn:MAX', label: `MAX` },
+                { value: 'autofn:MIN', label: `MIN` },
+              ]}
+              onPick={(value) => onCommand(value)}
+            />
+            <MenuSelect
+              className="select-like compact"
+              label="SortFilter"
+              data-tip="Sort & Filter"
+              display={
+                <>
+                  <ToolSymbol symbol="⇅" /> Sort &amp; Filter
+                </>
+              }
+              options={[
+                { value: 'sort:asc', label: t('appSortAsc') },
+                { value: 'sort:desc', label: t('appSortDesc') },
+                { value: 'sort-custom-open', label: 'Custom Sort…' },
+                { value: 'toggle-filter', label: t('appFilter') },
+              ]}
+              onPick={(value) => onCommand(value)}
+            />
             <MenuSelect
               className="select-like compact"
               label="Fill"

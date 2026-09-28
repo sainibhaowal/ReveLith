@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Table style editing : surgically patches <a:tblPr> style attributes
  * (firstRow/bandRow/tableStyleId) and each cell's <a:tcPr> fill/borders.
  *
@@ -258,7 +258,7 @@ function replaceTblPr(xml: string, newTblPr: string): string {
 
 /** Set or remove key="value" in an XML attribute string (remove: value=undefined). */
 function setAttr(attrs: string, key: string, value: string | undefined): string {
-  const re = new RegExp(`\\s${key}="[^"]*"`)
+  const re = new RegExp(`\\s${key}=(?:"[^"]*"|'[^']*')`)
   const cleaned = attrs.replace(re, '')
   if (value === undefined) return cleaned
   return `${cleaned} ${key}="${escapeXmlAttr(value)}"`

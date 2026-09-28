@@ -26,7 +26,8 @@ const chartParser = new XMLParser({
   isArray: (name) => ['c:ser', 'c:pt', 'c:lvl', 'c:dPt'].includes(name),
 })
 
-export type ChartKind = 'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'pieOfPie' | 'unknown'
+export type ChartKind =
+  'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'pieOfPie' | 'unknown'
 
 /** Normalized manual-layout box (c:manualLayout x/y/w/h + xMode/yMode). */
 export interface ManualLayoutBox {
@@ -119,6 +120,8 @@ export interface ChartModel {
   hiddenLegendEntries?: number[]
   /** Logarithmic value axis (c:scaling/logBase) */
   logBase?: number
+  /** Chart uses 1904 date system (c:chartSpace/c:date1904 val="1") */
+  date1904?: boolean
   /** Pie of pie: second pie shows the smallest N points (c:pieOfPieChart splitType) */
   pieOfPieSplit?: {
     type: 'value' | 'percent' | 'position' | 'custom'
@@ -129,14 +132,53 @@ export interface ChartModel {
   }
   /** 3D bevel/format settings (c:format3D) */
   format3D?: {
-    bevelTop?: { width: number; height: number; type: 'circle' | 'relaxedInset' | 'slope' | 'cross' }
-    bevelBottom?: { width: number; height: number; type: 'circle' | 'relaxedInset' | 'slope' | 'cross' }
+    bevelTop?: {
+      width: number
+      height: number
+      type: 'circle' | 'relaxedInset' | 'slope' | 'cross'
+    }
+    bevelBottom?: {
+      width: number
+      height: number
+      type: 'circle' | 'relaxedInset' | 'slope' | 'cross'
+    }
     depth?: number
     extrusionColor?: string
     contourColor?: string
     contourWidth?: number
-    surfaceLighting?: 'legacyFlat1' | 'legacyFlat2' | 'legacyFlat3' | 'legacyFlat4' | 'pt' | 'softEdges' | 'softMetal' | 'metal' | 'warmMatte' | 'translucentPowder' | 'powder' | 'dkEdge' | 'softEdge'
-    lightRig?: 'legacyFlat1' | 'legacyFlat2' | 'legacyFlat3' | 'legacyFlat4' | 'threePt' | 'balanced' | 'soft' | 'harsh' | 'flood' | 'contrasting' | 'morning' | 'sunrise' | 'sunset' | 'chilly' | 'freezing' | 'flat' | 'twoPt' | 'glow'
+    surfaceLighting?:
+      | 'legacyFlat1'
+      | 'legacyFlat2'
+      | 'legacyFlat3'
+      | 'legacyFlat4'
+      | 'pt'
+      | 'softEdges'
+      | 'softMetal'
+      | 'metal'
+      | 'warmMatte'
+      | 'translucentPowder'
+      | 'powder'
+      | 'dkEdge'
+      | 'softEdge'
+    lightRig?:
+      | 'legacyFlat1'
+      | 'legacyFlat2'
+      | 'legacyFlat3'
+      | 'legacyFlat4'
+      | 'threePt'
+      | 'balanced'
+      | 'soft'
+      | 'harsh'
+      | 'flood'
+      | 'contrasting'
+      | 'morning'
+      | 'sunrise'
+      | 'sunset'
+      | 'chilly'
+      | 'freezing'
+      | 'flat'
+      | 'twoPt'
+      | 'glow'
   }
 }
 
@@ -148,7 +190,10 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
   } catch {
     return null
   }
-  const chart = doc['c:chartSpace']?.['c:chart']
+  const chartSpace = doc['c:chartSpace']
+  const date1904Val = chartSpace?.['c:date1904']?.['@_val']
+  const isDate1904 = date1904Val === '1' || date1904Val === 'true'
+  const chart = chartSpace?.['c:chart']
   const plotArea = chart?.['c:plotArea']
   if (!plotArea) return null
 
@@ -201,12 +246,19 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
 
   const series: ChartSeries[] = []
   let categories: string[] = []
-  const parsePlotSeries = (plotNode: any, plotKind: ChartKind, tagPlotKind: boolean, secondary = false) => {
+  const parsePlotSeries = (
+    plotNode: any,
+    plotKind: ChartKind,
+    tagPlotKind: boolean,
+    secondary = false,
+  ) => {
     const sersRaw = plotNode['c:ser']
     const sers: any[] = Array.isArray(sersRaw) ? sersRaw : sersRaw ? [sersRaw] : []
     for (const ser of sers) {
       // Scatter: y values in c:yVal, x values in c:xVal; other types use c:val
-      const s: ChartSeries = { values: readNumPoints(plotKind === 'scatter' ? ser['c:yVal'] : ser['c:val']) }
+      const s: ChartSeries = {
+        values: readNumPoints(plotKind === 'scatter' ? ser['c:yVal'] : ser['c:val']),
+      }
       if (tagPlotKind) s.plotKind = plotKind as 'line' | 'bar' | 'area'
       if (secondary) s.secondaryAxis = true
       if (plotKind === 'scatter') {
@@ -221,7 +273,8 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
       const markerSym = ser['c:marker']?.['c:symbol']?.['@_val']
       if (plotKind === 'line') s.marker = markerSym != null && markerSym !== 'none'
       // scatter/radar: default marker decided by style; only set for explicit symbol (none → false)
-      else if ((plotKind === 'scatter' || plotKind === 'radar') && markerSym != null) s.marker = markerSym !== 'none'
+      else if ((plotKind === 'scatter' || plotKind === 'radar') && markerSym != null)
+        s.marker = markerSym !== 'none'
       // Per-data-point colors (one color per pie slice)
       const dPts: any[] = ser['c:dPt'] ?? []
       if (dPts.length) {
@@ -240,7 +293,7 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
       }
       series.push(s)
       // Categories: take the first non-empty series' cat
-      if (!categories.length) categories = readStrPoints(ser['c:cat'])
+      if (!categories.length) categories = readStrPoints(ser['c:cat'], isDate1904)
     }
   }
   if (cartesian.length > 1) {
@@ -254,7 +307,7 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
     categories = Array.from({ length: n }, () => '')
   }
 
-  const model: ChartModel = { kind, categories, series }
+  const model: ChartModel = { kind, categories, series, ...(isDate1904 ? { date1904: true } : {}) }
 
   // Manual layouts (c:layout/c:manualLayout on plotArea, legend and title):
   // normalized coordinates; applied by the renderer instead of auto-layout
@@ -326,24 +379,43 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
     const bevelTop = format3DNode['c:bevelT']
     const bevelBottom = format3DNode['c:bevelB']
     const depth = format3DNode['c:depth']?.['@_val']
-    const extrusionColor = format3DNode['c:extrusionClr']?.['a:srgbClr']?.['@_val']
-      ?? format3DNode['c:extrusionClr']?.['a:schemeClr']?.['@_val']
-    const contourColor = format3DNode['c:contourClr']?.['a:srgbClr']?.['@_val']
-      ?? format3DNode['c:contourClr']?.['a:schemeClr']?.['@_val']
+    const extrusionColor =
+      format3DNode['c:extrusionClr']?.['a:srgbClr']?.['@_val'] ??
+      format3DNode['c:extrusionClr']?.['a:schemeClr']?.['@_val']
+    const contourColor =
+      format3DNode['c:contourClr']?.['a:srgbClr']?.['@_val'] ??
+      format3DNode['c:contourClr']?.['a:schemeClr']?.['@_val']
     const contourWidth = format3DNode['c:contourW']?.['@_val']
     const surfaceLighting = format3DNode['c:prstMaterial']?.['@_val']
     const lightRig = format3DNode['c:lightRig']?.['@_val']
 
     const bevelType = (t: string): 'circle' | 'relaxedInset' | 'slope' | 'cross' => {
       switch (t) {
-        case 'circle': case 'relaxedInset': case 'slope': case 'cross': return t
-        default: return 'circle'
+        case 'circle':
+        case 'relaxedInset':
+        case 'slope':
+        case 'cross':
+          return t
+        default:
+          return 'circle'
       }
     }
 
     model.format3D = {
-      bevelTop: bevelTop ? { width: parseInt(bevelTop['@_w'] || '0', 10) / 10000, height: parseInt(bevelTop['@_h'] || '0', 10) / 10000, type: bevelType(String(bevelTop['@_prst'] || 'circle')) } : undefined,
-      bevelBottom: bevelBottom ? { width: parseInt(bevelBottom['@_w'] || '0', 10) / 10000, height: parseInt(bevelBottom['@_h'] || '0', 10) / 10000, type: bevelType(String(bevelBottom['@_prst'] || 'circle')) } : undefined,
+      bevelTop: bevelTop
+        ? {
+            width: parseInt(bevelTop['@_w'] || '0', 10) / 10000,
+            height: parseInt(bevelTop['@_h'] || '0', 10) / 10000,
+            type: bevelType(String(bevelTop['@_prst'] || 'circle')),
+          }
+        : undefined,
+      bevelBottom: bevelBottom
+        ? {
+            width: parseInt(bevelBottom['@_w'] || '0', 10) / 10000,
+            height: parseInt(bevelBottom['@_h'] || '0', 10) / 10000,
+            type: bevelType(String(bevelBottom['@_prst'] || 'circle')),
+          }
+        : undefined,
       depth: depth ? parseInt(depth, 10) / 10000 : undefined,
       extrusionColor: extrusionColor ? `#${extrusionColor}` : undefined,
       contourColor: contourColor ? `#${contourColor}` : undefined,
@@ -378,13 +450,17 @@ export function parseChartXml(xml: string, theme?: Theme): ChartModel | null {
   // Data labels: plot-level or any series-level c:dLbls (delete=1 counts as none)
   const dLblsInfo = (owner: any): { on: boolean; pct: boolean } => {
     const d = owner?.['c:dLbls']
-    if (!d || typeof d !== 'object' || d['c:delete']?.['@_val'] === '1') return { on: false, pct: false }
+    if (!d || typeof d !== 'object' || d['c:delete']?.['@_val'] === '1')
+      return { on: false, pct: false }
     const showVal = d['c:showVal']?.['@_val'] === '1'
     const showPct = d['c:showPercent']?.['@_val'] === '1'
     return { on: showVal || showPct, pct: showPct && !showVal }
   }
   const dLblOwners: any[] = (cartesian.length > 1 ? cartesian.map((c) => c.plot) : [plot]).flatMap(
-    (p) => [p, ...((Array.isArray(p['c:ser']) ? p['c:ser'] : p['c:ser'] ? [p['c:ser']] : []) as any[])],
+    (p) => [
+      p,
+      ...((Array.isArray(p['c:ser']) ? p['c:ser'] : p['c:ser'] ? [p['c:ser']] : []) as any[]),
+    ],
   )
   const found = dLblOwners.map(dLblsInfo).find((r) => r.on)
   if (found) {
@@ -433,18 +509,64 @@ function readNumPoints(node: any): Array<number | null> {
   })
 }
 
+function formatSerialDate(serial: number, isDate1904: boolean, formatCode?: string): string {
+  const baseMs = isDate1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30)
+  const date = new Date(baseMs + serial * 86400000)
+  if (Number.isNaN(date.getTime())) return String(serial)
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  if (formatCode && /m\/d\/yy/i.test(formatCode)) {
+    return `${date.getUTCMonth() + 1}/${date.getUTCDate()}/${y}`
+  }
+  if (formatCode && /d-mmm/i.test(formatCode)) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ]
+    return `${date.getUTCDate()}-${months[date.getUTCMonth()]}`
+  }
+  return `${y}-${m}-${d}`
+}
+
 /** String cache (strRef/strCache or the innermost lvl of multiLvlStrRef) → string[]. */
-function readStrPoints(node: any): string[] {
+function readStrPoints(node: any, isDate1904 = false): string[] {
   const strCache = node?.['c:strRef']?.['c:strCache']
   if (strCache) return readPoints(strCache).map((v) => v ?? '')
   const multi = node?.['c:multiLvlStrRef']?.['c:multiLvlStrCache']
   if (multi) {
-    const lvls: any[] = Array.isArray(multi['c:lvl']) ? multi['c:lvl'] : multi['c:lvl'] ? [multi['c:lvl']] : []
+    const lvls: any[] = Array.isArray(multi['c:lvl'])
+      ? multi['c:lvl']
+      : multi['c:lvl']
+        ? [multi['c:lvl']]
+        : []
     // The innermost (first lvl) holds the leaf categories
     if (lvls.length) return readPoints(lvls[0]).map((v) => v ?? '')
   }
   const numCache = node?.['c:numRef']?.['c:numCache']
-  if (numCache) return readPoints(numCache).map((v) => v ?? '')
+  if (numCache) {
+    const formatCode = String(numCache['c:formatCode'] ?? '')
+    const isDateFormat =
+      isDate1904 || (/y|d|m/i.test(formatCode) && !/^\s*0+(\.0+)?\s*%?\s*$/.test(formatCode))
+    return readPoints(numCache).map((v) => {
+      if (v == null || v === '') return ''
+      const num = Number(v)
+      if (isDateFormat && Number.isFinite(num) && num >= 0) {
+        return formatSerialDate(num, isDate1904, formatCode)
+      }
+      return v
+    })
+  }
   return []
 }
 
@@ -496,7 +618,9 @@ function serColor(ser: any, theme?: Theme): string | undefined {
   if (!spPr) return undefined
   const lnColor = resolveColorNode(spPr['a:ln']?.['a:solidFill'], theme)
   const fillColor = resolveColorNode(spPr['a:solidFill'], theme)
-  return lnColor ?? fillColor ?? resolveFillRefColor(spPr, theme) ?? resolveGradFillColor(spPr, theme)
+  return (
+    lnColor ?? fillColor ?? resolveFillRefColor(spPr, theme) ?? resolveGradFillColor(spPr, theme)
+  )
 }
 
 /** First gradient stop color (a:gradFill/a:gsLst/a:gs → srgbClr/schemeClr). */
@@ -517,7 +641,9 @@ function parseAxis(ax: any, theme?: Theme): ChartAxisStyle | undefined {
   if (scaling?.['c:min']?.['@_val'] != null) out.min = Number(scaling['c:min']['@_val'])
   if (scaling?.['c:max']?.['@_val'] != null) out.max = Number(scaling['c:max']['@_val'])
   if (scaling?.['c:orientation']?.['@_val'] === 'maxMin') out.reversed = true
-  const defRPr = ax['c:txPr']?.['a:p']?.[0]?.['a:pPr']?.['a:defRPr'] ?? ax['c:txPr']?.['a:p']?.['a:pPr']?.['a:defRPr']
+  const defRPr =
+    ax['c:txPr']?.['a:p']?.[0]?.['a:pPr']?.['a:defRPr'] ??
+    ax['c:txPr']?.['a:p']?.['a:pPr']?.['a:defRPr']
   if (defRPr) {
     const c = resolveColorNode(defRPr['a:solidFill'], theme)
     if (c) out.labelColor = c

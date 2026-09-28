@@ -186,7 +186,7 @@ export interface Paragraph {
   spaceBeforePct?: number
   spaceAfterPct?: number
   bullet?: {
-    type: 'none' | 'char' | 'number'
+    type: 'none' | 'char' | 'number' | 'picture'
     char?: string
     color?: ResolvedColor
     /** <a:buFont> typeface (symbol fonts like Wingdings) */
@@ -195,6 +195,8 @@ export interface Paragraph {
     sizePct?: number
     /** <a:buAutoNum type> (arabicPeriod/romanLcParen…) */
     numType?: string
+    /** <a:buBlip> embed id for picture bullets */
+    embed?: string
   }
   /** Paragraph left indent marL (EMU) */
   marL?: number

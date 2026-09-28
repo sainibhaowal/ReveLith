@@ -210,6 +210,7 @@ interface DesignTabProps extends TabProps {
   onSection: (next: SectionSettings) => void
   watermark: string | null
   onWatermark: (text: string | null) => void
+  onPictureWatermark?: (dataUrl: string | null) => void
   themeFonts: ThemeFonts | null
   onThemeFonts: (fonts: ThemeFonts) => void
   onThemeColors: (colors: ThemeColors) => void
@@ -225,6 +226,7 @@ export function DesignTab({
   onSection,
   watermark,
   onWatermark,
+  onPictureWatermark,
   themeFonts,
   onThemeFonts,
   onThemeColors,
@@ -432,9 +434,21 @@ export function DesignTab({
                 ))}
                 <button onClick={customWatermark}>{t('ribbonWatermarkCustom')}</button>
                 <button
+                  onClick={async () => {
+                    setDropdown(() => null)
+                    const img = await window.desktop.pickImage()
+                    if (img?.base64) {
+                      onPictureWatermark?.(`data:${img.mime};base64,${img.base64}`)
+                    }
+                  }}
+                >
+                  Picture Watermark…
+                </button>
+                <button
                   className={!watermark ? 'active' : ''}
                   onClick={() => {
                     onWatermark(null)
+                    onPictureWatermark?.(null)
                     setDropdown(() => null)
                   }}
                 >

@@ -563,7 +563,10 @@ function gridFixture(
   values: (string | number | boolean | null)[][],
   formulas?: (string | undefined)[][],
 ) {
-  return (_sheetId: string | undefined, bounds: { startRow: number; startColumn: number; endRow: number; endColumn: number }) => {
+  return (
+    _sheetId: string | undefined,
+    bounds: { startRow: number; startColumn: number; endRow: number; endColumn: number },
+  ) => {
     const rows: (string | number | boolean | null)[][] = []
     const frows: (string | undefined)[][] = []
     for (let r = bounds.startRow; r <= bounds.endRow; r += 1) {
@@ -620,9 +623,26 @@ describe('aggregate_range', () => {
     expect(result.output).toContain('min=5 max=20')
   })
   it('rejects bad ranges and oversized scans', async () => {
-    expect((await executeWorkbookTool(call('aggregate_range', { range: 'zzz' }), sheetedDeps(grid))).isError).toBe(true)
-    expect((await executeWorkbookTool(call('aggregate_range', { range: 'A1:XFD1048576' }), sheetedDeps(grid))).isError).toBe(true)
-    expect((await executeWorkbookTool(call('aggregate_range', { range: 'A1:A2', sheetId: 'nope' }), sheetedDeps(grid))).isError).toBe(true)
+    expect(
+      (await executeWorkbookTool(call('aggregate_range', { range: 'zzz' }), sheetedDeps(grid)))
+        .isError,
+    ).toBe(true)
+    expect(
+      (
+        await executeWorkbookTool(
+          call('aggregate_range', { range: 'A1:XFD1048576' }),
+          sheetedDeps(grid),
+        )
+      ).isError,
+    ).toBe(true)
+    expect(
+      (
+        await executeWorkbookTool(
+          call('aggregate_range', { range: 'A1:A2', sheetId: 'nope' }),
+          sheetedDeps(grid),
+        )
+      ).isError,
+    ).toBe(true)
   })
 })
 
@@ -634,16 +654,27 @@ describe('find_cells', () => {
       ['broken', '#DIV/0!'],
       ['Acme Ltd', 3],
     ],
-    [[undefined, undefined], [undefined, '=A3*2'], [undefined, undefined], [undefined, undefined]],
+    [
+      [undefined, undefined],
+      [undefined, '=A3*2'],
+      [undefined, undefined],
+      [undefined, undefined],
+    ],
   )
   it('matches substrings with Sheet!Address hits', async () => {
-    const result = await executeWorkbookTool(call('find_cells', { query: 'acme' }), sheetedDeps(grid))
+    const result = await executeWorkbookTool(
+      call('find_cells', { query: 'acme' }),
+      sheetedDeps(grid),
+    )
     expect(result.isError).toBeFalsy()
     expect(result.output).toContain('Sheet1!A2: Acme')
     expect(result.output).toContain('Sheet1!A4: Acme Ltd')
   })
   it('finds error cells without a query', async () => {
-    const result = await executeWorkbookTool(call('find_cells', { errors_only: true }), sheetedDeps(grid))
+    const result = await executeWorkbookTool(
+      call('find_cells', { errors_only: true }),
+      sheetedDeps(grid),
+    )
     expect(result.output).toContain('Sheet1!B3: #DIV/0!')
     expect(result.output).not.toContain('Sheet1!A2')
   })
@@ -685,19 +716,31 @@ describe('trace_precedents', () => {
       [10, 20, 30],
       [5, '=A1+B1', 0],
     ],
-    [[undefined, undefined, undefined], [undefined, '=A1+B1', undefined]],
+    [
+      [undefined, undefined, undefined],
+      [undefined, '=A1+B1', undefined],
+    ],
   )
   it('lists precedents with values and flags errors', async () => {
-    const result = await executeWorkbookTool(call('trace_precedents', { address: 'B2' }), sheetedDeps(grid))
+    const result = await executeWorkbookTool(
+      call('trace_precedents', { address: 'B2' }),
+      sheetedDeps(grid),
+    )
     expect(result.isError).toBeFalsy()
     expect(result.output).toContain('Sheet1!B2 = =A1+B1')
     expect(result.output).toContain('- Sheet1!A1: A1=10')
     expect(result.output).toContain('B1=20')
   })
   it('reports non-formula cells and bad addresses', async () => {
-    const plain = await executeWorkbookTool(call('trace_precedents', { address: 'A1' }), sheetedDeps(grid))
+    const plain = await executeWorkbookTool(
+      call('trace_precedents', { address: 'A1' }),
+      sheetedDeps(grid),
+    )
     expect(plain.output).toContain('is not a formula cell')
-    const bad = await executeWorkbookTool(call('trace_precedents', { address: 'ZZZ' }), sheetedDeps(grid))
+    const bad = await executeWorkbookTool(
+      call('trace_precedents', { address: 'ZZZ' }),
+      sheetedDeps(grid),
+    )
     expect(bad.isError).toBe(true)
   })
 })
@@ -708,13 +751,22 @@ describe('trace_dependents', () => {
       [10, 20, 30],
       [5, '=A1+B1', '=B2*2'],
     ],
-    [[undefined, undefined, undefined], [undefined, '=A1+B1', '=B2*2']],
+    [
+      [undefined, undefined, undefined],
+      [undefined, '=A1+B1', '=B2*2'],
+    ],
   )
   it('finds downstream formulas reading the target', async () => {
-    const result = await executeWorkbookTool(call('trace_dependents', { address: 'B2' }), sheetedDeps(grid))
+    const result = await executeWorkbookTool(
+      call('trace_dependents', { address: 'B2' }),
+      sheetedDeps(grid),
+    )
     expect(result.isError).toBeFalsy()
     expect(result.output).toContain('Sheet1!C2 =B2*2')
-    const none = await executeWorkbookTool(call('trace_dependents', { address: 'A1' }), sheetedDeps(grid))
+    const none = await executeWorkbookTool(
+      call('trace_dependents', { address: 'A1' }),
+      sheetedDeps(grid),
+    )
     expect(none.output).toContain('Sheet1!B2 =A1+B1')
   })
 })
@@ -727,7 +779,7 @@ describe('create_document', () => {
   ])
   it('exports the worksheet grid for xlsx/csv', async () => {
     const deps = sheetedDeps(grid, {
-      createDocument: async (request: Record<string, unknown>) => ({
+      createDocument: async (_request: Record<string, unknown>) => ({
         ok: true,
         name: 'Sheet1.xlsx',
         path: '/docs/Sheet1.xlsx',
@@ -754,14 +806,19 @@ describe('create_document', () => {
     expect(md.isError).toBeFalsy()
     expect(md.output).toContain('Report.md')
 
-    const empty = await executeWorkbookTool(call('create_document', { type: 'md', title: 'X' }), deps)
+    const empty = await executeWorkbookTool(
+      call('create_document', { type: 'md', title: 'X' }),
+      deps,
+    )
     expect(empty.isError).toBe(true)
 
     const badType = await executeWorkbookTool(call('create_document', { type: 'docx' }), deps)
     expect(badType.isError).toBe(true)
   })
   it('surfaces main-process failures', async () => {
-    const deps = sheetedDeps(grid, { createDocument: async () => ({ ok: false, error: 'disk full' }) })
+    const deps = sheetedDeps(grid, {
+      createDocument: async () => ({ ok: false, error: 'disk full' }),
+    })
     const result = await executeWorkbookTool(call('create_document', { type: 'xlsx' }), deps)
     expect(result.isError).toBe(true)
     expect(result.output).toContain('disk full')

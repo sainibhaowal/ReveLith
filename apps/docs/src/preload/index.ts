@@ -66,6 +66,12 @@ const api: DesktopApi = {
     pageHeightTwips: number,
     outPath?: string,
   ) => ipcRenderer.invoke('docs:export-pdf', defaultName, pageWidthTwips, pageHeightTwips, outPath),
+  exportImages: (
+    defaultName: string,
+    pageRects: Array<{ x: number; y: number; width: number; height: number }>,
+  ) => ipcRenderer.invoke('docs:export-images', defaultName, pageRects),
+  savePicture: (dataUrl: string, defaultName?: string) =>
+    ipcRenderer.invoke('docs:save-picture', dataUrl, defaultName),
   printPdfBuffer: (pageWidthTwips: number, pageHeightTwips: number) =>
     ipcRenderer.invoke('docs:print-pdf-buffer', pageWidthTwips, pageHeightTwips),
   saveMergedPdf: (defaultName: string, base64Parts: string[], outPath?: string) =>

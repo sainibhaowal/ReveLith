@@ -46,14 +46,14 @@ export interface ExtractionOptions {
  */
 export async function extractTablesFromPdf(
   pdfPath: string,
-  options: ExtractionOptions = {}
+  options: ExtractionOptions = {},
 ): Promise<Table[]> {
   const {
     mergeCrossPageTables = true,
     detectLabelValueGrids = true,
     detectRuleLessBands = true,
     minConfidence = 0.5,
-    language = 'en'
+    language = 'en',
   } = options
 
   // Load PDF
@@ -67,7 +67,7 @@ export async function extractTablesFromPdf(
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
     const pageTables = await extractTablesFromPage(pdfDoc, pageIndex, {
       minConfidence,
-      language
+      language,
     })
     allTables.push(...pageTables)
   }
@@ -76,22 +76,22 @@ export async function extractTablesFromPdf(
   let processedTables = allTables
 
   if (detectLabelValueGrids) {
-    processedTables = processedTables.map(table => ({
+    processedTables = processedTables.map((table) => ({
       ...table,
       metadata: {
         ...table.metadata,
-        isLabelValueGrid: detectLabelValueStructure(table)
-      }
+        isLabelValueGrid: detectLabelValueStructure(table),
+      },
     }))
   }
 
   if (detectRuleLessBands) {
-    processedTables = processedTables.map(table => ({
+    processedTables = processedTables.map((table) => ({
       ...table,
       metadata: {
         ...table.metadata,
-        isRuleLessBand: detectRuleLessBandStructure(table)
-      }
+        isRuleLessBand: detectRuleLessBandStructure(table),
+      },
     }))
   }
 
@@ -108,10 +108,10 @@ export async function extractTablesFromPdf(
 async function extractTablesFromPage(
   pdfDoc: PDFDocument,
   pageIndex: number,
-  options: { minConfidence: number; language: string }
+  _options: { minConfidence: number; language: string },
 ): Promise<Table[]> {
   const page = pdfDoc.getPage(pageIndex)
-  const { width, height } = page.getSize()
+  const { width: _width, height: _height } = page.getSize()
 
   // Simulate table detection (in production, this would use PDF layout analysis)
   // For now, we'll create a mock table structure based on the page dimensions
@@ -133,10 +133,10 @@ function detectLabelValueStructure(table: Table): boolean {
   if (table.rows.length === 0) return false
 
   // Check if first column contains labels (text ending with colon or similar)
-  const firstColumn = table.rows.map(row => row[0]?.text || '')
+  const firstColumn = table.rows.map((row) => row[0]?.text || '')
   const labelPattern = /^[^:]+:?\s*$/
-  
-  const labelCount = firstColumn.filter(cell => labelPattern.test(cell)).length
+
+  const labelCount = firstColumn.filter((cell) => labelPattern.test(cell)).length
   const labelRatio = labelCount / firstColumn.length
 
   // If > 70% of first column entries look like labels, consider it a label/value grid
@@ -151,11 +151,11 @@ function detectRuleLessBandStructure(table: Table): boolean {
 
   // Check for consistent spacing patterns that suggest bands
   const rowGaps: number[] = []
-  
+
   for (let i = 1; i < table.rows.length; i++) {
     const prevRow = table.rows[i - 1]
     const currRow = table.rows[i]
-    
+
     const prevCell = prevRow?.[0]
     const currCell = currRow?.[0]
     if (prevCell && currCell) {
@@ -228,7 +228,7 @@ function tablesHaveSimilarStructure(table1: Table, table2: Table): boolean {
   // Check bbox alignment (tables should be in similar horizontal position)
   const xDiff = Math.abs(table1.bbox.x - table2.bbox.x)
   const widthDiff = Math.abs(table1.bbox.width - table2.bbox.width)
-  
+
   // Allow for some variation in positioning
   return xDiff < table1.bbox.width * 0.1 && widthDiff < table1.bbox.width * 0.1
 }
@@ -238,13 +238,13 @@ function tablesHaveSimilarStructure(table1: Table, table2: Table): boolean {
  */
 function mergeTwoTables(table1: Table, table2: Table): Table {
   const mergedRows = [...table1.rows]
-  
+
   // Append rows from table2
   for (const row of table2.rows) {
     // Adjust row indices
-    const adjustedRow = row.map(cell => ({
+    const adjustedRow = row.map((cell) => ({
       ...cell,
-      rowIndex: cell.rowIndex + table1.rows.length
+      rowIndex: cell.rowIndex + table1.rows.length,
     }))
     mergedRows.push(adjustedRow)
   }
@@ -256,8 +256,10 @@ function mergeTwoTables(table1: Table, table2: Table): Table {
   const mergedBbox = {
     x: Math.min(table1.bbox.x, table2.bbox.x),
     y: Math.min(table1.bbox.y, table2.bbox.y),
-    width: Math.max(table1.bbox.x + table1.bbox.width, table2.bbox.x + table2.bbox.width) - Math.min(table1.bbox.x, table2.bbox.x),
-    height: table1.bbox.height + table2.bbox.height
+    width:
+      Math.max(table1.bbox.x + table1.bbox.width, table2.bbox.x + table2.bbox.width) -
+      Math.min(table1.bbox.x, table2.bbox.x),
+    height: table1.bbox.height + table2.bbox.height,
   }
 
   // Merge metadata
@@ -266,7 +268,7 @@ function mergeTwoTables(table1: Table, table2: Table): Table {
     rowCount: table1.metadata.rowCount + table2.metadata.rowCount,
     hasRules: table1.metadata.hasRules || table2.metadata.hasRules,
     isLabelValueGrid: table1.metadata.isLabelValueGrid || table2.metadata.isLabelValueGrid,
-    isRuleLessBand: table1.metadata.isRuleLessBand || table2.metadata.isRuleLessBand
+    isRuleLessBand: table1.metadata.isRuleLessBand || table2.metadata.isRuleLessBand,
   }
 
   return {
@@ -276,7 +278,7 @@ function mergeTwoTables(table1: Table, table2: Table): Table {
     headers: mergedHeaders,
     bbox: mergedBbox,
     confidence: (table1.confidence + table2.confidence) / 2,
-    metadata: mergedMetadata
+    metadata: mergedMetadata,
   }
 }
 
@@ -284,10 +286,13 @@ function mergeTwoTables(table1: Table, table2: Table): Table {
  * Convert extracted tables to Excel workbook format
  */
 export function tablesToExcelWorkbook(tables: Table[]): {
-  worksheets: Record<string, {
-    cells: Record<string, string>
-    merges: string[]
-  }>
+  worksheets: Record<
+    string,
+    {
+      cells: Record<string, string>
+      merges: string[]
+    }
+  >
   metadata: {
     totalTables: number
     totalRows: number
@@ -338,8 +343,8 @@ export function tablesToExcelWorkbook(tables: Table[]): {
     metadata: {
       totalTables: tables.length,
       totalRows,
-      totalColumns
-    }
+      totalColumns,
+    },
   }
 }
 
@@ -349,12 +354,12 @@ export function tablesToExcelWorkbook(tables: Table[]): {
 function excelCellRef(row: number, col: number): string {
   const colLetters = []
   let colNum = col
-  
+
   while (colNum > 0) {
     colNum--
     colLetters.unshift(String.fromCharCode(65 + (colNum % 26)))
     colNum = Math.floor(colNum / 26)
   }
-  
+
   return colLetters.join('') + row
 }

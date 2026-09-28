@@ -222,14 +222,23 @@ export const WORKBOOK_TOOLS: AgentToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Text or regex to find; omit only with errors_only=true' },
-        regex: { type: 'boolean', description: 'Treat query as a JavaScript regex (default false)' },
+        query: {
+          type: 'string',
+          description: 'Text or regex to find; omit only with errors_only=true',
+        },
+        regex: {
+          type: 'boolean',
+          description: 'Treat query as a JavaScript regex (default false)',
+        },
         look_in: {
           type: 'string',
           enum: ['values', 'formulas', 'both'],
           description: 'What to match against (default both)',
         },
-        sheetId: { type: 'string', description: 'Restrict to one sheet id; all sheets when omitted' },
+        sheetId: {
+          type: 'string',
+          description: 'Restrict to one sheet id; all sheets when omitted',
+        },
         max_results: { type: 'number', description: 'Maximum hits (default 50, max 200)' },
       },
     },
@@ -243,7 +252,10 @@ export const WORKBOOK_TOOLS: AgentToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        range: { type: 'string', description: 'Range like "A1:D20"; a single cell is also accepted' },
+        range: {
+          type: 'string',
+          description: 'Range like "A1:D20"; a single cell is also accepted',
+        },
         sheetId: { type: 'string', description: 'Target sheet id; defaults to the active sheet' },
       },
       required: ['range'],
@@ -258,7 +270,10 @@ export const WORKBOOK_TOOLS: AgentToolDef[] = [
       type: 'object',
       properties: {
         address: { type: 'string', description: 'Formula cell to audit, e.g. "C10"' },
-        sheetId: { type: 'string', description: 'Sheet the cell lives on; defaults to the active sheet' },
+        sheetId: {
+          type: 'string',
+          description: 'Sheet the cell lives on; defaults to the active sheet',
+        },
       },
       required: ['address'],
     },
@@ -272,7 +287,10 @@ export const WORKBOOK_TOOLS: AgentToolDef[] = [
       type: 'object',
       properties: {
         address: { type: 'string', description: 'Target cell, e.g. "B2"' },
-        sheetId: { type: 'string', description: 'Sheet the cell lives on; defaults to the active sheet' },
+        sheetId: {
+          type: 'string',
+          description: 'Sheet the cell lives on; defaults to the active sheet',
+        },
       },
       required: ['address'],
     },
@@ -293,7 +311,10 @@ export const WORKBOOK_TOOLS: AgentToolDef[] = [
           description: 'File type (default xlsx)',
         },
         title: { type: 'string', description: 'File-name stem' },
-        sheetId: { type: 'string', description: 'Worksheet to export (xlsx/csv); defaults to the active sheet' },
+        sheetId: {
+          type: 'string',
+          description: 'Worksheet to export (xlsx/csv); defaults to the active sheet',
+        },
         content: { type: 'string', description: 'Authored source (md/html)' },
       },
     },
@@ -531,11 +552,16 @@ async function ensureChunkReadable(
 function stripQualifier(qualifier: string | undefined): string | undefined {
   if (!qualifier) return undefined
   const unquoted = qualifier.endsWith('!') ? qualifier.slice(0, -1) : qualifier
-  const dequoted = unquoted.startsWith("'") && unquoted.endsWith("'") ? unquoted.slice(1, -1) : unquoted
+  const dequoted =
+    unquoted.startsWith("'") && unquoted.endsWith("'") ? unquoted.slice(1, -1) : unquoted
   return dequoted.replace(/''/g, "'").trim() || undefined
 }
 
-function qualifierSheetId(deps: SheetsSkillDeps, qualifier: string | undefined, sameId: string): string {
+function qualifierSheetId(
+  deps: SheetsSkillDeps,
+  qualifier: string | undefined,
+  sameId: string,
+): string {
   const name = stripQualifier(qualifier)
   if (!name) return sameId
   const hit = deps
@@ -550,7 +576,12 @@ function sheetNameOf(deps: SheetsSkillDeps, sheetId: string): string {
 
 /** Clamp whole-axis (null) ref bounds to a sheet extent; null when the extent is unknown */
 function clampRef(
-  token: { startRow: number | null; endRow: number | null; startColumn: number | null; endColumn: number | null },
+  token: {
+    startRow: number | null
+    endRow: number | null
+    startColumn: number | null
+    endColumn: number | null
+  },
   rows: number | undefined,
   columns: number | undefined,
 ): RangeBounds | null {
@@ -562,13 +593,11 @@ function clampRef(
   return { startRow, startColumn, endRow, endColumn }
 }
 
-async function aggregateRange(
-  call: AgentToolCall,
-  deps: SheetsSkillDeps,
-): Promise<ToolExecution> {
+async function aggregateRange(call: AgentToolCall, deps: SheetsSkillDeps): Promise<ToolExecution> {
   const summary = 'Aggregate range'
   const raw = call.input.range
-  if (typeof raw !== 'string' || !raw.trim()) return fail(summary, 'range must be a non-empty string')
+  if (typeof raw !== 'string' || !raw.trim())
+    return fail(summary, 'range must be a non-empty string')
   let bounds: RangeBounds
   try {
     bounds = parseRange(raw.trim().toUpperCase())
@@ -591,7 +620,10 @@ async function aggregateRange(
   let chunks = 0
   for (const chunk of chunkBounds(bounds, CHUNK_CELLS)) {
     if (!(await ensureChunkReadable(deps, sheet.ref.id, sheet.activeId, chunk))) {
-      return fail(summary, 'The range could not be fully loaded; retry after workbook indexing completes.')
+      return fail(
+        summary,
+        'The range could not be fully loaded; retry after workbook indexing completes.',
+      )
     }
     const grid = deps.readSheetGrid(sheet.ref.id, chunk)
     if (!grid) {
@@ -608,7 +640,8 @@ async function aggregateRange(
         const key = `${typeof value}:${String(value)}`
         const slot = distinct.get(key)
         if (slot) slot.count += 1
-        else if (distinct.size < MAX_DISTINCT) distinct.set(key, { count: 1, sample: String(value) })
+        else if (distinct.size < MAX_DISTINCT)
+          distinct.set(key, { count: 1, sample: String(value) })
         else distinctTruncated = true
         if (typeof value === 'number' && Number.isFinite(value)) {
           numericCount += 1
@@ -620,9 +653,7 @@ async function aggregateRange(
     }
   }
   void chunks
-  const top = [...distinct.entries()]
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, topValues)
+  const top = [...distinct.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, topValues)
   const lines = [
     `Range ${raw.trim().toUpperCase()} on ${sheetNameOf(deps, sheet.ref.id)}: ${nonEmpty} non-empty cell(s)`,
     `Distinct values: ${distinct.size}${distinctTruncated ? ' (truncated at 50,000)' : ''}`,
@@ -662,10 +693,11 @@ async function findCells(call: AgentToolCall, deps: SheetsSkillDeps): Promise<To
   }
   const maxResults = Math.min(200, Math.max(1, Math.trunc(Number(call.input.max_results)) || 50))
   const info = deps.getActiveSheetInfo()
-  const only = typeof call.input.sheetId === 'string' && call.input.sheetId.trim() ? call.input.sheetId.trim() : undefined
-  const targets = only
-    ? info.sheets.filter((sheet) => sheet.id === only)
-    : info.sheets
+  const only =
+    typeof call.input.sheetId === 'string' && call.input.sheetId.trim()
+      ? call.input.sheetId.trim()
+      : undefined
+  const targets = only ? info.sheets.filter((sheet) => sheet.id === only) : info.sheets
   if (only && targets.length === 0) {
     return fail(summary, `Unknown sheet id "${only}"; use get_workbook_context for ids`)
   }
@@ -679,7 +711,12 @@ async function findCells(call: AgentToolCall, deps: SheetsSkillDeps): Promise<To
       skipped.push(sheet.name)
       continue
     }
-    const bounds: RangeBounds = { startRow: 0, startColumn: 0, endRow: sheet.rows - 1, endColumn: sheet.columns - 1 }
+    const bounds: RangeBounds = {
+      startRow: 0,
+      startColumn: 0,
+      endRow: sheet.rows - 1,
+      endColumn: sheet.columns - 1,
+    }
     for (const chunk of chunkBounds(bounds, CHUNK_CELLS)) {
       if (scanned >= MAX_SCAN_CELLS) {
         truncated = true
@@ -696,20 +733,25 @@ async function findCells(call: AgentToolCall, deps: SheetsSkillDeps): Promise<To
           const value = row[c]
           const formula = frow[c]
           const valueText = value === null ? '' : String(value)
-          let matched = false
           let shown = valueText
-          if (errorsOnly) {
-            matched = ERROR_VALUE_RE.test(valueText)
-          } else {
-            const inValues = lookIn !== 'formulas' && (pattern ? pattern.test(valueText) : valueText.toLowerCase().includes(lowered))
-            const inFormulas =
-              lookIn !== 'values' && formula && (pattern ? pattern.test(formula) : formula.toLowerCase().includes(lowered))
-            matched = inValues || !!inFormulas
-            if (inFormulas && !inValues) shown = `${valueText} (${formula})`
-            else if (formula) shown = `${valueText} (${formula})`
-          }
+          const matched = errorsOnly
+            ? ERROR_VALUE_RE.test(valueText)
+            : (() => {
+                const inValues =
+                  lookIn !== 'formulas' &&
+                  (pattern ? pattern.test(valueText) : valueText.toLowerCase().includes(lowered))
+                const inFormulas =
+                  lookIn !== 'values' &&
+                  formula &&
+                  (pattern ? pattern.test(formula) : formula.toLowerCase().includes(lowered))
+                if (inFormulas && !inValues) shown = `${valueText} (${formula})`
+                else if (formula) shown = `${valueText} (${formula})`
+                return inValues || !!inFormulas
+              })()
           if (matched) {
-            hits.push(`${sheet.name}!${formatAddress(chunk.startRow + r, chunk.startColumn + c)}: ${shown || '(empty)'}`)
+            hits.push(
+              `${sheet.name}!${formatAddress(chunk.startRow + r, chunk.startColumn + c)}: ${shown || '(empty)'}`,
+            )
           }
         }
       }
@@ -730,7 +772,8 @@ async function findCells(call: AgentToolCall, deps: SheetsSkillDeps): Promise<To
 async function tracePrecedents(call: AgentToolCall, deps: SheetsSkillDeps): Promise<ToolExecution> {
   const summary = 'Trace precedents'
   const raw = call.input.address
-  if (typeof raw !== 'string' || !raw.trim()) return fail(summary, 'address must be a non-empty string')
+  if (typeof raw !== 'string' || !raw.trim())
+    return fail(summary, 'address must be a non-empty string')
   let target: { row: number; column: number }
   try {
     target = parseAddress(raw.trim().toUpperCase())
@@ -763,10 +806,13 @@ async function tracePrecedents(call: AgentToolCall, deps: SheetsSkillDeps): Prom
     const refSheet = deps.getActiveSheetInfo().sheets.find((s) => s.id === refSheetId)
     const bounds = clampRef(ref.token, refSheet?.rows, refSheet?.columns)
     if (!bounds) {
-      lines.push(`- ${ref.qualifier ?? ''}${formatAddress(ref.token.startRow ?? 0, ref.token.startColumn ?? 0)}: sheet extent unknown, skipped`)
+      lines.push(
+        `- ${ref.qualifier ?? ''}${formatAddress(ref.token.startRow ?? 0, ref.token.startColumn ?? 0)}: sheet extent unknown, skipped`,
+      )
       continue
     }
-    const count = (bounds.endRow - bounds.startRow + 1) * (bounds.endColumn - bounds.startColumn + 1)
+    const count =
+      (bounds.endRow - bounds.startRow + 1) * (bounds.endColumn - bounds.startColumn + 1)
     if (count > CHUNK_CELLS) {
       lines.push(
         `- ${sheetNameOf(deps, refSheetId)}!${formatAddress(bounds.startRow, bounds.startColumn)}:${formatAddress(bounds.endRow, bounds.endColumn)}: ${count} cells (too large; narrow it down)`,
@@ -795,7 +841,9 @@ async function tracePrecedents(call: AgentToolCall, deps: SheetsSkillDeps): Prom
     const rangeName =
       `${sheetNameOf(deps, refSheetId)}!${formatAddress(bounds.startRow, bounds.startColumn)}` +
       (count > 1 ? `:${formatAddress(bounds.endRow, bounds.endColumn)}` : '')
-    lines.push(`- ${rangeName}: ${shown.join(', ')}${count > shown.length ? ` (…${count - shown.length} more)` : ''}${errors > 0 ? ` ⚠️ ${errors} error value(s)` : ''}`)
+    lines.push(
+      `- ${rangeName}: ${shown.join(', ')}${count > shown.length ? ` (…${count - shown.length} more)` : ''}${errors > 0 ? ` ⚠️ ${errors} error value(s)` : ''}`,
+    )
   }
   return { output: lines.join('\n'), mutated: false, summary }
 }
@@ -803,7 +851,8 @@ async function tracePrecedents(call: AgentToolCall, deps: SheetsSkillDeps): Prom
 async function traceDependents(call: AgentToolCall, deps: SheetsSkillDeps): Promise<ToolExecution> {
   const summary = 'Trace dependents'
   const raw = call.input.address
-  if (typeof raw !== 'string' || !raw.trim()) return fail(summary, 'address must be a non-empty string')
+  if (typeof raw !== 'string' || !raw.trim())
+    return fail(summary, 'address must be a non-empty string')
   let target: { row: number; column: number }
   try {
     target = parseAddress(raw.trim().toUpperCase())
@@ -818,7 +867,12 @@ async function traceDependents(call: AgentToolCall, deps: SheetsSkillDeps): Prom
   let truncated = false
   for (const entry of info.sheets) {
     if (hits.length >= 100 || entry.rows === undefined || entry.columns === undefined) continue
-    const bounds: RangeBounds = { startRow: 0, startColumn: 0, endRow: entry.rows - 1, endColumn: entry.columns - 1 }
+    const bounds: RangeBounds = {
+      startRow: 0,
+      startColumn: 0,
+      endRow: entry.rows - 1,
+      endColumn: entry.columns - 1,
+    }
     for (const chunk of chunkBounds(bounds, CHUNK_CELLS)) {
       if (scanned >= MAX_SCAN_CELLS) {
         truncated = true
@@ -840,8 +894,10 @@ async function traceDependents(call: AgentToolCall, deps: SheetsSkillDeps): Prom
             const clamped = clampRef(ref.token, sheet.ref.rows, sheet.ref.columns)
             if (!clamped) continue
             if (
-              target.row >= clamped.startRow && target.row <= clamped.endRow &&
-              target.column >= clamped.startColumn && target.column <= clamped.endColumn
+              target.row >= clamped.startRow &&
+              target.row <= clamped.endRow &&
+              target.column >= clamped.startColumn &&
+              target.column <= clamped.endColumn
             ) {
               depends = true
               break
@@ -1103,7 +1159,8 @@ export function executeWorkbookTool(
 
     case 'select_range': {
       const raw = call.input.range
-      if (typeof raw !== 'string' || !raw.trim()) return fail('Select range', 'range must be a non-empty string')
+      if (typeof raw !== 'string' || !raw.trim())
+        return fail('Select range', 'range must be a non-empty string')
       let normalized: string
       try {
         const bounds = parseRange(raw.trim().toUpperCase())
@@ -1111,7 +1168,10 @@ export function executeWorkbookTool(
       } catch {
         return fail('Select range', `Cannot parse range: ${raw}`)
       }
-      const sheetId = typeof call.input.sheetId === 'string' && call.input.sheetId.trim() ? call.input.sheetId.trim() : undefined
+      const sheetId =
+        typeof call.input.sheetId === 'string' && call.input.sheetId.trim()
+          ? call.input.sheetId.trim()
+          : undefined
       const problem = deps.goToRange(normalized, sheetId)
       if (problem) return fail('Select range', problem)
       return { output: `Selected ${normalized}`, mutated: false, summary: 'Select range' }

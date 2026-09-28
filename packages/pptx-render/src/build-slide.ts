@@ -479,7 +479,6 @@ export function buildTable(
       if (cell.merged || (cell.rowSpan ?? 1) > 1) return
       if (!cell.text || !cell.text.paragraphs.length) return
       const span = cell.gridSpan ?? 1
-      const x = colStart(cIdx, span)
       const w = colEnd(cIdx, span) - (colLTR[cIdx] ?? 0)
       const probe = layoutText({
         body: cell.text,

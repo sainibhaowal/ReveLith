@@ -2,7 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import type { Lang } from '@revelith/i18n'
 import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@revelith/ai-provider'
-import { HTML_CHANNELS, type HtmlDesktopApi, type SaveHtmlRequest, type ExportDocxRequest, type ExportPdfRequest, type UiTheme, type SaveMode } from '../shared/ipc'
+import {
+  HTML_CHANNELS,
+  type HtmlDesktopApi,
+  type SaveHtmlRequest,
+  type ExportDocxRequest,
+  type ExportPdfRequest,
+  type UiTheme,
+  type SaveMode,
+} from '../shared/ipc'
 
 const api: HtmlDesktopApi = {
   consumePendingOpen: () => ipcRenderer.invoke(HTML_CHANNELS.consumePending),
@@ -28,6 +36,7 @@ const api: HtmlDesktopApi = {
   },
   exportDocx: (req: ExportDocxRequest) => ipcRenderer.invoke(HTML_CHANNELS.exportDocx, req),
   exportPdf: (req: ExportPdfRequest) => ipcRenderer.invoke(HTML_CHANNELS.exportPdf, req),
+  saveSingleFile: (req: ExportPdfRequest) => ipcRenderer.invoke(HTML_CHANNELS.saveSingleFile, req),
   getLanguage: () => ipcRenderer.invoke(HTML_CHANNELS.getLanguage),
   onLanguageChanged: (handler: (lang: Lang) => void) => {
     const listener = (_e: IpcRendererEvent, lang: Lang) => handler(lang)

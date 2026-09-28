@@ -7743,6 +7743,10 @@ tr > .page-gap-cut {
   min-height: 0;
 }
 
+.app-main.ai-dock-right {
+  flex-direction: row-reverse;
+}
+
 .app-content {
   display: flex;
   flex-direction: column;

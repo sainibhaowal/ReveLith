@@ -5,15 +5,7 @@ import {
   TABLE_HEADER_FILL,
   generateTableModelXml,
 } from '@revelith/docx-engine'
-import type {
-  SaveBlock,
-  SaveOptions,
-  Run,
-  GeneratedBlock,
-  TableModel,
-  TableCell,
-  TableParagraph,
-} from '@revelith/docx-engine'
+import type { SaveBlock, Run, GeneratedBlock, TableModel, TableCell } from '@revelith/docx-engine'
 
 function collectRuns(node: Node): Run[] {
   const runs: Run[] = []

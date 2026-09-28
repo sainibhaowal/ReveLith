@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { draftFromSelection, formatCellsCommands, type FormatCellsDraft } from './format-cells'
 import { useI18n, type StringKey } from './i18n/locale'
@@ -120,6 +120,93 @@ const BORDER_PRESETS: { readonly labelKey: StringKey; readonly value: string }[]
   { labelKey: 'dlgFcBorderRight', value: 'right' },
 ]
 
+const THEME_BASE_COLORS = [
+  '#ffffff',
+  '#000000',
+  '#eeece1',
+  '#1f497d',
+  '#4f81bd',
+  '#c0504d',
+  '#9bbb59',
+  '#8064a2',
+  '#4bacc6',
+  '#f79646',
+]
+const THEME_TINTS = [
+  [
+    '#f2f2f2',
+    '#7f7f7f',
+    '#ddd9c3',
+    '#c6d9f0',
+    '#dce6f1',
+    '#f2dcdb',
+    '#ebf1dd',
+    '#e5e0ec',
+    '#dbeef3',
+    '#fdeada',
+  ],
+  [
+    '#d8d8d8',
+    '#595959',
+    '#c4bd97',
+    '#8db3e2',
+    '#b8cce4',
+    '#e5b9b7',
+    '#d7e3bc',
+    '#ccc1d9',
+    '#b7dde8',
+    '#fbd5b5',
+  ],
+  [
+    '#bfbfbf',
+    '#3f3f3f',
+    '#948a54',
+    '#548dd4',
+    '#95b3d7',
+    '#d99694',
+    '#c3d69b',
+    '#b2a2c7',
+    '#92cddc',
+    '#fac08f',
+  ],
+  [
+    '#a5a5a5',
+    '#262626',
+    '#494529',
+    '#17365d',
+    '#366092',
+    '#953734',
+    '#76933c',
+    '#5f497a',
+    '#31859b',
+    '#e36c09',
+  ],
+  [
+    '#7f7f7f',
+    '#0c0c0c',
+    '#1d1b10',
+    '#0f243e',
+    '#244062',
+    '#632423',
+    '#4f6128',
+    '#3f3151',
+    '#205867',
+    '#974806',
+  ],
+]
+const STANDARD_COLORS = [
+  '#c00000',
+  '#ff0000',
+  '#ffc000',
+  '#ffff00',
+  '#92d050',
+  '#00b050',
+  '#00b0f0',
+  '#0070c0',
+  '#002060',
+  '#7030a0',
+]
+
 export function FormatCellsDialog({
   selectionFormat,
   anchorValue,
@@ -134,6 +221,14 @@ export function FormatCellsDialog({
 }): React.JSX.Element {
   const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('Number')
+
+  const [fillMode, setFillMode] = useState<'solid' | 'gradient' | 'pattern'>('solid')
+  const [gradType, setGradType] = useState<'horizontal' | 'vertical' | 'diagonal'>('horizontal')
+  const [gradColor1, setGradColor1] = useState('#ffffff')
+  const [gradColor2, setGradColor2] = useState('#2563eb')
+  const [patternStyle, setPatternStyle] = useState('gray50')
+  const [patternFg, setPatternFg] = useState('#475569')
+  const [patternBg, setPatternBg] = useState('#ffffff')
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
@@ -509,31 +604,375 @@ export function FormatCellsDialog({
             </div>
           )}
           {tab === 'Fill' && (
-            <div className="dialog-grid">
-              <label>
-                {t('dlgFcBackground')}
-                <input
-                  type="color"
-                  value={draft.fill || '#ffffff'}
-                  disabled={draft.noFill}
-                  // An unset fill already displays as white, so picking white
-                  // never fires a change event. Seed the draft when the user
-                  // opens the picker: that turns the displayed white into an
-                  // explicit choice, distinguishable from "no fill".
-                  onClick={() => {
-                    if (!draft.fill) set('fill', '#ffffff')
-                  }}
-                  onChange={(e) => set('fill', e.target.value)}
-                />
-              </label>
-              <label className="dialog-check">
-                <input
-                  type="checkbox"
-                  checked={draft.noFill}
-                  onChange={(e) => set('noFill', e.target.checked)}
-                />
-                {t('dlgFcNoFill')}
-              </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Fill Mode Switcher */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  borderBottom: '1px solid var(--border)',
+                  paddingBottom: 6,
+                }}
+              >
+                {(['solid', 'gradient', 'pattern'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background:
+                        fillMode === m
+                          ? 'var(--accent-subtle, rgba(59, 130, 246, 0.1))'
+                          : 'transparent',
+                      color: fillMode === m ? 'var(--accent)' : 'inherit',
+                      fontWeight: fillMode === m ? 600 : 400,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => {
+                      setFillMode(m)
+                      if (m === 'gradient') {
+                        const s =
+                          gradType === 'horizontal'
+                            ? `linear-gradient(90deg, ${gradColor1}, ${gradColor2})`
+                            : gradType === 'vertical'
+                              ? `linear-gradient(180deg, ${gradColor1}, ${gradColor2})`
+                              : `linear-gradient(45deg, ${gradColor1}, ${gradColor2})`
+                        set('fill', s)
+                        set('noFill', false)
+                      } else if (m === 'pattern') {
+                        const p =
+                          patternStyle === 'horiz'
+                            ? `repeating-linear-gradient(0deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
+                            : patternStyle === 'vert'
+                              ? `repeating-linear-gradient(90deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
+                              : patternStyle === 'cross'
+                                ? `repeating-linear-gradient(45deg, ${patternFg} 0, ${patternFg} 1px, ${patternBg} 0, ${patternBg} 6px)`
+                                : `radial-gradient(${patternFg} 1.5px, ${patternBg} 1.5px)`
+                        set('fill', p)
+                        set('noFill', false)
+                      }
+                    }}
+                  >
+                    {m === 'solid'
+                      ? 'Theme & Solid Colors'
+                      : m === 'gradient'
+                        ? 'Gradient Fill'
+                        : 'Pattern Fill'}
+                  </button>
+                ))}
+              </div>
+
+              {fillMode === 'solid' && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--text-muted)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    Theme Colors
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(10, 1fr)',
+                      gap: 3,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {THEME_BASE_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        style={{
+                          width: 24,
+                          height: 20,
+                          background: c,
+                          border:
+                            draft.fill === c
+                              ? '2px solid var(--accent)'
+                              : '1px solid rgba(0,0,0,0.15)',
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                        title={c}
+                        onClick={() => {
+                          set('fill', c)
+                          set('noFill', false)
+                        }}
+                      />
+                    ))}
+                    {THEME_TINTS.map((row, rIdx) =>
+                      row.map((c, cIdx) => (
+                        <button
+                          key={`${rIdx}-${cIdx}`}
+                          type="button"
+                          style={{
+                            width: 24,
+                            height: 16,
+                            background: c,
+                            border:
+                              draft.fill === c
+                                ? '2px solid var(--accent)'
+                                : '1px solid rgba(0,0,0,0.08)',
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                          title={c}
+                          onClick={() => {
+                            set('fill', c)
+                            set('noFill', false)
+                          }}
+                        />
+                      )),
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--text-muted)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    Standard Colors
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(10, 1fr)',
+                      gap: 3,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {STANDARD_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        style={{
+                          width: 24,
+                          height: 20,
+                          background: c,
+                          border:
+                            draft.fill === c
+                              ? '2px solid var(--accent)'
+                              : '1px solid rgba(0,0,0,0.15)',
+                          borderRadius: 2,
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                        title={c}
+                        onClick={() => {
+                          set('fill', c)
+                          set('noFill', false)
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      More Colors:
+                      <input
+                        type="color"
+                        value={draft.fill && draft.fill.startsWith('#') ? draft.fill : '#ffffff'}
+                        disabled={draft.noFill}
+                        onChange={(e) => {
+                          set('fill', e.target.value)
+                          set('noFill', false)
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {fillMode === 'gradient' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <label style={{ fontSize: 12 }}>Direction:</label>
+                    <select
+                      value={gradType}
+                      style={{ fontSize: 12, padding: '2px 8px' }}
+                      onChange={(e) => {
+                        const next = e.target.value as any
+                        setGradType(next)
+                        const s =
+                          next === 'horizontal'
+                            ? `linear-gradient(90deg, ${gradColor1}, ${gradColor2})`
+                            : next === 'vertical'
+                              ? `linear-gradient(180deg, ${gradColor1}, ${gradColor2})`
+                              : `linear-gradient(45deg, ${gradColor1}, ${gradColor2})`
+                        set('fill', s)
+                        set('noFill', false)
+                      }}
+                    >
+                      <option value="horizontal">Horizontal</option>
+                      <option value="vertical">Vertical</option>
+                      <option value="diagonal">Diagonal (45°)</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      Color 1:
+                      <input
+                        type="color"
+                        value={gradColor1}
+                        onChange={(e) => {
+                          setGradColor1(e.target.value)
+                          const s =
+                            gradType === 'horizontal'
+                              ? `linear-gradient(90deg, ${e.target.value}, ${gradColor2})`
+                              : gradType === 'vertical'
+                                ? `linear-gradient(180deg, ${e.target.value}, ${gradColor2})`
+                                : `linear-gradient(45deg, ${e.target.value}, ${gradColor2})`
+                          set('fill', s)
+                          set('noFill', false)
+                        }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      Color 2:
+                      <input
+                        type="color"
+                        value={gradColor2}
+                        onChange={(e) => {
+                          setGradColor2(e.target.value)
+                          const s =
+                            gradType === 'horizontal'
+                              ? `linear-gradient(90deg, ${gradColor1}, ${e.target.value})`
+                              : gradType === 'vertical'
+                                ? `linear-gradient(180deg, ${gradColor1}, ${e.target.value})`
+                                : `linear-gradient(45deg, ${gradColor1}, ${e.target.value})`
+                          set('fill', s)
+                          set('noFill', false)
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {fillMode === 'pattern' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <label style={{ fontSize: 12 }}>Pattern Style:</label>
+                    <select
+                      value={patternStyle}
+                      style={{ fontSize: 12, padding: '2px 8px' }}
+                      onChange={(e) => {
+                        const style = e.target.value
+                        setPatternStyle(style)
+                        const p =
+                          style === 'horiz'
+                            ? `repeating-linear-gradient(0deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
+                            : style === 'vert'
+                              ? `repeating-linear-gradient(90deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
+                              : style === 'cross'
+                                ? `repeating-linear-gradient(45deg, ${patternFg} 0, ${patternFg} 1px, ${patternBg} 0, ${patternBg} 6px)`
+                                : `radial-gradient(${patternFg} 1.5px, ${patternBg} 1.5px)`
+                        set('fill', p)
+                        set('noFill', false)
+                      }}
+                    >
+                      <option value="gray50">50% Gray</option>
+                      <option value="horiz">Horizontal Stripe</option>
+                      <option value="vert">Vertical Stripe</option>
+                      <option value="cross">Diagonal Crosshatch</option>
+                      <option value="dots">Dots</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      Pattern Color:
+                      <input
+                        type="color"
+                        value={patternFg}
+                        onChange={(e) => {
+                          setPatternFg(e.target.value)
+                          const p =
+                            patternStyle === 'horiz'
+                              ? `repeating-linear-gradient(0deg, ${e.target.value}, ${e.target.value} 2px, ${patternBg} 2px, ${patternBg} 6px)`
+                              : patternStyle === 'vert'
+                                ? `repeating-linear-gradient(90deg, ${e.target.value}, ${e.target.value} 2px, ${patternBg} 2px, ${patternBg} 6px)`
+                                : patternStyle === 'cross'
+                                  ? `repeating-linear-gradient(45deg, ${e.target.value} 0, ${e.target.value} 1px, ${patternBg} 0, ${patternBg} 6px)`
+                                  : `radial-gradient(${e.target.value} 1.5px, ${patternBg} 1.5px)`
+                          set('fill', p)
+                          set('noFill', false)
+                        }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      Background:
+                      <input
+                        type="color"
+                        value={patternBg}
+                        onChange={(e) => {
+                          setPatternBg(e.target.value)
+                          const p =
+                            patternStyle === 'horiz'
+                              ? `repeating-linear-gradient(0deg, ${patternFg}, ${patternFg} 2px, ${e.target.value} 2px, ${e.target.value} 6px)`
+                              : patternStyle === 'vert'
+                                ? `repeating-linear-gradient(90deg, ${patternFg}, ${patternFg} 2px, ${e.target.value} 2px, ${e.target.value} 6px)`
+                                : patternStyle === 'cross'
+                                  ? `repeating-linear-gradient(45deg, ${patternFg} 0, ${patternFg} 1px, ${e.target.value} 0, ${e.target.value} 6px)`
+                                  : `radial-gradient(${patternFg} 1.5px, ${e.target.value} 1.5px)`
+                          set('fill', p)
+                          set('noFill', false)
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* No Fill toggle & Sample Preview */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderTop: '1px solid var(--border)',
+                  paddingTop: 10,
+                }}
+              >
+                <label className="dialog-check">
+                  <input
+                    type="checkbox"
+                    checked={draft.noFill}
+                    onChange={(e) => set('noFill', e.target.checked)}
+                  />
+                  {t('dlgFcNoFill')}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sample:</span>
+                  <div
+                    style={{
+                      width: 90,
+                      height: 28,
+                      borderRadius: 4,
+                      border: '1px solid var(--border-strong, #ccc)',
+                      background: draft.noFill ? '#ffffff' : draft.fill || '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: 500,
+                    }}
+                  >
+                    Sample
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           {tab === 'Protection' && (

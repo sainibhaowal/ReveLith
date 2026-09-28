@@ -9,11 +9,32 @@ const PRINT_SCALE = 150 / 72
  * Caller flushes unsaved changes and re-getDocument first : rotations/deleted pages are
  * already in the file.
  */
-export async function printPdf(doc: PDFDocumentProxy): Promise<void> {
+export function parsePageRange(range: string, total: number): number[] {
+  const pages = new Set<number>()
+  for (const part of range.split(',')) {
+    const t = part.trim()
+    if (!t) continue
+    const m = /^(\d+)\s*-\s*(\d+)$/.exec(t)
+    if (m) {
+      const a = Math.max(1, Number(m[1]))
+      const b = Math.min(total, Number(m[2]))
+      for (let n = a; n <= b; n++) pages.add(n)
+    } else {
+      const n = Number(t)
+      if (Number.isInteger(n) && n >= 1 && n <= total) pages.add(n)
+    }
+  }
+  return [...pages].sort((a, b) => a - b)
+}
+
+export async function printPdf(doc: PDFDocumentProxy, range?: string): Promise<void> {
   const root = document.createElement('div')
   root.className = 'pdf-print-root'
   const canvas = document.createElement('canvas')
-  for (let n = 1; n <= doc.numPages; n++) {
+  const wanted = range?.trim() ? parsePageRange(range, doc.numPages) : null
+  const list =
+    wanted && wanted.length > 0 ? wanted : Array.from({ length: doc.numPages }, (_, i) => i + 1)
+  for (const n of list) {
     const page = await doc.getPage(n)
     const viewport = page.getViewport({ scale: PRINT_SCALE })
     canvas.width = Math.floor(viewport.width)

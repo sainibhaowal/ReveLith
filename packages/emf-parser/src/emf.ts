@@ -5,53 +5,42 @@
  * Based on [MS-EMF] specification.
  */
 
-import { BinaryReader, parseRect, parsePoint } from './utils'
-import type {
-  EmfHeader,
-  EmfRecord,
-  EmfRecordType,
-  EmfParseResult,
-  EmfParserOptions,
-  Rect,
-  Point,
-  Size,
-  Color,
-  LogPalette,
-} from './index'
+import { BinaryReader } from './utils'
+import type { EmfHeader, Rect, Color, LogPalette } from './index'
 
 // ─── Constants ────────────────────────────────────────────────
 
-const ENHANCED_METAFILE_SIGNATURE = 0x464D4520
+const ENHANCED_METAFILE_SIGNATURE = 0x464d4520
 
 const RECORD_TYPES: Record<number, string> = {
   0x00000001: 'EMR_HEADER',
-  0x0000000E: 'EMR_EOF',
+  0x0000000e: 'EMR_EOF',
   0x00000046: 'EMR_COMMENT',
-  0x0000000D: 'EMR_SAVEDC',
-  0x0000000F: 'EMR_RESTOREDC',
+  0x0000000d: 'EMR_SAVEDC',
+  0x0000000f: 'EMR_RESTOREDC',
   0x00000012: 'EMR_SETBKMODE',
   0x00000013: 'EMR_SETMAPMODE',
   0x00000015: 'EMR_SETLAYOUT',
   0x00000016: 'EMR_SETWORLDTRANSFORM',
   0x00000017: 'EMR_MODIFYWORLDTRANSFORM',
   0x00000019: 'EMR_SETROP2',
-  0x0000001A: 'EMR_SETBKCOLOR',
-  0x0000001B: 'EMR_SETTEXTCOLOR',
-  0x0000001C: 'EMR_SETTEXALIGN',
-  0x0000001D: 'EMR_SETTEXTCHAREXTRA',
-  0x0000001E: 'EMR_SETMITERLIMIT',
+  0x0000001a: 'EMR_SETBKCOLOR',
+  0x0000001b: 'EMR_SETTEXTCOLOR',
+  0x0000001c: 'EMR_SETTEXALIGN',
+  0x0000001d: 'EMR_SETTEXTCHAREXTRA',
+  0x0000001e: 'EMR_SETMITERLIMIT',
   0x00000028: 'EMR_CREATEPEN',
   0x00000029: 'EMR_CREATEBRUSHINDIRECT',
-  0x0000002B: 'EMR_DELETEOBJECT',
-  0x0000002D: 'EMR_SELECTOBJECT',
+  0x0000002b: 'EMR_DELETEOBJECT',
+  0x0000002d: 'EMR_SELECTOBJECT',
   0x00000060: 'EMR_EXTCREATEPEN',
-  0x0000002E: 'EMR_CREATEMONOBRUSH',
-  0x0000002F: 'EMR_CREATEDIBPATTERNBRUSHPT',
-  0x0000003B: 'EMR_BEGINPATH',
-  0x0000003C: 'EMR_ENDPATH',
-  0x0000003D: 'EMR_CLOSEFIGURE',
-  0x0000003E: 'EMR_FLATTENPATH',
-  0x0000003F: 'EMR_WIDENPATH',
+  0x0000002e: 'EMR_CREATEMONOBRUSH',
+  0x0000002f: 'EMR_CREATEDIBPATTERNBRUSHPT',
+  0x0000003b: 'EMR_BEGINPATH',
+  0x0000003c: 'EMR_ENDPATH',
+  0x0000003d: 'EMR_CLOSEFIGURE',
+  0x0000003e: 'EMR_FLATTENPATH',
+  0x0000003f: 'EMR_WIDENPATH',
   0x00000040: 'EMR_SELECTCLIPPATH',
   0x00000041: 'EMR_SETROPOLYGONMODE',
   0x00000030: 'EMR_MOVETOEX',
@@ -65,10 +54,10 @@ const RECORD_TYPES: Record<number, string> = {
   0x00000038: 'EMR_ROUNDRECT',
   // NOTE: poly/draw records use 0x100 range to avoid colliding with path-state
   // record ids above (spec values differ by EMF version; parser is consistent internally).
-  0x0000013C: 'EMR_POLYLINE',
-  0x0000013D: 'EMR_POLYLINE16',
-  0x0000013E: 'EMR_POLYLINETO',
-  0x0000013F: 'EMR_POLYLINETO16',
+  0x0000013c: 'EMR_POLYLINE',
+  0x0000013d: 'EMR_POLYLINE16',
+  0x0000013e: 'EMR_POLYLINETO',
+  0x0000013f: 'EMR_POLYLINETO16',
   0x00000142: 'EMR_POLYPOLYLINE',
   0x00000143: 'EMR_POLYPOLYLINE16',
   0x00000144: 'EMR_POLYGON',
@@ -77,19 +66,19 @@ const RECORD_TYPES: Record<number, string> = {
   0x00000147: 'EMR_POLYBEZIER16',
   0x00000148: 'EMR_POLYBEZIERTO',
   0x00000149: 'EMR_POLYBEZIERTO16',
-  0x0000014A: 'EMR_POLYDRAW',
-  0x0000014B: 'EMR_POLYDRAW16',
-  0x0000004C: 'EMR_EXTTEXTOUTW',
-  0x0000004D: 'EMR_EXTTEXTOUTA',
-  0x0000004E: 'EMR_SMALLTEXTOUT',
-  0x0000004F: 'EMR_BITBLT',
+  0x0000014a: 'EMR_POLYDRAW',
+  0x0000014b: 'EMR_POLYDRAW16',
+  0x0000004c: 'EMR_EXTTEXTOUTW',
+  0x0000004d: 'EMR_EXTTEXTOUTA',
+  0x0000004e: 'EMR_SMALLTEXTOUT',
+  0x0000004f: 'EMR_BITBLT',
   0x00000050: 'EMR_STRETCHBLT',
   0x00000051: 'EMR_STRETCHDIBITS',
   0x00000052: 'EMR_SETDIBITSTODEVICE',
   0x00000053: 'EMR_CREATEBITMAP',
   0x00000054: 'EMR_CREATEREGION',
-  0x0000005B: 'EMR_FRAMERGN',
-  0x0000005C: 'EMR_PAINTRGN',
+  0x0000005b: 'EMR_FRAMERGN',
+  0x0000005c: 'EMR_PAINTRGN',
   0x00000056: 'EMR_INVERTRGN',
   0x00000057: 'EMR_OFFSETCLIPRGN',
   0x00000058: 'EMR_EXTSELECTCLIPRGN',
@@ -172,9 +161,9 @@ function parseEmfHeader(reader: BinaryReader): EmfHeader {
       for (let i = 0; i < palCount && reader.remaining >= 4; i++) {
         const val = reader.readUint32()
         entries.push({
-          r: val & 0xFF,
-          g: (val >> 8) & 0xFF,
-          b: (val >> 16) & 0xFF,
+          r: val & 0xff,
+          g: (val >> 8) & 0xff,
+          b: (val >> 16) & 0xff,
           a: 255,
         })
       }
@@ -210,11 +199,13 @@ function parseEmfRecord(reader: BinaryReader): any {
 
   if (size < 8) throw new Error(`Invalid record size: ${size}`)
 
-  const type = RECORD_TYPES[typeValue] ?? ('UNKNOWN_' + typeValue.toString(16))
+  const type = RECORD_TYPES[typeValue] ?? 'UNKNOWN_' + typeValue.toString(16)
   const dataSize = size - 8
 
   if (reader.remaining < dataSize) {
-    throw new Error(`Record data truncated: expected ${dataSize} bytes, ${reader.remaining} remaining`)
+    throw new Error(
+      `Record data truncated: expected ${dataSize} bytes, ${reader.remaining} remaining`,
+    )
   }
 
   const data = reader.readBytes(dataSize)
@@ -236,8 +227,7 @@ function parseEmfRecords(reader: BinaryReader, count: number): any[] {
 
 // ─── Main Parse Function ───────────────────────────────────────
 
-export function parseEmf(buffer: Uint8Array, options: any = {}): any {
-  const errors: string[] = []
+export function parseEmf(buffer: Uint8Array, _options: any = {}): any {
   const reader = new BinaryReader(buffer)
 
   try {
@@ -248,9 +238,17 @@ export function parseEmf(buffer: Uint8Array, options: any = {}): any {
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     return {
-      header: { type: 'EMF', bounds: { left: 0, top: 0, right: 0, bottom: 0 }, frame: { left: 0, top: 0, right: 0, bottom: 0 }, size: { width: 0, height: 0 }, dpi: { x: 96, y: 96 }, recordsCount: 0, handCount: 0 },
+      header: {
+        type: 'EMF',
+        bounds: { left: 0, top: 0, right: 0, bottom: 0 },
+        frame: { left: 0, top: 0, right: 0, bottom: 0 },
+        size: { width: 0, height: 0 },
+        dpi: { x: 96, y: 96 },
+        recordsCount: 0,
+        handCount: 0,
+      },
       records: [],
-      errors: [error instanceof Error ? error.message : String(error)],
+      errors: [msg],
     }
   }
 }

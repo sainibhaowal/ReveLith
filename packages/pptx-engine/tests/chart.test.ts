@@ -387,4 +387,21 @@ describe('buildChartSpaceXml style options (generate → parse round-trip)', () 
     expect(m.dataLabels).toBe(true)
     expect(m.dataLabelsPct).toBe(true)
   })
+
+  it('honors 1904 date system for serial date categories', () => {
+    // 0 in 1904 system is 1904-01-01; 1 is 1904-01-02
+    // 0 in 1900 system is 1899-12-30; 1 is 1900-01-01
+    const CHART_1904 = `<c:chartSpace xmlns:c="c" xmlns:a="a"><c:date1904 val="1"/><c:chart><c:plotArea><c:layout/>
+<c:lineChart><c:ser><c:idx val="0"/>
+  <c:cat><c:numRef><c:numCache><c:formatCode>yyyy-mm-dd</c:formatCode><c:ptCount val="2"/>
+    <c:pt idx="0"><c:v>0</c:v></c:pt>
+    <c:pt idx="1"><c:v>1</c:v></c:pt>
+  </c:numCache></c:numRef></c:cat>
+  <c:val><c:numRef><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>10</c:v></c:pt><c:pt idx="1"><c:v>20</c:v></c:pt></c:numCache></c:numRef></c:val>
+</c:ser></c:lineChart>
+</c:plotArea></c:chart></c:chartSpace>`
+    const m = parseChartXml(CHART_1904)!
+    expect(m.date1904).toBe(true)
+    expect(m.categories).toEqual(['1904-01-01', '1904-01-02'])
+  })
 })

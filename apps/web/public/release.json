@@ -1,10 +1,41 @@
 {
-  "version": "v1.2.4",
+  "version": "v0.10.100",
   "downloads": [
-    { "os": "Windows 10 / 11", "format": "ReveLith.Setup.1.2.4.exe", "tag": "Installer", "emoji": "↓", "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v1.2.4/ReveLith.Setup.1.2.4.exe", "recommended": true },
-    { "os": "macOS Apple Silicon", "format": "ReveLith-1.2.4-arm64.dmg", "tag": "DMG installer", "emoji": "⌘", "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v1.2.4/ReveLith-1.2.4-arm64.dmg" },
-    { "os": "Linux", "format": "ReveLith-1.2.4.AppImage", "tag": "AppImage", "emoji": "◒", "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v1.2.4/ReveLith-1.2.4.AppImage" },
-    { "os": "Debian / Ubuntu", "format": "ReveLith_1.2.4_amd64.deb", "tag": "DEB package", "emoji": "◒", "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v1.2.4/ReveLith_1.2.4_amd64.deb" },
-    { "os": "Fedora / RPM Linux", "format": "ReveLith-1.2.4.x86_64.rpm", "tag": "RPM package", "emoji": "◒", "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v1.2.4/ReveLith-1.2.4.x86_64.rpm" }
+    {
+      "os": "Windows 10 / 11",
+      "format": "ReveLith.Setup.0.10.100.exe",
+      "tag": "Installer",
+      "emoji": "↓",
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith.Setup.0.10.100.exe",
+      "recommended": true
+    },
+    {
+      "os": "macOS Apple Silicon",
+      "format": "ReveLith-0.10.100-arm64.dmg",
+      "tag": "DMG installer",
+      "emoji": "⌘",
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith-0.10.100-arm64.dmg"
+    },
+    {
+      "os": "Linux",
+      "format": "ReveLith-0.10.100.AppImage",
+      "tag": "AppImage",
+      "emoji": "◒",
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith-0.10.100.AppImage"
+    },
+    {
+      "os": "Debian / Ubuntu",
+      "format": "ReveLith_0.10.100_amd64.deb",
+      "tag": "DEB package",
+      "emoji": "◒",
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith_0.10.100_amd64.deb"
+    },
+    {
+      "os": "Fedora / RPM Linux",
+      "format": "ReveLith-0.10.100.x86_64.rpm",
+      "tag": "RPM package",
+      "emoji": "◒",
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith-0.10.100.x86_64.rpm"
+    }
   ]
 }
