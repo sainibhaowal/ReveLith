@@ -1,69 +1,93 @@
 ---
 name: revelith
-description: Create, convert, inspect and edit real Office and PDF files locally with ReveLith's command line. Use whenever the user wants a Word document, spreadsheet, presentation, PDF, Markdown or HTML file produced, converted between formats, or modified in place, including structured edits to their own existing files, and when the result should open in the ReveLith editor. Documents are processed locally; only search, image and media send the query or the referenced file to the provider configured in ReveLith.
+description: Inspect, check and edit real Office and PDF files locally with ReveLith's command line and MCP server. Use whenever the user wants a Word document, spreadsheet, presentation, PDF or Markdown file examined for structure or quality, or modified in place, and when the result should open in the ReveLith editor. Document work runs on the local engines; only the AI provider configured in ReveLith ever sees a query. The authoritative command list is `revelith --help`.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   cli: '>=0.10.100'
 ---
 
-# ReveLith Skill — Build & Edit Real Office Files Locally
+# Revelith Skill — Work With Office Files Locally
 
-You are helping the user work with real Office documents through ReveLith's
+You are helping the user work with real Office documents through Revelith's
 local engines. Nothing leaves the machine. Prefer the `revelith` CLI for
 deterministic file work; use structured edits over full rewrites.
 
-## Commands
+## Find out what exists
+
+Do not rely on a remembered command list. The binary is the source of truth:
 
 ```bash
-# Inspect
-revelith info <file>                 # type, pages/sheets/slides, metadata
-revelith read <file> --json          # structured dump (text, tables, comments)
-revelith render <file> --out ./shot  # one PNG per page/slide/sheet for visual check
-
-# Create / convert (all local, byte-preserving where possible)
-revelith create --type docx|xlsx|pptx|md|html|csv --out <file>
-revelith convert <in> <out>          # docx<->pdf/md/html, xlsx<->csv, pptx->pdf, pdf->docx|pptx
+revelith --help            # every command, one line each
+revelith <command> --help  # that command's options
+revelith --version
 ```
 
-## Structured edits (in place, no re-serialization damage)
+`--json` on any command prints one JSON object on stdout; the exit code is
+`0` ok, `1` bad command line, `2` file problem, `3` conversion, `4` app
+unavailable. Progress and warnings go to stderr, so `--json` output is always
+safe to parse.
+
+## Inspecting
 
 ```bash
-# Docs: text, images, tables, comments, header/footer
-revelith docs set-text --file a.docx --find "Hello" --replace "Hi"
-revelith docs insert-image --file a.docx --src ./logo.png --width 480
-revelith docs insert-table --file a.docx --rows 3 --cols 2
-revelith docs comments-add --file a.docx --text "Review this" --author "AI"
-
-# Sheets: values, filters, rules, charts, pictures
-revelith sheets set-cell --file b.xlsx --cell A1 --value "Total"
-revelith sheets autofit --file b.xlsx
-revelith sheets sort --file b.xlsx --range A1:B10 --col 1
-revelith sheets add-chart --file b.xlsx --range A1:B10 --kind bar
-
-# Slides: guided deck pipeline (outline -> spec/slide -> audit -> build)
-revelith deck outline --topic "Q3 review" --slides 8 --out outline.json
-revelith deck build --outline outline.json --out deck.pptx
-revelith deck replace --file deck.pptx --slide 3 --title "New title"
-revelith deck audit --file deck.pptx   # layout audit: overflow, contrast, fonts
+revelith info <file>        # structure summary: blocks, slides, rows, metadata
+revelith check <file>       # quality issue report (links, structure, formatting)
 ```
+
+`info` reads `.docx`, `.pptx`, `.csv`, `.md`, `.html` and `.txt`. It refuses
+other formats with a clear `unsupported` error rather than guessing — for
+`.xlsx` and `.pdf` it will not report a sheet or page count it has not read.
+
+## Opening in the editor
+
+```bash
+revelith open <file>                      # open at the last position
+revelith open <file> --slide 3            # pptx
+revelith open <file> --page 5             # pdf
+revelith open <file> --range A1:D10       # xlsx
+```
+
+## Editing in place
+
+These patch the package rather than re-serializing it, so untouched parts stay
+byte-identical.
+
+```bash
+revelith docs apply <file>     # styles, fields, comments, tables
+revelith sheet apply <file>    # formulas, styles, pivot tables, sparklines
+revelith slides apply <file>   # animations, alignment, themes
+```
+
+## Building a presentation
+
+```bash
+revelith deck build --spec deck.json --out deck.pptx
+```
+
+The spec is JSON: a title plus slides, each with a layout and its content. The
+`guided_deck_builder` MCP tool takes the same shape and returns the file it
+wrote.
 
 ## Model Context Protocol (MCP)
 
 ```bash
-# Stdio mode (Claude Code, Cursor, Windsurf)
-revelith mcp
-
-# Streamable HTTP mode (sandboxes, containers, remote agents)
-revelith mcp --http 3930 --token <secret>
-# Supports PUT /files/<name>, GET /files/<name>, auto-downloading http(s):// parameters,
-# and extended tools: pdf_read_text, docs_edit_text, sheet_set_cells
+revelith mcp                              # stdio (Claude Code, Cursor, Windsurf)
+revelith mcp --http 3930 --token <secret> # Streamable HTTP (sandboxes, remote agents)
 ```
+
+The HTTP server also exposes `PUT /files/<name>` and `GET /files/<name>`, and
+will download an `http(s)://` file parameter automatically so a remote agent can
+work on a document it cannot reach directly. Tools include `revelith_info`,
+`revelith_check`, `revelith_open`, `docs_apply`, `sheet_apply`, `slides_apply`,
+`guided_deck_builder`, `live_word_edit`, `docs_edit_text`, `pdf_read_text` and
+`sheet_set_cells`.
 
 ## Rules
 
 1. Files stay local — never upload contents to any cloud.
-2. After `build`/`replace`/`convert`, run `render` and look at the PNG
-   before claiming done.
-3. Prefer single-slide `replace` over rebuilding whole decks.
-4. Keep OOXML byte-preserving: only touch dirty nodes (ReveLith engines do this).
-5. For PDFs, keep highlight geometry aligned to the text layer; verify with render.
+2. Check before you claim: run `revelith info` or `revelith check` on the file
+   you changed, and read the result.
+3. Prefer a targeted in-place edit over rebuilding a whole document.
+4. Keep OOXML byte-preserving: only touch dirty nodes (Revelith engines do this).
+5. If a command fails with `unsupported`, do not work around it with a
+   different tool — say which format is not supported yet.
