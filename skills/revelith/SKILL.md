@@ -1,3 +1,11 @@
+---
+name: revelith
+description: Create, convert, inspect and edit real Office and PDF files locally with ReveLith's command line. Use whenever the user wants a Word document, spreadsheet, presentation, PDF, Markdown or HTML file produced, converted between formats, or modified in place, including structured edits to their own existing files, and when the result should open in the ReveLith editor. Documents are processed locally; only search, image and media send the query or the referenced file to the provider configured in ReveLith.
+metadata:
+  version: 0.1.0
+  cli: '>=0.10.100'
+---
+
 # ReveLith Skill — Build & Edit Real Office Files Locally
 
 You are helping the user work with real Office documents through ReveLith's
@@ -19,7 +27,7 @@ revelith convert <in> <out>          # docx<->pdf/md/html, xlsx<->csv, pptx->pdf
 
 ## Structured edits (in place, no re-serialization damage)
 
-````bash
+```bash
 # Docs: text, images, tables, comments, header/footer
 revelith docs set-text --file a.docx --find "Hello" --replace "Hi"
 revelith docs insert-image --file a.docx --src ./logo.png --width 480
@@ -37,6 +45,8 @@ revelith deck outline --topic "Q3 review" --slides 8 --out outline.json
 revelith deck build --outline outline.json --out deck.pptx
 revelith deck replace --file deck.pptx --slide 3 --title "New title"
 revelith deck audit --file deck.pptx   # layout audit: overflow, contrast, fonts
+```
+
 ## Model Context Protocol (MCP)
 
 ```bash
@@ -47,7 +57,7 @@ revelith mcp
 revelith mcp --http 3930 --token <secret>
 # Supports PUT /files/<name>, GET /files/<name>, auto-downloading http(s):// parameters,
 # and extended tools: pdf_read_text, docs_edit_text, sheet_set_cells
-````
+```
 
 ## Rules
 

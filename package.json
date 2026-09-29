@@ -36,6 +36,12 @@
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "notices": "node tools/gen-third-party-notices.mjs",
     "licenses": "node tools/check-licenses.mjs",
+    "check:english-comments": "node tools/check-english-comments.mjs",
+    "check:skills": "node tools/check-skill-version.mjs",
+    "validate:pptx": "node tools/ooxml-validate/validate-pptx.mjs",
+    "templates": "tsx tools/gen-shell-new-templates.ts",
+    "icons:file-associations": "node tools/gen-file-association-icons.mjs",
+    "predev": "node tools/build-stale-preloads.mjs",
     "dist:mac": "npm run notices && npm run build:all && npm run native:build:universal -w @revelith/sheets && npm run dist:mac -w @revelith/shell",
     "dist:win": "npm run notices && npm run build:all && npm run dist:win -w @revelith/shell",
     "dist:linux": "npm run notices && npm run build:all && npm run dist:linux -w @revelith/shell"
@@ -46,14 +52,17 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
+    "@xmldom/xmldom": "^0.8.13",
     "concurrently": "^9.2.4",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.8.0",
+    "jszip": "^3.10.1",
     "pixelmatch": "^7.2.0",
     "playwright-core": "^1.61.1",
     "pngjs": "^7.0.0",
     "prettier": "^3.9.6",
+    "tsx": "^4.21.0",
     "typescript-eslint": "^8.65.0"
   },
   "release": {
