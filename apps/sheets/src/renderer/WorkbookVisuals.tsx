@@ -11,8 +11,8 @@ import {
   formatCategoryLabel,
   scatterAxisBounds,
   splitSheetRef,
-} from '../domain/chart-visual'
-import { parseAddress } from '../domain/cell-address'
+} from '@revelith/xlsx-gateway/domain/chart-visual'
+import { parseAddress } from '@revelith/xlsx-gateway/domain/cell-address'
 import { t } from './i18n/locale'
 import type { WorkbookChartEdit, WorkbookFile, WorkbookVisualObject } from '../shared/desktop-api'
 

@@ -12,16 +12,19 @@ import type {
   AddTableRowOperation,
   DeleteTableColumnOperation,
   DeleteTableRowOperation,
-} from '../domain/workbook-dsl'
-import { columnLabel, parseAddress, parseRange } from '../domain/cell-address'
-import { renameRefSheet } from '../domain/chart-visual'
+} from '@revelith/xlsx-gateway/domain/workbook-dsl'
+import { columnLabel, parseAddress, parseRange } from '@revelith/xlsx-gateway/domain/cell-address'
+import { renameRefSheet } from '@revelith/xlsx-gateway/domain/chart-visual'
 import {
   allowedByValueFilter,
   matchesLabelFilter,
   type PivotFilterDef,
-} from '../domain/pivot-filters'
-import { evaluatePivotFormula, parsePivotFormula } from '../domain/pivot-formula'
-import { groupValue, type PivotFieldGrouping } from '../domain/pivot-grouping'
+} from '@revelith/xlsx-gateway/domain/pivot-filters'
+import {
+  evaluatePivotFormula,
+  parsePivotFormula,
+} from '@revelith/xlsx-gateway/domain/pivot-formula'
+import { groupValue, type PivotFieldGrouping } from '@revelith/xlsx-gateway/domain/pivot-grouping'
 import type { WorkbookVisualObject } from '../shared/desktop-api'
 import {
   recordPivotAdd,
@@ -32,7 +35,7 @@ import {
 } from './edit-journal'
 import { t } from './i18n/locale'
 import type { OoXmlPivotConfig, PivotField } from './PivotDialog'
-import type { PivotDefinition } from '../gateway/xlsx-pivot'
+import type { PivotDefinition } from '@revelith/xlsx-gateway/gateway/xlsx-pivot'
 import {
   AGG_CAPTIONS,
   applyFormatPatchToRange,

@@ -5,10 +5,10 @@
  * WorkbookReadContext closing over its refs.
  */
 import type { IRange } from '@univerjs/core'
-import { columnLabel, parseAddress } from '../../domain/cell-address'
-import type { RangeBounds } from '../../domain/cell-address'
-import type { InMemoryWorkbookAdapter } from '../../domain/in-memory-workbook'
-import type { CellFormatState, CellScalar } from '../../domain/workbook.types'
+import { columnLabel, parseAddress } from '@revelith/xlsx-gateway/domain/cell-address'
+import type { RangeBounds } from '@revelith/xlsx-gateway/domain/cell-address'
+import type { InMemoryWorkbookAdapter } from '@revelith/xlsx-gateway/domain/in-memory-workbook'
+import type { CellFormatState, CellScalar } from '@revelith/xlsx-gateway/domain/workbook.types'
 import { toSelectionFormat } from '../selection-format'
 import { lazyCellReader } from '../univer-sync'
 import type { LazyWorkbookState, UniverRuntime } from '../univer-state'
@@ -340,7 +340,8 @@ export function getActiveSheetInfo(ctx: WorkbookReadContext): ActiveSheetInfo {
 export function readCells(
   ctx: WorkbookReadContext,
   addresses: readonly string[],
-): Record<string, { value: CellScalar; formula?: string }> {  const result: Record<string, { value: CellScalar; formula?: string }> = {}
+): Record<string, { value: CellScalar; formula?: string }> {
+  const result: Record<string, { value: CellScalar; formula?: string }> = {}
   const state = ctx.lazyWorkbookRef.current
   if (state) {
     const worksheet = ctx.univerRef.current?.univerAPI.getActiveWorkbook()?.getActiveSheet()

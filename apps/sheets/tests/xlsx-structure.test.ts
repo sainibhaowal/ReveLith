@@ -1,7 +1,10 @@
 ﻿import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
-import { applyCellEditsToXlsx, assertOnlyTouchedEntriesChanged } from '../src/gateway/xlsx-gateway'
+import {
+  applyCellEditsToXlsx,
+  assertOnlyTouchedEntriesChanged,
+} from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
 import {
   applyStructuralOps,
   shiftCrossSheetFormulas,
@@ -10,7 +13,7 @@ import {
   shiftFormulaText,
   shiftTablePart,
   StructuralShiftError,
-} from '../src/gateway/xlsx-structure'
+} from '@revelith/xlsx-gateway/gateway/xlsx-structure'
 import { buildStructureFixture } from './fixture-builder'
 
 const SHEET = 'Data'

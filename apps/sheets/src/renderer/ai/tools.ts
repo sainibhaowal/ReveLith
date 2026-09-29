@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import type { AgentToolCall, AgentToolDef } from '@revelith/agent-core'
-import { workbookOperationSchema, type WorkbookOperation } from '../../domain/workbook-dsl'
+import {
+  workbookOperationSchema,
+  type WorkbookOperation,
+} from '@revelith/xlsx-gateway/domain/workbook-dsl'
 import {
   columnLabel,
   formatAddress,
@@ -8,13 +11,13 @@ import {
   parseRange,
   rangeCellCount,
   type RangeBounds,
-} from '../../domain/cell-address'
+} from '@revelith/xlsx-gateway/domain/cell-address'
 import type {
   ApplyOutcome,
   CellFormatState,
   CellScalar,
   ChangePlan,
-} from '../../domain/workbook.types'
+} from '@revelith/xlsx-gateway/domain/workbook.types'
 import { parseFormulaReferences } from '../formula-closure'
 import type { SheetGrid } from './workbook-readers'
 import type { CreateDocumentRequest, CreateDocumentResult } from '../../shared/desktop-api'

@@ -6,17 +6,21 @@
  * Extracted from App.tsx; App-scope state comes in through PlanContext.
  */
 import { planPrompt } from '../ai/deterministic-planner'
-import { parseAddress, parseRange, rangeCellCount } from '../domain/cell-address'
-import { CHART_EDIT_TYPES, chartDataFromValues } from '../domain/chart-visual'
-import type { InMemoryWorkbookAdapter } from '../domain/in-memory-workbook'
+import {
+  parseAddress,
+  parseRange,
+  rangeCellCount,
+} from '@revelith/xlsx-gateway/domain/cell-address'
+import { CHART_EDIT_TYPES, chartDataFromValues } from '@revelith/xlsx-gateway/domain/chart-visual'
+import type { InMemoryWorkbookAdapter } from '@revelith/xlsx-gateway/domain/in-memory-workbook'
 import {
   expandToPrimitiveOps,
   isLayoutOp,
   isStructuralOp,
   workbookCommandBatchSchema,
   type WorkbookOperation,
-} from '../domain/workbook-dsl'
-import type { ApplyOutcome, ChangePlan } from '../domain/workbook.types'
+} from '@revelith/xlsx-gateway/domain/workbook-dsl'
+import type { ApplyOutcome, ChangePlan } from '@revelith/xlsx-gateway/domain/workbook.types'
 import { isSheetRemoved } from './edit-journal'
 import { t } from './i18n/locale'
 import { buildLazyChangePlan } from './lazy-plan'

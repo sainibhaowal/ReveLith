@@ -67,14 +67,17 @@ import {
   type AiStreamChunk,
   type LegacyAiSettings,
 } from '@revelith/ai-provider'
-import { csvToXlsxBuffer, decodeCsvBuffer } from '../gateway/csv-import'
+import { csvToXlsxBuffer, decodeCsvBuffer } from '@revelith/xlsx-gateway/gateway/csv-import'
 import { webSearch, imageSearch } from '@revelith/ai-search'
 import { parseFileToText } from '@revelith/file-parse'
 import { importPdfToExcel, saveExcelFromPdf } from './pdf-import'
-import type { CellEdit, SheetStructuralOps } from '../gateway/xlsx-gateway'
-import { readArchiveEntryText, saveWorkbookViaSidecar } from '../gateway/xlsx-package-io'
-import { parsePivotDefinition } from '../gateway/xlsx-pivot'
-import type { SheetEditPlan } from '../gateway/xlsx-sheets'
+import type { CellEdit, SheetStructuralOps } from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
+import {
+  readArchiveEntryText,
+  saveWorkbookViaSidecar,
+} from '@revelith/xlsx-gateway/gateway/xlsx-package-io'
+import { parsePivotDefinition } from '@revelith/xlsx-gateway/gateway/xlsx-pivot'
+import type { SheetEditPlan } from '@revelith/xlsx-gateway/gateway/xlsx-sheets'
 import type {
   AttachmentAddResult,
   AttachmentImageResult,

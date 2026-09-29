@@ -12,9 +12,9 @@
   WorkbookVisualEdit,
   WorkbookVisualObject,
 } from '../shared/desktop-api'
-import { columnLabel, parseRange } from '../domain/cell-address'
-import { splitSheetRef } from '../domain/chart-visual'
-import { ADDABLE_SHAPE_TYPES } from '../shared/shape-types'
+import { columnLabel, parseRange } from '@revelith/xlsx-gateway/domain/cell-address'
+import { splitSheetRef } from '@revelith/xlsx-gateway/domain/chart-visual'
+import { ADDABLE_SHAPE_TYPES } from '@revelith/xlsx-gateway/shared/shape-types'
 import { INDENT_STEP_PX } from './selection-format'
 
 /// Tracks the user's cell edits on a streamed external workbook. Streaming

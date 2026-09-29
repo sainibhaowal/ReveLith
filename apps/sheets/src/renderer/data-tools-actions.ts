@@ -6,8 +6,8 @@
  */
 import { ILayoutService } from '@univerjs/preset-sheets-core'
 
-import { columnLabel } from '../domain/cell-address'
-import { decodeCsvBuffer, isNumericCell, parseCsv } from '../gateway/csv-import'
+import { columnLabel } from '@revelith/xlsx-gateway/domain/cell-address'
+import { decodeCsvBuffer, isNumericCell, parseCsv } from '@revelith/xlsx-gateway/gateway/csv-import'
 import type { AdvancedFilterColumn, AdvancedFilterCriteria } from './AdvancedFilterDialog'
 import {
   buildLabelMatrix,

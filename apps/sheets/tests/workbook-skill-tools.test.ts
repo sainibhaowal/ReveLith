@@ -7,7 +7,7 @@ import {
   type SheetsSkillDeps,
   type ToolExecution,
 } from '../src/renderer/ai/tools'
-import type { ChangePlan } from '../src/domain/workbook.types'
+import type { ChangePlan } from '@revelith/xlsx-gateway/domain/workbook.types'
 
 function call(name: string, input: Record<string, unknown>) {
   return { id: 'call-1', name, input }

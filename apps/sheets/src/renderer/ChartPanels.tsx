@@ -1,6 +1,9 @@
 ﻿import { useState } from 'react'
 
-import { transposeChartSeries, type ChartVisualState } from '../domain/chart-visual'
+import {
+  transposeChartSeries,
+  type ChartVisualState,
+} from '@revelith/xlsx-gateway/domain/chart-visual'
 import { useI18n, type StringKey, type TFunc } from './i18n/locale'
 import type { ChartEditData, ChartElementRef, ChartVectorRead } from './WorkbookVisuals'
 

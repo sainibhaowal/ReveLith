@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { AiComposer, AiTypingIndicator, QuickModelSelector } from '@revelith/ui'
 import { ReveLithAiMark } from '../ribbon-icons'
-import type { ChangePlan } from '../../domain/workbook.types'
+import type { ChangePlan } from '@revelith/xlsx-gateway/domain/workbook.types'
 import { ATTACHMENT_IMAGE_EXTS, type AttachmentMeta } from '../../shared/desktop-api'
 import { useI18n, type TFunc } from '../i18n/locale'
 import { Markdown } from '@revelith/ui'
@@ -211,7 +211,8 @@ export function AiChatPanel({
   onPromptChange,
   onSend,
   onRetry,
-  onStop,  onNewChat,
+  onStop,
+  onNewChat,
   onUndo,
   onExpand,
   onCollapse,
@@ -243,7 +244,11 @@ export function AiChatPanel({
    *  failed-run Retry, which also resends the message's original attachments) */
   readonly onSend: (instruction?: string, attachments?: readonly AttachmentMeta[]) => void
   /** Retry a failed (undelivered) message in place: prunes the failed exchange, then resends */
-  readonly onRetry: (index: number, instruction?: string, attachments?: readonly AttachmentMeta[]) => void
+  readonly onRetry: (
+    index: number,
+    instruction?: string,
+    attachments?: readonly AttachmentMeta[],
+  ) => void
   readonly onStop: () => void
   readonly onNewChat: () => void
   readonly onUndo: () => void

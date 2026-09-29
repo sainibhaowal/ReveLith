@@ -3,23 +3,23 @@
  * the App component passes a VisualActionContext built fresh per call so
  * refs and state never go stale.
  */
-import { columnLabel, parseAddress, parseRange } from '../domain/cell-address'
+import { columnLabel, parseAddress, parseRange } from '@revelith/xlsx-gateway/domain/cell-address'
 import {
   hasNumericYearAxis,
   recommendCharts,
   type ChartRecommendations,
-} from '../domain/chart-recommend'
-import { buildChartVisual, chartDataFromValues } from '../domain/chart-visual'
-import type { InMemoryWorkbookAdapter } from '../domain/in-memory-workbook'
-import { buildPivotChartData } from '../domain/pivot-chart'
+} from '@revelith/xlsx-gateway/domain/chart-recommend'
+import { buildChartVisual, chartDataFromValues } from '@revelith/xlsx-gateway/domain/chart-visual'
+import type { InMemoryWorkbookAdapter } from '@revelith/xlsx-gateway/domain/in-memory-workbook'
+import { buildPivotChartData } from '@revelith/xlsx-gateway/domain/pivot-chart'
 import type {
   AddChartOperation,
   AddImageOperation,
   AddShapeOperation,
   EditChartOperation,
   EditShapeOperation,
-} from '../domain/workbook-dsl'
-import type { ChangePlan } from '../domain/workbook.types'
+} from '@revelith/xlsx-gateway/domain/workbook-dsl'
+import type { ChangePlan } from '@revelith/xlsx-gateway/domain/workbook.types'
 import type { WorkbookVisualObject } from '../shared/desktop-api'
 import {
   isSheetRemoved,

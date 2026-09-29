@@ -9,7 +9,7 @@ import {
   splitSheetRef,
   withDefaultBarLabels,
   type ChartVisualState,
-} from '../src/domain/chart-visual'
+} from '@revelith/xlsx-gateway/domain/chart-visual'
 
 const base = (): ChartVisualState => ({
   chartTypes: ['barChart'],
@@ -152,7 +152,7 @@ describe('chart data-sync ref helpers', () => {
 
 describe('chartDataFromValues orientation and header detection', () => {
   it('wide cross-tab: rows become series, numeric year headers become categories', async () => {
-    const { chartDataFromValues } = await import('../src/domain/chart-visual')
+    const { chartDataFromValues } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const parsed = chartDataFromValues([
       ['', 2020, 2021, 2022],
       ['Division 1', 225, 210, 211.5],
@@ -169,7 +169,7 @@ describe('chartDataFromValues orientation and header detection', () => {
   })
 
   it('wide month table: one series per salesperson, months as categories', async () => {
-    const { chartDataFromValues } = await import('../src/domain/chart-visual')
+    const { chartDataFromValues } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const parsed = chartDataFromValues([
       ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
       ['Ann', 1, 2, 3, 4, 5, 6],
@@ -184,7 +184,7 @@ describe('chartDataFromValues orientation and header detection', () => {
   })
 
   it('tall two-column data keeps the column orientation (pie shape)', async () => {
-    const { chartDataFromValues } = await import('../src/domain/chart-visual')
+    const { chartDataFromValues } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const parsed = chartDataFromValues([
       ['Apples', 10],
       ['Pears', 20],
@@ -196,7 +196,7 @@ describe('chartDataFromValues orientation and header detection', () => {
   })
 
   it('keeps an all-numeric block header-less', async () => {
-    const { chartDataFromValues } = await import('../src/domain/chart-visual')
+    const { chartDataFromValues } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const parsed = chartDataFromValues([
       [1, 2],
       [3, 4],
@@ -208,7 +208,7 @@ describe('chartDataFromValues orientation and header detection', () => {
 
 describe('transposeChartSeries', () => {
   it('pivots categories into series and series names into categories', async () => {
-    const { transposeChartSeries } = await import('../src/domain/chart-visual')
+    const { transposeChartSeries } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const seriesSet = transposeChartSeries(
       [
         { name: 'Grinsley', categories: ['Jan', 'Feb'], values: [1, 2] },
@@ -223,7 +223,7 @@ describe('transposeChartSeries', () => {
   })
 
   it('returns null when there are no categories to pivot on', async () => {
-    const { transposeChartSeries } = await import('../src/domain/chart-visual')
+    const { transposeChartSeries } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     expect(
       transposeChartSeries([{ name: 'S1', categories: [], values: [1] }], (n) => `${n}`),
     ).toBeNull()
@@ -231,7 +231,7 @@ describe('transposeChartSeries', () => {
   })
 
   it('fills gaps with zeros and labels blank names', async () => {
-    const { transposeChartSeries } = await import('../src/domain/chart-visual')
+    const { transposeChartSeries } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const seriesSet = transposeChartSeries(
       [{ name: '', categories: ['', 'B'], values: [5] }],
       (n) => `Series ${n}`,
@@ -309,7 +309,7 @@ describe('scatterAxisBounds', () => {
 
 describe('chartDataFromValues scatter X column', () => {
   it('routes a numeric first column into categories for scatter', async () => {
-    const { chartDataFromValues } = await import('../src/domain/chart-visual')
+    const { chartDataFromValues } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const parsed = chartDataFromValues(
       [
         ['Sales', 'EBIT'],
@@ -325,7 +325,7 @@ describe('chartDataFromValues scatter X column', () => {
   })
 
   it('by-row selections pivot the first data row into X', async () => {
-    const { chartDataFromValues } = await import('../src/domain/chart-visual')
+    const { chartDataFromValues } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     // 2 rows × 4 cols with a label column: row 1 = X, row 2 = Y (corpus shape)
     const parsed = chartDataFromValues(
       [
@@ -342,7 +342,7 @@ describe('chartDataFromValues scatter X column', () => {
   })
 
   it('non-scatter parsing is unchanged (each numeric column a series)', async () => {
-    const { chartDataFromValues } = await import('../src/domain/chart-visual')
+    const { chartDataFromValues } = await import('@revelith/xlsx-gateway/domain/chart-visual')
     const parsed = chartDataFromValues([
       ['Sales', 'EBIT'],
       [0.0626, 0.152],

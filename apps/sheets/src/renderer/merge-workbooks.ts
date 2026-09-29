@@ -1,4 +1,4 @@
-import type { CellScalar } from '../domain/workbook.types'
+import type { CellScalar } from '@revelith/xlsx-gateway/domain/workbook.types'
 
 /** Minimal merge-source shape (a subset of WorkbookFile) */
 export interface MergeSourceFile {

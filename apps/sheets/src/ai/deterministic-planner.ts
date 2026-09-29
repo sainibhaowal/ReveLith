@@ -1,4 +1,4 @@
-import type { WorkbookCommandBatch } from '../domain/workbook-dsl'
+import type { WorkbookCommandBatch } from '@revelith/xlsx-gateway/domain/workbook-dsl'
 
 export class UnsupportedPromptError extends Error {
   constructor() {
@@ -25,12 +25,14 @@ export function planPrompt(
       transactionId,
       baseRevision: options.revision,
       summary: `Set ${address.toUpperCase()}`,
-      operations: [{
-        op: 'set_cell',
-        sheetId: options.sheetId,
-        address: address.toUpperCase(),
-        value: parseScalar(rawValue),
-      }],
+      operations: [
+        {
+          op: 'set_cell',
+          sheetId: options.sheetId,
+          address: address.toUpperCase(),
+          value: parseScalar(rawValue),
+        },
+      ],
     }
   }
 
@@ -46,12 +48,14 @@ export function planPrompt(
       transactionId,
       baseRevision: options.revision,
       summary: `Set formula in ${address.toUpperCase()}`,
-      operations: [{
-        op: 'set_formula',
-        sheetId: options.sheetId,
-        address: address.toUpperCase(),
-        formula: `=${formula}`,
-      }],
+      operations: [
+        {
+          op: 'set_formula',
+          sheetId: options.sheetId,
+          address: address.toUpperCase(),
+          formula: `=${formula}`,
+        },
+      ],
     }
   }
 
@@ -62,11 +66,13 @@ export function planPrompt(
       transactionId,
       baseRevision: options.revision,
       summary: 'Rename current sheet',
-      operations: [{
-        op: 'rename_sheet',
-        sheetId: options.sheetId,
-        name: renameMatch[1].trim(),
-      }],
+      operations: [
+        {
+          op: 'rename_sheet',
+          sheetId: options.sheetId,
+          name: renameMatch[1].trim(),
+        },
+      ],
     }
   }
 
@@ -86,7 +92,12 @@ export function planPrompt(
         { op: 'set_cell', sheetId: options.sheetId, address: 'B6', value: 60 },
         { op: 'set_cell', sheetId: options.sheetId, address: 'C6', value: 10 },
         { op: 'set_formula', sheetId: options.sheetId, address: 'D6', formula: '=B6*C6' },
-        { op: 'set_cell', sheetId: options.sheetId, address: 'A7', value: 'USB-C Thunderbolt Docks' },
+        {
+          op: 'set_cell',
+          sheetId: options.sheetId,
+          address: 'A7',
+          value: 'USB-C Thunderbolt Docks',
+        },
         { op: 'set_cell', sheetId: options.sheetId, address: 'B7', value: 200 },
         { op: 'set_cell', sheetId: options.sheetId, address: 'C7', value: 5 },
         { op: 'set_formula', sheetId: options.sheetId, address: 'D7', formula: '=B7*C7' },
@@ -132,12 +143,14 @@ export function planPrompt(
     transactionId,
     baseRevision: options.revision,
     summary: `Set A1 to "${normalized}"`,
-    operations: [{
-      op: 'set_cell',
-      sheetId: options.sheetId,
-      address: 'A1',
-      value: normalized,
-    }],
+    operations: [
+      {
+        op: 'set_cell',
+        sheetId: options.sheetId,
+        address: 'A1',
+        value: normalized,
+      },
+    ],
   }
 }
 

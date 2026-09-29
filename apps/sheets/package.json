@@ -34,6 +34,7 @@
     "@revelith/file-parse": "*",
     "@revelith/i18n": "*",
     "@revelith/ui": "*",
+    "@revelith/xlsx-gateway": "*",
     "@univerjs/core": "^0.25.1",
     "@univerjs/data-validation": "^0.25.1",
     "@univerjs/engine-render": "^0.25.1",
@@ -48,12 +49,12 @@
     "@univerjs/preset-sheets-table": "^0.25.1",
     "@univerjs/sheets-filter": "^0.25.1",
     "@univerjs/themes": "^0.25.1",
+    "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.3.4",
     "jszip": "^3.10.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "zod": "^4.3.6",
-    "exceljs": "^4.4.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@revelith/project-store": "*",

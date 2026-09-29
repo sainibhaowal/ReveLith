@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import JSZip from 'jszip'
-import type { CellScalar } from '../domain/workbook.types'
+import type { CellScalar } from '@revelith/xlsx-gateway/domain/workbook.types'
 
 export type GeneratedDocumentType = 'xlsx' | 'csv' | 'md' | 'html'
 
@@ -62,7 +62,10 @@ const colLabel = (column: number): string => {
  * Minimal values-only .xlsx (inline strings; no styles/theme). Opens in
  * Excel, LibreOffice, and ReveLith Sheets itself.
  */
-export async function buildValuesXlsx(sheetName: string, rows: CellScalar[][]): Promise<Uint8Array> {
+export async function buildValuesXlsx(
+  sheetName: string,
+  rows: CellScalar[][],
+): Promise<Uint8Array> {
   const safeName = sheetName.trim().slice(0, 31) || 'Sheet1'
   const zip = new JSZip()
   zip.file(
@@ -143,7 +146,9 @@ export function checkGridSize(rows: CellScalar[][]): void {
 }
 
 /** Build the file bytes + name; writing + tab-opening stay with the caller. */
-export async function buildGeneratedDocument(input: GenerateDocumentInput): Promise<GeneratedDocument> {
+export async function buildGeneratedDocument(
+  input: GenerateDocumentInput,
+): Promise<GeneratedDocument> {
   const title = sanitizeGeneratedFileBase(input.title)
   switch (input.type) {
     case 'xlsx': {

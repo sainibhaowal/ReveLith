@@ -4,7 +4,7 @@
  * the App component passes a VisualSyncContext built fresh per call so refs
  * and state never go stale.
  */
-import { parseRange } from '../domain/cell-address'
+import { parseRange } from '@revelith/xlsx-gateway/domain/cell-address'
 import {
   applyChartStateEdit,
   refIntersects,
@@ -12,15 +12,10 @@ import {
   type CellBounds,
   type ChartVisualState,
   type SheetVisual,
-} from '../domain/chart-visual'
-import type { InMemoryWorkbookAdapter } from '../domain/in-memory-workbook'
+} from '@revelith/xlsx-gateway/domain/chart-visual'
+import type { InMemoryWorkbookAdapter } from '@revelith/xlsx-gateway/domain/in-memory-workbook'
 import type { WorkbookVisualObject } from '../shared/desktop-api'
-import {
-  recordChartEdit,
-  recordVisualEdit,
-  removeVisualAdd,
-  updateVisualAdd,
-} from './edit-journal'
+import { recordChartEdit, recordVisualEdit, removeVisualAdd, updateVisualAdd } from './edit-journal'
 import { t } from './i18n/locale'
 import {
   captureVisualJournal,

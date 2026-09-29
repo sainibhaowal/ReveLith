@@ -3,7 +3,7 @@ import {
   estimatePasteCells,
   translatePastedFormula,
   translatePastedRange,
-} from '../src/domain/paste-formulas'
+} from '@revelith/xlsx-gateway/domain/paste-formulas'
 
 describe('translatePastedFormula', () => {
   it('shifts relative refs by the delta', () => {
@@ -18,9 +18,7 @@ describe('translatePastedFormula', () => {
   })
 
   it('shifts ranges endpoint-wise', () => {
-    expect(translatePastedFormula('=SUM(B2:D4)', { dRow: 1, dCol: -1 }).formula).toBe(
-      '=SUM(A3:C5)',
-    )
+    expect(translatePastedFormula('=SUM(B2:D4)', { dRow: 1, dCol: -1 }).formula).toBe('=SUM(A3:C5)')
   })
 
   it('shifts whole-column and whole-row refs', () => {

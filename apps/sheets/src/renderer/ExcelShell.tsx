@@ -19,8 +19,8 @@ import { categoryOptionForPattern, NUMBER_FORMAT_CATEGORIES } from './number-for
 import { type SelectionFormat } from './selection-format'
 import { fontFamilyGroups, useSystemFontFamilies } from './system-fonts'
 
-import type { ChartSeriesVisualState } from '../domain/chart-visual'
-import type { ChangePlan } from '../domain/workbook.types'
+import type { ChartSeriesVisualState } from '@revelith/xlsx-gateway/domain/chart-visual'
+import type { ChangePlan } from '@revelith/xlsx-gateway/domain/workbook.types'
 import type { AttachmentMeta } from '../shared/desktop-api'
 import { AiChatPanel, type AiChatMessage } from './ai/AiChatPanel'
 import {

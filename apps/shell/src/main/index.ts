@@ -76,7 +76,7 @@ import {
   defaultSaveDir,
   uniquePathIn,
 } from '../../../docs/src/main/docs-main'
-import { blankXlsxBuffer } from '../../../sheets/src/gateway/csv-import'
+import { blankXlsxBuffer } from '@revelith/xlsx-gateway/gateway/csv-import'
 import {
   configureSheetsRuntime,
   hasQueuedWorkbook,

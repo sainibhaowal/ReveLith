@@ -1,4 +1,5 @@
-﻿import type { WorkbookStyleEdit } from '../shared/desktop-api'
+﻿import type { WorkbookStyleEdit } from '../shared/edit-schemas'
+import type { StyleColor } from '../domain/style-color'
 
 /// Copy-on-write editor for xl/styles.xml. Existing entries are never
 /// modified : every changed cell gets a new cellXfs entry (deduped) derived
@@ -248,10 +249,7 @@ function buildFont(baseFontXml: string, delta: WorkbookStyleEdit): string {
     override(/<sz\b[^>]*\/?>/g, `<sz val="${delta.fontSize}"/>`)
   }
   if (delta.fontColor !== undefined) {
-    override(
-      /<color\b[^>]*\/?>/g,
-      delta.fontColor === null ? '' : `<color rgb="${toArgb(delta.fontColor)}"/>`,
-    )
+    override(/<color\b[^>]*\/?>/g, delta.fontColor === null ? '' : colorElement(delta.fontColor))
   }
   if (delta.fontFamily !== undefined) {
     override(/<name\b[^>]*\/?>/g, `<name val="${escapeXmlAttribute(delta.fontFamily)}"/>`)
@@ -260,8 +258,8 @@ function buildFont(baseFontXml: string, delta: WorkbookStyleEdit): string {
   return content === '' ? '<font/>' : `<font>${content}</font>`
 }
 
-function buildSolidFill(fillColor: string): string {
-  return `<fill><patternFill patternType="solid"><fgColor rgb="${toArgb(fillColor)}"/><bgColor indexed="64"/></patternFill></fill>`
+function buildSolidFill(fillColor: StyleColor): string {
+  return `<fill><patternFill patternType="solid">${fgColorElement(fillColor)}<bgColor indexed="64"/></patternFill></fill>`
 }
 
 const BORDER_EDGE_TAGS = ['left', 'right', 'top', 'bottom'] as const
@@ -293,7 +291,7 @@ function buildBorder(baseBorderXml: string, delta: WorkbookStyleEdit): string {
     const edge = delta[BORDER_DELTA_KEYS[tag]]
     if (edge === undefined) return childOf(tag)
     if (edge === null) return `<${tag}/>`
-    const color = edge.color === undefined ? '' : `<color rgb="${toArgb(edge.color)}"/>`
+    const color = edge.color === undefined ? '' : colorElement(edge.color)
     return color === ''
       ? `<${tag} style="${edge.style}"/>`
       : `<${tag} style="${edge.style}">${color}</${tag}>`
@@ -430,6 +428,27 @@ function carriedAttributes(element: string, names: readonly string[]): string[] 
     const value = readCoreAttribute(element, name)
     return value === undefined ? [] : [`${name}="${value}"`]
   })
+}
+
+/**
+ * Serialize a color to a `<color>` element.
+ *
+ * A literal becomes an `rgb` attribute with an opaque alpha byte; a theme
+ * reference becomes `theme` plus an optional `tint`, which is the form Excel
+ * re-resolves when the document theme changes. Writing a theme color as a
+ * resolved literal would silently freeze it, so the two cases are kept apart
+ * rather than flattened.
+ */
+function colorElement(color: StyleColor): string {
+  if (typeof color === 'string') return `<color rgb="${toArgb(color)}"/>`
+  const tint = color.tint === undefined || color.tint === 0 ? '' : ` tint="${color.tint}"`
+  return `<color theme="${color.theme}"${tint}/>`
+}
+
+function fgColorElement(color: StyleColor): string {
+  if (typeof color === 'string') return `<fgColor rgb="${toArgb(color)}"/>`
+  const tint = color.tint === undefined || color.tint === 0 ? '' : ` tint="${color.tint}"`
+  return `<fgColor theme="${color.theme}"${tint}/>`
 }
 
 function toArgb(hexColor: string): string {

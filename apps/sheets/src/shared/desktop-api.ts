@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { ADDABLE_SHAPE_TYPES } from './shape-types'
+import { ADDABLE_SHAPE_TYPES } from '@revelith/xlsx-gateway/shared/shape-types'
 import type {
   AiChatRequest,
   AiChatResponse,
@@ -2005,11 +2005,14 @@ export interface DesktopApi {
   /// File picker for merge sources (spreadsheet files, multi-select); null on cancel
   selectWorkbooksForMerge(): Promise<MergeSourcesResult | null>
   /// Opens attachment paths as readable merge sources
-  openWorkbooksForMerge(paths: string[]): Promise<MergeSourcesResult>  /// Downloads an image URL in the main process (SSRF-guarded, avoids CORS);
+  openWorkbooksForMerge(paths: string[]): Promise<MergeSourcesResult> /// Downloads an image URL in the main process (SSRF-guarded, avoids CORS);
   /// null when the URL is not a retrievable image
   fetchImage(url: string): Promise<{ base64: string; mediaType: string } | null>
   /// Generates an image with AI (ReveLith account); returns a URL or an error
-  generateImage(request: { prompt: string; aspectRatio?: string }): Promise<{ url?: string; error?: string }>
+  generateImage(request: {
+    prompt: string
+    aspectRatio?: string
+  }): Promise<{ url?: string; error?: string }>
 }
 
 export type MenuAction = 'open' | 'save' | 'save-as' | 'export-pdf' | 'export-csv' | 'undo' | 'redo'
@@ -2047,8 +2050,7 @@ export interface CreateDocumentRequest {
 }
 
 export type CreateDocumentResult =
-  | { ok: true; name: string; path: string }
-  | { ok: false; error: string }
+  { ok: true; name: string; path: string } | { ok: false; error: string }
 
 /** Merge-source workbooks opened for reading (closed after import) */
 export interface MergeSourcesResult {

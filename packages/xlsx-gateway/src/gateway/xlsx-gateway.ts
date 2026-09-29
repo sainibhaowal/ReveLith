@@ -15,7 +15,7 @@ import type {
   WorkbookRichRun,
   WorkbookStyleEdit,
   WorkbookVisualEdit,
-} from '../shared/desktop-api'
+} from '../shared/edit-schemas'
 import { applyChartEdit } from './xlsx-chart'
 import { applyVisualEdits } from './xlsx-drawing-edit'
 import {
@@ -1532,7 +1532,8 @@ async function loadSafeZip(buffer: Buffer): Promise<JSZip> {
     }
   }
   const cleanPaths = Object.keys(zip.files)
-  if (cleanPaths.length > MAX_ENTRY_COUNT) throw new Error('Workbook contains too many ZIP entries.')
+  if (cleanPaths.length > MAX_ENTRY_COUNT)
+    throw new Error('Workbook contains too many ZIP entries.')
   if (cleanPaths.some((path) => path.split('/').includes('..'))) {
     throw new Error('Workbook contains an unsafe ZIP path.')
   }

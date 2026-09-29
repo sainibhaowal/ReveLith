@@ -11,9 +11,15 @@ import {
   type ICellData,
   type IStyleData,
 } from '@univerjs/core'
-import { columnLabel } from '../domain/cell-address'
-import { transposeChartSeries, type ChartSeriesVisualState } from '../domain/chart-visual'
-import { applyFlashFillTemplate, inferFlashFillTemplate } from '../domain/flash-fill'
+import { columnLabel } from '@revelith/xlsx-gateway/domain/cell-address'
+import {
+  transposeChartSeries,
+  type ChartSeriesVisualState,
+} from '@revelith/xlsx-gateway/domain/chart-visual'
+import {
+  applyFlashFillTemplate,
+  inferFlashFillTemplate,
+} from '@revelith/xlsx-gateway/domain/flash-fill'
 import type {
   WorkbookChartEdit,
   WorkbookStyleEdit,

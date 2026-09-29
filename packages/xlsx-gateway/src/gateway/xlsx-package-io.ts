@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 
 import { z } from 'zod'
 
-import type { WorkbookChartEdit, WorkbookVisualEdit } from '../shared/desktop-api'
+import type { WorkbookChartEdit, WorkbookVisualEdit } from '../shared/edit-schemas'
 import type { SheetFilterState } from './xlsx-filter'
 import type { DefinedNamesState } from './xlsx-defined-names'
 import type { SheetPageSetupState } from './xlsx-page-setup'

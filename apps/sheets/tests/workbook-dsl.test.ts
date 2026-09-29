@@ -6,8 +6,13 @@ import {
   structuralOpLabel,
   workbookCommandBatchSchema,
   workbookOperationSchema,
-} from '../src/domain/workbook-dsl'
-import { columnIndex, columnLabel, parseRange, rangeCellCount } from '../src/domain/cell-address'
+} from '@revelith/xlsx-gateway/domain/workbook-dsl'
+import {
+  columnIndex,
+  columnLabel,
+  parseRange,
+  rangeCellCount,
+} from '@revelith/xlsx-gateway/domain/cell-address'
 
 describe('cell-address helpers', () => {
   it('round-trips column labels', () => {

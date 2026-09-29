@@ -9,7 +9,7 @@ import {
   isNumericCell,
   parseCsv,
   sniffDelimiter,
-} from '../src/gateway/csv-import'
+} from '@revelith/xlsx-gateway/gateway/csv-import'
 
 describe('decodeCsvBuffer', () => {
   const rows = '城市,人口\n东京,37\n'

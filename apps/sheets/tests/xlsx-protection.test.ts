@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
-import { applySheetProtection, SheetProtectionError } from '../src/gateway/xlsx-protection'
+import {
+  applySheetProtection,
+  SheetProtectionError,
+} from '@revelith/xlsx-gateway/gateway/xlsx-protection'
 
 const BARE = '<worksheet><sheetData/><autoFilter ref="A1:C4"/></worksheet>'
 
 describe('applySheetProtection', () => {
   it('inserts the element after sheetData with Excel defaults', () => {
     expect(applySheetProtection(BARE, true)).toBe(
-      '<worksheet><sheetData/><sheetProtection sheet="1" objects="1" scenarios="1"/>'
-      + '<autoFilter ref="A1:C4"/></worksheet>',
+      '<worksheet><sheetData/><sheetProtection sheet="1" objects="1" scenarios="1"/>' +
+        '<autoFilter ref="A1:C4"/></worksheet>',
     )
   })
 
@@ -19,8 +22,9 @@ describe('applySheetProtection', () => {
   })
 
   it('re-enables the sheet attribute on an existing element, keeping others', () => {
-    const xml = '<worksheet><sheetData/>'
-      + '<sheetProtection sheet="0" formatCells="0" insertRows="0"/></worksheet>'
+    const xml =
+      '<worksheet><sheetData/>' +
+      '<sheetProtection sheet="0" formatCells="0" insertRows="0"/></worksheet>'
     expect(applySheetProtection(xml, true)).toContain(
       '<sheetProtection sheet="1" formatCells="0" insertRows="0"/>',
     )

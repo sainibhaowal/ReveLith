@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { groupValue } from '../src/domain/pivot-grouping'
-import { growPivotDefinition, recomputePivotData } from '../src/domain/pivot-engine'
-import { parsePivotDefinition } from '../src/gateway/xlsx-pivot'
+import { groupValue } from '@revelith/xlsx-gateway/domain/pivot-grouping'
+import { growPivotDefinition, recomputePivotData } from '@revelith/xlsx-gateway/domain/pivot-engine'
+import { parsePivotDefinition } from '@revelith/xlsx-gateway/gateway/xlsx-pivot'
 
 describe('groupValue', () => {
   it('groups dates by year / quarter / month from ISO strings', () => {

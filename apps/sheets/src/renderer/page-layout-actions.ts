@@ -5,7 +5,7 @@
  * per-sheet print settings; nothing renders in the grid (Univer has no
  * page-layout view), everything lands in the saved file.
  */
-import { columnLabel } from '../domain/cell-address'
+import { columnLabel } from '@revelith/xlsx-gateway/domain/cell-address'
 import {
   isSheetRemoved,
   journalSize,

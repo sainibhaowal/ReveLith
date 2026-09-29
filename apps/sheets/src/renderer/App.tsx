@@ -107,18 +107,23 @@ import {
   type AgentImage,
 } from '@revelith/agent-core'
 import type { AiSettings } from '@revelith/ai-provider'
-import { type WorkbookOperation } from '../domain/workbook-dsl'
-import { columnIndex, columnLabel, parseAddress, parseRange } from '../domain/cell-address'
+import { type WorkbookOperation } from '@revelith/xlsx-gateway/domain/workbook-dsl'
+import {
+  columnIndex,
+  columnLabel,
+  parseAddress,
+  parseRange,
+} from '@revelith/xlsx-gateway/domain/cell-address'
 import {
   applyChartStateEdit,
   chartSupportsDataLabels,
   chartSupportsSeriesReplace,
   withDefaultBarLabels,
   type CellBounds,
-} from '../domain/chart-visual'
-import { InMemoryWorkbookAdapter } from '../domain/in-memory-workbook'
-import { cfRuleUnsaveableReason, iconSetSaveable } from '../gateway/xlsx-cf'
-import type { ApplyOutcome, ChangePlan } from '../domain/workbook.types'
+} from '@revelith/xlsx-gateway/domain/chart-visual'
+import { InMemoryWorkbookAdapter } from '@revelith/xlsx-gateway/domain/in-memory-workbook'
+import { cfRuleUnsaveableReason, iconSetSaveable } from '@revelith/xlsx-gateway/gateway/xlsx-cf'
+import type { ApplyOutcome, ChangePlan } from '@revelith/xlsx-gateway/domain/workbook.types'
 import { createElectronTransport } from './ai/transport'
 import type { ActiveSheetInfo, SheetsSkillDeps } from './ai/tools'
 import type { AiChatMessage } from './ai/AiChatPanel'
@@ -203,7 +208,7 @@ import {
   type SlicerPickerState,
   type TimelinePickerState,
 } from './pivot-actions'
-import type { ChartRecommendations } from '../domain/chart-recommend'
+import type { ChartRecommendations } from '@revelith/xlsx-gateway/domain/chart-recommend'
 import {
   applyAiShapeEdit as applyAiShapeEditImpl,
   buildAiChartEdit as buildAiChartEditImpl,

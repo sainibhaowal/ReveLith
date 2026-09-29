@@ -28,18 +28,22 @@ import type {
   CellFormatPatch,
   SetDataValidationOperation,
   SetHyperlinkOperation,
-} from '../domain/workbook-dsl'
+} from '@revelith/xlsx-gateway/domain/workbook-dsl'
 import {
   columnIndex,
   columnLabel,
   parseAddress,
   parseRange,
   rangeCellCount,
-} from '../domain/cell-address'
-import { splitSheetRef, type CellBounds } from '../domain/chart-visual'
-import { InMemoryWorkbookAdapter } from '../domain/in-memory-workbook'
-import { WORST_FIRST_ICON_SETS } from '../gateway/xlsx-cf'
-import type { CellFormatState, CellState, WorkbookSnapshot } from '../domain/workbook.types'
+} from '@revelith/xlsx-gateway/domain/cell-address'
+import { splitSheetRef, type CellBounds } from '@revelith/xlsx-gateway/domain/chart-visual'
+import { InMemoryWorkbookAdapter } from '@revelith/xlsx-gateway/domain/in-memory-workbook'
+import { WORST_FIRST_ICON_SETS } from '@revelith/xlsx-gateway/gateway/xlsx-cf'
+import type {
+  CellFormatState,
+  CellState,
+  WorkbookSnapshot,
+} from '@revelith/xlsx-gateway/domain/workbook.types'
 import type {
   WorkbookCellStyle,
   WorkbookCfState,

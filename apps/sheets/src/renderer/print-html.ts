@@ -4,7 +4,7 @@
 /// headings). The main process turns the HTML into a PDF.
 
 import { htmlLang, type Lang } from '@revelith/i18n'
-import { columnIndex, columnLabel } from '../domain/cell-address'
+import { columnIndex, columnLabel } from '@revelith/xlsx-gateway/domain/cell-address'
 
 import type { WorkbookExportPdfRequest } from '../shared/desktop-api'
 import type { HeaderFooterParts, PageSetupJournalState } from './edit-journal'

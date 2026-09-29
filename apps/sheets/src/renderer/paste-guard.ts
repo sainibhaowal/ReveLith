@@ -1,6 +1,6 @@
 import { ISheetClipboardService } from '@univerjs/sheets-ui'
 
-import { estimatePasteCells } from '../domain/paste-formulas'
+import { estimatePasteCells } from '@revelith/xlsx-gateway/domain/paste-formulas'
 import { t } from './i18n/locale'
 import type { UniverRuntime } from './univer-state'
 
