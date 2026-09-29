@@ -21,8 +21,8 @@ import './home-search.css'
 
 declare global {
   interface Window {
-    aiOffice: HomeApi
-    aiOfficeProject?: ProjectHomeApi
+    revelithApp: HomeApi
+    revelithAppProject?: ProjectHomeApi
   }
 }
 
@@ -105,9 +105,9 @@ function baseName(entry: RecentEntry): string {
 
 // â”€â”€ Project hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/** whether we are inside the shell (aiOfficeProject API available) */
+/** whether we are inside the shell (revelithAppProject API available) */
 function hasProjectApi(): boolean {
-  return typeof window.aiOfficeProject !== 'undefined'
+  return typeof window.revelithAppProject !== 'undefined'
 }
 
 const FILTERS: { key: string; label: StringKey }[] = [
@@ -172,7 +172,7 @@ function FoldersPanel({
     setCreating(false)
     setNewName('')
     if (!name) return
-    await window.aiOffice?.createSaveFolder?.(name)
+    await window.revelithApp?.createSaveFolder?.(name)
     onRefresh()
   }
 
@@ -189,7 +189,7 @@ function FoldersPanel({
             <button
               className="proj-add-btn"
               title="Reveal in Explorer"
-              onClick={() => void window.aiOffice?.openPathInExplorer?.(saveDir)}
+              onClick={() => void window.revelithApp?.openPathInExplorer?.(saveDir)}
               aria-label="Reveal in Explorer"
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -328,7 +328,7 @@ function ProjectPanel({ projects, selectedId, onSelect, onRefresh }: ProjectPane
     setCreating(false)
     setNewName('')
     if (!name) return
-    await window.aiOfficeProject?.createProject(name)
+    await window.revelithAppProject?.createProject(name)
     onRefresh()
   }
 
@@ -338,7 +338,7 @@ function ProjectPanel({ projects, selectedId, onSelect, onRefresh }: ProjectPane
     const id = renaming.id
     setRenaming(null)
     if (!name) return
-    await window.aiOfficeProject?.renameProject(id, name)
+    await window.revelithAppProject?.renameProject(id, name)
     onRefresh()
   }
 
@@ -354,7 +354,7 @@ function ProjectPanel({ projects, selectedId, onSelect, onRefresh }: ProjectPane
     const id = confirmDeleteId
     setConfirmDeleteId(null)
     if (!id) return
-    await window.aiOfficeProject?.deleteProject(id)
+    await window.revelithAppProject?.deleteProject(id)
     if (selectedId === id) onSelect(null)
     onRefresh()
   }
@@ -603,10 +603,10 @@ export function Home() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
 
   const refreshFolders = useCallback(() => {
-    void window.aiOffice?.getDefaultSaveDir?.().then((dir) => {
+    void window.revelithApp?.getDefaultSaveDir?.().then((dir) => {
       if (dir) setSaveDir(dir)
     })
-    void window.aiOffice?.listSaveFolders?.().then((f) => {
+    void window.revelithApp?.listSaveFolders?.().then((f) => {
       if (f) setSaveFolders(f)
     })
   }, [])
@@ -626,8 +626,8 @@ export function Home() {
     const seq = ++requestSeq.current
     const ext = filter === 'all' ? undefined : filter
     const limit = keepCount ? Math.max(entriesLen.current, PAGE_SIZE) : PAGE_SIZE
-    const primary = view === 'recent' ? window.aiOffice.recents : window.aiOffice.starred
-    const secondary = view === 'recent' ? window.aiOffice.starred : window.aiOffice.recents
+    const primary = view === 'recent' ? window.revelithApp.recents : window.revelithApp.starred
+    const secondary = view === 'recent' ? window.revelithApp.starred : window.revelithApp.recents
     void primary({ offset: 0, limit, ext }).then((page) => {
       if (seq !== requestSeq.current) return
       setEntries(page.entries)
@@ -648,7 +648,7 @@ export function Home() {
       )
     })
     if (projectMode) {
-      void window.aiOfficeProject!.listProjects().then(setProjects)
+      void window.revelithAppProject!.listProjects().then(setProjects)
     }
   }
   const reloadRef = useRef(reload)
@@ -683,7 +683,7 @@ export function Home() {
         limit: 50,
         offset: 0,
       }
-      window.aiOffice
+      window.revelithApp
         .searchFiles(searchQueryObj)
         .then((page: SearchPage) => {
           if (seq !== searchSeqRef.current) return
@@ -745,7 +745,7 @@ export function Home() {
     setLoadingMore(true)
     const seq = requestSeq.current
     const ext = filter === 'all' ? undefined : filter
-    const api = view === 'recent' ? window.aiOffice.recents : window.aiOffice.starred
+    const api = view === 'recent' ? window.revelithApp.recents : window.revelithApp.starred
     void api({ offset: entriesLen.current, limit: PAGE_SIZE, ext }).then((page) => {
       setLoadingMore(false)
       if (seq !== requestSeq.current) return
@@ -840,9 +840,9 @@ export function Home() {
       return
     }
     let active = true
-    const api = window.aiOfficeProject!
+    const api = window.revelithAppProject!
     void api.listFiles(selectedProjectId).then(async (paths) => {
-      const stats = await window.aiOffice.statPaths(paths)
+      const stats = await window.revelithApp.statPaths(paths)
       if (!active) return
       setProjectFileEntries(stats.sort((a, b) => b.mtimeMs - a.mtimeMs))
     })
@@ -980,13 +980,13 @@ export function Home() {
   }
 
   const toggleStar = (path: string) => {
-    void window.aiOffice.toggleStar(path).then(refresh)
+    void window.revelithApp.toggleStar(path).then(refresh)
   }
 
   const removeRecent = (paths: string[]) => {
     setRowMenu(null)
     setSelected(new Set())
-    void window.aiOffice.removeRecent(paths).then(refresh)
+    void window.revelithApp.removeRecent(paths).then(refresh)
   }
 
   const deleteFiles = (paths: string[]) => {
@@ -998,12 +998,12 @@ export function Home() {
     const paths = confirmDelete ?? []
     setConfirmDelete(null)
     setSelected(new Set())
-    void window.aiOffice.deleteFiles(paths).then(refresh)
+    void window.revelithApp.deleteFiles(paths).then(refresh)
   }
 
   const duplicateFile = (path: string) => {
     setRowMenu(null)
-    void window.aiOffice.duplicateFile(path).then(refresh)
+    void window.revelithApp.duplicateFile(path).then(refresh)
   }
 
   const startRename = (entry: RecentEntry) => {
@@ -1016,7 +1016,7 @@ export function Home() {
     setRenaming(null)
     if (!value || value === baseName(entry)) return
     const newName = entry.ext ? `${value}.${entry.ext}` : value
-    void window.aiOffice.renameFile(entry.path, newName).then((result) => {
+    void window.revelithApp.renameFile(entry.path, newName).then((result) => {
       if (!result.ok) window.alert(result.error ?? t('renameFailed'))
       refresh()
     })
@@ -1025,7 +1025,7 @@ export function Home() {
   const moveFileTo = async (filePath: string, targetProjectId: string) => {
     setMoveFileMenu(null)
     setRowMenu(null)
-    await window.aiOfficeProject?.moveFile(filePath, targetProjectId)
+    await window.revelithAppProject?.moveFile(filePath, targetProjectId)
     refresh()
     if (selectedProjectId) {
       setProjectFileEntries((prev) => prev.filter((e) => e.path !== filePath))
@@ -1040,32 +1040,38 @@ export function Home() {
     const moved = new Set(paths)
     setProjectFileEntries((prev) => prev.filter((e) => !moved.has(e.path)))
     for (const path of paths) {
-      await window.aiOfficeProject?.moveFile(path, targetProjectId)
+      await window.revelithAppProject?.moveFile(path, targetProjectId)
     }
     refresh()
   }
 
   // â”€â”€ New file (passes projectId when a project is selected) â”€â”€
   const handleNewDoc = () => {
-    void window.aiOffice.newDoc(selectedProjectId ? { projectId: selectedProjectId } : undefined)
+    void window.revelithApp.newDoc(selectedProjectId ? { projectId: selectedProjectId } : undefined)
   }
 
   const handleNewSheet = () => {
-    void window.aiOffice.newSheet(selectedProjectId ? { projectId: selectedProjectId } : undefined)
+    void window.revelithApp.newSheet(
+      selectedProjectId ? { projectId: selectedProjectId } : undefined,
+    )
   }
 
   const handleNewSlide = () => {
-    void window.aiOffice.newSlide(selectedProjectId ? { projectId: selectedProjectId } : undefined)
+    void window.revelithApp.newSlide(
+      selectedProjectId ? { projectId: selectedProjectId } : undefined,
+    )
   }
 
   const handleNewMarkdown = () => {
-    void window.aiOffice.newMarkdown(
+    void window.revelithApp.newMarkdown(
       selectedProjectId ? { projectId: selectedProjectId } : undefined,
     )
   }
 
   const handleNewHtml = () => {
-    void window.aiOffice.newHtml(selectedProjectId ? { projectId: selectedProjectId } : undefined)
+    void window.revelithApp.newHtml(
+      selectedProjectId ? { projectId: selectedProjectId } : undefined,
+    )
   }
 
   const NEW_ITEMS = [
@@ -1096,7 +1102,7 @@ export function Home() {
         ))}
         <button
           className="quick-card quick-card-browse"
-          onClick={() => void window.aiOffice.browse()}
+          onClick={() => void window.revelithApp.browse()}
         >
           <div className="quick-icon-wrapper folder-icon">
             <svg
@@ -1138,11 +1144,11 @@ export function Home() {
           role="button"
           tabIndex={0}
           onClick={() => {
-            if (!isRenaming) void window.aiOffice.openPath(entry.path)
+            if (!isRenaming) void window.revelithApp.openPath(entry.path)
           }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && event.target === event.currentTarget) {
-              void window.aiOffice.openPath(entry.path)
+              void window.revelithApp.openPath(entry.path)
             }
           }}
         >
@@ -1216,7 +1222,7 @@ export function Home() {
                   role="menuitem"
                   onClick={() => {
                     setRowMenu(null)
-                    void window.aiOffice.openPath(entry.path)
+                    void window.revelithApp.openPath(entry.path)
                   }}
                 >
                   {t('open')}
@@ -1225,7 +1231,7 @@ export function Home() {
                   role="menuitem"
                   onClick={() => {
                     setRowMenu(null)
-                    void window.aiOffice.revealPath(entry.path)
+                    void window.revelithApp.revealPath(entry.path)
                   }}
                 >
                   {t('revealInFolder')}
@@ -1595,7 +1601,7 @@ export function Home() {
                     onClick={() => {
                       const seq = ++searchSeqRef.current
                       setSearchLoading(true)
-                      window.aiOffice
+                      window.revelithApp
                         .searchFiles({
                           query: searchQuery,
                           limit: 50,
@@ -1647,7 +1653,7 @@ export function Home() {
                         className="search-result-item"
                         onClick={() => {
                           clearSearch()
-                          window.aiOffice.openPath(result.filePath)
+                          window.revelithApp.openPath(result.filePath)
                         }}
                       >
                         <span className="search-result-icon">
@@ -1750,7 +1756,7 @@ export function Home() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button
                       className="btn-chip"
-                      onClick={() => void window.aiOffice?.openPathInExplorer?.(selectedFolder)}
+                      onClick={() => void window.revelithApp?.openPathInExplorer?.(selectedFolder)}
                       style={{
                         border: 'none',
                         background: 'none',

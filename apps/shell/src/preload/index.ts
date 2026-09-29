@@ -128,7 +128,7 @@ const homeApi: HomeApi = {
   async setUpdateChannel(channel) {
     // validated inline: a runtime import from ../shared/update-api would be
     // shared with the update.ts preload entry and get split into a chunk,
-    // which sandboxed preload scripts cannot load (window.aiOffice would
+    // which sandboxed preload scripts cannot load (window.revelithApp would
     // silently disappear). Preload entries must stay single-file bundles.
     if (channel !== 'stable' && channel !== 'beta') throw new Error('Invalid update channel.')
     await ipcRenderer.invoke(HOME_CHANNELS.setUpdateChannel, channel)
@@ -265,7 +265,7 @@ const homeApi: HomeApi = {
   },
 }
 
-contextBridge.exposeInMainWorld('aiOffice', homeApi)
+contextBridge.exposeInMainWorld('revelithApp', homeApi)
 
 const projectApi: ProjectHomeApi = {
   async listProjects() {
@@ -300,7 +300,7 @@ const projectApi: ProjectHomeApi = {
   },
 }
 
-contextBridge.exposeInMainWorld('aiOfficeProject', projectApi)
+contextBridge.exposeInMainWorld('revelithAppProject', projectApi)
 
 const tabsApi: TabsApi = {
   async list() {
@@ -332,4 +332,4 @@ const tabsApi: TabsApi = {
   },
 }
 
-contextBridge.exposeInMainWorld('aiOfficeTabs', tabsApi)
+contextBridge.exposeInMainWorld('revelithAppTabs', tabsApi)

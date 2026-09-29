@@ -37,8 +37,8 @@ function openMockTab(kind: string, title: string) {
 }
 
 // Browser-fallback mock so the UI renders in standard web browsers (Chrome/Brave/Edge) outside Electron
-if (!window.aiOffice) {
-  window.aiOffice = {
+if (!window.revelithApp) {
+  window.revelithApp = {
     getLanguage: async () => 'en',
     onboardingSeen: async () => true,
     getTheme: async () => {
@@ -103,8 +103,8 @@ if (!window.aiOffice) {
   } as any
 }
 
-if (!window.aiOfficeProject) {
-  window.aiOfficeProject = {
+if (!window.revelithAppProject) {
+  window.revelithAppProject = {
     listProjects: async () => [],
     listFiles: async () => [],
     createProject: async () => ({
@@ -120,8 +120,8 @@ if (!window.aiOfficeProject) {
   } as any
 }
 
-if (!window.aiOfficeTabs) {
-  window.aiOfficeTabs = {
+if (!window.revelithAppTabs) {
+  window.revelithAppTabs = {
     list: async () => [...mockTabs],
     activate: async (id: string) => {
       updateMockTabs(mockTabs.map((t) => ({ ...t, active: t.id === id })))
@@ -148,17 +148,17 @@ if (!window.aiOfficeTabs) {
 // resolve the persisted language, first-run flag, and theme before first paint
 // so the UI never flashes (home showing briefly before the onboarding overlay)
 void Promise.all([
-  window.aiOffice.getLanguage().catch(() => 'en' as const),
+  window.revelithApp.getLanguage().catch(() => 'en' as const),
   // if the flag is unreadable, skip onboarding rather than block the home screen
-  window.aiOffice.onboardingSeen().catch(() => true),
-  window.aiOffice.getTheme().catch(() => 'system' as const),
+  window.revelithApp.onboardingSeen().catch(() => true),
+  window.revelithApp.getTheme().catch(() => 'system' as const),
 ]).then(([lang, onboardingSeen, theme]) => {
   document.documentElement.lang = htmlLang(lang)
   // apply theme attribute before first paint to avoid flash
   if (theme !== 'system') {
     document.documentElement.setAttribute('data-theme', theme)
   }
-  window.aiOffice.onThemeChanged((next) => {
+  window.revelithApp.onThemeChanged((next) => {
     if (next === 'system') document.documentElement.removeAttribute('data-theme')
     else document.documentElement.setAttribute('data-theme', next)
   })

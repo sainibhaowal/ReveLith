@@ -23,7 +23,7 @@ export function LocaleProvider({ initial, children }: { initial: Lang; children:
       setLang: (next) => {
         setLangState(next)
         document.documentElement.lang = htmlLang(next)
-        void window.aiOffice.setLanguage(next)
+        void window.revelithApp.setLanguage(next)
       },
     }),
     [lang],

@@ -449,7 +449,7 @@ function IntegrationsSection() {
 
   const refreshAgentRows = async () => {
     try {
-      const detected = ((await window.aiOffice?.detectSkills?.()) ?? []) as string[]
+      const detected = ((await window.revelithApp?.detectSkills?.()) ?? []) as string[]
       setAgentRows((prev) => {
         const prevByAgent = new Map(prev.map((r) => [r.agent, r]))
         const rows: Array<{
@@ -480,7 +480,7 @@ function IntegrationsSection() {
   const installOneSkill = async (agent: string) => {
     setAgentsBusy(agent)
     try {
-      const res = (await window.aiOffice?.installSkill?.(agent)) ?? []
+      const res = (await window.revelithApp?.installSkill?.(agent)) ?? []
       const ok = res.some((r) => r.agent === agent && r.ok)
       const path = res.find((r) => r.agent === agent)?.path ?? ''
       setAgentRows((prev) =>
@@ -1004,13 +1004,13 @@ function IntegrationsSection() {
                   setSkillStatus('Installing skills…')
                   void (
                     window as unknown as {
-                      aiOffice?: {
+                      revelithApp?: {
                         installSkill?: () => Promise<
                           Array<{ agent: string; ok: boolean; path: string }>
                         >
                       }
                     }
-                  ).aiOffice
+                  ).revelithApp
                     ?.installSkill?.()
                     .then((res) =>
                       setSkillStatus(
@@ -1181,7 +1181,7 @@ function AiSettingsSection() {
     try {
       localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
     } catch {}
-    void window.aiOffice?.setAiSettings?.(next)
+    void window.revelithApp?.setAiSettings?.(next)
     window.dispatchEvent(new Event('ai-settings-changed'))
     setSaveSuccess(true)
     setTimeout(() => setSaveSuccess(false), 3000)
@@ -1190,7 +1190,7 @@ function AiSettingsSection() {
   useEffect(() => {
     let alive = true
     void (async () => {
-      let s = await window.aiOffice?.getAiSettings?.()
+      let s = await window.revelithApp?.getAiSettings?.()
       if (!s) {
         try {
           const stored = localStorage.getItem('revelith.aiSettings')
@@ -1227,11 +1227,11 @@ function AiSettingsSection() {
   const [aiSpellcheck, setAiSpellcheckState] = useState(true)
   const setAiFontSize = (fontSize: string) => {
     setAiFontSizeState(fontSize)
-    void window.aiOffice?.setAiPanelPrefs?.({ fontSize })
+    void window.revelithApp?.setAiPanelPrefs?.({ fontSize })
   }
   const setAiSpellcheck = (spellcheck: boolean) => {
     setAiSpellcheckState(spellcheck)
-    void window.aiOffice?.setAiPanelPrefs?.({ spellcheck })
+    void window.revelithApp?.setAiPanelPrefs?.({ spellcheck })
   }
 
   const activeProvider = PROVIDER_METAS.some((p) => p.id === settings?.provider)
@@ -1270,7 +1270,7 @@ function AiSettingsSection() {
     try {
       localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
     } catch {}
-    void window.aiOffice?.setAiSettings?.(next)
+    void window.revelithApp?.setAiSettings?.(next)
   }
 
   const updateByok = (key: 'webSearchKey' | 'imageGenKey' | 'mediaAnalysisKey', val: string) => {
@@ -1285,7 +1285,7 @@ function AiSettingsSection() {
     try {
       localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
     } catch {}
-    void window.aiOffice?.setAiSettings?.(next)
+    void window.revelithApp?.setAiSettings?.(next)
   }
 
   const setActiveProvider = (id: string) => {
@@ -1294,7 +1294,7 @@ function AiSettingsSection() {
     try {
       localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
     } catch {}
-    void window.aiOffice?.setAiSettings?.(next)
+    void window.revelithApp?.setAiSettings?.(next)
   }
 
   const handleTestConnection = async () => {
@@ -1324,8 +1324,8 @@ function AiSettingsSection() {
 
       let ok = false
       let status = 0
-      if (typeof window.aiOffice?.discoverAiModels === 'function') {
-        const models = await window.aiOffice.discoverAiModels(selectedId, url, apiKey)
+      if (typeof window.revelithApp?.discoverAiModels === 'function') {
+        const models = await window.revelithApp.discoverAiModels(selectedId, url, apiKey)
         if (models.length > 0) {
           setTestStatus({
             state: 'success',
@@ -1376,7 +1376,7 @@ function AiSettingsSection() {
       //    generativelanguage.googleapis.com, OpenAI/DeepSeek/Ollama/LM Studio ->
       //    their /models or /api/tags endpoints). Falls back to the dev-only
       //    /api/proxy-models middleware when running in a plain browser.
-      const discoverInMain = window.aiOffice?.discoverAiModels
+      const discoverInMain = window.revelithApp?.discoverAiModels
       const hasMainProcessDiscovery = typeof discoverInMain === 'function'
       if (hasMainProcessDiscovery) {
         try {
@@ -1507,7 +1507,7 @@ function AiSettingsSection() {
           },
         }
         setSettings(next)
-        void window.aiOffice.setAiSettings?.(next)
+        void window.revelithApp.setAiSettings?.(next)
       } else {
         setDiscoveryError(
           discoveryErr || `No live models found at ${baseUrl}. Ensure server is active.`,
@@ -2005,7 +2005,7 @@ function MediaSearchSection() {
     void (async () => {
       let s: any
       try {
-        s = (await window.aiOffice?.getAiSettings?.()) ?? null
+        s = (await window.revelithApp?.getAiSettings?.()) ?? null
       } catch {
         /* fall through to localStorage below */
       }
@@ -2034,7 +2034,7 @@ function MediaSearchSection() {
       localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
     } catch {}
     try {
-      void window.aiOffice?.setAiSettings?.(next)
+      void window.revelithApp?.setAiSettings?.(next)
     } catch {}
     window.dispatchEvent(new Event('ai-settings-changed'))
     setSavedTick(true)
@@ -2238,7 +2238,7 @@ function AccountSection() {
     void (async () => {
       let profile: { displayName?: string; email?: string } | null
       try {
-        profile = (await window.aiOffice?.getProfile?.()) ?? null
+        profile = (await window.revelithApp?.getProfile?.()) ?? null
       } catch {
         profile = null
       }
@@ -2265,7 +2265,7 @@ function AccountSection() {
       localStorage.setItem('revelith.profile', JSON.stringify(next))
     } catch {}
     try {
-      void window.aiOffice?.setProfile?.(next)
+      void window.revelithApp?.setProfile?.(next)
     } catch {}
     setSavedTick(true)
     setTimeout(() => setSavedTick(false), 2000)
@@ -2458,19 +2458,19 @@ export function SettingsModal({
   const [aiSpellcheck, setAiSpellcheckState] = useState(true)
   const setAutoSave = (on: boolean) => {
     setAutoSaveState(on)
-    void window.aiOffice?.setAutoSaveDefault?.({ on })
+    void window.revelithApp?.setAutoSaveDefault?.({ on })
   }
   const setAiDock = (side: 'left' | 'right') => {
     setAiDockState(side)
-    void window.aiOffice?.setAiPanelPrefs?.({ side })
+    void window.revelithApp?.setAiPanelPrefs?.({ side })
   }
   const setAiFontSize = (fontSize: string) => {
     setAiFontSizeState(fontSize)
-    void window.aiOffice?.setAiPanelPrefs?.({ fontSize })
+    void window.revelithApp?.setAiPanelPrefs?.({ fontSize })
   }
   const setAiSpellcheck = (spellcheck: boolean) => {
     setAiSpellcheckState(spellcheck)
-    void window.aiOffice?.setAiPanelPrefs?.({ spellcheck })
+    void window.revelithApp?.setAiPanelPrefs?.({ spellcheck })
   }
   const [usageStats, setUsageStats] = useState(false)
 
@@ -2486,28 +2486,28 @@ export function SettingsModal({
       localStorage.setItem('revelith.usageStats', String(val))
     } catch {}
     try {
-      void window.aiOffice?.setUsageStats?.(val)
+      void window.revelithApp?.setUsageStats?.(val)
     } catch {}
   }
 
   useEffect(() => {
     let alive = true
-    void window.aiOffice?.getTheme?.().then((th) => {
+    void window.revelithApp?.getTheme?.().then((th) => {
       if (alive && th) setTheme(th)
     })
-    void window.aiOffice?.getDefaultSaveDir?.().then((dir) => {
+    void window.revelithApp?.getDefaultSaveDir?.().then((dir) => {
       if (alive && dir) setSaveDir(dir)
     })
-    void window.aiOffice?.getUpdateChannel?.().then((ch) => {
+    void window.revelithApp?.getUpdateChannel?.().then((ch) => {
       if (alive && ch) setChannel(ch)
     })
-    void window.aiOffice?.getAppVersion?.().then((v) => {
+    void window.revelithApp?.getAppVersion?.().then((v) => {
       if (alive && v) setAppVersion(v)
     })
-    void window.aiOffice?.getAutoSaveDefault?.().then((d) => {
+    void window.revelithApp?.getAutoSaveDefault?.().then((d) => {
       if (alive && d) setAutoSaveState(d.on === true)
     })
-    void window.aiOffice?.getAiPanelPrefs?.().then((p) => {
+    void window.revelithApp?.getAiPanelPrefs?.().then((p) => {
       if (!alive || !p) return
       setAiDockState(p.side === 'left' ? 'left' : 'right')
       setAiFontSizeState(p.fontSize || '14px')
@@ -2515,7 +2515,7 @@ export function SettingsModal({
     })
     void (async () => {
       try {
-        const enabled = await window.aiOffice?.getUsageStats?.()
+        const enabled = await window.revelithApp?.getUsageStats?.()
         if (alive) setUsageStats(enabled === true)
       } catch {
         try {
@@ -2541,7 +2541,7 @@ export function SettingsModal({
     try {
       localStorage.setItem('revelith.theme', next)
     } catch {}
-    void window.aiOffice?.setTheme?.(next)
+    void window.revelithApp?.setTheme?.(next)
     if (next === 'system') document.documentElement.removeAttribute('data-theme')
     else document.documentElement.setAttribute('data-theme', next)
     // Broadcast to any active editor iframes
@@ -2554,7 +2554,7 @@ export function SettingsModal({
   }
 
   const changeSaveDir = () => {
-    void window.aiOffice.pickDefaultSaveDir?.().then((dir) => {
+    void window.revelithApp.pickDefaultSaveDir?.().then((dir) => {
       if (dir) setSaveDir(dir)
     })
   }

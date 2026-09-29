@@ -5,7 +5,7 @@ import { useI18n } from './locale'
 
 declare global {
   interface Window {
-    aiOfficeTabs: TabsApi
+    revelithAppTabs: TabsApi
   }
 }
 
@@ -153,9 +153,9 @@ export function TabBar() {
   const newMenuRef = useRef<HTMLDivElement>(null)
 
   const handlePlusClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (window.aiOfficeTabs?.showNewMenu) {
+    if (window.revelithAppTabs?.showNewMenu) {
       const rect = event.currentTarget.getBoundingClientRect()
-      void window.aiOfficeTabs.showNewMenu(Math.round(rect.left), Math.round(rect.bottom))
+      void window.revelithAppTabs.showNewMenu(Math.round(rect.left), Math.round(rect.bottom))
     } else {
       const rect = event.currentTarget.getBoundingClientRect()
       // If menu (min 150px wide) would overflow window right edge, align to right of the button
@@ -201,13 +201,13 @@ export function TabBar() {
         next.splice(Math.min(Math.max(drag.target, 1), next.length), 0, moved)
         return next
       })
-      void window.aiOfficeTabs.reorder(drag.id, drag.target)
+      void window.revelithAppTabs.reorder(drag.id, drag.target)
     }
   }
 
   useEffect(() => {
-    void window.aiOfficeTabs.list().then(setTabs)
-    return window.aiOfficeTabs.onChanged((nextTabs) => {
+    void window.revelithAppTabs.list().then(setTabs)
+    return window.revelithAppTabs.onChanged((nextTabs) => {
       setClosingId(null)
       setTabs(nextTabs)
     })
@@ -216,7 +216,7 @@ export function TabBar() {
   // document tabs are sibling WebContentsViews: they see neither this press
   // nor a focus change, so relay it for them to dismiss open popovers
   useEffect(() => {
-    const notify = (): void => window.aiOfficeTabs.notifyChromePressed?.()
+    const notify = (): void => window.revelithAppTabs.notifyChromePressed?.()
     document.addEventListener('pointerdown', notify, true)
     return () => document.removeEventListener('pointerdown', notify, true)
   }, [])
@@ -286,7 +286,7 @@ export function TabBar() {
                 if ((event.target as HTMLElement).closest('.tab-close')) return
                 // Chrome-style: pressing a tab activates it immediately, so
                 // activation never depends on the click that a drag would eat
-                if (!tab.active) void window.aiOfficeTabs.activate(tab.id)
+                if (!tab.active) void window.revelithAppTabs.activate(tab.id)
                 if (tab.id === 'home') return
                 const strip = stripRef.current
                 if (!strip) return
@@ -380,13 +380,22 @@ export function TabBar() {
                     const tid = tab.id
                     setClosingId(tid)
                     setTimeout(() => {
-                      void window.aiOfficeTabs.close(tid).finally(() => {
+                      void window.revelithAppTabs.close(tid).finally(() => {
                         setClosingId((curr) => (curr === tid ? null : curr))
                       })
                     }, 175)
                   }}
                 >
-                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                  <svg
+                    width="9"
+                    height="9"
+                    viewBox="0 0 10 10"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
                     <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
                   </svg>
                 </button>
@@ -425,10 +434,12 @@ export function TabBar() {
               className="tab-new-menu-item"
               onClick={() => {
                 setNewMenuOpen(false)
-                void window.aiOffice?.newDoc?.()
+                void window.revelithApp?.newDoc?.()
               }}
             >
-              <span className="tab-new-menu-icon"><DocIcon /></span>
+              <span className="tab-new-menu-icon">
+                <DocIcon />
+              </span>
               <span className="tab-new-menu-label">AI Docs</span>
             </button>
             <button
@@ -436,10 +447,12 @@ export function TabBar() {
               className="tab-new-menu-item"
               onClick={() => {
                 setNewMenuOpen(false)
-                void window.aiOffice?.newSheet?.()
+                void window.revelithApp?.newSheet?.()
               }}
             >
-              <span className="tab-new-menu-icon"><SheetIcon /></span>
+              <span className="tab-new-menu-icon">
+                <SheetIcon />
+              </span>
               <span className="tab-new-menu-label">AI Sheets</span>
             </button>
             <button
@@ -447,10 +460,12 @@ export function TabBar() {
               className="tab-new-menu-item"
               onClick={() => {
                 setNewMenuOpen(false)
-                void window.aiOffice?.newSlide?.()
+                void window.revelithApp?.newSlide?.()
               }}
             >
-              <span className="tab-new-menu-icon"><SlideIcon /></span>
+              <span className="tab-new-menu-icon">
+                <SlideIcon />
+              </span>
               <span className="tab-new-menu-label">AI Slides</span>
             </button>
             <button
@@ -458,10 +473,12 @@ export function TabBar() {
               className="tab-new-menu-item"
               onClick={() => {
                 setNewMenuOpen(false)
-                void window.aiOffice?.newMarkdown?.()
+                void window.revelithApp?.newMarkdown?.()
               }}
             >
-              <span className="tab-new-menu-icon"><MarkdownIcon /></span>
+              <span className="tab-new-menu-icon">
+                <MarkdownIcon />
+              </span>
               <span className="tab-new-menu-label">AI Markdown</span>
             </button>
             <div className="tab-new-menu-divider" />
@@ -470,7 +487,7 @@ export function TabBar() {
               className="tab-new-menu-item tab-new-menu-open"
               onClick={() => {
                 setNewMenuOpen(false)
-                void window.aiOffice?.browse?.()
+                void window.revelithApp?.browse?.()
               }}
             >
               <span className="tab-new-menu-label">Open…</span>
@@ -487,7 +504,17 @@ export function TabBar() {
           window.dispatchEvent(new CustomEvent('open-ai-settings'))
         }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="12" r="3" />
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
@@ -498,7 +525,7 @@ export function TabBar() {
         aria-label={t('tabList')}
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect()
-          void window.aiOfficeTabs.showMenu(Math.round(rect.left), Math.round(rect.bottom))
+          void window.revelithAppTabs.showMenu(Math.round(rect.left), Math.round(rect.bottom))
         }}
       >
         {/* window-with-tab-bar glyph: slanted tab cells above a full-width

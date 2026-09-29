@@ -27,7 +27,7 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
   const [iframeLoading, setIframeLoading] = useState(true)
 
   useEffect(() => {
-    const applyTabs = (tabs: Awaited<ReturnType<typeof window.aiOfficeTabs.list>>) => {
+    const applyTabs = (tabs: Awaited<ReturnType<typeof window.revelithAppTabs.list>>) => {
       const active = tabs.find((tab) => tab.active)
       const kind = active?.kind || 'home'
       setActiveTabKind(kind)
@@ -35,17 +35,17 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
       setHomeActive(!active || kind === 'home')
       setIframeLoading(true)
     }
-    void window.aiOfficeTabs.list().then(applyTabs)
-    return window.aiOfficeTabs.onChanged(applyTabs)
+    void window.revelithAppTabs.list().then(applyTabs)
+    return window.revelithAppTabs.onChanged(applyTabs)
   }, [])
 
   // Native editor tabs are Electron WebContentsViews, which otherwise paint
   // above DOM content. The main process hides only the active one while the
   // shell Settings modal is open.
   useEffect(() => {
-    void window.aiOffice?.setSettingsOverlay?.(showSettingsModal)
+    void window.revelithApp?.setSettingsOverlay?.(showSettingsModal)
     return () => {
-      if (showSettingsModal) void window.aiOffice?.setSettingsOverlay?.(false)
+      if (showSettingsModal) void window.revelithApp?.setSettingsOverlay?.(false)
     }
   }, [showSettingsModal])
 
@@ -66,7 +66,7 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
 
   const finishOnboarding = () => {
     setShowOnboarding(false)
-    void window.aiOffice?.setOnboardingSeen?.().catch(() => {})
+    void window.revelithApp?.setOnboardingSeen?.().catch(() => {})
   }
 
   const activeUrl = RENDERER_URLS[activeTabKind] || 'http://localhost:5173'
@@ -108,10 +108,13 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
     setIsDragOver(false)
     const files = Array.from(e.dataTransfer.files)
     for (const file of files) {
-      const electronWebUtils = (window as unknown as { electron?: { webUtils?: { getPathForFile: (f: File) => string } } }).electron?.webUtils
-      const filePath = (file as unknown as { path?: string }).path || electronWebUtils?.getPathForFile?.(file)
+      const electronWebUtils = (
+        window as unknown as { electron?: { webUtils?: { getPathForFile: (f: File) => string } } }
+      ).electron?.webUtils
+      const filePath =
+        (file as unknown as { path?: string }).path || electronWebUtils?.getPathForFile?.(file)
       if (filePath) {
-        void window.aiOffice?.openPath?.(filePath)
+        void window.revelithApp?.openPath?.(filePath)
       }
     }
   }
@@ -122,7 +125,12 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface, #141416)' }}
+      style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--surface, #141416)',
+      }}
     >
       {isDragOver && (
         <div
@@ -152,7 +160,14 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
               gap: '10px',
             }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
@@ -162,7 +177,15 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
         </div>
       )}
       <TabBar />
-      <div className="app-frame-content" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--surface, #141416)' }}>
+      <div
+        className="app-frame-content"
+        style={{
+          flex: 1,
+          position: 'relative',
+          overflow: 'hidden',
+          background: 'var(--surface, #141416)',
+        }}
+      >
         <div style={{ width: '100%', height: '100%', display: homeActive ? 'block' : 'none' }}>
           <Home />
         </div>
@@ -183,18 +206,54 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
                   animation: 'tabAppear 0.2s ease forwards',
                 }}
               >
-                <div style={{ position: 'relative', width: '56px', height: '56px', marginBottom: '20px' }}>
-                  <svg width="56" height="56" viewBox="0 0 32 32" fill="none" style={{ animation: 'spin 3s linear infinite' }}>
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '56px',
+                    height: '56px',
+                    marginBottom: '20px',
+                  }}
+                >
+                  <svg
+                    width="56"
+                    height="56"
+                    viewBox="0 0 32 32"
+                    fill="none"
+                    style={{ animation: 'spin 3s linear infinite' }}
+                  >
                     <circle cx="16" cy="16" r="2.2" fill="#38bdf8" />
                     <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#38bdf8" strokeWidth="2" />
                     <circle cx="28" cy="16" r="2" fill="#67e8f9" />
-                    <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#60a5fa" strokeWidth="2" transform="rotate(60 16 16)" />
+                    <ellipse
+                      cx="16"
+                      cy="16"
+                      rx="13"
+                      ry="5.5"
+                      stroke="#60a5fa"
+                      strokeWidth="2"
+                      transform="rotate(60 16 16)"
+                    />
                     <circle cx="10" cy="5.6" r="2" fill="#93c5fd" />
-                    <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#818cf8" strokeWidth="2" transform="rotate(120 16 16)" />
+                    <ellipse
+                      cx="16"
+                      cy="16"
+                      rx="13"
+                      ry="5.5"
+                      stroke="#818cf8"
+                      strokeWidth="2"
+                      transform="rotate(120 16 16)"
+                    />
                     <circle cx="10" cy="26.4" r="2" fill="#c7d2fe" />
                   </svg>
                 </div>
-                <div style={{ fontSize: '15px', fontWeight: 600, letterSpacing: '-0.01em', marginBottom: '12px' }}>
+                <div
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    letterSpacing: '-0.01em',
+                    marginBottom: '12px',
+                  }}
+                >
                   Opening {KIND_TITLES[activeTabKind] || 'Document'}…
                 </div>
                 <div
@@ -227,9 +286,13 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
               onLoad={(e) => {
                 setIframeLoading(false)
                 try {
-                  const targetTheme = document.documentElement.getAttribute('data-theme') || 'system'
+                  const targetTheme =
+                    document.documentElement.getAttribute('data-theme') || 'system'
                   const frame = e.currentTarget
-                  frame.contentWindow?.postMessage({ type: 'theme-change', theme: targetTheme }, '*')
+                  frame.contentWindow?.postMessage(
+                    { type: 'theme-change', theme: targetTheme },
+                    '*',
+                  )
                 } catch {}
               }}
               style={{
@@ -247,11 +310,7 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
         )}
       </div>
       {showOnboarding && homeActive && <Onboarding onDone={finishOnboarding} />}
-      {showSettingsModal && (
-        <SettingsModal
-          onClose={() => setShowSettingsModal(false)}
-        />
-      )}
+      {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}
     </div>
   )
 }

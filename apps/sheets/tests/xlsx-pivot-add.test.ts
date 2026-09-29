@@ -447,8 +447,8 @@ describe('multi-level column pivots', () => {
       }),
     ])
     const tableXml = plan.added.get('xl/pivotTables/pivotTable1.xml')!
-    expect(tableXml).toContain('<extLst><ext uri="{AIO-PIVOT-GROUPINGS}"')
-    expect(tableXml).toContain('aioPivotGroupings')
+    expect(tableXml).toContain('<extLst><ext uri="{REVELITH-PIVOT-GROUPINGS}"')
+    expect(tableXml).toContain('revelithPivotGroupings')
 
     const definition = parsePivotDefinition(
       tableXml,
