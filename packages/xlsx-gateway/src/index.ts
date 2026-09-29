@@ -50,3 +50,28 @@ export {
   shortDateNumFmtId,
   shortDatePatternForSystemLocale,
 } from './shared/short-date'
+
+export {
+  CHART_CATEGORY_WIRE_MAX,
+  CHART_TEXT_WIRE_MAX,
+  drawingAnchorSchema,
+  editableBorderStyleSchema,
+  fillSpecSchema,
+  gradientFillSchema,
+  hexColorSchema,
+  MAX_PATCH_ENTRY_BYTES,
+  patternFillSchema,
+  richRunSchema,
+  styleColorSchema,
+  styleEditBorderSchema,
+  themeColorSchema,
+  workbookChartEditSchema,
+  workbookStyleEditSchema,
+  workbookVisualEditSchema,
+} from './shared/edit-schemas'
+export type {
+  WorkbookChartEdit,
+  WorkbookRichRun,
+  WorkbookStyleEdit,
+  WorkbookVisualEdit,
+} from './shared/edit-schemas'
