@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { foldMap, norm, spliceIntoEngine } from '../src/main/text-edit'
 import { chainLayers } from '../src/shared/x-layers'
 
@@ -9,7 +9,7 @@ describe('chainLayers', () => {
   })
   it('separates a rebuilt run stacked over a per-glyph line', () => {
     // The realistic stack: rebuilt lines are one object (one long span), the original
-    // CJK line underneath is per-glyph : the long span conflicts with every glyph
+    // CJK line underneath is per-glyph — the long span conflicts with every glyph
     const rects = [
       { left: 0, right: 10 }, // glyph 1
       { left: 0, right: 200 }, // rebuilt line drawn over the whole row
@@ -34,13 +34,13 @@ describe('chainLayers', () => {
     expect(chainLayers(glyphs([0, 0, 12, 12]))).toEqual([0, 1, 0, 1])
   })
   it('does not let a short overlay ending in a word gap steal the next word', () => {
-    // Overlay ends at 23, one px before the next word : nearer than the previous word's
+    // Overlay ends at 23, one px before the next word — nearer than the previous word's
     // tail (gap 2). Within the tie margin the many-span text chain must win.
     const rects = [
       { left: 0, right: 10 }, // word 1
       { left: 0, right: 23 }, // short overlay ending mid-gap
       { left: 12, right: 22 }, // word 2
-      { left: 24, right: 34 }, // word 3 : overlay tail gap 1, word chain gap 2
+      { left: 24, right: 34 }, // word 3 — overlay tail gap 1, word chain gap 2
     ]
     expect(chainLayers(rects, 5)).toEqual([0, 1, 0, 0])
   })
@@ -49,7 +49,7 @@ describe('chainLayers', () => {
 describe('norm', () => {
   it('folds Kangxi radicals to unified ideographs', () => {
     // pdf.js extracts U+2F00-block radicals from some fonts' cmaps; pdfium extracts
-    // the unified chars : both sides must land on the same key
+    // the unified chars — both sides must land on the same key
     expect(norm('⼆〇⼆五')).toBe(norm('二〇二五'))
   })
   it('stays whitespace-insensitive', () => {
@@ -134,7 +134,7 @@ describe('spliceIntoEngine (multi-line block reflow)', () => {
   })
   it('restores the space where a reflow moved a word across an engine line join', () => {
     // 'brown' and 'fox' were split by the original visual line break (engine join has
-    // no char between them); the reflow now puts them on one line : a space must appear
+    // no char between them); the reflow now puts them on one line — a space must appear
     expect(
       spliceIntoEngine(
         'The quick brownfox jumps high', // 'The quick brown' + 'fox jumps high'

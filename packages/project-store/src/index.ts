@@ -1,7 +1,9 @@
 export { ProjectStore } from './store.js'
 export type {
+  ChatAttachment,
   ChatMessage,
   ChatMeta,
+  ChatScope,
   ProjectData,
   ProjectIndex,
   ProjectInfo,

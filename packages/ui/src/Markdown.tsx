@@ -7,14 +7,28 @@ import { Fragment, useState, type ReactNode } from 'react'
  * Tolerates streaming/partial input gracefully.
  */
 
-const INLINE_RE = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|\*[^*\n]+?\*)/g
+const INLINE_RE = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|\*[^*\n]+?\*|\[[^\]\n]+\]\([^)\s]+\))/g
+
+/**
+ * Link interception for in-answer citations. A model is told to cite a document
+ * region as `[label](<scheme>…)`; the host resolves the href and performs the
+ * navigation, so the renderer never has to know the scheme.
+ */
+export interface MarkdownNav {
+  /** href prefix the model uses for citations, e.g. `htmlnav://` */
+  scheme: string
+  /** called with the raw href; the host decides what to do with it */
+  onNavigate: (href: string) => void
+}
 const RTL_REGEX = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/
 
 export function isRtlText(text: string): boolean {
   return RTL_REGEX.test(text)
 }
 
-function renderInline(text: string): ReactNode[] {
+const LINK_RE = /^\[([^\]]*)\]\(([^)\s]+)\)$/
+
+function renderInline(text: string, nav?: MarkdownNav): ReactNode[] {
   const out: ReactNode[] = []
   let last = 0
   let key = 0
@@ -24,7 +38,31 @@ function renderInline(text: string): ReactNode[] {
     const tok = m[0] ?? ''
     if (tok.startsWith('`')) out.push(<code key={key++}>{tok.slice(1, -1)}</code>)
     else if (tok.startsWith('**')) out.push(<strong key={key++}>{tok.slice(2, -2)}</strong>)
-    else out.push(<em key={key++}>{tok.slice(1, -1)}</em>)
+    else if (tok.startsWith('*')) out.push(<em key={key++}>{tok.slice(1, -1)}</em>)
+    else {
+      // a link is only clickable when the host owns that scheme; anything else
+      // (or nothing) renders as plain text so a model-invented URL stays inert
+      const link = LINK_RE.exec(tok)
+      const href = link?.[2] ?? ''
+      const label = link?.[1] ?? tok
+      if (nav && href.startsWith(nav.scheme)) {
+        out.push(
+          <a
+            key={key++}
+            href="#"
+            className="ai-md-nav"
+            onClick={(e) => {
+              e.preventDefault()
+              nav.onNavigate(href)
+            }}
+          >
+            {label}
+          </a>,
+        )
+      } else {
+        out.push(label)
+      }
+    }
     last = i + tok.length
   }
   if (last < text.length) out.push(text.slice(last))
@@ -180,7 +218,13 @@ function parseBlocks(text: string): MdBlock[] {
   return blocks
 }
 
-function CodeBlock({ lang, content }: { lang?: string | undefined; content: string }): React.JSX.Element {
+function CodeBlock({
+  lang,
+  content,
+}: {
+  lang?: string | undefined
+  content: string
+}): React.JSX.Element {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
@@ -190,33 +234,94 @@ function CodeBlock({ lang, content }: { lang?: string | undefined; content: stri
   }
 
   return (
-    <div className="ai-md-code-block" style={{ margin: '8px 0', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 10px', background: 'var(--panel-bg-subtle, rgba(0,0,0,0.25))', fontSize: 11, fontFamily: 'monospace', color: 'var(--text-dim, #888)' }}>
+    <div
+      className="ai-md-code-block"
+      style={{
+        margin: '8px 0',
+        borderRadius: 6,
+        overflow: 'hidden',
+        border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '4px 10px',
+          background: 'var(--panel-bg-subtle, rgba(0,0,0,0.25))',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          color: 'var(--text-dim, #888)',
+        }}
+      >
         <span>{lang || 'code'}</span>
         <button
           onClick={handleCopy}
-          style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 11, padding: '2px 6px', borderRadius: 4 }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'inherit',
+            cursor: 'pointer',
+            fontSize: 11,
+            padding: '2px 6px',
+            borderRadius: 4,
+          }}
         >
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
-      <pre style={{ margin: 0, padding: '10px 12px', overflowX: 'auto', background: 'var(--code-bg, rgba(0,0,0,0.15))', fontSize: 12, lineHeight: 1.45, fontFamily: 'Consolas, Monaco, "Courier New", monospace' }}>
+      <pre
+        style={{
+          margin: 0,
+          padding: '10px 12px',
+          overflowX: 'auto',
+          background: 'var(--code-bg, rgba(0,0,0,0.15))',
+          fontSize: 12,
+          lineHeight: 1.45,
+          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+        }}
+      >
         <code>{content}</code>
       </pre>
     </div>
   )
 }
 
-function TableBlock({ headers, rows }: { headers: string[]; rows: string[][] }): React.JSX.Element {
+function TableBlock({
+  headers,
+  rows,
+  nav,
+}: {
+  headers: string[]
+  rows: string[][]
+  nav?: MarkdownNav | undefined
+}): React.JSX.Element {
   return (
     <div className="ai-md-table-wrap" style={{ overflowX: 'auto', margin: '8px 0' }}>
-      <table className="ai-md-table" style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12, border: '1px solid var(--border-subtle, rgba(255,255,255,0.15))' }}>
+      <table
+        className="ai-md-table"
+        style={{
+          borderCollapse: 'collapse',
+          width: '100%',
+          fontSize: 12,
+          border: '1px solid var(--border-subtle, rgba(255,255,255,0.15))',
+        }}
+      >
         {headers.length > 0 && (
           <thead>
             <tr style={{ background: 'var(--table-header-bg, rgba(255,255,255,0.06))' }}>
               {headers.map((h, i) => (
-                <th key={i} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.2))' }}>
-                  {renderInline(h)}
+                <th
+                  key={i}
+                  style={{
+                    padding: '6px 10px',
+                    textAlign: 'left',
+                    fontWeight: 600,
+                    borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.2))',
+                  }}
+                >
+                  {renderInline(h, nav)}
                 </th>
               ))}
             </tr>
@@ -224,10 +329,13 @@ function TableBlock({ headers, rows }: { headers: string[]; rows: string[][] }):
         )}
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.08))' }}>
+            <tr
+              key={i}
+              style={{ borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.08))' }}
+            >
               {row.map((cell, j) => (
                 <td key={j} style={{ padding: '6px 10px' }}>
-                  {renderInline(cell)}
+                  {renderInline(cell, nav)}
                 </td>
               ))}
             </tr>
@@ -238,7 +346,14 @@ function TableBlock({ headers, rows }: { headers: string[]; rows: string[][] }):
   )
 }
 
-export function Markdown({ text }: { text: string }): React.JSX.Element {
+export function Markdown({
+  text,
+  nav,
+}: {
+  text: string
+  /** enables clickable citation links; without it, links render as text */
+  nav?: MarkdownNav | undefined
+}): React.JSX.Element {
   const isRtl = isRtlText(text)
   return (
     <div className={`ai-md ${isRtl ? 'ai-md-rtl' : ''}`} dir={isRtl ? 'rtl' : 'ltr'}>
@@ -247,25 +362,33 @@ export function Markdown({ text }: { text: string }): React.JSX.Element {
           return <CodeBlock key={i} lang={b.lang} content={b.content} />
         }
         if (b.kind === 'table') {
-          return <TableBlock key={i} headers={b.headers} rows={b.rows} />
+          return <TableBlock key={i} headers={b.headers} rows={b.rows} nav={nav} />
         }
         if (b.kind === 'h') {
           return (
             <p key={i} className="ai-md-h" style={{ fontWeight: 600, margin: '8px 0 4px' }}>
-              {renderInline(b.text)}
+              {renderInline(b.text, nav)}
             </p>
           )
         }
         if (b.kind === 'ul' || b.kind === 'ol') {
-          const items = b.items.map((it, j) => <li key={j}>{renderInline(it)}</li>)
-          return b.kind === 'ul' ? <ul key={i} style={{ paddingLeft: 20, margin: '4px 0' }}>{items}</ul> : <ol key={i} style={{ paddingLeft: 20, margin: '4px 0' }}>{items}</ol>
+          const items = b.items.map((it, j) => <li key={j}>{renderInline(it, nav)}</li>)
+          return b.kind === 'ul' ? (
+            <ul key={i} style={{ paddingLeft: 20, margin: '4px 0' }}>
+              {items}
+            </ul>
+          ) : (
+            <ol key={i} style={{ paddingLeft: 20, margin: '4px 0' }}>
+              {items}
+            </ol>
+          )
         }
         return (
           <p key={i} style={{ margin: '4px 0' }}>
             {b.lines.map((ln, j) => (
               <Fragment key={j}>
                 {j > 0 && <br />}
-                {renderInline(ln)}
+                {renderInline(ln, nav)}
               </Fragment>
             ))}
           </p>

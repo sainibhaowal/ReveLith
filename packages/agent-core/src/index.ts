@@ -24,3 +24,5 @@ export type {
 } from './loop'
 export { createIpcTransport, IPC_STREAM_SILENCE_TIMEOUT_MS } from './electron-transport'
 export type { IpcStreamChunk, IpcStreamStart, IpcTransportOptions } from './electron-transport'
+export { streamText } from './stream-text'
+export type { StreamTextExtractResult, StreamTextOptions, StreamTextOutcome } from './stream-text'

@@ -61,6 +61,7 @@ const DATE_LOCALES: Record<Lang, string> = {
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
   cs: 'cs-CZ',
+  vi: '\n\nTrả lời bằng cùng ngôn ngữ với tin nhắn của người dùng; nếu không xác định được, hãy trả lời bằng tiếng Việt.',
 }
 
 export function useI18n(): I18n {

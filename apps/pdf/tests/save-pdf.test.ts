@@ -3,14 +3,34 @@ import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName } from 'pdf-lib'
+import {
+  PDFArray,
+  PDFContentStream,
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFRawStream,
+  decodePDFRawStream,
+  degrees,
+  rgb,
+} from 'pdf-lib'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import {
   applySaveRequest,
+  cropPagesBytes,
   extractPagesBytes,
+  insertBlankPageBytes,
   insertPdfBytes,
+  mergeGrid,
+  mergePagesBytes,
+  mergePdfBytes,
   readStaticFormFills,
+  replacePagesBytes,
   savePdfToPath,
+  setPageSizeBytes,
+  splitPagesBytes,
+  splitPdfBytes,
 } from '../src/main/save-pdf'
 import { VISUAL_SIGNATURE_CONTENT_PREFIX } from '../src/shared/ipc'
 import type { SavePdfRequest } from '../src/shared/ipc'
@@ -93,6 +113,362 @@ describe('insertPdfBytes', () => {
   })
 })
 
+describe('insertBlankPageBytes', () => {
+  it('inserts a blank page after the given page, sized like it', async () => {
+    const bytes = await makePdf([
+      [100, 100],
+      [200, 300],
+    ])
+    const out = await PDFDocument.load(await insertBlankPageBytes(bytes, 1))
+    expect(out.getPageCount()).toBe(3)
+    expect(out.getPage(2).getWidth()).toBe(200)
+    expect(out.getPage(2).getHeight()).toBe(300)
+  })
+
+  it('inserts at the front sized like the first page when afterPageIndex is -1', async () => {
+    const bytes = await makePdf([[150, 250]])
+    const out = await PDFDocument.load(await insertBlankPageBytes(bytes, -1))
+    expect(out.getPageCount()).toBe(2)
+    expect(out.getPage(0).getWidth()).toBe(150)
+    expect(out.getPage(0).getHeight()).toBe(250)
+  })
+
+  it('copies the neighbor /Rotate so the displayed orientation matches', async () => {
+    const doc = await PDFDocument.create()
+    doc.addPage([100, 200]).setRotation(degrees(90))
+    const bytes = await doc.save({ useObjectStreams: false })
+    const out = await PDFDocument.load(await insertBlankPageBytes(bytes, 0))
+    expect(out.getPage(1).getRotation().angle).toBe(90)
+  })
+})
+
+describe('splitPdfBytes', () => {
+  it('splits into chunks of the given size, keeping page order', async () => {
+    const bytes = await makePdf([
+      [100, 100],
+      [200, 200],
+      [300, 300],
+      [400, 400],
+      [500, 500],
+    ])
+    const parts = await splitPdfBytes(bytes, 2)
+    expect(parts.length).toBe(3)
+    const first = await PDFDocument.load(parts[0]!)
+    expect(first.getPageCount()).toBe(2)
+    expect(first.getPage(0).getWidth()).toBe(100)
+    const last = await PDFDocument.load(parts[2]!)
+    expect(last.getPageCount()).toBe(1)
+    expect(last.getPage(0).getWidth()).toBe(500)
+  })
+
+  it('clamps chunk size to at least one page per file', async () => {
+    const bytes = await makePdf([
+      [100, 100],
+      [200, 200],
+    ])
+    const parts = await splitPdfBytes(bytes, 0)
+    expect(parts.length).toBe(2)
+  })
+})
+
+const mergeOpts = (perSheet: number) =>
+  ({ perSheet, direction: 'horizontal', separator: false }) as const
+
+function decodedPageContent(page: ReturnType<PDFDocument['getPage']>): string {
+  const contents = page.node.Contents()
+  if (contents instanceof PDFContentStream) {
+    return Buffer.from(contents.getUnencodedContents()).toString('latin1')
+  }
+  if (contents instanceof PDFRawStream) {
+    return Buffer.from(decodePDFRawStream(contents).decode()).toString('latin1')
+  }
+  if (contents instanceof PDFArray) {
+    return Array.from({ length: contents.size() }, (_, index) => {
+      const value = contents.lookup(index)
+      if (value instanceof PDFContentStream) {
+        return Buffer.from(value.getUnencodedContents()).toString('latin1')
+      }
+      return value instanceof PDFRawStream
+        ? Buffer.from(decodePDFRawStream(value).decode()).toString('latin1')
+        : ''
+    }).join('')
+  }
+  return ''
+}
+
+type Matrix = [number, number, number, number, number, number]
+
+function multiplyMatrices(left: Matrix, right: Matrix): Matrix {
+  return [
+    left[0] * right[0] + left[2] * right[1],
+    left[1] * right[0] + left[3] * right[1],
+    left[0] * right[2] + left[2] * right[3],
+    left[1] * right[2] + left[3] * right[3],
+    left[0] * right[4] + left[2] * right[5] + left[4],
+    left[1] * right[4] + left[3] * right[5] + left[5],
+  ]
+}
+
+function composedMatrix(content: string): Matrix {
+  const matrices = [
+    ...content.matchAll(
+      /(-?(?:\d+\.?\d*|\.\d+))\s+(-?(?:\d+\.?\d*|\.\d+))\s+(-?(?:\d+\.?\d*|\.\d+))\s+(-?(?:\d+\.?\d*|\.\d+))\s+(-?(?:\d+\.?\d*|\.\d+))\s+(-?(?:\d+\.?\d*|\.\d+))\s+cm/g,
+    ),
+  ].map((match) => match.slice(1, 7).map(Number) as Matrix)
+  return matrices.reduce(multiplyMatrices, [1, 0, 0, 1, 0, 0])
+}
+
+function transformedBounds(matrix: Matrix, rect: [number, number, number, number]) {
+  const points = [
+    [rect[0], rect[1]],
+    [rect[0] + rect[2], rect[1]],
+    [rect[0], rect[1] + rect[3]],
+    [rect[0] + rect[2], rect[1] + rect[3]],
+  ].map(([x, y]) => [
+    matrix[0] * x + matrix[2] * y + matrix[4],
+    matrix[1] * x + matrix[3] * y + matrix[5],
+  ])
+  return {
+    minX: Math.min(...points.map(([x]) => x)),
+    minY: Math.min(...points.map(([, y]) => y)),
+    maxX: Math.max(...points.map(([x]) => x)),
+    maxY: Math.max(...points.map(([, y]) => y)),
+  }
+}
+
+describe('mergeGrid', () => {
+  it('is a pair for 2 and a near-square grid otherwise', () => {
+    expect(mergeGrid(2)).toEqual({ cols: 2, rows: 1 })
+    expect(mergeGrid(4)).toEqual({ cols: 2, rows: 2 })
+    expect(mergeGrid(6)).toEqual({ cols: 3, rows: 2 })
+    expect(mergeGrid(9)).toEqual({ cols: 3, rows: 3 })
+    expect(mergeGrid(16)).toEqual({ cols: 4, rows: 4 })
+  })
+})
+
+describe('mergePagesBytes', () => {
+  it('puts every perSheet pages onto one sheet sized like the first page', async () => {
+    const bytes = await makePdf([
+      [100, 200],
+      [100, 200],
+      [100, 200],
+      [100, 200],
+      [100, 200],
+    ])
+    const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(4)))
+    // 5 pages at 4 per sheet → 2 sheets, keeping the source page size
+    expect(out.getPageCount()).toBe(2)
+    expect(out.getPage(0).getWidth()).toBe(100)
+    expect(out.getPage(0).getHeight()).toBe(200)
+  })
+
+  it('supports arbitrary counts like WPS, e.g. 6 per sheet', async () => {
+    const bytes = await makePdf(Array.from({ length: 7 }, () => [100, 200] as [number, number]))
+    const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(6)))
+    expect(out.getPageCount()).toBe(2)
+  })
+
+  it('swaps sheet width/height for 2-up so portrait pages sit side by side', async () => {
+    const bytes = await makePdf([
+      [100, 200],
+      [100, 200],
+      [100, 200],
+    ])
+    const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(2)))
+    expect(out.getPageCount()).toBe(2)
+    expect(out.getPage(0).getWidth()).toBe(200)
+    expect(out.getPage(0).getHeight()).toBe(100)
+  })
+
+  it('preserves source-page rotation when imposing pages', async () => {
+    const doc = await PDFDocument.create()
+    const page = doc.addPage([100, 200])
+    page.setRotation(degrees(90))
+    page.drawRectangle({ x: 10, y: 20, width: 30, height: 40, color: rgb(1, 0, 0) })
+    const bytes = await doc.save({ useObjectStreams: false })
+    const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(2)))
+    expect(out.getPage(0).getWidth()).toBe(100)
+    expect(out.getPage(0).getHeight()).toBe(200)
+    const matrix = composedMatrix(decodedPageContent(out.getPage(0)))
+    expect(matrix[0]).toBeCloseTo(0)
+    expect(matrix[1]).toBeCloseTo(-0.25)
+    expect(matrix[2]).toBeCloseTo(0.25)
+    expect(matrix[3]).toBeCloseTo(0)
+    expect(matrix[4]).toBeCloseTo(0)
+    expect(matrix[5]).toBeCloseTo(112.5)
+    const bounds = transformedBounds(matrix, [10, 20, 30, 40])
+    expect(bounds.minX).toBeCloseTo(5)
+    expect(bounds.minY).toBeCloseTo(102.5)
+    expect(bounds.maxX).toBeCloseTo(15)
+    expect(bounds.maxY).toBeCloseTo(110)
+  })
+
+  it('draws the embedded pages onto each sheet', async () => {
+    const bytes = await makePdf([
+      [100, 100],
+      [100, 100],
+      [100, 100],
+      [100, 100],
+    ])
+    const out = await PDFDocument.load(await mergePagesBytes(bytes, mergeOpts(4)))
+    expect(out.getPageCount()).toBe(1)
+    const xobjects = out.getPage(0).node.Resources()?.lookupMaybe(PDFName.of('XObject'), PDFDict)
+    expect(xobjects?.keys().length).toBe(4)
+  })
+
+  it('separator option adds line-drawing operators to the sheet content', async () => {
+    const pages: [number, number][] = [
+      [100, 100],
+      [100, 100],
+      [100, 100],
+      [100, 100],
+    ]
+    const plain = await mergePagesBytes(await makePdf(pages), mergeOpts(4))
+    const lined = await mergePagesBytes(await makePdf(pages), {
+      ...mergeOpts(4),
+      separator: true,
+    })
+    // The separator variant carries extra stroke content
+    expect(lined.length).toBeGreaterThan(plain.length)
+  })
+})
+
+describe('mergePdfBytes', () => {
+  it('appends all pages of the other PDFs in order', async () => {
+    const first = await makePdf([[100, 100]])
+    const second = await makePdf([
+      [200, 200],
+      [300, 300],
+    ])
+    const third = await makePdf([[400, 400]])
+    const { merged, appended } = await mergePdfBytes(first, [second, third])
+    expect(appended).toBe(3)
+    const out = await PDFDocument.load(merged)
+    expect(out.getPageCount()).toBe(4)
+    expect(out.getPage(0).getWidth()).toBe(100)
+    expect(out.getPage(1).getWidth()).toBe(200)
+    expect(out.getPage(3).getWidth()).toBe(400)
+  })
+})
+
+describe('replacePagesBytes', () => {
+  it('swaps the given pages for the other PDF at the first replaced position', async () => {
+    const base = await makePdf([
+      [100, 100],
+      [200, 200],
+      [300, 300],
+    ])
+    const other = await makePdf([
+      [500, 500],
+      [600, 600],
+    ])
+    const { merged, removed, inserted } = await replacePagesBytes(base, other, [1])
+    expect(removed).toBe(1)
+    expect(inserted).toBe(2)
+    const out = await PDFDocument.load(merged)
+    expect(out.getPages().map((p) => p.getWidth())).toEqual([100, 500, 600, 300])
+  })
+
+  it('handles non-contiguous pages, inserting at the earliest one', async () => {
+    const base = await makePdf([
+      [100, 100],
+      [200, 200],
+      [300, 300],
+    ])
+    const other = await makePdf([[500, 500]])
+    const { merged } = await replacePagesBytes(base, other, [2, 0])
+    const out = await PDFDocument.load(merged)
+    expect(out.getPages().map((p) => p.getWidth())).toEqual([500, 200])
+  })
+})
+
+describe('setPageSizeBytes', () => {
+  it('resizes every page to the target size', async () => {
+    const bytes = await makePdf([
+      [100, 200],
+      [400, 100],
+    ])
+    const out = await PDFDocument.load(await setPageSizeBytes(bytes, 595, 842))
+    for (const page of out.getPages()) {
+      expect(page.getWidth()).toBe(595)
+      expect(page.getHeight()).toBe(842)
+    }
+  })
+
+  it('swaps the target for sideways pages so the displayed size matches', async () => {
+    const doc = await PDFDocument.create()
+    doc.addPage([100, 200]).setRotation(degrees(90))
+    const bytes = await doc.save({ useObjectStreams: false })
+    const out = await PDFDocument.load(await setPageSizeBytes(bytes, 595, 842))
+    expect(out.getPage(0).getWidth()).toBe(842)
+    expect(out.getPage(0).getHeight()).toBe(595)
+  })
+})
+
+describe('splitPagesBytes', () => {
+  it('splits each page into side-by-side halves for 2', async () => {
+    const bytes = await makePdf([[200, 100]])
+    const out = await PDFDocument.load(await splitPagesBytes(bytes, 2))
+    expect(out.getPageCount()).toBe(2)
+    const [a, b] = out.getPages()
+    expect(a!.getMediaBox()).toMatchObject({ x: 0, width: 100, height: 100 })
+    expect(b!.getMediaBox()).toMatchObject({ x: 100, width: 100, height: 100 })
+  })
+
+  it('splits into a 2x2 grid for 4, top-left cell first', async () => {
+    const bytes = await makePdf([
+      [200, 100],
+      [200, 100],
+    ])
+    const out = await PDFDocument.load(await splitPagesBytes(bytes, 4))
+    expect(out.getPageCount()).toBe(8)
+    // First cell is the top-left quarter: x=0, y=50 (PDF y goes up)
+    expect(out.getPage(0).getMediaBox()).toMatchObject({ x: 0, y: 50, width: 100, height: 50 })
+    expect(out.getPage(3).getMediaBox()).toMatchObject({ x: 100, y: 0, width: 100, height: 50 })
+  })
+
+  it('lays the grid on the displayed page through /Rotate 90', async () => {
+    // Portrait 100x200 rotated 90 displays landscape 200x100; the first of two
+    // side-by-side halves is the displayed left half = the user-space bottom half
+    const doc = await PDFDocument.create()
+    doc.addPage([100, 200]).setRotation(degrees(90))
+    const bytes = await doc.save({ useObjectStreams: false })
+    const out = await PDFDocument.load(await splitPagesBytes(bytes, 2))
+    expect(out.getPageCount()).toBe(2)
+    expect(out.getPage(0).getMediaBox()).toMatchObject({ x: 0, y: 0, width: 100, height: 100 })
+    expect(out.getPage(1).getMediaBox()).toMatchObject({ x: 0, y: 100, width: 100, height: 100 })
+  })
+})
+
+describe('cropPagesBytes', () => {
+  it('shrinks the CropBox to the fractional rect (y measured from the top)', async () => {
+    const bytes = await makePdf([
+      [100, 200],
+      [100, 200],
+    ])
+    const out = await PDFDocument.load(
+      await cropPagesBytes(bytes, [0], { l: 0.1, t: 0.2, r: 0.6, b: 0.7 }),
+    )
+    const box = out.getPage(0).getCropBox()
+    expect(box.x).toBeCloseTo(10)
+    expect(box.y).toBeCloseTo(60)
+    expect(box.width).toBeCloseTo(50)
+    expect(box.height).toBeCloseTo(100)
+    // Page 1 untouched
+    expect(out.getPage(1).getCropBox()).toMatchObject({ x: 0, y: 0, width: 100, height: 200 })
+  })
+
+  it('maps the displayed rect through /Rotate 90', async () => {
+    const doc = await PDFDocument.create()
+    doc.addPage([100, 200]).setRotation(degrees(90))
+    const bytes = await doc.save({ useObjectStreams: false })
+    const out = await PDFDocument.load(
+      await cropPagesBytes(bytes, [0], { l: 0.1, t: 0.2, r: 0.6, b: 0.7 }),
+    )
+    expect(out.getPage(0).getCropBox()).toMatchObject({ x: 20, y: 20, width: 50, height: 100 })
+  })
+})
+
 describe('static form fill metadata', () => {
   it('persists records and remaps their pages through delete and reorder', async () => {
     const bytes = await makePdf([
@@ -171,6 +547,21 @@ describe('savePdfToPath', () => {
     const out = await PDFDocument.load(new Uint8Array(readFileSync(src)))
     expect(pageAnnots(out, 0).map(subtypeOf)).toEqual(['Highlight'])
     expect(readdirSync(dir)).toEqual(['doc.pdf'])
+  })
+
+  it('skips markups with non-finite colors or quads instead of corrupting the file', async () => {
+    const nanColor = { ...highlight, color: [NaN, 0, 0] as [number, number, number] }
+    const outOfRange = { ...highlight, color: [2, 0, 0] as [number, number, number] }
+    const nanQuads = { ...highlight, quads: [[10, NaN, 60, 100, 10, 88, 60, 88]] }
+    const emptyQuads = { ...highlight, quads: [] as number[][] }
+    const out = await PDFDocument.load(
+      await apply(
+        await makePdf([[612, 792]]),
+        request({ markups: [highlight, nanColor, outOfRange, nanQuads, emptyQuads] }),
+      ),
+    )
+    // only the valid highlight survives; the output still re-opens cleanly
+    expect(pageAnnots(out, 0).map(subtypeOf)).toEqual(['Highlight'])
   })
 
   it('a failed save leaves the source and target untouched and cleans up temp files', async () => {
@@ -267,40 +658,6 @@ describe('applySaveRequest', () => {
     expect(pageAnnots(out, 0).map(subtypeOf)).toEqual(['Text', 'Ink', 'Square', 'Line'])
   })
 
-  it('writes note replies as IRT-linked Text annotations', async () => {
-    const bytes = await makePdf([[612, 792]])
-    const saved = await apply(
-      bytes,
-      request({
-        drawings: [
-          {
-            kind: 'note',
-            pageIndex: 0,
-            color: [1, 0, 0],
-            at: [50, 700],
-            contents: 'parent note',
-            replies: [
-              { author: 'AI Assistant', text: 'first reply' },
-              { author: 'Ada', text: 'second reply' },
-            ],
-          },
-        ],
-      }),
-    )
-    const out = await PDFDocument.load(saved)
-    const annots = pageAnnots(out, 0)
-    expect(annots.map(subtypeOf)).toEqual(['Text', 'Text', 'Text'])
-    const contents = (a: (typeof annots)[number]) =>
-      a.lookup(PDFName.of('Contents'), PDFHexString)?.decodeText()
-    expect(annots.map(contents)).toEqual(['parent note', 'first reply', 'second reply'])
-    // Replies link to the parent via IRT with RT=R; the parent links nowhere
-    const irtOf = (a: (typeof annots)[number]) => a.get(PDFName.of('IRT'))
-    expect(annots[0]!.get(PDFName.of('IRT'))).toBeUndefined()
-    expect(irtOf(annots[1]!)).toBeDefined()
-    expect(irtOf(annots[2]!)).toBeDefined()
-    expect(annots[1]!.lookup(PDFName.of('RT'), PDFName)).toBe(PDFName.of('R'))
-  })
-
   it('ignores markups and drawings addressing missing pages', async () => {
     const bytes = await makePdf([[612, 792]])
     const saved = await apply(
@@ -359,7 +716,7 @@ describe('applySaveRequest', () => {
 
     for (const [index, fieldName] of ['signature.image', 'signature.ink'].entries()) {
       expect(
-        annots[index]!.lookup(PDFName.of('RevelithFormField'), PDFHexString).decodeText(),
+        annots[index]!.lookup(PDFName.of('ReveLithFormField'), PDFHexString).decodeText(),
       ).toBe(fieldName)
       expect(annots[index]!.lookup(PDFName.of('Contents'), PDFHexString).decodeText()).toBe(
         `${VISUAL_SIGNATURE_CONTENT_PREFIX}${fieldName}`,

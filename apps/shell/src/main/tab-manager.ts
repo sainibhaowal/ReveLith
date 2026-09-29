@@ -15,7 +15,7 @@ import {
   markdownIsDirty,
   requestMarkdownClose,
 } from '../../../markdown/src/main/markdown-main'
-import { createHtmlView, htmlIsDirty, requestHtmlCloseSave } from '../../../html/src/main/html-main'
+import { createHtmlView, htmlIsDirty, requestHtmlClose } from '../../../html/src/main/html-main'
 import { createPdfView, pdfIsDirty, requestPdfClose } from '../../../pdf/src/main/pdf-main'
 import {
   createSheetsView,
@@ -357,7 +357,7 @@ export class TabManager {
           : tab.kind === 'markdown' && markdownIsDirty(tab.view.webContents.id)
             ? requestMarkdownClose
             : tab.kind === 'html' && htmlIsDirty(tab.view.webContents.id)
-              ? requestHtmlCloseSave
+              ? requestHtmlClose
               : tab.kind === 'slides' && slidesIsDirty(tab.view.webContents.id)
                 ? requestSlidesClose
                 : null)

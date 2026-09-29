@@ -1,0 +1,54 @@
+/* AI panel preference application: the font-size token every panel styles
+ * against, plus the body wrapper the shared panel chrome renders. The Settings
+ * toggle writes --ai-panel-font-size at runtime, so nothing here hardcodes a
+ * size. */
+
+:root {
+  --ai-panel-font-size: 14px;
+}
+
+.ai-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: var(--ai-panel-font-size);
+}
+
+/* collapsed-panel affordance: docked to the edge the panel is on, so the
+ * chevron points at the panel it would open */
+.ai-panel-side-button {
+  position: absolute;
+  top: 50%;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+[data-ai-panel-side='right'] .ai-panel-side-button {
+  right: 0;
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+}
+
+[data-ai-panel-side='left'] .ai-panel-side-button {
+  left: 0;
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+}
+
+.ai-panel-side-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}

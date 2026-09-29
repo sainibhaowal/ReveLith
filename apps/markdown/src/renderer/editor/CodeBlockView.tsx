@@ -1,25 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { NodeViewContent, NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
-import mermaid from 'mermaid'
+import { Dropdown } from '@revelith/ui'
 import { t } from '../i18n/locale'
-
-let mermaidInitialized = false
-function initMermaid() {
-  if (!mermaidInitialized) {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'neutral',
-      securityLevel: 'loose',
-      fontFamily: 'inherit',
-    })
-    mermaidInitialized = true
-  }
-}
+import { DIAGRAM_LANGUAGES, diagramLanguage, renderDiagram } from './diagrams'
+import type { DiagramLanguage, DiagramResult } from './diagrams'
 
 const LANGUAGES = [
   'plaintext',
-  'mermaid',
   'bash',
   'c',
   'cpp',
@@ -49,163 +37,154 @@ const LANGUAGES = [
   'typescript',
   'xml',
   'yaml',
-]
+  ...DIAGRAM_LANGUAGES,
+].sort()
 
-let mermaidCounter = 0
+const RERENDER_DEBOUNCE_MS = 300
 
-export function CodeBlockView({ node, updateAttributes, editor }: NodeViewProps) {
+export function CodeBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const [copied, setCopied] = useState(false)
-  const [previewMode, setPreviewMode] = useState(true)
-  const [svgHtml, setSvgHtml] = useState<string>('')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const containerIdRef = useRef(`mermaid-${Date.now()}-${++mermaidCounter}`)
-
+  const copyTimerRef = useRef<number | null>(null)
+  const mountedRef = useRef(true)
   const language = String(node.attrs.language ?? '') || 'plaintext'
-  const isMermaid = language.toLowerCase() === 'mermaid'
+  const diagramLang = diagramLanguage(language)
+  const source = node.textContent
 
-  const copy = () => {
-    void navigator.clipboard.writeText(node.textContent).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }
+  const [rendered, setRendered] = useState<{
+    language: DiagramLanguage
+    result: DiagramResult
+  } | null>(null)
+  // a result for another language is stale the moment the fence is relabelled
+  const diagram = rendered && rendered.language === diagramLang ? rendered.result : null
+  const hasDiagramRef = useRef(false)
+  hasDiagramRef.current = diagram !== null
+  const [caretInside, setCaretInside] = useState(false)
 
   useEffect(() => {
-    if (!isMermaid) {
-      setSvgHtml('')
-      setErrorMsg(null)
-      return
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
     }
-    initMermaid()
-    const code = node.textContent.trim()
-    if (!code) {
-      setSvgHtml('')
-      setErrorMsg(null)
-      return
-    }
+  }, [])
 
+  useEffect(() => {
+    if (!diagramLang) return
+    const update = () => {
+      const pos = getPos()
+      if (pos === undefined) return
+      // size from the live document: the `node` prop lags one render behind a paste/IME commit
+      const current = editor.state.doc.nodeAt(pos)
+      if (!current) return
+      const { from, to } = editor.state.selection
+      setCaretInside(from >= pos && to <= pos + current.nodeSize)
+    }
+    update()
+    editor.on('selectionUpdate', update)
+    return () => {
+      editor.off('selectionUpdate', update)
+    }
+  }, [editor, getPos, diagramLang])
+
+  useEffect(() => {
+    if (!diagramLang || !source.trim()) {
+      setRendered(null)
+      return
+    }
     let cancelled = false
-    const renderDiagram = async () => {
-      try {
-        const id = `${containerIdRef.current}-${Date.now()}`
-        const { svg } = await mermaid.render(id, code)
-        if (!cancelled) {
-          setSvgHtml(svg)
-          setErrorMsg(null)
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setErrorMsg(err?.message || 'Mermaid syntax error')
-        }
-      }
-    }
-
-    const timer = setTimeout(() => {
-      void renderDiagram()
-    }, 200)
-
+    // first paint right away, then debounce while the user types
+    const delay = hasDiagramRef.current ? RERENDER_DEBOUNCE_MS : 0
+    const timer = window.setTimeout(() => {
+      void renderDiagram(diagramLang, source).then((result) => {
+        if (!cancelled) setRendered({ language: diagramLang, result })
+      })
+    }, delay)
     return () => {
       cancelled = true
-      clearTimeout(timer)
+      window.clearTimeout(timer)
     }
-  }, [isMermaid, node.textContent])
+  }, [diagramLang, source])
+
+  const copy = () => {
+    void navigator.clipboard
+      .writeText(node.textContent)
+      .then(() => {
+        if (!mountedRef.current) return
+        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
+        setCopied(true)
+        copyTimerRef.current = window.setTimeout(() => {
+          copyTimerRef.current = null
+          setCopied(false)
+        }, 1500)
+      })
+      .catch(() => {})
+  }
+
+  const editSource = () => {
+    const pos = getPos()
+    if (pos === undefined || !editor.isEditable) return
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(pos + node.nodeSize - 1)
+      .run()
+  }
+
+  const hasPicture = diagram?.ok === true
+  const showSource = !hasPicture || caretInside
+  const error = diagram && !diagram.ok && source.trim() ? diagram.error : null
+
+  const className = [
+    'md-codeblock',
+    diagramLang && 'md-diagram',
+    !showSource && 'md-diagram-collapsed',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <NodeViewWrapper className={`md-codeblock ${isMermaid ? 'md-codeblock-mermaid' : ''}`}>
+    <NodeViewWrapper className={className} data-diagram={hasPicture ? 'rendered' : undefined}>
       <div className="md-codeblock-bar" contentEditable={false}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <select
-            className="md-codeblock-lang"
-            value={LANGUAGES.includes(language) ? language : 'plaintext'}
-            disabled={!editor.isEditable}
-            onChange={(e) =>
-              updateAttributes({ language: e.target.value === 'plaintext' ? null : e.target.value })
-            }
-          >
-            {LANGUAGES.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            ))}
-          </select>
-
-          {isMermaid && (
-            <div style={{ display: 'inline-flex', borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)' }}>
-              <button
-                type="button"
-                style={{
-                  padding: '2px 8px',
-                  fontSize: 11,
-                  background: previewMode ? 'rgba(255,255,255,0.2)' : 'transparent',
-                  border: 'none',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                }}
-                onClick={() => setPreviewMode(true)}
-              >
-                Diagram
-              </button>
-              <button
-                type="button"
-                style={{
-                  padding: '2px 8px',
-                  fontSize: 11,
-                  background: !previewMode ? 'rgba(255,255,255,0.2)' : 'transparent',
-                  border: 'none',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                }}
-                onClick={() => setPreviewMode(false)}
-              >
-                Source
-              </button>
-            </div>
-          )}
-        </div>
-
-        <button type="button" className="md-codeblock-copy" onClick={copy}>
+        <Dropdown
+          className="md-codeblock-lang"
+          value={LANGUAGES.includes(language) ? language : 'plaintext'}
+          disabled={!editor.isEditable}
+          options={LANGUAGES.map((lang) => ({ value: lang, label: lang }))}
+          onPick={(lang) => updateAttributes({ language: lang === 'plaintext' ? null : lang })}
+        />
+        <button
+          type="button"
+          className="md-codeblock-copy"
+          onClick={copy}
+          aria-live="polite"
+          aria-label={copied ? t('codeCopied') : t('codeCopy')}
+        >
           {copied ? t('codeCopied') : t('codeCopy')}
         </button>
       </div>
-
-      {isMermaid && previewMode ? (
-        <div contentEditable={false} style={{ padding: 16, background: '#ffffff', borderRadius: '0 0 6px 6px', overflowX: 'auto', textAlign: 'center' }}>
-          {errorMsg ? (
-            <div style={{ color: '#ef4444', fontSize: 12, textAlign: 'left', fontFamily: 'monospace' }}>
-              ⚠️ {errorMsg}
-              <div style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: 11,
-                    background: '#fee2e2',
-                    border: '1px solid #f87171',
-                    borderRadius: 4,
-                    color: '#991b1b',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => setPreviewMode(false)}
-                >
-                  Edit Mermaid Source
-                </button>
-              </div>
-            </div>
-          ) : svgHtml ? (
-            <div
-              style={{ display: 'inline-block', maxWidth: '100%' }}
-              dangerouslySetInnerHTML={{ __html: svgHtml }}
-            />
-          ) : (
-            <div style={{ color: '#9ca3af', fontSize: 12, fontStyle: 'italic' }}>
-              Empty Mermaid diagram. Switch to Source to add syntax.
-            </div>
-          )}
+      <pre>
+        <NodeViewContent<'code'> as="code" />
+      </pre>
+      {error && (
+        <div className="md-diagram-error" contentEditable={false}>
+          {t('mermaidError')}: {error}
         </div>
-      ) : (
-        <pre>
-          <NodeViewContent<'code'> as="code" />
-        </pre>
+      )}
+      {diagram?.ok && (
+        <div
+          className="md-diagram-preview"
+          contentEditable={false}
+          onClick={editSource}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              editSource()
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          dangerouslySetInnerHTML={{ __html: diagram.svg }}
+        />
       )}
     </NodeViewWrapper>
   )

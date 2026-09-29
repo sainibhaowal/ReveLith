@@ -38,6 +38,8 @@ for (const rel of [
   '../../node_modules/electron/dist/LICENSES.chromium.html',
   '../../node_modules/@embedpdf/pdfium/dist/pdfium.wasm',
   '../pdf/node_modules/harfbuzzjs/hb-subset.wasm',
+  '../../node_modules/tesseract.js/package.json',
+  '../../node_modules/tesseract.js-core/package.json',
 ]) {
   if (!existsSync(join(__dirname, rel))) {
     throw new Error(
@@ -100,6 +102,19 @@ const config = {
     {
       from: '../pdf/node_modules/harfbuzzjs/hb-subset.wasm',
       to: 'wasm/hb-subset.wasm',
+    },
+    // Local OCR engine: Tesseract spawns a worker script and instantiates a
+    // WASM core from disk, so both packages are staged verbatim under
+    // Resources/ocr and addressed by apps/pdf/src/main/ocr-path.ts. The
+    // recognition model (a few MB per language) is fetched once and cached in
+    // userData, so no page data ever leaves the machine.
+    {
+      from: '../../node_modules/tesseract.js',
+      to: 'ocr/tesseract.js',
+    },
+    {
+      from: '../../node_modules/tesseract.js-core',
+      to: 'ocr/tesseract.js-core',
     },
   ],
   // `mimeType` is read only by the Linux target, where it becomes the

@@ -2,15 +2,21 @@ import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
-export interface SearchHighlightMeta {
-  ranges: Array<{ from: number; to: number }>
+export interface SearchRange {
+  from: number
+  to: number
+}
+
+interface SearchHighlight {
+  ranges: SearchRange[]
   activeIndex: number
 }
 
-export const searchPluginKey = new PluginKey<DecorationSet>('markdownSearch')
+export const searchPluginKey = new PluginKey<DecorationSet>('mdSearch')
 
-export const SearchHighlightExtension = Extension.create({
-  name: 'markdownSearch',
+/** decorates find hits; the find target pushes ranges via setMeta(searchPluginKey) */
+export const SearchHighlight = Extension.create({
+  name: 'mdSearch',
   addProseMirrorPlugins() {
     return [
       new Plugin({
@@ -18,7 +24,7 @@ export const SearchHighlightExtension = Extension.create({
         state: {
           init: () => DecorationSet.empty,
           apply(tr, old) {
-            const meta = tr.getMeta(searchPluginKey) as SearchHighlightMeta | undefined
+            const meta = tr.getMeta(searchPluginKey) as SearchHighlight | undefined
             if (meta) {
               return DecorationSet.create(
                 tr.doc,

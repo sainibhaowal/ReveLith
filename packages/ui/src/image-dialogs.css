@@ -1,0 +1,81 @@
+/* Image edit dialogs (remove background / crop) and the shared modal frame they
+ * use. The mask owns the click-outside dismissal; the dialog stops propagation
+ * so a drag inside it does not close it. */
+
+.ui-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--color-bg-overlay);
+}
+
+.ui-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-12);
+  background: var(--surface);
+  box-shadow: var(--shadow-modal-strong);
+}
+
+.ui-modal-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ui-modal-hint {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.ui-modal-error {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.ui-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ui-modal-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ui-modal-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.ui-modal-btn.primary {
+  border-color: transparent;
+  background: var(--color-btn-primary);
+  color: var(--color-btn-primary-text);
+}
+
+.ui-modal-btn.primary:hover:not(:disabled) {
+  background: var(--color-btn-primary-hover);
+}
+
+.ui-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

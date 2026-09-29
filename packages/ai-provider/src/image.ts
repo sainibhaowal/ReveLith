@@ -1,6 +1,7 @@
 import { aiFetch } from './fetch'
 import { httpBodyDetail } from './http-error'
-import type { AiProviderConfig, AiProviderId } from './types'
+import { resolveImageGenTarget } from './providers'
+import type { AiProviderConfig, AiProviderId, AiSettings } from './types'
 
 export interface AiImageResult {
   ok: boolean
@@ -66,11 +67,34 @@ export async function generateImageForProvider(
     }
     return { ok: false, error: `Image generation failed (HTTP ${response.status}): ${detail}` }
   }
-  const json = (await response.json().catch(() => null)) as
-    | { data?: Array<{ url?: string; b64_json?: string }> }
-    | null
+  const json = (await response.json().catch(() => null)) as {
+    data?: Array<{ url?: string; b64_json?: string }>
+  } | null
   const image = json?.data?.[0]
   if (image?.url) return { ok: true, url: image.url }
   if (image?.b64_json) return { ok: true, url: `data:image/png;base64,${image.b64_json}` }
   return { ok: false, error: 'The image provider returned no image URL or image data.' }
+}
+
+/**
+ * Generate an image with resolved app settings: the dedicated backend from
+ * Settings → AI Media & Search wins, otherwise the active chat provider is
+ * used (keyless local servers get the conventional local-key placeholder).
+ */
+export async function generateImageWithSettings(
+  settings: AiSettings,
+  prompt: string,
+  options: { model?: string; aspectRatio?: string } = {},
+): Promise<AiImageResult> {
+  const dedicated = resolveImageGenTarget(settings)
+  const provider = dedicated?.provider ?? settings.provider
+  let config = dedicated?.config ?? settings.providers?.[provider]
+  if (!config) return { ok: false, error: 'The selected AI provider is not configured.' }
+  if (
+    (provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') &&
+    !config.apiKey
+  ) {
+    config = { ...config, apiKey: 'local-key' }
+  }
+  return generateImageForProvider(provider, config, prompt, options)
 }

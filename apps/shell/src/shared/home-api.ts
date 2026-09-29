@@ -22,9 +22,23 @@ export type UiLanguage =
   | 'hi'
   | 'zh-TW'
   | 'cs'
+  | 'vi'
 
 /** UI theme preference */
 export type UiTheme = 'light' | 'dark' | 'system'
+
+/** AI panel text size, chat-input spellcheck and dock side (Settings → General) */
+export interface AiPanelPrefs {
+  fontSize: string
+  spellcheck: boolean
+  side: 'left' | 'right'
+}
+
+/** Auto-save default for a newly opened document; updatedAt is 0 until set once */
+export interface AutoSaveDefault {
+  on: boolean
+  updatedAt: number
+}
 
 /** a recent file entry shown on the home screen; type derives from the extension */
 export interface RecentEntry {
@@ -147,6 +161,18 @@ export interface HomeApi {
   getUsageStats?(): Promise<boolean>
   /** persist the anonymous usage-statistics preference */
   setUsageStats?(enabled: boolean): Promise<void>
+  /**
+   * AI panel text size / chat-input spellcheck / dock side. The main process
+   * owns this: an editor tab is a separate WebContents, so a localStorage write
+   * from the Settings window would not reach it.
+   */
+  getAiPanelPrefs?(): Promise<AiPanelPrefs>
+  /** merge a patch into the AI panel preferences and broadcast the result */
+  setAiPanelPrefs?(patch: Partial<AiPanelPrefs>): Promise<AiPanelPrefs>
+  /** auto-save default applied to a newly opened document */
+  getAutoSaveDefault?(): Promise<AutoSaveDefault>
+  /** merge a patch into the auto-save default and broadcast the result */
+  setAutoSaveDefault?(patch: Partial<AutoSaveDefault>): Promise<AutoSaveDefault>
   /** local device profile shown on Settings → Account (stored only on this device) */
   getProfile?(): Promise<UserProfile>
   /** persist the local device profile */

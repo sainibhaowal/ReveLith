@@ -38,8 +38,8 @@
   --shadow-dropdown: 0 8px 24px rgb(0 0 0 / 15%), 0 2px 6px rgb(0 0 0 / 6%);
   --shadow-card: 0 1px 3px rgb(0 0 0 / 10%);
 
-  /* AI panel (canonical names from the former per-app copies) */
-  --gs-font-sans:
+  /* shared UI sans stack for the AI panels, dialogs and menus */
+  --ui-font-sans:
     'Arial', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
     sans-serif;
   --color-btn-primary: #232425;

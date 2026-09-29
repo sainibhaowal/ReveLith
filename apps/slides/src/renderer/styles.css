@@ -1167,7 +1167,7 @@ body.vib .slide-list {
   padding: 9vh 24px 40px;
   text-align: center;
   background: var(--color-bg-page);
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
 }
 
 .btn-primary {
@@ -1373,7 +1373,7 @@ body.vib .slide-list {
   background: var(--surface);
   border-right: 1px solid var(--border);
   box-shadow: var(--slides-shadow-copilot);
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
   color: var(--color-text-primary);
 }
 
@@ -1488,7 +1488,7 @@ body.vib .slide-list {
   flex-direction: column;
   /* uniform 16px flex gap between blocks, messages carry no margin */
   gap: 16px;
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
 }
 
 /* Boundary between the restored transcript and the live turn */
@@ -1506,7 +1506,7 @@ body.vib .slide-list {
   margin-top: 36px;
   padding: 0 10px;
   text-align: center;
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
 }
 
 .ai-chat-empty-title {

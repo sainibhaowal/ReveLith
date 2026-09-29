@@ -226,6 +226,41 @@ configureHtmlRuntime({
   rendererFile: join(HTML_OUT, 'renderer', 'index.html'),
 })
 
+/**
+ * AI panel text size, chat-input spellcheck and dock side (Settings → General).
+ * Owned here because the Settings window and every editor tab are separate
+ * WebContents with separate localStorage; the renderers read and apply it.
+ */
+interface AiPanelPrefs {
+  fontSize: string
+  spellcheck: boolean
+  side: 'left' | 'right'
+}
+
+/** Auto-save default for a newly opened document; updatedAt is 0 until set once */
+interface AutoSaveDefault {
+  on: boolean
+  updatedAt: number
+}
+
+function currentAiPanelPrefs(): AiPanelPrefs {
+  const saved = readAppSettings(APP_SETTINGS_PATH()).aiPanel as Partial<AiPanelPrefs> | undefined
+  return {
+    fontSize: typeof saved?.fontSize === 'string' && saved.fontSize ? saved.fontSize : '14px',
+    spellcheck: typeof saved?.spellcheck === 'boolean' ? saved.spellcheck : true,
+    side: saved?.side === 'left' ? 'left' : 'right',
+  }
+}
+
+function currentAutoSaveDefault(): AutoSaveDefault {
+  const saved = readAppSettings(APP_SETTINGS_PATH()).autoSaveDefault as
+    Partial<AutoSaveDefault> | undefined
+  return {
+    on: saved?.on === true,
+    updatedAt: typeof saved?.updatedAt === 'number' ? saved.updatedAt : 0,
+  }
+}
+
 // ---- UI language ----
 // Persisted in userData/app-settings.json so the editor modules can read the
 // same file when they pick up i18n later. REVELITH_LANG overrides for tests.
@@ -2115,6 +2150,38 @@ function registerHomeIpc(): void {
     const email = typeof p.email === 'string' ? p.email.slice(0, 320) : ''
     writeAppSetting(APP_SETTINGS_PATH(), 'profileDisplayName', displayName)
     writeAppSetting(APP_SETTINGS_PATH(), 'profileEmail', email)
+  })
+
+  // ---- editor preferences the Settings window and the editor tabs share ----
+  // Each editor tab is its own WebContents with its own localStorage, so a
+  // preference the user changes in Settings cannot reach it through storage:
+  // the main process owns the value and broadcasts every change.
+
+  ipcMain.handle('app:get-ai-panel-prefs', (): AiPanelPrefs => currentAiPanelPrefs())
+  ipcMain.handle('app:set-ai-panel-prefs', (_event, patch: unknown): AiPanelPrefs => {
+    const p = (patch ?? {}) as Partial<AiPanelPrefs>
+    const base = currentAiPanelPrefs()
+    const next: AiPanelPrefs = {
+      fontSize:
+        typeof p.fontSize === 'string' && p.fontSize ? p.fontSize.slice(0, 16) : base.fontSize,
+      spellcheck: typeof p.spellcheck === 'boolean' ? p.spellcheck : base.spellcheck,
+      side: p.side === 'left' || p.side === 'right' ? p.side : base.side,
+    }
+    writeAppSetting(APP_SETTINGS_PATH(), 'aiPanel', next)
+    for (const wc of webContents.getAllWebContents()) wc.send('app:ai-panel-prefs-changed', next)
+    return next
+  })
+
+  ipcMain.handle('app:get-auto-save-default', (): AutoSaveDefault => currentAutoSaveDefault())
+  ipcMain.handle('app:set-auto-save-default', (_event, patch: unknown): AutoSaveDefault => {
+    const p = (patch ?? {}) as Partial<AutoSaveDefault>
+    const next: AutoSaveDefault = {
+      on: typeof p.on === 'boolean' ? p.on : currentAutoSaveDefault().on,
+      updatedAt: Date.now(),
+    }
+    writeAppSetting(APP_SETTINGS_PATH(), 'autoSaveDefault', next)
+    for (const wc of webContents.getAllWebContents()) wc.send('app:auto-save-default-changed', next)
+    return next
   })
 
   ipcMain.handle(HOME_CHANNELS.pickDefaultSaveDir, async (): Promise<string | null> => {

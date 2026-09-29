@@ -198,7 +198,7 @@
   word-break: break-all;
 }
 
-/* GenMail-style select pill: the visible layer is just the current value +
+/* Select pill: the visible layer is just the current value +
    chevron (width hugs the content); the real <select> sits on top invisibly
    and only supplies the click target and the native popup. */
 /* ── Custom Select (Rounded Square Design) ───────────────── */

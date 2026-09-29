@@ -38,6 +38,7 @@ const UI_LANGUAGES: readonly UiLanguage[] = [
   'hi',
   'zh-TW',
   'cs',
+  'vi',
 ]
 
 function isUiLanguage(value: unknown): value is UiLanguage {
@@ -198,6 +199,19 @@ const homeApi: HomeApi = {
   },
   async setUsageStats(enabled) {
     await ipcRenderer.invoke(HOME_CHANNELS.setUsageStats, Boolean(enabled))
+  },
+  async getAiPanelPrefs() {
+    return ipcRenderer.invoke('app:get-ai-panel-prefs')
+  },
+  async setAiPanelPrefs(patch) {
+    return ipcRenderer.invoke('app:set-ai-panel-prefs', patch)
+  },
+  async getAutoSaveDefault() {
+    const result = await ipcRenderer.invoke('app:get-auto-save-default')
+    return result && typeof result === 'object' ? result : { on: false, updatedAt: 0 }
+  },
+  async setAutoSaveDefault(patch) {
+    return ipcRenderer.invoke('app:set-auto-save-default', patch)
   },
   async getProfile() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getProfile)

@@ -12,10 +12,13 @@
   --md-code-inline-bg: rgb(129 139 152 / 14%);
   --md-table-header-bg: #f6f8fa;
   --md-ai-changed: rgb(255 213 79 / 40%);
-  --md-selection: rgb(59 130 246 / 10%);
-  --md-text-selection: rgb(56 108 255 / 32%);
-  --md-focus: #3b82f6;
-  --md-node-outline: rgb(59 130 246 / 60%);
+  --md-ai-anchor-bg: rgb(80 128 220 / 14%);
+  --md-ai-anchor-line: #5080dc;
+  --md-on-accent: #ffffff;
+  --md-selection: color-mix(in srgb, var(--accent) 10%, transparent);
+  --md-text-selection: color-mix(in srgb, var(--accent) 32%, transparent);
+  --md-focus: var(--accent);
+  --md-node-outline: color-mix(in srgb, var(--accent) 60%, transparent);
   --md-focus-ring: rgb(35 36 37 / 20%);
   --md-focus-ring-blue: rgb(74 141 246 / 30%);
   --md-error: #c62828;
@@ -27,6 +30,15 @@
   --md-shimmer-hi: #d9d9d9;
   --md-pop-shadow: 0 8px 24px rgb(0 0 0 / 18%);
   --md-tip-shadow: 0 4px 6px rgb(0 0 0 / 10%);
+  /* same paper shadow as the pdf app's --pdf-shadow-page */
+  --md-page-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+  /* toast pill is a dark surface in both themes */
+  --md-toast-bg: rgb(35 35 37 / 92%);
+  --md-toast-error-bg: rgb(196 49 75 / 95%);
+  --md-toast-ink: #ffffff;
+  --md-toast-ok: #34c759;
+  /* diagrams are document content: white paper behind them in both themes */
+  --md-diagram-bg: #ffffff;
 }
 
 [data-theme='dark'] {
@@ -39,10 +51,13 @@
   --md-code-inline-bg: rgb(129 139 152 / 22%);
   --md-table-header-bg: #282c32;
   --md-ai-changed: rgb(255 213 79 / 28%);
-  --md-selection: rgb(74 158 255 / 20%);
-  --md-text-selection: rgb(74 158 255 / 40%);
-  --md-focus: #4a9eff;
-  --md-node-outline: rgb(74 158 255 / 70%);
+  --md-ai-anchor-bg: rgb(96 148 240 / 22%);
+  --md-ai-anchor-line: #6a9aec;
+  --md-on-accent: #ffffff;
+  --md-selection: color-mix(in srgb, var(--accent) 20%, transparent);
+  --md-text-selection: color-mix(in srgb, var(--accent) 40%, transparent);
+  --md-focus: var(--accent);
+  --md-node-outline: color-mix(in srgb, var(--accent) 70%, transparent);
   --md-focus-ring: rgb(228 228 228 / 25%);
   --md-focus-ring-blue: rgb(74 158 255 / 40%);
   --md-error: #f28b82;
@@ -54,6 +69,12 @@
   --md-shimmer-hi: #d0d0d0;
   --md-pop-shadow: 0 8px 24px rgb(0 0 0 / 50%);
   --md-tip-shadow: 0 4px 6px rgb(0 0 0 / 35%);
+  --md-page-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+  --md-toast-bg: rgb(35 35 37 / 92%);
+  --md-toast-error-bg: rgb(196 49 75 / 95%);
+  --md-toast-ink: #ffffff;
+  --md-toast-ok: #34c759;
+  --md-diagram-bg: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -67,10 +88,13 @@
     --md-code-inline-bg: rgb(129 139 152 / 22%);
     --md-table-header-bg: #282c32;
     --md-ai-changed: rgb(255 213 79 / 28%);
-    --md-selection: rgb(74 158 255 / 20%);
-    --md-text-selection: rgb(74 158 255 / 40%);
-    --md-focus: #4a9eff;
-    --md-node-outline: rgb(74 158 255 / 70%);
+    --md-ai-anchor-bg: rgb(96 148 240 / 22%);
+    --md-ai-anchor-line: #6a9aec;
+    --md-on-accent: #ffffff;
+    --md-selection: color-mix(in srgb, var(--accent) 20%, transparent);
+    --md-text-selection: color-mix(in srgb, var(--accent) 40%, transparent);
+    --md-focus: var(--accent);
+    --md-node-outline: color-mix(in srgb, var(--accent) 70%, transparent);
     --md-focus-ring: rgb(228 228 228 / 25%);
     --md-focus-ring-blue: rgb(74 158 255 / 40%);
     --md-error: #f28b82;
@@ -82,6 +106,12 @@
     --md-shimmer-hi: #d0d0d0;
     --md-pop-shadow: 0 8px 24px rgb(0 0 0 / 50%);
     --md-tip-shadow: 0 4px 6px rgb(0 0 0 / 35%);
+    --md-page-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+    --md-toast-bg: rgb(35 35 37 / 92%);
+    --md-toast-error-bg: rgb(196 49 75 / 95%);
+    --md-toast-ink: #ffffff;
+    --md-toast-ok: #34c759;
+    --md-diagram-bg: #ffffff;
   }
 }
 
@@ -153,6 +183,8 @@ button {
 .editor-scroll {
   flex: 1;
   overflow-y: auto;
+  /* same canvas backdrop as the slides workspace; .doc-page follows the theme surface */
+  background: var(--canvas);
 }
 
 .doc-page {
@@ -161,7 +193,7 @@ button {
   margin: 0 auto;
   padding: 40px 72px 120px;
   background: var(--surface);
-  box-shadow: 0 0 0 1px var(--border-subtle);
+  box-shadow: var(--md-page-shadow);
 }
 
 .status-bar {
@@ -350,6 +382,12 @@ button {
   -webkit-app-region: drag;
 }
 
+/* While a popover is open the row must deliver presses (drag regions swallow
+   them), so outside-press dismissal can see presses on the blank band */
+html.revelith-popover-open .ribbon-tabs {
+  -webkit-app-region: no-drag;
+}
+
 .ribbon-tabs button,
 .ribbon-tabs .autosave-toggle {
   -webkit-app-region: no-drag;
@@ -404,6 +442,12 @@ button {
   border-radius: 4px;
   cursor: pointer;
   color: var(--text-primary);
+}
+
+.qa-save-as {
+  width: auto;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 .qa-btn svg {
@@ -587,17 +631,19 @@ button {
   font-size: 11.5px;
 }
 
-/* block-style picker: same box as the docs/slides font pickers (.rb-font-btn:
- * 28px tall, 3px radius, 13px label, 7px inline padding, strong border) */
-.rb-style {
+/* block-style picker (shared @revelith/ui rv-dd dropdown): same box as the
+ * docs/slides font pickers (28px tall, 3px radius, 13px label, 7px inline
+ * padding, strong border) */
+.rb-style.rv-dd {
+  min-width: 108px;
+}
+
+.rb-style .rv-dd-btn {
   height: 28px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 3px;
-  background: var(--surface);
+  padding: 0 7px;
+  border-color: var(--color-border-strong);
   color: var(--text-primary);
   font-size: 13px;
-  padding: 0 7px;
-  min-width: 108px;
 }
 
 /* Anchor for the link popover, which is position: fixed so it escapes the
@@ -634,6 +680,7 @@ button {
   border-radius: 5px;
   padding: 0 8px;
   font-size: 12.5px;
+  outline: none;
 }
 
 .rb-link-pop button {
@@ -645,6 +692,11 @@ button {
   font-size: 12.5px;
   padding: 0 10px;
   cursor: pointer;
+}
+
+.rb-link-pop button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* ---- slash menu ---- */
@@ -717,12 +769,26 @@ button {
 
 .doc-editor ul[data-type='taskList'] li > label {
   flex: 0 0 auto;
-  margin-top: 0.35em;
+  display: flex;
+  align-items: center;
+  /* match the first line box (16px x 1.75) so the checkbox centers on it */
+  height: 1.75em;
+  margin-top: 0.15em;
   user-select: none;
+}
+
+.doc-editor ul[data-type='taskList'] li > label input[type='checkbox'] {
+  margin: 0;
 }
 
 .doc-editor ul[data-type='taskList'] li > div {
   flex: 1;
+}
+
+/* the task text lives in li > div > p, so the generic `li > p` list
+ * override misses it and it keeps the full 0.6em paragraph margin */
+.doc-editor ul[data-type='taskList'] li > div > p {
+  margin: 0.15em 0;
 }
 
 .doc-editor ul[data-type='taskList'] li[data-checked='true'] > div {
@@ -837,7 +903,8 @@ button {
   width: 34px;
   padding: 12px 2px;
   border: none;
-  border-right: 1px solid var(--border);
+  border-left: var(--ai-panel-border-left, 0px) solid var(--border);
+  border-right: var(--ai-panel-border-right, 1px) solid var(--border);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
@@ -857,9 +924,10 @@ button {
   min-height: 0;
   overflow: hidden;
   /* same visible divider as the docs panel: strong border so it doesn't drown */
-  border-right: 1px solid var(--color-border-strong);
+  border-left: var(--ai-panel-border-left, 0px) solid var(--color-border-strong);
+  border-right: var(--ai-panel-border-right, 1px) solid var(--color-border-strong);
   background: var(--color-bg-page);
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
   color: var(--color-text-primary);
 }
 
@@ -949,7 +1017,7 @@ button {
   gap: 16px;
   overflow-y: auto;
   padding: 32px 16px;
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
 }
 
 /* Boundary between the restored transcript and the live turn */
@@ -966,7 +1034,7 @@ button {
   margin-top: 36px;
   padding: 0 10px;
   text-align: center;
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
 }
 
 .ai-chat-empty-title {
@@ -1659,7 +1727,7 @@ button {
   border-top: none;
   padding: 8px 12px 12px;
   background: var(--color-bg-page);
-  font-family: var(--gs-font-sans);
+  font-family: var(--ui-font-sans);
 }
 
 /* composer card — 16px radius, default border, production float shadow */
@@ -1920,11 +1988,8 @@ button {
   min-height: 0;
 }
 
-.app-main.ai-dock-right {
-  flex-direction: row-reverse;
-}
-
 .app-content {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1942,6 +2007,74 @@ button {
 .app-main .editor-scroll {
   flex: 1;
   min-width: 0;
+}
+
+/* ---- document outline sidebar (PDF bookmark parity) ---- */
+
+.md-outline {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 232px;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  padding: 8px 4px;
+  overflow-y: auto;
+}
+
+.md-outline-resizer {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 5px;
+  margin: 0 -2px 0 -3px;
+  cursor: col-resize;
+}
+
+.md-outline-resizer:hover,
+.md-outline-resizer.dragging {
+  background: var(--accent-soft);
+}
+
+.md-outline-title {
+  padding: 2px 10px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.md-outline-empty {
+  padding: 2px 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.md-outline-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.md-outline-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: 8px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.md-outline-item:hover {
+  background: var(--hover);
 }
 
 /* ---- transient AI-change highlight ---- */
@@ -1979,11 +2112,11 @@ button {
   opacity: 1;
 }
 
-.md-codeblock-lang {
+/* language picker (shared @revelith/ui rv-dd dropdown), sized like the copy
+   button beside it */
+.md-codeblock-lang .rv-dd-btn {
   height: 22px;
-  border: 1px solid var(--border-strong);
   border-radius: 5px;
-  background: var(--surface);
   color: var(--text-secondary);
   font-size: 11.5px;
   padding: 0 4px;
@@ -1998,10 +2131,59 @@ button {
   font-size: 11.5px;
   padding: 0 8px;
   cursor: pointer;
+  outline: none;
 }
 
 .md-codeblock-copy:hover {
   background: var(--hover);
+}
+
+/* ---- diagrams (```mermaid / ```wavedrom code blocks) ---- */
+
+/* the source stays in the DOM (ProseMirror needs its contentDOM) but is
+   visually collapsed while the caret is outside the block */
+.md-diagram-collapsed pre {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  opacity: 0;
+}
+
+.md-diagram-preview {
+  margin: 0.8em 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--md-diagram-bg);
+  text-align: center;
+  cursor: text;
+}
+
+.md-diagram:not(.md-diagram-collapsed) .md-diagram-preview {
+  margin-top: 8px;
+}
+
+.md-diagram-preview:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--md-focus-ring-blue);
+}
+
+.md-diagram-preview svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.md-diagram-error {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--md-error-border);
+  border-radius: 6px;
+  background: var(--md-error-bg);
+  color: var(--md-error);
+  font-size: 12.5px;
+  white-space: pre-wrap;
 }
 
 /* ---- floating table menu ---- */
@@ -2123,155 +2305,608 @@ button {
   background: var(--danger-bg);
 }
 
-/* ── Find and Replace Panel ── */
-.md-find-panel {
-  position: absolute;
-  top: 12px;
-  right: 24px;
-  z-index: 100;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
-  padding: 8px 10px;
+/* ---- math (KaTeX) nodes & LaTeX edit popover ---- */
+
+.tiptap-mathematics-render {
+  border-radius: 5px;
+}
+
+span.tiptap-mathematics-render {
+  display: inline-block;
+  padding: 0 2px;
+}
+
+div.tiptap-mathematics-render {
+  padding: 8px 12px;
+  margin: 0.5em 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.tiptap-mathematics-render--editable {
+  cursor: pointer;
+}
+
+.tiptap-mathematics-render--editable:hover {
+  background: var(--hover);
+}
+
+.tiptap-mathematics-render.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* KaTeX parse failure: show the raw source in the code font */
+.tiptap-mathematics-render.block-math-error,
+.tiptap-mathematics-render.inline-math-error {
+  color: var(--danger);
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+.md-math-pop {
+  position: fixed;
+  z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  backdrop-filter: blur(12px);
-  -webkit-app-region: no-drag;
+  gap: 8px;
+  width: 400px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 10px 32px var(--md-shadow-color);
 }
 
-.md-find-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.md-find-toggle {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  font-size: 10px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.md-find-toggle:hover {
-  background: var(--hover);
+.md-math-input {
+  resize: vertical;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
   color: var(--text);
-}
-
-.md-find-spacer {
-  width: 20px;
-}
-
-.md-find-input {
-  width: 190px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 8px;
-  font-size: 13px;
-  background: var(--bg);
-  color: var(--text);
+  padding: 6px 8px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
   outline: none;
 }
 
-.md-find-input:focus {
+.md-math-input:focus {
   border-color: var(--accent);
 }
 
-.md-find-opt {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 3px;
-  font-size: 11px;
-  padding: 2px 6px;
-  cursor: pointer;
-  color: var(--text-dim);
-}
-
-.md-find-opt:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-
-.md-find-opt.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.md-find-count {
-  min-width: 50px;
-  font-size: 11px;
-  color: var(--text-dim);
-  text-align: center;
-  user-select: none;
-}
-
-.md-find-btn {
-  width: 24px;
-  height: 24px;
+.md-math-preview {
   display: flex;
+  /* `safe` keeps the start edge reachable when a tall formula scrolls */
+  align-items: safe center;
+  justify-content: safe center;
+  min-height: 36px;
+  max-height: 40vh;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--hover);
+  overflow: auto;
+}
+
+.md-math-preview-empty {
+  display: none;
+}
+
+.md-math-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.md-math-actions button {
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  font-size: 12.5px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.md-math-apply {
+  background: var(--color-btn-primary);
+  color: var(--color-btn-primary-text);
+}
+
+.md-math-delete {
+  background: transparent;
+  color: var(--danger);
+}
+
+.md-math-delete:hover {
+  background: var(--danger-bg);
+}
+
+/* ---- selection scope chip in the AI composer header ---- */
+
+.ai-scope-row {
+  margin-bottom: 7px;
+}
+
+.ai-scope-hint {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-30);
+  background: var(--accent-soft);
+  font-size: 11.5px;
+  color: var(--accent-dark);
+  font-weight: 500;
+}
+
+.ai-scope-hint::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ai-scope-hint .ai-scope-label,
+.ai-scope-hint .ai-scope-clear {
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: none;
-  border-radius: 4px;
+  padding: 0;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-  font-size: 15px;
-  line-height: 1;
-  color: var(--text);
 }
 
-.md-find-btn:hover:not(:disabled) {
+.ai-scope-hint .ai-scope-clear {
+  opacity: 0.65;
+}
+
+.ai-scope-hint .ai-scope-clear:hover {
+  opacity: 1;
+}
+
+.ai-scope-preview {
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-8);
+  background: var(--color-bg-page);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  max-height: 96px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* in-answer citation links: click selects and scrolls to the cited block */
+.ai-md .ai-md-nav {
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.ai-md .ai-md-nav:hover {
+  text-decoration-style: solid;
+}
+
+/* queued-edit anchor highlight inside the document (decoration, never document data) */
+.ai-queue-anchor {
+  background: var(--md-ai-anchor-bg);
+  border-bottom: 2px dashed var(--md-ai-anchor-line);
+  cursor: pointer;
+}
+
+/* state selection kept visible while the Ask-AI input owns the DOM selection;
+   translucent so it overlays run highlights (document canvas, not themed chrome) */
+.md-inactive-selection {
+  --md-inactive-selection-bg: rgb(0 0 0 / 18%);
+
+  background-color: var(--md-inactive-selection-bg);
+}
+
+/* ---- floating Ask-AI entry that follows the text selection ---- */
+
+.ai-ask-trigger {
+  position: fixed;
+  z-index: 59;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--color-ai-action);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--md-pop-shadow);
+  cursor: pointer;
+}
+
+.ai-ask-trigger:hover {
   background: var(--hover);
 }
 
-.md-find-btn:disabled {
-  color: var(--border);
-  cursor: default;
-}
-
-.md-find-close {
-  font-size: 11px;
-  color: var(--text-dim);
-}
-
-.md-find-action {
-  height: 26px;
-  padding: 0 10px;
+/* anchored ask popover (shared look with docs/slides, markdown tokens) */
+.ai-ask-pop {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-12);
   background: var(--surface);
-  color: var(--text);
+  box-shadow: var(--md-pop-shadow);
+}
+
+.ai-ask-pop-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
   cursor: pointer;
-  font-size: 12px;
+}
+
+.ai-ask-pop-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ai-ask-pop-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ai-ask-pop-title {
+  padding-right: 24px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ai-ask-pop-sub {
+  margin-top: -4px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.md-find-action:hover:not(:disabled) {
+.ai-ask-pop-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-8);
+  background: var(--color-bg-page);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.ai-ask-pop-input:focus {
+  border-color: var(--accent);
+}
+
+.ai-ask-pop-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ai-ask-chip {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.ai-ask-chip:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ai-ask-pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ai-ask-cancel,
+.ai-ask-confirm {
+  padding: 5px 12px;
+  border-radius: var(--radius-6);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ai-ask-cancel {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.ai-ask-cancel:hover {
   background: var(--hover);
 }
 
-.md-find-action:disabled {
-  color: var(--border);
+.ai-ask-cancel:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 
-/* ── Search Hit Highlights ── */
-.search-hit {
-  background: rgba(255, 230, 0, 0.35);
-  border-radius: 2px;
+.ai-ask-confirm {
+  border: 1px solid transparent;
+  background: var(--color-ai-action);
+  color: var(--color-ai-action-text);
 }
 
-.search-hit-active {
-  background: rgba(255, 150, 0, 0.65);
-  outline: 1px solid rgba(255, 130, 0, 0.9);
+.ai-ask-confirm:hover:not(:disabled) {
+  background: var(--color-ai-action-hover);
+}
+
+.ai-ask-confirm:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---- queue card above the composer ---- */
+
+.ai-queue {
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-12);
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+}
+
+.ai-queue-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.ai-queue-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ai-queue-count {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ai-queue-fold {
+  margin-left: auto;
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.ai-queue-fold.folded {
+  transform: rotate(-90deg);
+}
+
+.ai-queue-hint {
+  padding: 0 10px 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ai-queue-list {
+  margin: 0;
+  padding: 0 6px 4px;
+  list-style: none;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.ai-queue-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 6px;
+  border-radius: var(--radius-6);
+  font-size: 12px;
+  color: var(--text);
+  cursor: default;
+}
+
+.ai-queue-row:hover {
+  background: var(--hover);
+}
+
+.ai-queue-row.stale {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.ai-queue-ord {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.ai-queue-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-queue-target {
+  margin-right: 5px;
+  color: var(--text-dim);
+}
+
+.ai-queue-target::after {
+  content: ' ·';
+}
+
+.ai-queue-edit-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-6);
+  background: var(--color-bg-page);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.ai-queue-row-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.ai-queue-row:hover .ai-queue-row-actions {
+  opacity: 1;
+}
+
+.ai-queue-row-btn {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.ai-queue-row-btn:hover {
+  background: var(--active-bg);
+  color: var(--text);
+}
+
+.ai-queue-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 8px;
+}
+
+.ai-queue-confirm {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.ai-queue-discard {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.ai-queue-discard:hover {
+  background: var(--hover);
+}
+
+.ai-queue-send {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-6);
+  background: var(--accent);
+  color: var(--md-on-accent);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.ai-queue-send:disabled,
+.ai-queue-discard:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ================= transient toast (action feedback) ================= */
+
+.app-toast {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--md-toast-bg);
+  color: var(--md-toast-ink);
+  font-size: 13px;
+  box-shadow: var(--md-pop-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  max-width: 60vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.app-toast.error {
+  background: var(--md-toast-error-bg);
+}
+
+.app-toast-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.app-toast.success .app-toast-icon {
+  color: var(--md-toast-ok);
+}
+
+.ai-partial-card .ai-queue-hint {
+  padding: 0 10px 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }

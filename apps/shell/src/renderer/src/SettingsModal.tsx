@@ -126,11 +126,12 @@ const LANG_OPTIONS = [
   { value: 'pt', label: 'Português' },
   { value: 'ru', label: 'Русский' },
   { value: 'th', label: 'ไทย' },
+  { value: 'vi', label: 'Tiếng Việt' },
   { value: 'zh', label: '简体中文' },
   { value: 'zh-TW', label: '繁體中文' },
 ] as const
 
-// GenMail's option order: follow-system first, then the manual picks
+// ReveLith's option order: follow-system first, then the manual picks
 const THEME_OPTIONS = [
   { value: 'system', labelKey: 'themeSystem' },
   { value: 'light', labelKey: 'themeLight' },
@@ -1220,20 +1221,18 @@ function AiSettingsSection() {
     }
   }, [])
 
-  const [aiFontSize, setAiFontSize] = useState(() => {
-    try {
-      return localStorage.getItem('revelith.aiPanelFontSize') || '14px'
-    } catch {
-      return '14px'
-    }
-  })
-  const [aiSpellcheck, setAiSpellcheck] = useState(() => {
-    try {
-      return localStorage.getItem('revelith.aiSpellcheck') !== 'false'
-    } catch {
-      return true
-    }
-  })
+  // the AI page mirrors the General page's panel preferences so a change made
+  // here is visible in both; both write through the main process
+  const [aiFontSize, setAiFontSizeState] = useState('14px')
+  const [aiSpellcheck, setAiSpellcheckState] = useState(true)
+  const setAiFontSize = (fontSize: string) => {
+    setAiFontSizeState(fontSize)
+    void window.aiOffice?.setAiPanelPrefs?.({ fontSize })
+  }
+  const setAiSpellcheck = (spellcheck: boolean) => {
+    setAiSpellcheckState(spellcheck)
+    void window.aiOffice?.setAiPanelPrefs?.({ spellcheck })
+  }
 
   const activeProvider = PROVIDER_METAS.some((p) => p.id === settings?.provider)
     ? settings.provider
@@ -1287,26 +1286,6 @@ function AiSettingsSection() {
       localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
     } catch {}
     void window.aiOffice?.setAiSettings?.(next)
-  }
-
-  const changeAiFontSize = (size: string) => {
-    setAiFontSize(size)
-    try {
-      localStorage.setItem('revelith.aiPanelFontSize', size)
-    } catch {}
-    window.dispatchEvent(
-      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { fontSize: size } }),
-    )
-  }
-
-  const toggleAiSpellcheck = (val: boolean) => {
-    setAiSpellcheck(val)
-    try {
-      localStorage.setItem('revelith.aiSpellcheck', String(val))
-    } catch {}
-    window.dispatchEvent(
-      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { spellcheck: val } }),
-    )
   }
 
   const setActiveProvider = (id: string) => {
@@ -1960,7 +1939,7 @@ function AiSettingsSection() {
               className="ai-input"
               style={{ width: 130, height: 32 }}
               value={aiFontSize}
-              onChange={(e) => changeAiFontSize(e.target.value)}
+              onChange={(e) => setAiFontSize(e.target.value)}
             >
               <option value="12px">Small (12px)</option>
               <option value="14px">Normal (14px)</option>
@@ -1980,7 +1959,7 @@ function AiSettingsSection() {
               <input
                 type="checkbox"
                 checked={aiSpellcheck}
-                onChange={(e) => toggleAiSpellcheck(e.target.checked)}
+                onChange={(e) => setAiSpellcheck(e.target.checked)}
               />
               Enable Spellcheck in AI Composer
             </label>
@@ -2469,97 +2448,36 @@ export function SettingsModal({
   const [_channel, setChannel] = useState<'stable' | 'beta'>('stable')
   const [appVersion, setAppVersion] = useState('')
 
-  const [autoSave, setAutoSave] = useState(() => {
-    try {
-      return localStorage.getItem('revelith.autoSaveEnabled') === 'true'
-    } catch {
-      return false
-    }
-  })
-  const [autoSaveInterval, setAutoSaveInterval] = useState(() => {
-    try {
-      return Number(localStorage.getItem('revelith.autoSaveInterval') || 60)
-    } catch {
-      return 60
-    }
-  })
-  const [aiDock, setAiDock] = useState<'left' | 'right'>(() => {
-    try {
-      return (localStorage.getItem('revelith.aiPanelDock') as 'left' | 'right') || 'left'
-    } catch {
-      return 'left'
-    }
-  })
-  const [aiFontSize, setAiFontSize] = useState(() => {
-    try {
-      return localStorage.getItem('revelith.aiPanelFontSize') || '14px'
-    } catch {
-      return '14px'
-    }
-  })
-  const [aiSpellcheck, setAiSpellcheck] = useState(() => {
-    try {
-      return localStorage.getItem('revelith.aiSpellcheck') !== 'false'
-    } catch {
-      return true
-    }
-  })
+  // The editor tabs live in their own WebContents, so these preferences are
+  // owned by the main process: reading a localStorage key here would show a
+  // value the editors never see.
+  const [autoSave, setAutoSaveState] = useState(false)
+  const [autoSaveInterval, setAutoSaveInterval] = useState(60)
+  const [aiDock, setAiDockState] = useState<'left' | 'right'>('right')
+  const [aiFontSize, setAiFontSizeState] = useState('14px')
+  const [aiSpellcheck, setAiSpellcheckState] = useState(true)
+  const setAutoSave = (on: boolean) => {
+    setAutoSaveState(on)
+    void window.aiOffice?.setAutoSaveDefault?.({ on })
+  }
+  const setAiDock = (side: 'left' | 'right') => {
+    setAiDockState(side)
+    void window.aiOffice?.setAiPanelPrefs?.({ side })
+  }
+  const setAiFontSize = (fontSize: string) => {
+    setAiFontSizeState(fontSize)
+    void window.aiOffice?.setAiPanelPrefs?.({ fontSize })
+  }
+  const setAiSpellcheck = (spellcheck: boolean) => {
+    setAiSpellcheckState(spellcheck)
+    void window.aiOffice?.setAiPanelPrefs?.({ spellcheck })
+  }
   const [usageStats, setUsageStats] = useState(false)
 
-  const applyAiDock = (next: 'left' | 'right') => {
-    setAiDock(next)
-    try {
-      localStorage.setItem('revelith.aiPanelDock', next)
-    } catch {}
-    window.dispatchEvent(new CustomEvent('revelith-ai-dock-changed', { detail: { side: next } }))
-    const iframes = document.querySelectorAll('iframe')
-    iframes.forEach((f) => {
-      try {
-        f.contentWindow?.postMessage({ type: 'ai-dock-change', side: next }, '*')
-      } catch {}
-    })
-  }
-
-  const toggleAutoSave = (val: boolean) => {
-    setAutoSave(val)
-    try {
-      localStorage.setItem('revelith.autoSaveEnabled', String(val))
-    } catch {}
-    window.dispatchEvent(
-      new CustomEvent('revelith-autosave-changed', {
-        detail: { enabled: val, interval: autoSaveInterval },
-      }),
-    )
-  }
-
+  // the auto-save interval is this window's own preference: the editors take the
+  // on/off default from the main process and pace themselves with it
   const changeAutoSaveInterval = (interval: number) => {
     setAutoSaveInterval(interval)
-    try {
-      localStorage.setItem('revelith.autoSaveInterval', String(interval))
-    } catch {}
-    window.dispatchEvent(
-      new CustomEvent('revelith-autosave-changed', { detail: { enabled: autoSave, interval } }),
-    )
-  }
-
-  const changeAiFontSize = (size: string) => {
-    setAiFontSize(size)
-    try {
-      localStorage.setItem('revelith.aiPanelFontSize', size)
-    } catch {}
-    window.dispatchEvent(
-      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { fontSize: size } }),
-    )
-  }
-
-  const toggleAiSpellcheck = (val: boolean) => {
-    setAiSpellcheck(val)
-    try {
-      localStorage.setItem('revelith.aiSpellcheck', String(val))
-    } catch {}
-    window.dispatchEvent(
-      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { spellcheck: val } }),
-    )
   }
 
   const toggleUsageStats = (val: boolean) => {
@@ -2585,6 +2503,15 @@ export function SettingsModal({
     })
     void window.aiOffice?.getAppVersion?.().then((v) => {
       if (alive && v) setAppVersion(v)
+    })
+    void window.aiOffice?.getAutoSaveDefault?.().then((d) => {
+      if (alive && d) setAutoSaveState(d.on === true)
+    })
+    void window.aiOffice?.getAiPanelPrefs?.().then((p) => {
+      if (!alive || !p) return
+      setAiDockState(p.side === 'left' ? 'left' : 'right')
+      setAiFontSizeState(p.fontSize || '14px')
+      setAiSpellcheckState(p.spellcheck !== false)
     })
     void (async () => {
       try {
@@ -2721,7 +2648,7 @@ export function SettingsModal({
                       { value: '14px', label: 'Normal (14px)' },
                       { value: '16px', label: 'Large (16px)' },
                     ]}
-                    onChange={(val) => changeAiFontSize(val)}
+                    onChange={(val) => setAiFontSize(val)}
                   />
                 </div>
                 <div className="set-field">
@@ -2737,7 +2664,7 @@ export function SettingsModal({
                     id="set-ai-spell"
                     type="checkbox"
                     checked={aiSpellcheck}
-                    onChange={(e) => toggleAiSpellcheck(e.target.checked)}
+                    onChange={(e) => setAiSpellcheck(e.target.checked)}
                   />
                 </div>
                 <div className="set-field">
@@ -2753,7 +2680,7 @@ export function SettingsModal({
                       { value: 'left', label: 'Left Side' },
                       { value: 'right', label: 'Right Side' },
                     ]}
-                    onChange={(val) => applyAiDock(val as 'left' | 'right')}
+                    onChange={(val) => setAiDock(val as 'left' | 'right')}
                   />
                 </div>
                 <Field
@@ -2786,7 +2713,7 @@ export function SettingsModal({
                       <input
                         type="checkbox"
                         checked={autoSave}
-                        onChange={(e) => toggleAutoSave(e.target.checked)}
+                        onChange={(e) => setAutoSave(e.target.checked)}
                       />
                       Enabled
                     </label>

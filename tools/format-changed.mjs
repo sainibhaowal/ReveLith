@@ -85,22 +85,28 @@ const prettierExecutable = join(
   process.platform === 'win32' ? 'prettier.cmd' : 'prettier',
 )
 const prettierMode = mode === '--write' ? '--write' : '--check'
-const result = spawnSync(
-  prettierExecutable,
-  [prettierMode, '--ignore-unknown', '--', ...changedFiles],
-  {
+const prettierEnv = {
+  ...process.env,
+  PATH: `${join(repoRoot, 'node_modules', '.bin')}${delimiter}${process.env.PATH}`,
+}
+
+// A large working tree (a big port, a rebase) easily exceeds the Windows
+// command-line limit when every path is passed at once, so run in batches and
+// report the first failing batch.
+const BATCH = 60
+let failed = false
+for (let i = 0; i < changedFiles.length; i += BATCH) {
+  const batch = changedFiles.slice(i, i + BATCH)
+  const result = spawnSync(prettierExecutable, [prettierMode, '--ignore-unknown', '--', ...batch], {
     cwd: repoRoot,
     stdio: 'inherit',
     shell: process.platform === 'win32',
-    env: {
-      ...process.env,
-      PATH: `${join(repoRoot, 'node_modules', '.bin')}${delimiter}${process.env.PATH}`,
-    },
-  },
-)
-
-if (result.error) {
-  console.error(`Unable to run Prettier: ${result.error.message}`)
-  process.exit(1)
+    env: prettierEnv,
+  })
+  if (result.error) {
+    console.error(`Unable to run Prettier: ${result.error.message}`)
+    process.exit(1)
+  }
+  if (result.status !== 0) failed = true
 }
-process.exit(result.status ?? 1)
+process.exit(failed ? 1 : 0)

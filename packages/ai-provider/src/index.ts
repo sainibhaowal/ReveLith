@@ -15,6 +15,7 @@ export {
   AI_PROVIDERS,
   defaultAiSettings,
   defaultMediaSearch,
+  imageGenerationAvailable,
   resolveAiSettings,
   resolveImageGenTarget,
   resolveMediaAnalysisTarget,
@@ -22,7 +23,7 @@ export {
 } from './providers'
 export type { EffectiveImageGen, EffectiveMediaAnalysis } from './providers'
 export { chatForProvider } from './chat'
-export { generateImageForProvider } from './image'
+export { generateImageForProvider, generateImageWithSettings } from './image'
 export type { AiImageResult } from './image'
 export { resolveLocalModelConfig } from './local-model'
 export { setRescueFetch } from './fetch'

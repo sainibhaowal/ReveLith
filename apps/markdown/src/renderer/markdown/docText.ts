@@ -12,7 +12,7 @@ export interface DocEnvelope {
   eol: '\n' | '\r\n'
   /** whether the original file ended with a newline (new documents: true) */
   trailingNewline: boolean
-  /** the original file started with a UTF-8 BOM (Windows Notepad) : re-emitted on save */
+  /** the original file started with a UTF-8 BOM (Windows Notepad) — re-emitted on save */
   bom: boolean
 }
 
@@ -63,14 +63,11 @@ export function buildFrontmatterRaw(inner: string): string {
 /**
  * One-way migration for legacy documents: earlier versions serialized callout
  * and toggle blocks as Pandoc-style fenced divs (`:::callout {type="…"}` /
- * `:::toggle {summary="…"}` / `:::`). Those extensions are gone : without this
+ * `:::toggle {summary="…"}` / `:::`). Those extensions are gone — without this
  * strip the fence lines would show up as literal `:::` text in the editor.
  * The body content is kept; a toggle summary degrades to a bold paragraph.
  */
 export function stripLegacyFencedDivs(body: string): string {
-  // Linear-time optimization: avoid line splitting and regexes if no fenced divs exist
-  if (!body.includes(':::')) return body
-
   const lines = body.split('\n')
   const out: string[] = []
   let codeFence: string | null = null
@@ -110,9 +107,7 @@ export function stripLegacyFencedDivs(body: string): string {
 
 /** Reassemble the full file text from the envelope and the (re)serialized body */
 export function serializeDocText(envelope: DocEnvelope, body: string): string {
-  // [[wiki links]] survive save: unescape any backslashes introduced by markdown serializer
-  const unescapedBody = body.replace(/\\\[\\\[(.*?)\\\]\\\]/g, '[[$1]]')
-  let text = envelope.frontmatter + unescapedBody
+  let text = envelope.frontmatter + body
   if (envelope.trailingNewline) {
     if (text !== '' && !text.endsWith('\n')) text += '\n'
   } else {

@@ -1,0 +1,76 @@
+/* Shared color palette: the theme row, the standard row, the "no color" entry
+ * and the "more colors" handoff to the OS picker. The native input is kept in
+ * the layout (not display:none) so the OS dialog still reports its value. */
+
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  padding: 8px;
+}
+
+.color-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.color-picker-section-label {
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+
+.color-picker-swatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.color-picker-swatch[data-selected='true'] {
+  outline: 2px solid var(--color-border-brand);
+  outline-offset: 1px;
+}
+
+.color-picker-auto,
+.color-picker-more {
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.color-picker-auto:hover,
+.color-picker-more:hover {
+  background: var(--hover);
+}
+
+.color-picker-auto[data-selected='true'] {
+  border-color: var(--color-border-brand);
+}
+
+/* visually hidden, still focusable: the OS picker dialog needs a live control */
+.color-picker-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}

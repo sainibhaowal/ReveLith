@@ -139,6 +139,26 @@ export function resolveWebSearchKey(settings: AiSettings): string {
   return settings.mediaSearch?.webSearch.apiKey || settings.byok?.webSearchKey || ''
 }
 
+/**
+ * Whether the AI image-generation tool should be offered: a usable dedicated
+ * backend, a BYOK media key, or an image-capable provider with a key (local
+ * servers work keyless). Anthropic/Gemini chat endpoints expose no image API.
+ */
+export function imageGenerationAvailable(settings: AiSettings): boolean {
+  if (resolveImageGenTarget(settings)) return true
+  if (settings.byok?.imageGenKey || settings.byok?.mediaAnalysisKey) return true
+  const provider = settings.provider
+  if (provider === 'anthropic' || provider === 'gemini') return false
+  const config = settings.providers?.[provider]
+  if (!config) return false
+  return !!(
+    config.apiKey ||
+    provider === 'ollama' ||
+    provider === 'lmstudio' ||
+    provider === 'custom'
+  )
+}
+
 export interface EffectiveImageGen {
   provider: AiProviderId
   config: { apiKey: string; model: string; baseUrl?: string | undefined }

@@ -1,8 +1,8 @@
-﻿import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 // npm hoists some @tiptap packages to the repo root (shared with docs at a
-// different version) and nests others under this app : dedupe forces every
+// different version) and nests others under this app — dedupe forces every
 // import onto this app's single copy so the bundle never carries two cores.
 const TIPTAP_DEDUPE = [
   '@tiptap/core',

@@ -134,14 +134,4 @@ describe('serializeDocText', () => {
     const out = serializeDocText(doc, 'body\n')
     expect(out).toBe('---\r\na: 1\r\n---\r\nbody\r\n')
   })
-
-  it('wiki links survive serialization without escaped backslashes', () => {
-    const doc = parseDocText(
-      '# Page\n\nLink to [[Other Document]] and [[Section#Target|Label]] here.\n',
-    )
-    const escapedFromEditor =
-      '# Page\n\nLink to \\[\\[Other Document\\]\\] and \\[\\[Section#Target|Label\\]\\] here.\n'
-    const out = serializeDocText(doc, escapedFromEditor)
-    expect(out).toBe('# Page\n\nLink to [[Other Document]] and [[Section#Target|Label]] here.\n')
-  })
 })

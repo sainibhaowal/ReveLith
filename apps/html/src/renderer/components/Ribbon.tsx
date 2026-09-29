@@ -1,375 +1,585 @@
-import React from 'react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  RibbonCollapseButton,
+  RibbonExpandButton,
+  useDismissablePopover,
+  useRibbonCollapse,
+} from '@revelith/ui'
+import { useI18n } from '../i18n/locale'
+import type { StringKey } from '../i18n/locale'
+import { ReveLithMark } from '../ai/AiPanel'
+import type { InsertKind, InsertOptions } from '../document/insert-presets'
+import {
+  IconBullets,
+  IconButton,
+  IconChevronDown,
+  IconCode,
+  IconDivider,
+  IconExpand,
+  IconGlobe,
+  IconHeading,
+  IconPlay,
+  IconPalette,
+  IconPicture,
+  IconPilcrow,
+  IconPlus,
+  IconPreview,
+  IconRedo,
+  IconSave,
+  IconSearch,
+  IconSection,
+  IconSplitView,
+  IconSummarize,
+  IconTable,
+  IconUndo,
+  IconWand,
+} from './icons'
 
-export type ViewLayout = 'preview' | 'split' | 'code'
+export type ViewMode = 'preview' | 'split' | 'source'
 
-interface RibbonProps {
-  viewLayout: ViewLayout
-  onChangeViewLayout: (layout: ViewLayout) => void
-  showLayers: boolean
-  onToggleLayers: () => void
-  showInspector: boolean
-  onToggleInspector: () => void
-  onOpenDesign: () => void
-  onOpenDocument: () => void
-  onSummarize: () => void
-  onPresent: () => void
-  onSave: () => void
-  onSaveAs: () => void
-  onExportWord: () => void
-  onExportPdf: () => void
-  onExportSingleFile: () => void
-  onInsertSnippet: (kind: string) => void
-  onInsertImageUrl: () => void
-  dirty: boolean
-  autoSave: boolean
-  onToggleAutoSave: (enabled: boolean) => void
+const THEME_DIRECTIONS: StringKey[] = [
+  'aiThemeMinimal',
+  'aiThemeEditorial',
+  'aiThemeTech',
+  'aiThemePlayful',
+  'aiThemeDark',
+]
+
+export const VIEW_MODES: ViewMode[] = ['preview', 'split', 'source']
+
+const VIEW_LABEL: Record<ViewMode, StringKey> = {
+  preview: 'viewPreview',
+  split: 'viewSplit',
+  source: 'viewSource',
 }
 
-export function Ribbon({
-  viewLayout,
-  onChangeViewLayout,
-  showLayers,
-  onToggleLayers,
-  showInspector,
-  onToggleInspector,
-  onOpenDesign,
-  onOpenDocument,
-  onSummarize,
-  onPresent,
-  onSave,
-  onSaveAs: _onSaveAs,
-  onExportWord,
-  onExportPdf,
-  onExportSingleFile,
-  onInsertSnippet,
-  onInsertImageUrl,
-  dirty,
-  autoSave: _autoSave,
-  onToggleAutoSave: _onToggleAutoSave,
-}: RibbonProps) {
+const VIEW_ICON: Record<ViewMode, (p: { size?: number }) => React.JSX.Element> = {
+  preview: IconPreview,
+  split: IconSplitView,
+  source: IconCode,
+}
+
+interface Props {
+  disabled: boolean
+  dirty: boolean
+  onSave: () => void
+  onSaveAs: () => void
+  onFind: () => void
+  canUndo: boolean
+  canRedo: boolean
+  onUndo: () => void
+  onRedo: () => void
+  autoSave: boolean
+  onToggleAutoSave: (on: boolean) => void
+  view: ViewMode
+  onView: (view: ViewMode) => void
+  aiOpen: boolean
+  onToggleAi: () => void
+  canInsert: boolean
+  /** images come from a picked file by default; `url` places a remote image instead; tables take the picker's rows × cols */
+  onInsert: (kind: InsertKind, opts?: InsertOptions) => void
+  /** page-wide AI actions: send this instruction to the assistant right away */
+  onAiPreset: (text: string) => void
+  canvasMode: CanvasMode
+  onPresent: (kind: PresentKind) => void
+}
+
+export type CanvasMode = 'edit' | 'present'
+
+/** tab = chrome-free in this view; fullscreen = tab + the whole screen; newTab = a separate present tab/window */
+export type PresentKind = 'tab' | 'fullscreen' | 'newTab'
+const PRESENT_ITEMS: Array<{
+  kind: PresentKind
+  label: StringKey
+  Icon: (p: { size?: number }) => React.JSX.Element
+}> = [
+  { kind: 'tab', label: 'presentInTab', Icon: IconExpand },
+  { kind: 'fullscreen', label: 'presentFullscreen', Icon: IconPlay },
+  { kind: 'newTab', label: 'presentNewTab', Icon: IconGlobe },
+]
+
+const INSERT_LABEL: Record<InsertKind, StringKey> = {
+  heading: 'insertHeading',
+  paragraph: 'insertParagraph',
+  list: 'insertList',
+  button: 'insertButton',
+  image: 'insertImage',
+  table: 'insertTable',
+  section: 'insertSection',
+  divider: 'insertDivider',
+}
+
+type InsertIcon = (p: { size?: number }) => React.JSX.Element
+
+/** the everyday kinds sit on the ribbon; the rest live under "More" */
+const MORE_KINDS: Array<{ kind: InsertKind; Icon: InsertIcon }> = [
+  { kind: 'list', Icon: IconBullets },
+  { kind: 'button', Icon: IconButton },
+  { kind: 'section', Icon: IconSection },
+  { kind: 'divider', Icon: IconDivider },
+]
+
+/** which insert popover is open: the image-URL form, the table size grid or the "More" menu */
+type InsertPopover = 'imageUrl' | 'table' | 'more'
+
+const TABLE_PICKER_ROWS = 8
+const TABLE_PICKER_COLS = 10
+
+const ICON = 20
+
+export function Ribbon(p: Props) {
+  const { t } = useI18n()
+  const collapse = useRibbonCollapse('htmlapp.ribbonCollapsed', {
+    collapse: t('ribbonCollapse'),
+    expand: t('ribbonExpand'),
+  })
+  const [themeOpen, setThemeOpen] = useState(false)
+  const themeRef = useRef<HTMLDivElement>(null)
+  useDismissablePopover(themeOpen, () => setThemeOpen(false), {
+    inside: () => [themeRef.current],
+  })
+  useEffect(() => {
+    if (!themeOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setThemeOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [themeOpen])
+  const [presentOpen, setPresentOpen] = useState(false)
+  const presentRef = useRef<HTMLDivElement>(null)
+  useDismissablePopover(presentOpen, () => setPresentOpen(false), {
+    inside: () => [presentRef.current],
+  })
+  useEffect(() => {
+    if (!presentOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPresentOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [presentOpen])
+
+  const [insertPop, setInsertPop] = useState<InsertPopover | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
+  /** hovered table size in the picker grid; 0 × 0 = nothing hovered */
+  const [grid, setGrid] = useState({ r: 0, c: 0 })
+  const imageRef = useRef<HTMLDivElement>(null)
+  const tableRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const closeInsert = () => {
+    setInsertPop(null)
+    setImageUrl('')
+    setGrid({ r: 0, c: 0 })
+  }
+  const toggleInsert = (pop: InsertPopover) =>
+    insertPop === pop ? closeInsert() : setInsertPop(pop)
+  useDismissablePopover(insertPop !== null, closeInsert, {
+    inside: () => [imageRef.current, tableRef.current, moreRef.current],
+  })
+  useEffect(() => {
+    if (insertPop === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeInsert()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [insertPop])
+  const submitImageUrl = () => {
+    const url = imageUrl.trim()
+    if (!url) return
+    closeInsert()
+    p.onInsert('image', { url })
+  }
+  const insert = (kind: InsertKind, opts?: InsertOptions) => {
+    closeInsert()
+    p.onInsert(kind, opts)
+  }
+
+  const off = p.disabled
+  const insertOff = off || !p.canInsert
+
   return (
-    <div
-      style={{
-        background: '#18181b',
-        borderBottom: '1px solid #27272a',
-        padding: '6px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        userSelect: 'none',
-        height: 48,
-      }}
-    >
-      {/* Left: Brand + Creation Modes */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
-          <span style={{ fontSize: 18 }}>🌐</span>
-          <span
-            style={{ fontWeight: 700, fontSize: 13, color: '#f43f5e', letterSpacing: '-0.2px' }}
-          >
-            ReveLith HTML
-          </span>
-        </div>
-
-        <div
-          style={{ display: 'flex', gap: 6, borderRight: '1px solid #27272a', paddingRight: 12 }}
+    <div className={`ribbon ${collapse.rootClass}`} ref={collapse.rootRef}>
+      <div className="ribbon-tabs">
+        <button
+          type="button"
+          className="qa-btn"
+          data-tip={t('save')}
+          aria-label={t('save')}
+          disabled={off || !p.dirty}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={p.onSave}
         >
-          <button
-            type="button"
-            onClick={onOpenDesign}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              background: 'linear-gradient(135deg, #e11d48, #be123c)',
-              border: 'none',
-              borderRadius: 6,
-              color: '#fff',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(225, 29, 72, 0.3)',
-            }}
-          >
-            <span>🎨</span> AI Design
-          </button>
-          <button
-            type="button"
-            onClick={onOpenDocument}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-              border: 'none',
-              borderRadius: 6,
-              color: '#fff',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(37, 99, 235, 0.3)',
-            }}
-          >
-            <span>📝</span> AI Document
-          </button>
-          <button
-            type="button"
-            onClick={onSummarize}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              background: 'linear-gradient(135deg, #059669, #047857)',
-              border: 'none',
-              borderRadius: 6,
-              color: '#fff',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(5, 150, 105, 0.3)',
-            }}
-          >
-            <span>📋</span> AI Summarize
-          </button>
-        </div>
-
-        {/* View Layout Tabs */}
-        <div style={{ display: 'flex', background: '#27272a', padding: 2, borderRadius: 6 }}>
-          <button
-            type="button"
-            onClick={() => onChangeViewLayout('preview')}
-            style={{
-              padding: '3px 8px',
-              background: viewLayout === 'preview' ? 'rgba(255,255,255,0.15)' : 'transparent',
-              border: 'none',
-              borderRadius: 4,
-              color: viewLayout === 'preview' ? '#fff' : '#a1a1aa',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            Live Preview
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeViewLayout('split')}
-            style={{
-              padding: '3px 8px',
-              background: viewLayout === 'split' ? 'rgba(255,255,255,0.15)' : 'transparent',
-              border: 'none',
-              borderRadius: 4,
-              color: viewLayout === 'split' ? '#fff' : '#a1a1aa',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            Split View
-          </button>
-          <button
-            type="button"
-            onClick={() => onChangeViewLayout('code')}
-            style={{
-              padding: '3px 8px',
-              background: viewLayout === 'code' ? 'rgba(255,255,255,0.15)' : 'transparent',
-              border: 'none',
-              borderRadius: 4,
-              color: viewLayout === 'code' ? '#fff' : '#a1a1aa',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            Code
-          </button>
-        </div>
-
-        {/* Panel Toggles */}
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            type="button"
-            onClick={onToggleLayers}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '4px 8px',
-              background: showLayers ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-              border: `1px solid ${showLayers ? '#3b82f6' : '#3f3f46'}`,
-              borderRadius: 5,
-              color: showLayers ? '#60a5fa' : '#a1a1aa',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            <span>🌳</span> Layers
-          </button>
-          <button
-            type="button"
-            onClick={onToggleInspector}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '4px 8px',
-              background: showInspector ? 'rgba(244, 63, 94, 0.2)' : 'transparent',
-              border: `1px solid ${showInspector ? '#f43f5e' : '#3f3f46'}`,
-              borderRadius: 5,
-              color: showInspector ? '#fb7185' : '#a1a1aa',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            <span>✨</span> Restyler
-          </button>
-          <button
-            type="button"
-            onClick={onPresent}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '4px 8px',
-              background: 'transparent',
-              border: '1px solid #3f3f46',
-              borderRadius: 5,
-              color: '#a1a1aa',
-              fontSize: 11,
-              cursor: 'pointer',
-            }}
-          >
-            <span>📽️</span> Present
-          </button>
-        </div>
+          <IconSave size={16} />
+        </button>
+        <button
+          type="button"
+          className="qa-btn qa-save-as"
+          data-tip={t('saveAs')}
+          aria-label={t('saveAs')}
+          disabled={off}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={p.onSaveAs}
+        >
+          {t('saveAs')}
+        </button>
+        <button
+          type="button"
+          className="qa-btn"
+          data-tip={t('undo')}
+          aria-label={t('undo')}
+          disabled={off || !p.canUndo}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={p.onUndo}
+        >
+          <IconUndo size={16} />
+        </button>
+        <button
+          type="button"
+          className="qa-btn"
+          data-tip={t('redo')}
+          aria-label={t('redo')}
+          disabled={off || !p.canRedo}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={p.onRedo}
+        >
+          <IconRedo size={16} />
+        </button>
+        <button
+          type="button"
+          className="qa-btn"
+          data-tip={t('findTip')}
+          aria-label={t('findTip')}
+          disabled={off}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={p.onFind}
+        >
+          <IconSearch size={16} />
+        </button>
+        <label className={`autosave-toggle${p.autoSave ? ' on' : ''}`} data-tip={t('autoSaveTip')}>
+          <span className="autosave-knob" />
+          <span className="autosave-text">{t('autoSave')}</span>
+          <input
+            type="checkbox"
+            checked={p.autoSave}
+            onChange={(e) => p.onToggleAutoSave(e.target.checked)}
+          />
+        </label>
+        <RibbonExpandButton state={collapse} label={t('ribbonExpand')} />
       </div>
 
-      {/* Right: File Actions & Exports */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button
-          type="button"
-          onClick={onExportWord}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '4px 8px',
-            background: '#27272a',
-            border: '1px solid #3f3f46',
-            borderRadius: 5,
-            color: '#3b82f6',
-            fontSize: 11,
-            cursor: 'pointer',
-          }}
-          title="Export to Word (.docx)"
-        >
-          <span>📄</span> Word
-        </button>
-        <button
-          type="button"
-          onClick={onExportPdf}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '4px 8px',
-            background: '#27272a',
-            border: '1px solid #3f3f46',
-            borderRadius: 5,
-            color: '#ef4444',
-            fontSize: 11,
-            cursor: 'pointer',
-          }}
-          title="Export to PDF"
-        >
-          <span>📑</span> PDF
-        </button>
-        <button
-          type="button"
-          onClick={onExportSingleFile}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '4px 8px',
-            background: '#27272a',
-            border: '1px solid #3f3f46',
-            borderRadius: 5,
-            color: '#22c55e',
-            fontSize: 11,
-            cursor: 'pointer',
-          }}
-          title="Export as Single-File HTML"
-        >
-          <span>📦</span> Single File
-        </button>
-        <select
-          aria-label="Insert"
-          defaultValue=""
-          onChange={(e) => {
-            if (e.target.value) {
-              onInsertSnippet(e.target.value)
-              e.target.value = ''
-            }
-          }}
-          style={{
-            background: '#27272a',
-            color: '#e4e4e7',
-            border: '1px solid #3f3f46',
-            borderRadius: 5,
-            fontSize: 11,
-            padding: '4px 6px',
-          }}
-          title="Insert menu"
-        >
-          <option value="" disabled>
-            ＋ Insert
-          </option>
-          <option value="hero">Hero section</option>
-          <option value="cards">Cards grid</option>
-          <option value="table">Table</option>
-          <option value="form">Form</option>
-          <option value="nav">Navbar</option>
-        </select>
-        <button
-          type="button"
-          onClick={onInsertImageUrl}
-          style={{
-            background: '#27272a',
-            border: '1px solid #3f3f46',
-            borderRadius: 5,
-            color: '#e4e4e7',
-            fontSize: 11,
-            padding: '4px 8px',
-            cursor: 'pointer',
-          }}
-          title="Image from URL"
-        >
-          🖼 URL
-        </button>
+      <div className="ribbon-body" data-ribbon-body="">
+        <div className="ribbon-group">
+          <div className="ribbon-group-items">
+            <button
+              type="button"
+              className={`rb-big ai-entry${p.aiOpen ? ' active' : ''}`}
+              data-tip={t('aiOpenAssistant')}
+              aria-pressed={p.aiOpen}
+              disabled={off}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={p.onToggleAi}
+            >
+              <span className="rb-big-icon">
+                <ReveLithMark size={26} />
+              </span>
+              <span>ReveLith AI</span>
+            </button>
+            <button
+              type="button"
+              className="rb-big ai-entry"
+              data-tip={t('aiRestyleBtn')}
+              disabled={off}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => p.onAiPreset(t('aiRestylePrompt'))}
+            >
+              <span className="rb-big-icon">
+                <span className="ai-feature-icon" aria-hidden="true">
+                  <IconWand size={24} />
+                </span>
+              </span>
+              <span>{t('aiRestyleBtn')}</span>
+            </button>
+            <div className="rb-menu-wrap" ref={themeRef}>
+              <button
+                type="button"
+                className={`rb-big ai-entry${themeOpen ? ' active' : ''}`}
+                data-tip={t('aiThemeBtn')}
+                aria-haspopup="menu"
+                aria-expanded={themeOpen}
+                disabled={off}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setThemeOpen((v) => !v)}
+              >
+                <span className="rb-big-icon">
+                  <span className="ai-feature-icon" aria-hidden="true">
+                    <IconPalette size={24} />
+                  </span>
+                </span>
+                <span>{t('aiThemeBtn')}</span>
+              </button>
+              {themeOpen && (
+                <div className="rb-menu" role="menu">
+                  {THEME_DIRECTIONS.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="menuitem"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setThemeOpen(false)
+                        p.onAiPreset(t('aiThemePrompt', { direction: t(key) }))
+                      }}
+                    >
+                      {t(key)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              className="rb-big ai-entry"
+              data-tip={t('aiSummarizeBtn')}
+              disabled={off}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => p.onAiPreset(t('aiSummarizePrompt'))}
+            >
+              <span className="rb-big-icon">
+                <span className="ai-feature-icon" aria-hidden="true">
+                  <IconSummarize size={24} />
+                </span>
+              </span>
+              <span>{t('aiSummarizeBtn')}</span>
+            </button>
+          </div>
+        </div>
 
-        <div style={{ height: 16, width: 1, background: '#27272a', margin: '0 4px' }} />
+        <div className="rb-sep" />
 
-        <button
-          type="button"
-          onClick={onSave}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '4px 12px',
-            background: dirty ? '#2563eb' : '#27272a',
-            border: `1px solid ${dirty ? '#3b82f6' : '#3f3f46'}`,
-            borderRadius: 5,
-            color: dirty ? '#fff' : '#a1a1aa',
-            fontSize: 11,
-            fontWeight: dirty ? 600 : 400,
-            cursor: 'pointer',
-          }}
-        >
-          <span>💾</span> Save {dirty ? '●' : ''}
-        </button>
+        <div className="ribbon-group">
+          <div className="ribbon-group-items">
+            {/* the ribbon has no Insert tab: the row itself says what these buttons do */}
+            <span className="rb-group-lead" aria-hidden="true">
+              {t('ribbonGroupInsert')}
+            </span>
+            <button
+              type="button"
+              className="rb-btn rb-view"
+              data-tip={t('insertHeading')}
+              disabled={insertOff}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => insert('heading')}
+            >
+              <IconHeading size={ICON} />
+              <span>{t('insertHeading')}</span>
+            </button>
+            <button
+              type="button"
+              className="rb-btn rb-view"
+              data-tip={t('insertParagraph')}
+              disabled={insertOff}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => insert('paragraph')}
+            >
+              <IconPilcrow size={ICON} />
+              <span>{t('insertParagraph')}</span>
+            </button>
+            <div className="rb-menu-wrap rb-split" ref={imageRef}>
+              <button
+                type="button"
+                className="rb-btn rb-view rb-split-main"
+                data-tip={t('insertImage')}
+                disabled={insertOff}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insert('image')}
+              >
+                <IconPicture size={ICON} />
+                <span>{t('insertImage')}</span>
+              </button>
+              <button
+                type="button"
+                className={`rb-btn rb-split-caret${insertPop === 'imageUrl' ? ' active' : ''}`}
+                data-tip={t('insertImageUrl')}
+                aria-label={t('insertImageUrl')}
+                aria-haspopup="dialog"
+                aria-expanded={insertPop === 'imageUrl'}
+                disabled={insertOff}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => toggleInsert('imageUrl')}
+              >
+                <IconChevronDown size={14} />
+              </button>
+              {insertPop === 'imageUrl' && (
+                <form
+                  className="rb-menu rb-url-form"
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    submitImageUrl()
+                  }}
+                >
+                  <input
+                    type="url"
+                    autoFocus
+                    placeholder="https://"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                  />
+                  <button type="submit" className="rb-url-submit" disabled={!imageUrl.trim()}>
+                    {t('insertConfirm')}
+                  </button>
+                </form>
+              )}
+            </div>
+            <div className="rb-menu-wrap" ref={tableRef}>
+              <button
+                type="button"
+                className={`rb-btn rb-view${insertPop === 'table' ? ' active' : ''}`}
+                data-tip={t('insertTable')}
+                aria-haspopup="dialog"
+                aria-expanded={insertPop === 'table'}
+                disabled={insertOff}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => toggleInsert('table')}
+              >
+                <IconTable size={ICON} />
+                <span>{t('insertTable')}</span>
+                <IconChevronDown size={14} />
+              </button>
+              {insertPop === 'table' && (
+                <div
+                  className="table-picker"
+                  role="dialog"
+                  aria-label={t('insertTablePickSize')}
+                  onMouseLeave={() => setGrid({ r: 0, c: 0 })}
+                >
+                  <div className="table-picker-title">
+                    {grid.r > 0
+                      ? t('insertTableSize', { r: grid.r, c: grid.c })
+                      : t('insertTablePickSize')}
+                  </div>
+                  <div className="table-picker-grid">
+                    {Array.from({ length: TABLE_PICKER_ROWS }, (_, ri) =>
+                      Array.from({ length: TABLE_PICKER_COLS }, (_, ci) => (
+                        <button
+                          key={`${ri}-${ci}`}
+                          type="button"
+                          className={`table-cell${ri < grid.r && ci < grid.c ? ' hot' : ''}`}
+                          aria-label={t('insertTableSize', { r: ri + 1, c: ci + 1 })}
+                          onMouseEnter={() => setGrid({ r: ri + 1, c: ci + 1 })}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => insert('table', { rows: ri + 1, cols: ci + 1 })}
+                        />
+                      )),
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="rb-menu-wrap" ref={moreRef}>
+              <button
+                type="button"
+                className={`rb-btn rb-view${insertPop === 'more' ? ' active' : ''}`}
+                data-tip={t('insertMore')}
+                aria-haspopup="menu"
+                aria-expanded={insertPop === 'more'}
+                disabled={insertOff}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => toggleInsert('more')}
+              >
+                <IconPlus size={ICON} />
+                <span>{t('insertMore')}</span>
+                <IconChevronDown size={14} />
+              </button>
+              {insertPop === 'more' && (
+                <div className="rb-menu" role="menu">
+                  {MORE_KINDS.map(({ kind, Icon }) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      role="menuitem"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => insert(kind)}
+                    >
+                      <Icon size={16} />
+                      {t(INSERT_LABEL[kind])}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rb-sep" />
+
+        <div className="ribbon-group" role="tablist">
+          <div className="ribbon-group-items">
+            {VIEW_MODES.map((mode) => {
+              const Icon = VIEW_ICON[mode]
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  role="tab"
+                  className={`rb-btn rb-view${p.view === mode ? ' active' : ''}`}
+                  aria-selected={p.view === mode}
+                  data-tip={t(VIEW_LABEL[mode])}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => p.onView(mode)}
+                >
+                  <Icon size={ICON} />
+                  <span>{t(VIEW_LABEL[mode])}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="rb-sep" />
+
+        <div className="ribbon-group">
+          <div className="ribbon-group-items">
+            <div className="rb-menu-wrap" ref={presentRef}>
+              <button
+                type="button"
+                className={`rb-btn rb-view${p.canvasMode === 'present' ? ' active' : ''}`}
+                data-tip={t('modePresent')}
+                aria-haspopup="menu"
+                aria-expanded={presentOpen}
+                disabled={off}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setPresentOpen((v) => !v)}
+              >
+                <IconPlay size={ICON} />
+                <span>{t('modePresent')}</span>
+                <IconChevronDown size={14} />
+              </button>
+              {presentOpen && (
+                <div className="rb-menu" role="menu">
+                  {PRESENT_ITEMS.map(({ kind, label, Icon }) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      role="menuitem"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setPresentOpen(false)
+                        p.onPresent(kind)
+                      }}
+                    >
+                      <Icon size={16} />
+                      {t(label)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
+      <RibbonCollapseButton state={collapse} label={t('ribbonCollapse')} />
     </div>
   )
 }

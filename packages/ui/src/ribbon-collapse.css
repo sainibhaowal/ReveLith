@@ -1,0 +1,35 @@
+/* Collapsible-ribbon behavior. `useRibbonCollapse` puts `ribbon-collapsed` on
+ * the ribbon root, which folds the command band away and leaves the tab row —
+ * plus the chevron that brings it back. Apps hide the chevrons in chrome-free
+ * modes (Present) with their own rules. */
+
+.ribbon.ribbon-collapsed > .ribbon-body {
+  display: none;
+}
+
+.ribbon-collapse-button,
+.ribbon-expand-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ribbon-collapse-button:hover,
+.ribbon-expand-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ribbon-chevron {
+  pointer-events: none;
+}

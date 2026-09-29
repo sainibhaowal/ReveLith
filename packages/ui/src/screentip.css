@@ -11,8 +11,11 @@
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
   background: var(--surface, #1e1e22);
   color: var(--text-primary, #ffffff);
-  font: 500 12px/1.4 var(--gs-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  font: 500 12px/1.4
+    var(--ui-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
   pointer-events: none;
   visibility: hidden;
   /* some tips carry embedded newlines (e.g. pdf note pins: contents + hint) */

@@ -9,7 +9,9 @@ import type { ReactNode } from 'react'
 
 export {
   IconBullets,
+  IconCaret,
   IconNumbered,
+  IconOutlineView,
   IconIndentDec,
   IconIndentInc,
   IconTable,
@@ -19,6 +21,7 @@ export {
   IconUndo,
   IconRedo,
   IconCopy,
+  IconSpellcheck,
 } from '../../../../docs/src/renderer/components/icons'
 
 interface IconProps {
@@ -29,6 +32,16 @@ interface IconProps {
 function pinnedStroke(size: number): number {
   const painted = size >= 20 ? 1.5 : size >= 13 ? 1.25 : 1.1
   return (painted * 16) / size
+}
+
+/** find: a magnifier on the 16-grid */
+export function IconSearch(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="7" cy="7" r="4.2" />
+      <path d="m10.2 10.2 3.3 3.3" />
+    </Svg>
+  )
 }
 
 function Svg({ size = 20, children }: IconProps & { children: ReactNode }) {
@@ -70,16 +83,20 @@ export function IconHr(props: IconProps) {
   )
 }
 
+/* knobs sit at different offsets on purpose: three flush-left lines read as a
+ * hamburger/overflow menu, and left-aligned dots collide with IconBullets */
 export function IconProperties(props: IconProps) {
   return (
     <Svg {...props}>
-      <path d="M2.5 4.4h11M2.5 8h11M2.5 11.6h6.2" />
+      <path d="M2.2 4.6h11.6M2.2 11.4h11.6" />
+      <circle cx="10.2" cy="4.6" r="1.7" fill="currentColor" stroke="none" />
+      <circle cx="5.6" cy="11.4" r="1.7" fill="currentColor" stroke="none" />
     </Svg>
   )
 }
 
 /* ── table-menu glyphs: insert = explicit "+", delete = explicit "×" ──
- * (redrawn locally : the docs arrow variants read as "move" at 15px) */
+ * (redrawn locally — the docs arrow variants read as "move" at 15px) */
 
 export function IconRowInsertAbove(props: IconProps) {
   return (
@@ -177,13 +194,3 @@ export function IconQuoteMark(props: IconProps) {
     </Svg>
   )
 }
-
-export function IconFind(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <circle cx="6.5" cy="6.5" r="4.5" />
-      <path d="M10 10l4 4" />
-    </Svg>
-  )
-}
-

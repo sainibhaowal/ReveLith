@@ -45,6 +45,11 @@ import type {
 /** Max stored characters for a single tool input/output field */
 const TOOL_FIELD_MAX_CHARS = 16_000
 
+/** Max stored characters for a scope quote (display-only chip text) */
+const SCOPE_TEXT_MAX_CHARS = 4_000
+/** Max stored characters for a scope quote's location label */
+const SCOPE_LABEL_MAX_CHARS = 120
+
 function nowIso(): string {
   return new Date().toISOString()
 }
@@ -311,6 +316,17 @@ export class ProjectStore {
         }))
       }
       if (msg.attachments !== undefined) record.attachments = msg.attachments
+      if (msg.scope !== undefined) {
+        // display-only, but a huge quoted selection would still bloat the line
+        record.scope = {
+          ...(msg.scope.text !== undefined
+            ? { text: msg.scope.text.slice(0, SCOPE_TEXT_MAX_CHARS) }
+            : {}),
+          ...(msg.scope.label !== undefined
+            ? { label: msg.scope.label.slice(0, SCOPE_LABEL_MAX_CHARS) }
+            : {}),
+        }
+      }
 
       const key = this.seqKey(projectId, chatId)
       if (msg.role !== 'assistant' && !existsSync(this.chatPath(projectId, chatId))) {

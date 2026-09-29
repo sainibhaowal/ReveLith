@@ -1,4 +1,4 @@
-﻿import { createRequire } from 'node:module'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
@@ -12,7 +12,7 @@ const pdfjsRoot = dirname(dirname(require.resolve('pdfjs-dist/package.json')))
 const pdfjsDir = (sub: string) => normalizePath(join(pdfjsRoot, 'pdfjs-dist', sub))
 
 export default defineConfig({
-  // @revelith/i18n ships as TS source; pdf-lib's package only includes out/** : both must be bundled
+  // @revelith/i18n ships as TS source; pdf-lib's package only includes out/** — both must be bundled
   main: {
     plugins: [
       externalizeDepsPlugin({
@@ -26,7 +26,8 @@ export default defineConfig({
     ],
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@revelith/i18n'] })],
+    // i18n and electron-utils ship as TS source — must be bundled, not left external
+    plugins: [externalizeDepsPlugin({ exclude: ['@revelith/i18n', '@revelith/electron-utils'] })],
   },
   renderer: {
     plugins: [

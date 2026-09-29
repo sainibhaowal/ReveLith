@@ -1,20 +1,40 @@
 import type { AnyExtension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import { Markdown } from '@tiptap/markdown'
-import { TableKit } from '@tiptap/extension-table'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
+import { Table, TableKit } from '@tiptap/extension-table'
+import { OrderedList, TaskList } from '@tiptap/extension-list'
+import { LooseBulletList, LooseOrderedList, LooseTaskList } from './looseLists'
 import { CodeBlock } from '@tiptap/extension-code-block'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { Placeholder } from '@tiptap/extensions'
 import { CodeBlockView } from './CodeBlockView'
-import { LocalImage } from './localImage'
+import { ImageAwareLink, LocalImage } from './localImage'
 import { BlockDragHandle } from './blockDragHandle'
 import { BlockKeymap } from './blockKeymap'
 import { AiHighlight } from './aiHighlight'
-import { SearchHighlightExtension } from './searchHighlight'
+import { AiQueueAnchors } from './aiQueueAnchors'
+import { InactiveSelection } from './inactiveSelection'
+import { SearchHighlight } from './searchHighlight'
+import { buildMathExtensions } from './math'
+import {
+  BlockStartEscapedParagraph,
+  SelectiveEscapeMarkdown,
+  withTableRendering,
+} from './markdownEscape'
 import { SlashCommand } from './slashCommand'
+import {
+  CodeSpan,
+  renderFencedCode,
+  StyledBold,
+  StyledHardBreak,
+  StyledHeading,
+  StyledHorizontalRule,
+  StyledItalic,
+  StyledListItem,
+  StyledTaskItem,
+  renderTable,
+} from './markdownStyleRenderers'
+import { boundOrderedList, boundTable, boundTaskList } from './boundedTokenizers'
 import type { SlashController, SlashItem } from './slashCommand'
-import { TableWithPipeEscape } from './table-markdown'
 import { t } from '../i18n/locale'
 
 export interface BuildExtensionsOptions {
@@ -25,51 +45,87 @@ export interface BuildExtensionsOptions {
 export function buildExtensions(options: BuildExtensionsOptions): AnyExtension[] {
   return [
     StarterKit.configure({
-      // LocalImage replaces the plain image; links open externally via main-process guard
-      link: { openOnClick: false },
+      // re-added below: the image is inline, the link parser knows about it and the
+      // paragraph wraps lone images and escapes block-start syntax
+      link: false,
+      paragraph: false,
       // replaced by the NodeView-enhanced variant below (language picker + copy)
       codeBlock: false,
-      // underline would serialize as `++text++` : not part of GFM
+      // underline would serialize as `++text++` — not part of GFM
       underline: false,
+      // re-added below with a linear-time markdown tokenizer and a `loose` attribute
+      orderedList: false,
+      bulletList: false,
+      // re-added below with renderers that follow the document's own conventions
+      bold: false,
+      italic: false,
+      heading: false,
+      horizontalRule: false,
+      hardBreak: false,
+      listItem: false,
+      // re-added below: code after the other marks so it serializes innermost
+      code: false,
+    }),
+    BlockStartEscapedParagraph,
+    StyledBold,
+    StyledItalic,
+    CodeSpan,
+    StyledHeading,
+    StyledHorizontalRule,
+    StyledHardBreak,
+    StyledListItem,
+    LooseBulletList,
+    LooseOrderedList.extend({
+      markdownTokenizer: boundOrderedList(OrderedList.config.markdownTokenizer!),
     }),
     CodeBlock.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView)
       },
-      renderMarkdown: (node, h) => {
-        const language = node.attrs?.language || ''
-        const content = node.content ? h.renderChildren(node.content) : ''
-        // the fence must be longer than any backtick run inside the content,
-        // otherwise an inner ``` would terminate the block early and corrupt it
-        let fenceLen = 3
-        const runs = content.match(/`+/g)
-        if (runs) {
-          for (const run of runs) fenceLen = Math.max(fenceLen, run.length + 1)
+      // the stock handler only takes a fence at column 0; CommonMark allows 1-3 spaces
+      parseMarkdown: (token, h) => {
+        if (
+          !/^ {0,3}(?:`{3,}|~{3,})/.test(String(token.raw ?? '')) &&
+          token.codeBlockStyle !== 'indented'
+        ) {
+          return []
         }
-        const fence = '`'.repeat(fenceLen)
-        if (!node.content) {
-          return `${fence}${language}\n\n${fence}`
-        }
-        return [`${fence}${language}`, content, fence].join('\n')
+        return h.createNode(
+          'codeBlock',
+          { language: token.lang || null },
+          token.text ? [h.createTextNode(String(token.text))] : [],
+        )
       },
+      renderMarkdown: (node, h) =>
+        renderFencedCode(
+          String(node.attrs?.language ?? ''),
+          node.content ? h.renderChildren(node.content) : null,
+        ),
     }),
-    // 4-space nesting: the default 2 spaces is below the content column of
-    // ordered items ("1. " = 3), so strict CommonMark parsers (GitHub) would
-    // flatten sub-lists in the saved file. 4 is safe for every marker width.
-    Markdown.configure({ indentation: { style: 'space', size: 4 } }),
-    // column widths are not expressible in GFM tables : no resizable columns;
-    // the wrapper div gives wide tables a horizontal scrollbar.
-    // table rendering is overridden by TableWithPipeEscape (pipe-safe cells);
-    // the kit's built-in table is disabled to avoid a duplicate 'table' node.
+    SelectiveEscapeMarkdown,
+    // column widths are not expressible in GFM tables — no resizable columns;
+    // the wrapper div gives wide tables a horizontal scrollbar
     TableKit.configure({ table: false }),
-    TableWithPipeEscape.configure({ resizable: false, renderWrapper: true }),
-    TaskList,
-    TaskItem.configure({ nested: true }),
+    Table.extend({
+      markdownTokenizer: boundTable(Table.config.markdownTokenizer!),
+      renderMarkdown: (node, h, ctx) => withTableRendering(() => renderTable(node, h, ctx)),
+    }).configure({
+      resizable: false,
+      renderWrapper: true,
+    }),
+    LooseTaskList.extend({ markdownTokenizer: boundTaskList(TaskList.config.markdownTokenizer!) }),
+    StyledTaskItem.configure({ nested: true }),
+    // KaTeX-rendered $...$ / $$...$$ formulas (issue #100)
+    ...buildMathExtensions(),
     LocalImage,
+    // links open externally via main-process guard
+    ImageAwareLink.configure({ openOnClick: false }),
     BlockDragHandle,
     BlockKeymap,
     AiHighlight,
-    SearchHighlightExtension,
+    AiQueueAnchors,
+    InactiveSelection,
+    SearchHighlight,
     Placeholder.configure({ placeholder: () => t('placeholder') }),
     SlashCommand.configure({
       controller: options.slashController,

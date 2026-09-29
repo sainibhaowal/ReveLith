@@ -1,856 +1,1733 @@
-import { useState, useEffect, useRef } from 'react'
-import { Ribbon, type ViewLayout } from './components/Ribbon'
-import { LayerTree, parseDomToTree, type DomNodeInfo } from './components/LayerTree'
-import { ElementRestyler, type SelectedElementData } from './components/ElementRestyler'
-import { PresentMode } from './components/PresentMode'
-import { AiDesignModal, type AiDesignRequest } from './components/AiDesignModal'
-import { AiDocumentModal, type AiDocumentRequest } from './components/AiDocumentModal'
-import { AiSummaryModal } from './components/AiSummaryModal'
-import { buildDesignPrompt, buildDocumentPrompt, buildElementRefinePrompt } from './ai/generator'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  Dropdown,
+  FindPanel,
+  type FindFocusRequest,
+  type AiScopeQuoteData,
+  useAutoSavePref,
+  type FindPanelStrings,
+  type FindTarget,
+} from '@revelith/ui'
+import { pollUntilReady, runHeadlessRendererExport } from '@revelith/electron-utils/headless-export'
+import { useI18n } from './i18n/locale'
+import { parseDocText, serializeDocText, type Envelope } from './document/envelope'
+import { SourceEditor, type CursorInfo, type SourceEditorHandle } from './source/SourceEditor'
+import { PreviewFrame, type PreviewFrameHandle } from './preview/PreviewFrame'
+import { instrumentForPreview } from './preview/instrument'
+import type { ComputedSnapshot, ElementRect, FromInspector } from './preview/inspector-protocol'
+import inspectorSource from './preview/inspector.js?raw'
+import { AiPanel, ReveLithMark, type AiPreset, type HtmlAiDeps } from './ai/AiPanel'
 import { exportHtmlToDocxBytes, bytesToBase64 } from './export/htmlDocxExport'
+import { AiAskPopover, type AnchorRect, type AskMode } from './components/AiAskPopover'
+import {
+  EDIT_QUEUE_MAX,
+  buildSelectionInstruction,
+  excerptOf,
+  resolveQueueItem,
+  type EditQueueItem,
+} from './ai/edit-queue'
+import { Breadcrumb, type NodeState } from './components/Breadcrumb'
+import {
+  Ribbon,
+  type PresentKind,
+  VIEW_MODES,
+  type CanvasMode,
+  type ViewMode,
+} from './components/Ribbon'
+import { CropDialog, CutoutDialog, type ImageDialogLabels } from '@revelith/ui'
+import { FloatToolbar } from './components/FloatToolbar'
+import {
+  insertOp,
+  insertPresetHtml,
+  type InsertOptions,
+  TEXT_INSERT_KINDS,
+  type InsertKind,
+} from './document/insert-presets'
+import { moveTarget } from './document/move-target'
+import { StylePanel } from './components/StylePanel'
+import { floatPosition, parseDeclarations } from './document/float-position'
+import {
+  buildParseMap,
+  childrenOf,
+  elementCovering,
+  sourceText,
+  type ParseMap,
+} from './document/parse-map'
+import { compileOps, type HtmlOp, type OpError } from './document/ops'
+import { injectBrief, parseBrief, type Brief } from './document/brief'
+import { applyPatches } from './document/patch'
+import { adoptImageRewrites } from './document/image-rewrites'
+import { deriveAutoFileName, deriveNameFromPrompt, derivePageTitleName } from './document/auto-name'
+import type { ExportFormat, SaveMode } from '../shared/ipc'
 
-const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>ReveLith HTML</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      margin: 0;
-      padding: 40px 20px;
-      background: #0f172a;
-      color: #f8fafc;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      box-sizing: border-box;
-    }
-    .hero {
-      max-width: 800px;
-      text-align: center;
-      margin-top: 40px;
-    }
-    h1 {
-      font-size: 3rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, #f43f5e 0%, #3b82f6 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 16px;
-    }
-    p.lead {
-      font-size: 1.25rem;
-      color: #94a3b8;
-      line-height: 1.6;
-      margin-bottom: 32px;
-    }
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 20px;
-      width: 100%;
-      max-width: 840px;
-      margin-top: 40px;
-    }
-    .card {
-      background: rgba(30, 41, 59, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 24px;
-      backdrop-filter: blur(10px);
-      transition: transform 0.2s, border-color 0.2s;
-    }
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: #3b82f6;
-    }
-    .card h3 {
-      font-size: 1.2rem;
-      color: #38bdf8;
-      margin-top: 0;
-      margin-bottom: 8px;
-    }
-    .card p {
-      font-size: 0.95rem;
-      color: #cbd5e1;
-      line-height: 1.5;
-    }
-  </style>
-</head>
-<body>
-  <div class="hero">
-    <h1>ReveLith HTML</h1>
-    <p class="lead">Create and edit interactive HTML files with AI in two modes: AI Design for visual pages and AI Document for long-form reading.</p>
-  </div>
-  <div class="cards-grid">
-    <div class="card">
-      <h3>🎨 AI Design</h3>
-      <p>Build visual landing pages, interactive dashboards, and slide decks from a brief with style directions.</p>
-    </div>
-    <div class="card">
-      <h3>📝 AI Document</h3>
-      <p>Generate beautifully formatted, structured articles, reports, and documentation as native HTML.</p>
-    </div>
-    <div class="card">
-      <h3>🔍 Click-to-Restyle</h3>
-      <p>Click any element in this live preview to inspect, restyle, or ask AI to change just that part.</p>
-    </div>
-  </div>
-</body>
-</html>`
+type LoadStatus = 'loading' | 'ready' | 'error'
+type SaveState = 'idle' | 'saving' | 'saved' | 'failed'
 
-// Script injected into the preview iframe to support element selection, click-to-restyle, and highlight
-const INJECTED_PREVIEW_SCRIPT = `
-<script>
-(function() {
-  let selectedEl = null;
-  const overlay = document.createElement('div');
-  overlay.id = '__revelith_highlight_overlay';
-  overlay.style.position = 'absolute';
-  overlay.style.pointerEvents = 'none';
-  overlay.style.border = '2px solid #3b82f6';
-  overlay.style.background = 'rgba(59, 130, 246, 0.1)';
-  overlay.style.zIndex = '999999';
-  overlay.style.transition = 'all 0.1s ease-out';
-  overlay.style.display = 'none';
-  document.documentElement.appendChild(overlay);
+interface TextSel {
+  sid: number
+  textNodeIndex: number
+  start: number
+  end: number
+}
 
-  function updateOverlay(el) {
-    if (!el) { overlay.style.display = 'none'; return; }
-    const rect = el.getBoundingClientRect();
-    overlay.style.left = (rect.left + window.scrollX) + 'px';
-    overlay.style.top = (rect.top + window.scrollY) + 'px';
-    overlay.style.width = rect.width + 'px';
-    overlay.style.height = rect.height + 'px';
-    overlay.style.display = 'block';
+const MIN_ZOOM = 50
+const MAX_ZOOM = 200
+const ZOOM_STEP = 10
+const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
+const inTextField = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  !!target.closest('.cm-editor, input, textarea, [contenteditable=""], [contenteditable="true"]')
+const PREVIEW_DEBOUNCE_MS = 150
+const DEFAULT_ENVELOPE: Envelope = { bom: false, eol: '\n', trailingNewline: true }
+/** live style pokes are written to the source as one set_style op this long after the last change */
+const STYLE_COMMIT_MS = 600
+type Device = 'desktop' | 'tablet' | 'mobile'
+const DEVICES: Device[] = ['desktop', 'tablet', 'mobile']
+/** document scaffolding: selectable in the source, never a target for element ops */
+const STRUCTURAL = new Set(['html', 'head', 'body'])
+const IS_MAC = /Mac/i.test(navigator.platform)
+
+function readViewMode(): ViewMode {
+  const stored = localStorage.getItem('htmlapp.viewMode')
+  return VIEW_MODES.includes(stored as ViewMode) ? (stored as ViewMode) : 'preview'
+}
+
+function isDarkTheme(): boolean {
+  const explicit = document.documentElement.getAttribute('data-theme')
+  if (explicit === 'dark') return true
+  if (explicit === 'light') return false
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+/** picture bytes as a data URL: inline data, a remote URL through the main-process fetcher, or a file next to the document */
+async function loadImageDataUrl(src: string): Promise<string | null> {
+  if (/^data:image\//i.test(src)) return src
+  if (/^https?:/i.test(src)) {
+    const r = await window.htmlApi.fetchImage(src)
+    return r ? `data:${r.mime};base64,${r.base64}` : null
   }
-
-  document.addEventListener('click', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    selectedEl = e.target;
-    updateOverlay(selectedEl);
-
-    const comp = window.getComputedStyle(selectedEl);
-    window.parent.postMessage({
-      type: 'revelith:element-selected',
-      tagName: selectedEl.tagName.toLowerCase(),
-      id: selectedEl.id || undefined,
-      className: selectedEl.className || undefined,
-      outerHtml: selectedEl.outerHTML,
-      innerText: selectedEl.innerText || '',
-      styles: {
-        color: comp.color,
-        backgroundColor: comp.backgroundColor,
-        fontSize: comp.fontSize,
-        fontWeight: comp.fontWeight,
-        textAlign: comp.textAlign,
-        padding: comp.padding,
-        margin: comp.margin,
-        borderRadius: comp.borderRadius,
-        display: comp.display,
-        width: comp.width,
-        height: comp.height
-      }
-    }, '*');
-  }, true);
-
-  window.addEventListener('message', function(e) {
-    if (!e.data) return;
-    if (e.data.type === 'revelith:highlight-selector') {
-      const el = document.querySelector(e.data.selector);
-      if (el) {
-        selectedEl = el;
-        updateOverlay(el);
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    } else if (e.data.type === 'revelith:apply-style' && selectedEl) {
-      selectedEl.style[e.data.property] = e.data.value;
-      updateOverlay(selectedEl);
-      window.parent.postMessage({
-        type: 'revelith:html-updated',
-        html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML
-      }, '*');
-    } else if (e.data.type === 'revelith:update-text' && selectedEl) {
-      selectedEl.innerText = e.data.text;
-      updateOverlay(selectedEl);
-      window.parent.postMessage({
-        type: 'revelith:html-updated',
-        html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML
-      }, '*');
-    } else if (e.data.type === 'revelith:delete-element' && selectedEl) {
-      selectedEl.remove();
-      selectedEl = null;
-      updateOverlay(null);
-      window.parent.postMessage({
-        type: 'revelith:html-updated',
-        html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML
-      }, '*');
-    } else if (e.data.type === 'revelith:duplicate-element' && selectedEl) {
-      const clone = selectedEl.cloneNode(true);
-      selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
-      updateOverlay(selectedEl);
-      window.parent.postMessage({
-        type: 'revelith:html-updated',
-        html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML
-      }, '*');
-    } else if (e.data.type === 'revelith:replace-selected-html' && selectedEl) {
-      const temp = document.createElement('div');
-      temp.innerHTML = e.data.html;
-      if (temp.firstElementChild) {
-        selectedEl.parentNode.replaceChild(temp.firstElementChild, selectedEl);
-        selectedEl = temp.firstElementChild;
-        updateOverlay(selectedEl);
-        window.parent.postMessage({
-          type: 'revelith:html-updated',
-          html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML
-        }, '*');
-      }
-    }
-  });
-
-  window.addEventListener('resize', () => updateOverlay(selectedEl));
-  window.addEventListener('scroll', () => updateOverlay(selectedEl));
-})();
-</script>
-`
+  if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return null
+  const r = await window.htmlApi.readImage(src)
+  return r ? `data:${r.mime};base64,${r.base64}` : null
+}
 
 export default function App() {
-  const [html, setHtml] = useState(DEFAULT_STARTER_HTML)
-  const [filePath, setFilePath] = useState<string | null>(null)
-  const [dirty, setDirty] = useState(false)
-  const [viewLayout, setViewLayout] = useState<ViewLayout>('preview')
-  const [showLayers, setShowLayers] = useState(true)
-  const [showInspector, setShowInspector] = useState(true)
-  const [showPresent, setShowPresent] = useState(false)
-  const [designModalOpen, setDesignModalOpen] = useState(false)
-  const [documentModalOpen, setDocumentModalOpen] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [designError, setDesignError] = useState<string | null>(null)
-  const [documentError, setDocumentError] = useState<string | null>(null)
-  const [refineError, setRefineError] = useState<string | null>(null)
-  const [summaryOpen, setSummaryOpen] = useState(false)
-  const [summaryText, setSummaryText] = useState('')
-  const [summaryError, setSummaryError] = useState<string | null>(null)
-  const [summarizing, setSummarizing] = useState(false)
-  /** in-flight ai:stream request id so the user can cancel it mid-run */
-  const cancelRef = useRef<string | null>(null)
-
-  const handleCancelAi = () => {
-    const requestId = cancelRef.current
-    cancelRef.current = null
-    setIsGenerating(false)
-    setSummarizing(false)
-    if (requestId && window.htmlApi) {
-      void window.htmlApi.aiStreamCancel(requestId).catch(() => {})
-    }
-  }
-
-  const [selectedSelector, setSelectedSelector] = useState<string | null>(null)
-  const [selectedElement, setSelectedElement] = useState<SelectedElementData | null>(null)
-  const [domTree, setDomTree] = useState<DomNodeInfo | null>(null)
-
-  const [autoSave, setAutoSave] = useState(() => localStorage.getItem('htmlapp.autoSave') === '1')
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-
-  // Parse HTML into DOM tree whenever html changes
+  const { lang, t } = useI18n()
+  const [status, setStatus] = useState<LoadStatus>('loading')
+  const [path, setPath] = useState<string | null>(null)
+  const [text, setText] = useState('')
+  const [savedText, setSavedText] = useState('')
+  const [saveState, setSaveState] = useState<SaveState>('idle')
+  const [view, setView] = useState<ViewMode>(readViewMode)
+  const [canvasMode, setCanvasModeState] = useState<CanvasMode>('edit')
+  /** Present → Fullscreen: the presenting view also takes the whole screen */
+  const [presentFull, setPresentFull] = useState(false)
+  const [zoom, setZoom] = useState(100)
+  const [autoSave, setAutoSave] = useAutoSavePref('htmlapp.autoSave', window.htmlApi)
+  const [findTarget, setFindTarget] = useState<FindTarget | null>(null)
+  const [findFocus, setFindFocus] = useState<FindFocusRequest>({ field: 'find', nonce: 0 })
+  const [cursor, setCursor] = useState<CursorInfo>({ line: 1, col: 1, pos: 0 })
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewNonce, setPreviewNonce] = useState(0)
+  const [draftHtml, setDraftHtml] = useState<string | null>(null)
+  const [historyState, setHistoryState] = useState({ undo: false, redo: false })
+  const [aiOpen, setAiOpen] = useState(() => localStorage.getItem('htmlapp.showAi') !== '0')
+  const [aiPreset, setAiPreset] = useState<AiPreset | null>(null)
+  const [editQueue, setEditQueue] = useState<EditQueueItem[]>([])
+  const [askMode, setAskMode] = useState<AskMode | null>(null)
+  const [selectedSid, setSelectedSid] = useState<number | null>(null)
+  const [selectedState, setSelectedState] = useState<NodeState>('static')
+  const [textSel, setTextSel] = useState<TextSel | null>(null)
+  const wrapSelectionRef = useRef<(tag: string) => void>(() => {})
+  const moveSelectedRef = useRef<(dir: -1 | 1) => void>(() => {})
+  // selected element as the preview sees it: drives the floating toolbar and the style panel
+  const [selRect, setSelRect] = useState<ElementRect | null>(null)
+  const [selComputed, setSelComputed] = useState<ComputedSnapshot | null>(null)
+  const [selText, setSelText] = useState<{
+    run: string | null
+    index: number
+    /** the element edits inline (single run or rich phrasing content) */
+    editable: boolean
+  }>({
+    run: null,
+    index: -1,
+    editable: false,
+  })
+  const [pendingCount, setPendingCount] = useState(0)
+  const [barSize, setBarSize] = useState({ w: 440, h: 32 })
+  const [stageTick, setStageTick] = useState(0)
+  const [device, setDevice] = useState<Device>(() => {
+    const stored = localStorage.getItem('htmlapp.device')
+    return DEVICES.includes(stored as Device) ? (stored as Device) : 'desktop'
+  })
+  const [panelOpen, setPanelOpen] = useState(
+    () => localStorage.getItem('htmlapp.stylePanel') !== '0',
+  )
+  const [panelDismissedSid, setPanelDismissedSid] = useState<number | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  /** a resize / reorder drag is in progress inside the frame: the floating chrome would only get in the way */
+  const [dragging, setDragging] = useState(false)
+  /** freshly inserted text element: opens for typing once the reloaded frame reports ready */
+  const editAfterLoadRef = useRef<number | null>(null)
+  const insertedSidRef = useRef<number | null>(null)
+  const previewStyleRef = useRef<(styles: Record<string, string | null>) => void>(() => {})
+  // a release over the host chrome (or a window switch) never reaches the frame's listeners
   useEffect(() => {
-    try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(html, 'text/html')
-      const tree = parseDomToTree(doc.body || doc.documentElement)
-      setDomTree(tree)
-    } catch {}
-  }, [html])
-
-  // Listen to messages from the preview iframe
-  useEffect(() => {
-    const handleMessage = (e: MessageEvent) => {
-      if (!e.data) return
-      if (e.data.type === 'revelith:element-selected') {
-        setSelectedElement({
-          tagName: e.data.tagName,
-          id: e.data.id,
-          className: e.data.className,
-          outerHtml: e.data.outerHtml,
-          innerText: e.data.innerText,
-          styles: e.data.styles,
-        })
-        setShowInspector(true)
-      } else if (e.data.type === 'revelith:html-updated') {
-        setHtml(e.data.html)
-        setDirty(true)
-        window.htmlApi?.notifyDirty(true)
-      }
-    }
-    window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [])
-
-  // Initial load
-  useEffect(() => {
-    if (!window.htmlApi) return
-    window.htmlApi.consumePendingOpen().then(async ({ path }) => {
-      if (path) {
-        setFilePath(path)
-        const content = await window.htmlApi.readFile(path)
-        setHtml(content)
-      }
-    })
-    const offRenamed = window.htmlApi.onFileRenamed((newPath) => setFilePath(newPath))
-    const offSaveReq = window.htmlApi.onSaveRequest((mode) => {
-      void handleSave(mode).then((ok) => window.htmlApi.sendSaveRequestAck(ok))
-    })
-    const offCloseReq = window.htmlApi.onCloseSaveRequest(() => {
-      void handleSave('save').then((ok) => window.htmlApi.sendCloseSaveResult(ok))
-    })
+    if (!dragging) return
+    const end = () => previewRef.current?.post({ type: 'gx:endDrag' })
+    window.addEventListener('mouseup', end, true)
+    window.addEventListener('blur', end)
     return () => {
-      offRenamed()
-      offSaveReq()
-      offCloseReq()
+      window.removeEventListener('mouseup', end, true)
+      window.removeEventListener('blur', end)
     }
+  }, [dragging])
+  const [pictureDialog, setPictureDialog] = useState<{
+    kind: 'crop' | 'cutout'
+    sid: number
+    /** authored src at open time: the result only lands on an <img> that still carries it */
+    src: string
+    image: string
+  } | null>(null)
+
+  const editorRef = useRef<SourceEditorHandle>(null)
+  const previewRef = useRef<PreviewFrameHandle>(null)
+  const envelopeRef = useRef<Envelope>(DEFAULT_ENVELOPE)
+  const textRef = useRef('')
+  const savedTextRef = useRef('')
+  const savingRef = useRef(false)
+  const statusRef = useRef<LoadStatus>('loading')
+  const pushedTextRef = useRef<string | null>(null)
+  const previewTimerRef = useRef<number | null>(null)
+  /** parse-map version of the copy currently served to the preview; messages from older copies are ignored */
+  const pushedVersionRef = useRef(-1)
+  /** versions whose sids the running frame still describes: the loaded copy plus every in-place commit since
+   * (style / text edits the frame already showed; they leave the element structure, and so the sids, alone) */
+  const frameVersionsRef = useRef<Set<number>>(new Set())
+  /** window scroll of the running frame, restored after an edit reloads it */
+  const frameScrollRef = useRef<number | null>(null)
+  /** bumped on every text change; AI staleness checks compare against lastManualVersionRef */
+  const versionRef = useRef(0)
+  const lastManualVersionRef = useRef(0)
+  const mapRef = useRef<ParseMap | null>(null)
+  const mapSourceRef = useRef('')
+  const pathRef = useRef<string | null>(null)
+  const selectedSidRef = useRef<number | null>(null)
+  const editQueueRef = useRef<EditQueueItem[]>([])
+  const canvasModeRef = useRef<CanvasMode>('edit')
+  const queueSeqRef = useRef(0)
+  /** brief confirmed on the AI card; pinned into the head of the next generated document */
+  const briefRef = useRef<Brief | null>(null)
+  /** name taken from the first AI request of an untitled document: tab title now, file name at the first save */
+  const provisionalNameRef = useRef<string | null>(null)
+  const pendingStylesRef = useRef<Record<string, string | null>>({})
+  const styleTimerRef = useRef<number | null>(null)
+  const flushingStylesRef = useRef(false)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
+  pathRef.current = path
+  textRef.current = text
+  editQueueRef.current = editQueue
+  canvasModeRef.current = canvasMode
+  savedTextRef.current = savedText
+  statusRef.current = status
+  selectedSidRef.current = selectedSid
+  const dirty = text !== savedText
+
+  const getMap = useCallback((): ParseMap => {
+    const cached = mapRef.current
+    // the initial load swaps the text without bumping the version, so the source itself is part of the key
+    if (cached && cached.version === versionRef.current && mapSourceRef.current === textRef.current)
+      return cached
+    const next = buildParseMap(textRef.current, versionRef.current, cached)
+    mapRef.current = next
+    mapSourceRef.current = textRef.current
+    return next
   }, [])
 
-  // AutoSave persistence
   useEffect(() => {
-    localStorage.setItem('htmlapp.autoSave', autoSave ? '1' : '0')
-  }, [autoSave])
-
-  const handleSave = async (mode: 'save' | 'saveAs' = 'save'): Promise<boolean> => {
-    if (!window.htmlApi) return false
-    const res = await window.htmlApi.save({
-      html,
-      mode,
-      suggestedName: filePath ? undefined : 'ReveLith_Document',
-    })
-    if (res.ok && 'path' in res) {
-      setFilePath(res.path)
-      setDirty(false)
-      window.htmlApi.notifyDirty(false)
-      return true
+    let cancelled = false
+    void (async () => {
+      try {
+        const [pending, info] = await Promise.all([
+          window.htmlApi.consumePending(),
+          window.htmlApi.getPreviewInfo(),
+        ])
+        const raw = pending ? await window.htmlApi.readFile(pending) : ''
+        if (cancelled) return
+        const doc = parseDocText(raw)
+        envelopeRef.current = doc.envelope
+        textRef.current = doc.text
+        // the frame must never race the first push: serve the buffer before the URL is known to React
+        const map0 = getMap()
+        window.htmlApi.updatePreview(instrumentForPreview(doc.text, map0, inspectorSource))
+        pushedTextRef.current = doc.text
+        pushedVersionRef.current = map0.version
+        frameVersionsRef.current = new Set([map0.version])
+        frameScrollRef.current = null
+        setPath(pending)
+        setText(doc.text)
+        setSavedText(doc.text)
+        setPreviewUrl(info.url)
+        setStatus('ready')
+      } catch (err) {
+        console.error('[html] open failed:', err)
+        if (!cancelled) setStatus('error')
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-    return false
-  }
+  }, [getMap])
 
-  // Restyler handlers
-  const handleApplyStyle = (property: string, value: string) => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        type: 'revelith:apply-style',
-        property,
-        value,
-      },
-      '*',
-    )
-  }
+  // mirror dirtiness to the main process (close prompt) — untitled blank docs never count
+  useEffect(() => {
+    if (status !== 'ready') return
+    window.htmlApi.setDirty(dirty || pendingCount > 0)
+  }, [dirty, pendingCount, status])
 
-  const handleUpdateText = (text: string) => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        type: 'revelith:update-text',
-        text,
-      },
-      '*',
-    )
-  }
+  /**
+   * Serve the current source to html-preview://. `reload` = false for a commit the frame already
+   * displays (a style poke or an inline text edit it made itself): the buffer is refreshed so the
+   * next real reload and exports see it, but the running frame stays, without the flash and the
+   * scroll jump of a reload, and keeps talking under its own (older) version.
+   */
+  const pushPreview = useCallback(
+    (nextText: string, reload = true) => {
+      if (previewTimerRef.current !== null) {
+        window.clearTimeout(previewTimerRef.current)
+        previewTimerRef.current = null
+      }
+      if (pushedTextRef.current === nextText) return
+      const map = getMap()
+      window.htmlApi.updatePreview(instrumentForPreview(nextText, map, inspectorSource))
+      pushedTextRef.current = nextText
+      pushedVersionRef.current = map.version
+      if (reload) {
+        frameVersionsRef.current = new Set([map.version])
+        setPreviewNonce((n) => n + 1)
+      } else frameVersionsRef.current.add(map.version)
+    },
+    [getMap],
+  )
+  // push the instrumented buffer to html-preview:// and reload the frame, debounced per keystroke
+  useEffect(() => {
+    if (status !== 'ready' || pushedTextRef.current === text) return
+    if (previewTimerRef.current !== null) window.clearTimeout(previewTimerRef.current)
+    previewTimerRef.current = window.setTimeout(() => {
+      previewTimerRef.current = null
+      pushPreview(text)
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => {
+      if (previewTimerRef.current !== null) {
+        window.clearTimeout(previewTimerRef.current)
+        previewTimerRef.current = null
+      }
+    }
+  }, [text, status, pushPreview])
 
-  const handleDeleteElement = () => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        type: 'revelith:delete-element',
-      },
-      '*',
-    )
-    setSelectedElement(null)
-  }
+  useEffect(() => {
+    localStorage.setItem('htmlapp.viewMode', view)
+  }, [view])
+  const frameMode = (mode: CanvasMode) => (mode === 'edit' ? 'inspect' : 'browse')
+  const prevCanvasModeRef = useRef(canvasMode)
+  useEffect(() => {
+    // a presentation lets links navigate the frame; coming back reloads the instrumented document
+    if (prevCanvasModeRef.current === 'present' && canvasMode !== 'present')
+      setPreviewNonce((n) => n + 1)
+    prevCanvasModeRef.current = canvasMode
+    previewRef.current?.post({ type: 'gx:setMode', mode: frameMode(canvasMode) })
+  }, [canvasMode])
 
-  const handleDuplicateElement = () => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        type: 'revelith:duplicate-element',
-      },
-      '*',
-    )
-  }
+  useEffect(() => {
+    localStorage.setItem('htmlapp.showAi', aiOpen ? '1' : '0')
+  }, [aiOpen])
 
-  // Targeted "Ask AI to change just this part"
-  const handleAskAiOnElement = async (instruction: string) => {
-    if (!selectedElement || !window.htmlApi) return
-    setIsGenerating(true)
-    setRefineError(null)
-    const prompt = buildElementRefinePrompt(selectedElement.outerHtml, instruction)
-    let buffer = ''
-    let runError: string | null = null
-    try {
-      const requestId = `ai-refine-${Date.now()}`
-      cancelRef.current = requestId
-      const offStream = window.htmlApi.onAiStream((chunk) => {
-        if (chunk.requestId !== requestId) return
-        if (chunk.text) buffer += chunk.text
-        else if (chunk.type === 'error') runError = chunk.error || 'The AI request failed.'
-      })
-      const settings = await window.htmlApi.getAiSettings()
-      await window.htmlApi.aiStream({
-        requestId,
-        settings,
-        system: 'You are an expert web UI engineer. Return only clean HTML.',
-        messages: [{ role: 'user', text: prompt }],
-      })
-      offStream()
-      if (runError && !buffer.trim()) {
-        setRefineError(runError)
+  useEffect(() => {
+    localStorage.setItem('htmlapp.device', device)
+  }, [device])
+
+  useEffect(() => {
+    localStorage.setItem('htmlapp.stylePanel', panelOpen ? '1' : '0')
+  }, [panelOpen])
+
+  // the device host is centred in the stage: any stage resize (split view, AI dock, device) moves it
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage || status !== 'ready') return
+    const ro = new ResizeObserver(() => setStageTick((n) => n + 1))
+    ro.observe(stage)
+    return () => ro.disconnect()
+  }, [status])
+
+  useLayoutEffect(() => {
+    const el = barRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    if (r.width && (r.width !== barSize.w || r.height !== barSize.h))
+      setBarSize({ w: r.width, h: r.height })
+  }, [selRect, selText.run, barSize.w, barSize.h])
+
+  useEffect(() => {
+    if (!notice) return
+    const id = window.setTimeout(() => setNotice(null), 4000)
+    return () => window.clearTimeout(id)
+  }, [notice])
+
+  const refreshHistory = useCallback(() => {
+    const editor = editorRef.current
+    if (editor) setHistoryState({ undo: editor.canUndo(), redo: editor.canRedo() })
+  }, [])
+
+  /** every text change goes through here so the version counter and the map cache stay coherent */
+  const commitText = useCallback(
+    (next: string, manual: boolean, preservePending = false) => {
+      textRef.current = next
+      versionRef.current += 1
+      if (manual) lastManualVersionRef.current = versionRef.current
+      // text-range coordinates never survive a document change
+      setTextSel(null)
+      // any other document change reloads the preview and drops the live pokes; forget them too rather than
+      // committing them later against sids the rebuilt parse map may have reassigned
+      if (!flushingStylesRef.current && !preservePending) {
+        if (styleTimerRef.current !== null) window.clearTimeout(styleTimerRef.current)
+        styleTimerRef.current = null
+        pendingStylesRef.current = {}
+        setPendingCount(0)
+      }
+      setText(next)
+      refreshHistory()
+    },
+    [refreshHistory],
+  )
+
+  const onEditorChange = useCallback(
+    (next: string) => {
+      editorRef.current?.clearHighlights()
+      commitText(next, true)
+    },
+    [commitText],
+  )
+
+  /** compile + apply one batch; manual batches are not highlighted and count as user edits for AI staleness */
+  const applyOps = useCallback(
+    (
+      ops: HtmlOp[],
+      manual: boolean,
+    ): { ok: true; ranges: Array<[number, number]> } | { ok: false; errors: OpError[] } => {
+      const base = textRef.current
+      const compiled = compileOps(base, getMap(), ops)
+      if (compiled.errors.length > 0) return { ok: false, errors: compiled.errors }
+      const editor = editorRef.current
+      const ranges = editor
+        ? editor.applyPatches(compiled.patches, !manual)
+        : compiled.patches.map((p) => [p.from, p.from + p.text.length] as [number, number])
+      commitText(applyPatches(base, compiled.patches), manual)
+      return { ok: true, ranges }
+    },
+    [commitText, getMap],
+  )
+
+  const flushStylesRef = useRef<(() => void) | null>(null)
+  const flushDraftsRef = useRef<(() => void) | null>(null)
+  /** land live style pokes and open panel drafts in the source before anything reads, saves or edits it */
+  const flushPending = useCallback(() => {
+    flushDraftsRef.current?.()
+    flushStylesRef.current?.()
+  }, [])
+
+  const replaceAll = useCallback(
+    (html: string, highlight: boolean) => {
+      flushPending()
+      // a generated document carries the confirmed brief so later turns (and re-opens) stay anchored to it
+      const pinned =
+        highlight && briefRef.current && !parseBrief(html)
+          ? injectBrief(html, briefRef.current)
+          : html
+      editorRef.current?.replaceDoc(pinned, highlight)
+      // a new page, not an edit of the one on screen: it opens at the top
+      frameScrollRef.current = null
+      commitText(pinned, false)
+    },
+    [commitText, flushPending],
+  )
+
+  /** apply a toolbar/inspector batch; the selection follows the edited element (or clears when it is gone) */
+  const runManual = useCallback(
+    (
+      ops: HtmlOp[],
+      follow: 'reselect' | 'clear' | 'keep' | 'inserted' = 'reselect',
+      opts: {
+        /** the frame already shows exactly this result (its own inline edit / live style): no reload */
+        inPlace?: boolean
+      } = {},
+    ) => {
+      // live style pokes and open panel drafts are written first, while their sid still names the element they were made on
+      flushPending()
+      const before = selectedSidRef.current
+      const r = applyOps(ops, true)
+      if (!r.ok) {
+        setNotice(r.errors[0]?.message ?? 'edit rejected')
+        return false
+      }
+      if (opts.inPlace) pushPreview(textRef.current, false)
+      if (follow === 'clear') {
+        selectSidRef.current?.(null, {})
+        return true
+      }
+      if (follow === 'inserted' || (follow === 'reselect' && before !== null)) {
+        const map = getMap()
+        // sids are matched by path, so after a move / rename / replace the old sid may now name the
+        // sibling that took the old position; re-derive the target from the largest applied range
+        const relocates = ops.some(
+          (o) => o.op === 'move' || o.op === 'set_tag' || o.op === 'replace_element',
+        )
+        const widest = r.ranges.reduce<[number, number] | null>(
+          (best, cur) => (!best || cur[1] - cur[0] > best[1] - best[0] ? cur : best),
+          null,
+        )
+        // moved chunks carry their line's indentation and newline; trim so the covering
+        // element is the moved element itself, not its parent
+        const trimmed = (() => {
+          if (!widest) return null
+          const src = textRef.current
+          let [a, b] = widest
+          while (a < b && /\s/.test(src[a]!)) a++
+          while (b > a && /\s/.test(src[b - 1]!)) b--
+          return [a, b] as [number, number]
+        })()
+        const covering = trimmed ? elementCovering(map, trimmed[0], trimmed[1]) : null
+        if (follow === 'inserted') {
+          const target = covering && !STRUCTURAL.has(covering.tag) ? covering.sid : null
+          insertedSidRef.current = target
+          selectSidRef.current?.(target, { reveal: true })
+          return true
+        }
+        if (relocates && trimmed) {
+          selectSidRef.current?.(covering && !STRUCTURAL.has(covering.tag) ? covering.sid : null, {
+            reveal: true,
+          })
+        } else if (before !== null && !map.bySid.has(before)) {
+          selectSidRef.current?.(covering && !STRUCTURAL.has(covering.tag) ? covering.sid : null, {
+            reveal: true,
+          })
+        }
+      }
+      return true
+    },
+    [applyOps, getMap, flushPending, pushPreview],
+  )
+
+  // ── selection model: one current element shared by the preview, the source pane, the toolbar and the AI ──
+
+  const selectSidRef = useRef<
+    | ((
+        sid: number | null,
+        opts: { reveal?: boolean; toPreview?: boolean; state?: NodeState },
+      ) => void)
+    | null
+  >(null)
+
+  const selectSid = useCallback(
+    (
+      sid: number | null,
+      opts: { reveal?: boolean; toPreview?: boolean; state?: NodeState } = {},
+    ) => {
+      if (sid !== selectedSidRef.current) flushPending()
+      setSelectedSid(sid)
+      setSelectedState(opts.state ?? 'static')
+      setTextSel(null)
+      // geometry, styles and text run all belong to the previous element; the frame re-reports them via gx:rect
+      setSelRect(null)
+      setSelComputed(null)
+      setSelText({ run: null, index: -1, editable: false })
+      if (opts.toPreview !== false) previewRef.current?.post({ type: 'gx:select', sid })
+      if (sid !== null && opts.reveal) {
+        const e = getMap().bySid.get(sid)
+        if (e) editorRef.current?.revealRange(e.range[0], e.range[1], false)
+      }
+    },
+    [getMap, flushPending],
+  )
+  selectSidRef.current = selectSid
+
+  /** numbered pins for queued edits; stale items (element gone) get no pin */
+  const postMarks = useCallback(() => {
+    const items = canvasModeRef.current === 'present' ? [] : editQueueRef.current
+    // no getMap() before the document is loaded: it would cache an empty map under version 0
+    const map = items.length ? getMap() : null
+    const src = textRef.current
+    // one pin per element; several queued edits on the same element share it and list their ordinals
+    const bySid = new Map<number, string[]>()
+    items.forEach((item, i) => {
+      const target = map && resolveQueueItem(src, map, item).target
+      if (target) bySid.set(target.sid, [...(bySid.get(target.sid) ?? []), String(i + 1)])
+    })
+    const marks = [...bySid].map(([sid, ordinals]) => ({ sid, label: ordinals.join('·') }))
+    previewRef.current?.post({ type: 'gx:mark', marks })
+  }, [getMap])
+  useEffect(postMarks, [editQueue, canvasMode, postMarks])
+
+  const onInspectorMessage = useCallback(
+    (msg: FromInspector) => {
+      // a click that lands while the frame is reloading carries sids from the previous copy
+      if (!frameVersionsRef.current.has(msg.version)) return
+      switch (msg.type) {
+        case 'gx:ready': {
+          previewRef.current?.post({ type: 'gx:theme', dark: isDarkTheme() })
+          previewRef.current?.post({ type: 'gx:setMode', mode: frameMode(canvasModeRef.current) })
+          // an edit reloaded the page under the reader: put it back where it was before selecting
+          if (frameScrollRef.current !== null)
+            previewRef.current?.post({ type: 'gx:scrollTo', y: frameScrollRef.current })
+          const sid = selectedSidRef.current
+          if (sid !== null) previewRef.current?.post({ type: 'gx:select', sid })
+          if (editAfterLoadRef.current !== null && editAfterLoadRef.current === sid)
+            previewRef.current?.post({ type: 'gx:beginTextEdit', sid })
+          editAfterLoadRef.current = null
+          postMarks()
+          return
+        }
+        case 'gx:markClick': {
+          const map = getMap()
+          // a shared pin opens the most recent edit on that element; the others stay reachable from the queue card
+          const item = editQueueRef.current
+            .filter((q) => resolveQueueItem(textRef.current, map, q).target?.sid === msg.sid)
+            .at(-1)
+          if (!item) return
+          selectSid(item.sid, { reveal: true })
+          setAskMode({ kind: 'edit', qid: item.qid })
+          return
+        }
+        case 'gx:select': {
+          if (!msg.element || msg.dynamic || msg.element.sid === null) {
+            if (msg.element) {
+              flushPending()
+              setSelectedSid(null)
+              setSelectedState('dynamic')
+              setNotice(t('nodeDynamic'))
+            } else selectSid(null, { toPreview: false })
+            return
+          }
+          const map = getMap()
+          const e = map.bySid.get(msg.element.sid)
+          if (!e) {
+            selectSid(null, { toPreview: false })
+            return
+          }
+          const src = textRef.current
+          const tag = src.slice(e.startTag[0], e.startTag[1])
+          const cls = (/\sclass\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1] ?? '')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .sort()
+            .join(' ')
+          const liveCls = msg.element.className.trim().split(/\s+/).filter(Boolean).sort().join(' ')
+          const srcText = sourceText(src, e)
+          const liveText = msg.element.text
+          const textMatches =
+            srcText.length > 400 ? srcText.startsWith(liveText.slice(0, 380)) : srcText === liveText
+          const dirty =
+            cls !== liveCls ||
+            childrenOf(map, e.sid).length !== msg.element.childElementCount ||
+            !textMatches
+          selectSid(e.sid, { reveal: true, toPreview: false, state: dirty ? 'dirty' : 'static' })
+          setSelRect(msg.element.rect)
+          setSelComputed(msg.element.computed)
+          setSelText({
+            run: msg.element.textRun,
+            index: msg.element.textRunIndex,
+            editable: msg.element.inlineEditable,
+          })
+          return
+        }
+        case 'gx:hover':
+          return
+        case 'gx:rect':
+          if (msg.sid !== selectedSidRef.current) return
+          setSelRect(msg.rect)
+          setSelComputed(msg.computed)
+          setSelText({ run: msg.textRun, index: msg.textRunIndex, editable: msg.inlineEditable })
+          return
+        case 'gx:textSelect':
+          setTextSel({
+            sid: msg.sid,
+            textNodeIndex: msg.textNodeIndex,
+            start: msg.start,
+            end: msg.end,
+          })
+          return
+        case 'gx:textEditCommit':
+          runManual(
+            [{ op: 'set_text_node', sid: msg.sid, index: msg.textNodeIndex, text: msg.newText }],
+            'reselect',
+            { inPlace: true },
+          )
+          return
+        case 'gx:scroll':
+          frameScrollRef.current = msg.y
+          return
+        case 'gx:htmlEditCommit':
+          runManual([{ op: 'set_inner_html', sid: msg.sid, html: msg.html }])
+          return
+        case 'gx:textEditCancel':
+          return
+        case 'gx:zoom':
+          if (canvasModeRef.current !== 'present') setZoom((z) => clampZoom(z - msg.delta * 0.6))
+          return
+        case 'gx:keyCommand': {
+          if (canvasModeRef.current === 'present') {
+            if (msg.command === 'escape') setCanvasModeState('edit')
+            return
+          }
+          if (msg.command === 'undo' || msg.command === 'redo') {
+            editorRef.current?.[msg.command]()
+            return
+          }
+          if (msg.command === 'zoomIn' || msg.command === 'zoomOut') {
+            const dir = msg.command === 'zoomIn' ? 1 : -1
+            setZoom((z) => clampZoom(Math.round(z) + dir * ZOOM_STEP))
+            return
+          }
+          if (msg.command === 'zoomReset') {
+            setZoom(100)
+            return
+          }
+          const sid = selectedSidRef.current
+          if (sid === null) return
+          const map = getMap()
+          const e = map.bySid.get(sid)
+          if (!e) return
+          if (msg.command === 'moveUp' || msg.command === 'moveDown')
+            moveSelectedRef.current(msg.command === 'moveUp' ? -1 : 1)
+          else if (msg.command === 'delete') runManual([{ op: 'remove', sid }], 'clear')
+          else if (msg.command === 'escape') selectSid(null)
+          else if (msg.command === 'askAi') setAskMode({ kind: 'new' })
+          else if (msg.command === 'bold') wrapSelectionRef.current('strong')
+          else if (msg.command === 'italic') wrapSelectionRef.current('em')
+          else if (msg.command === 'parent' && e.parentSid !== null) {
+            const parent = map.bySid.get(e.parentSid)
+            if (parent && parent.tag !== 'body' && parent.tag !== 'html')
+              selectSid(parent.sid, { reveal: true })
+          } else if (msg.command === 'child') {
+            const first = childrenOf(map, sid)[0]
+            if (first) selectSid(first.sid, { reveal: true })
+          } else if (msg.command === 'next' || msg.command === 'prev') {
+            const siblings = e.parentSid !== null ? childrenOf(map, e.parentSid) : []
+            const i = siblings.findIndex((s) => s.sid === sid)
+            const target = siblings[msg.command === 'next' ? i + 1 : i - 1]
+            if (target) selectSid(target.sid, { reveal: true })
+          }
+          return
+        }
+        case 'gx:navigateBlocked':
+          window.open(msg.href)
+          setNotice(t('openExternal'))
+          return
+        case 'gx:resize':
+          if (msg.sid === selectedSidRef.current) previewStyleRef.current(msg.styles)
+          return
+        case 'gx:moveTo':
+          if (msg.sid === selectedSidRef.current)
+            runManual([{ op: 'move', sid: msg.sid, position: msg.position, ref_sid: msg.ref_sid }])
+          return
+        case 'gx:drag':
+          setDragging(msg.active)
+          return
+        default:
+          return
+      }
+    },
+    [getMap, postMarks, runManual, selectSid, t, flushPending],
+  )
+
+  // the source cursor picks the covering element (no reveal: the user is already there)
+  const onCursor = useCallback(
+    (c: CursorInfo) => {
+      setCursor(c)
+      // [pos, pos+1): a cursor sitting on a boundary belongs to the element that starts there
+      const e = elementCovering(getMap(), c.pos, Math.min(c.pos + 1, textRef.current.length))
+      const sid = e && !STRUCTURAL.has(e.tag) ? e.sid : null
+      if (sid !== selectedSidRef.current) selectSid(sid, { toPreview: true })
+    },
+    [getMap, selectSid],
+  )
+
+  const selectedEntry = selectedSid !== null ? getMap().bySid.get(selectedSid) : undefined
+
+  const duplicateSelected = () => {
+    if (!selectedEntry) return
+    const html = textRef.current.slice(selectedEntry.range[0], selectedEntry.range[1])
+    runManual([{ op: 'insert_html', sid: selectedEntry.sid, position: 'after', html: `\n${html}` }])
+  }
+  const moveSelected = (dir: -1 | 1) => {
+    if (!selectedEntry) return
+    const target = moveTarget(getMap(), selectedEntry.sid, dir)
+    if (target) runManual([{ op: 'move', sid: selectedEntry.sid, ...target }])
+  }
+  moveSelectedRef.current = moveSelected
+  const wrapSelection = (tag: string, attrs?: Record<string, string>) => {
+    if (!textSel) return
+    if (runManual([{ op: 'wrap_text', ...textSel, index: textSel.textNodeIndex, tag, attrs }]))
+      setTextSel(null)
+  }
+  wrapSelectionRef.current = wrapSelection
+  const askAi = () => {
+    if (selectedEntry) setAskMode({ kind: 'new' })
+  }
+  const setAttr = (name: string, value: string | null) => {
+    // may run from the panel's unmount after the element was deleted
+    if (selectedEntry && getMap().bySid.has(selectedEntry.sid))
+      runManual([{ op: 'set_attr', sid: selectedEntry.sid, name, value }])
+  }
+  /** picks a file, copies it into the document's assets/ and points src at it; needs a saved document */
+  const replaceImage = async () => {
+    if (!selectedEntry) return
+    if (!pathRef.current) {
+      setNotice(t('imageNeedsSave'))
+      return
+    }
+    const sid = selectedEntry.sid
+    const rel = await window.htmlApi.pickImage()
+    if (rel && selectedSidRef.current === sid)
+      runManual([{ op: 'set_attr', sid, name: 'src', value: rel }])
+  }
+  /** ribbon Insert menu: a starter element after the selection (or at the end of the body), then straight into editing */
+  const insertElement = async (kind: InsertKind, opts: InsertOptions = {}) => {
+    let imageSrc: string | undefined
+    if (kind === 'image' && opts.url) {
+      imageSrc = opts.url
+    } else if (kind === 'image') {
+      if (!pathRef.current) {
+        setNotice(t('imageNeedsSave'))
         return
       }
-      const cleanHtml = buffer.replace(/^```html\s*|\s*```$/gi, '').trim()
-      if (cleanHtml) {
-        iframeRef.current?.contentWindow?.postMessage(
-          {
-            type: 'revelith:replace-selected-html',
-            html: cleanHtml,
-          },
-          '*',
-        )
-      } else if (runError) {
-        setRefineError(runError)
-      }
-    } catch (err) {
-      console.error('[ReveLith HTML] AI Element Refine error:', err)
-      setRefineError(err instanceof Error ? err.message : 'The AI request failed.')
-    } finally {
-      cancelRef.current = null
-      setIsGenerating(false)
+      const rel = await window.htmlApi.pickImage()
+      if (!rel) return
+      imageSrc = rel
     }
-  }
-
-  // AI Design generator
-  const handleGenerateDesign = async (req: AiDesignRequest) => {
-    setIsGenerating(true)
-    setDesignError(null)
-    const prompt = buildDesignPrompt(req)
-    let buffer = ''
-    let runError: string | null = null
-    try {
-      const requestId = `ai-design-${Date.now()}`
-      cancelRef.current = requestId
-      const offStream = window.htmlApi?.onAiStream?.((chunk) => {
-        if (chunk.requestId !== requestId) return
-        if (chunk.text) buffer += chunk.text
-        else if (chunk.type === 'error') runError = chunk.error || 'The AI request failed.'
-      })
-      const settings = (await window.htmlApi?.getAiSettings?.()) ?? {
-        provider: 'openai',
-        model: 'gpt-4o',
-        apiKey: '',
-      }
-      await window.htmlApi?.aiStream?.({
-        requestId,
-        settings,
-        system:
-          'You are an expert web designer. Return only complete, self-contained HTML documents with embedded CSS.',
-        messages: [{ role: 'user', text: prompt }],
-      })
-      offStream?.()
-      const cleanHtml = buffer.replace(/^```html\s*|\s*```$/gi, '').trim()
-      if (cleanHtml && cleanHtml.includes('<html')) {
-        setHtml(cleanHtml)
-        setDirty(true)
-        window.htmlApi?.notifyDirty(true)
-        setDesignModalOpen(false)
-      } else {
-        setDesignError(runError ?? 'The model returned no usable HTML. Try a different brief.')
-      }
-    } catch (err) {
-      console.error('[ReveLith HTML] AI Design Generation error:', err)
-      setDesignError(err instanceof Error ? err.message : 'The AI request failed.')
-    } finally {
-      cancelRef.current = null
-      setIsGenerating(false)
-    }
-  }
-
-  // AI Document generator
-  const handleGenerateDocument = async (req: AiDocumentRequest) => {
-    setIsGenerating(true)
-    setDocumentError(null)
-    const prompt = buildDocumentPrompt(req)
-    let buffer = ''
-    let runError: string | null = null
-    try {
-      const requestId = `ai-doc-${Date.now()}`
-      cancelRef.current = requestId
-      const offStream = window.htmlApi?.onAiStream?.((chunk) => {
-        if (chunk.requestId !== requestId) return
-        if (chunk.text) buffer += chunk.text
-        else if (chunk.type === 'error') runError = chunk.error || 'The AI request failed.'
-      })
-      const settings = (await window.htmlApi?.getAiSettings?.()) ?? {
-        provider: 'openai',
-        model: 'gpt-4o',
-        apiKey: '',
-      }
-      await window.htmlApi?.aiStream?.({
-        requestId,
-        settings,
-        system:
-          'You are an expert technical writer and document designer. Return only complete, clean, beautifully formatted HTML documents with embedded CSS.',
-        messages: [{ role: 'user', text: prompt }],
-      })
-      offStream?.()
-      const cleanHtml = buffer.replace(/^```html\s*|\s*```$/gi, '').trim()
-      if (cleanHtml && cleanHtml.includes('<html')) {
-        setHtml(cleanHtml)
-        setDirty(true)
-        window.htmlApi?.notifyDirty(true)
-        setDocumentModalOpen(false)
-      } else {
-        setDocumentError(runError ?? 'The model returned no usable HTML. Try a different topic.')
-      }
-    } catch (err) {
-      console.error('[ReveLith HTML] AI Document Generation error:', err)
-      setDocumentError(err instanceof Error ? err.message : 'The AI request failed.')
-    } finally {
-      cancelRef.current = null
-      setIsGenerating(false)
-    }
-  }
-
-  // AI Summarize: condense the current document into key points via the
-  // configured provider. Reads the live editor state, never the saved file.
-  const handleSummarize = async () => {
-    if (!window.htmlApi) return
-    let text: string
-    try {
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      text = (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim()
-    } catch {
-      text = ''
-    }
-    setSummaryOpen(true)
-    setSummaryText('')
-    setSummaryError(null)
-    if (!text) return
-    setSummarizing(true)
-    let buffer = ''
-    let runError: string | null = null
-    try {
-      const requestId = `ai-summary-${Date.now()}`
-      cancelRef.current = requestId
-      const offStream = window.htmlApi.onAiStream((chunk) => {
-        if (chunk.requestId !== requestId) return
-        if (chunk.text) {
-          buffer += chunk.text
-          setSummaryText(buffer)
-        } else if (chunk.type === 'error') {
-          runError = chunk.error || 'The AI request failed.'
-        }
-      })
-      const settings = await window.htmlApi.getAiSettings()
-      await window.htmlApi.aiStream({
-        requestId,
-        settings,
-        system:
-          'You are a precise document summarizer. Summarize the supplied document text in a short paragraph followed by 3-7 bullet key points. Plain text only, no markdown fences.',
-        messages: [{ role: 'user', text: text.slice(0, 8000) }],
-      })
-      offStream()
-      if (!buffer.trim()) {
-        setSummaryError(runError ?? 'The model returned no summary.')
-      }
-    } catch (err) {
-      console.error('[ReveLith HTML] AI Summarize error:', err)
-      setSummaryError(err instanceof Error ? err.message : 'The AI request failed.')
-    } finally {
-      cancelRef.current = null
-      setSummarizing(false)
-    }
-  }
-
-  const SNIPPETS: Record<string, string> = {
-    hero: '<section class="hero"><h1>New Hero</h1><p class="lead">Drop-in section.</p></section>',
-    cards:
-      '<section class="cards-grid"><div class="card"><h3>Card</h3><p>Text.</p></div></section>',
-    table:
-      '<table border="1" style="width:100%"><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>',
-    form: '<form><input placeholder="Name"><button>Submit</button></form>',
-    nav: '<nav style="display:flex;gap:12px"><a href="#">Home</a><a href="#">Docs</a></nav>',
-  }
-
-  const handleInsertSnippet = (kind: string): void => {
-    const snippet = SNIPPETS[kind] ?? `<div>${kind}</div>`
-    setHtml((prev) => prev.replace(/<\/body>/i, `${snippet}\n</body>`))
-    setDirty(true)
-    window.htmlApi?.notifyDirty(true)
-  }
-
-  const handleInsertImageUrl = (): void => {
-    const url = window.prompt('Image URL (https://…):', 'https://')
-    if (!url || url === 'https://') return
-    const safe = /^https?:\/\//.test(url.trim()) ? url.trim() : ''
-    if (!safe) return
-    setHtml((prev) =>
-      prev.replace(/<\/body>/i, `<img src="${safe}" alt="image" style="max-width:100%">\n</body>`),
+    flushPending()
+    const map = getMap()
+    const selected =
+      selectedSidRef.current !== null ? map.bySid.get(selectedSidRef.current) : undefined
+    const html = insertPresetHtml(
+      kind,
+      {
+        heading: t('insertPlaceholderHeading'),
+        paragraph: t('insertPlaceholderParagraph'),
+        listItem: t('insertPlaceholderListItem'),
+        button: t('insertPlaceholderButton'),
+        sectionTitle: t('insertPlaceholderHeading'),
+        sectionBody: t('insertPlaceholderParagraph'),
+        imageAlt: '',
+        tableHeaders: Array.from({ length: Math.max(1, opts.cols ?? 3) }, (_, i) =>
+          t('insertPlaceholderTableHeader', { n: i + 1 }),
+        ),
+        tableCell: t('insertPlaceholderTableCell'),
+      },
+      { imageSrc, tableBodyRows: Math.max(1, (opts.rows ?? 3) - 1) },
     )
-    setDirty(true)
-    window.htmlApi?.notifyDirty(true)
-  }
-
-  const handleExportSingleFile = async (): Promise<void> => {
-    try {
-      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'ReveLith_Document'
-      await window.htmlApi?.saveSingleFile({ html, suggestedName })
-    } catch (err) {
-      console.error('[ReveLith HTML] Single-file export error:', err)
+    const op = insertOp(map, selected, html)
+    if (!op) {
+      setNotice(t('insertNoBody'))
+      return
     }
+    insertedSidRef.current = null
+    if (runManual([op], 'inserted') && TEXT_INSERT_KINDS.has(kind))
+      editAfterLoadRef.current = insertedSidRef.current
   }
-
-  const handleMoveLayer = (selector: string, direction: 'up' | 'down'): void => {
-    try {
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const el = doc.querySelector(selector)
-      const sibling = direction === 'up' ? el?.previousElementSibling : el?.nextElementSibling
-      if (!el || !sibling) return
-      if (direction === 'up') el.parentElement?.insertBefore(el, sibling)
-      else el.parentElement?.insertBefore(sibling, el)
-      setHtml(`<!DOCTYPE html>\n${doc.documentElement.outerHTML}`)
-      setDirty(true)
-      window.htmlApi?.notifyDirty(true)
-    } catch (err) {
-      console.error('[ReveLith HTML] Move layer error:', err)
+  /** crop / remove background edit the pixels: read the picture, open the dialog, write a new asset */
+  const openPictureDialog = async (kind: 'crop' | 'cutout') => {
+    const src = selComputed?.image?.src
+    if (!selectedEntry || !src) return
+    if (!pathRef.current) {
+      setNotice(t('imageNeedsSave'))
+      return
     }
-  }
-
-  const handleReorderLayer = (
-    source: string,
-    target: string,
-    position: 'before' | 'after',
-  ): void => {
-    try {
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      const src = doc.querySelector(source)
-      const dst = doc.querySelector(target)
-      if (!src || !dst || src === dst || dst.contains(src)) return
-      const parent = dst.parentElement
-      if (!parent) return
-      parent.insertBefore(src, position === 'before' ? dst : dst.nextSibling)
-      setHtml(`<!DOCTYPE html>\n${doc.documentElement.outerHTML}`)
-      setDirty(true)
-      window.htmlApi?.notifyDirty(true)
-    } catch (err) {
-      console.error('[ReveLith HTML] Reorder layer error:', err)
+    const sid = selectedEntry.sid
+    const image = await loadImageDataUrl(src).catch(() => null)
+    if (selectedSidRef.current !== sid) return
+    if (!image) {
+      setNotice(t('imageLoadFail'))
+      return
     }
+    setPictureDialog({ kind, sid, src, image })
+  }
+  const applyPictureBytes = async (sid: number, src: string, png: string) => {
+    setPictureDialog(null)
+    const rel = await window.htmlApi.saveImage({ base64: png, ext: 'png' })
+    // sids are matched by path, so after an edit during the write the sid may name another
+    // element: the target must still be the <img> with the src the dialog was opened on
+    const entry = rel ? getMap().bySid.get(sid) : undefined
+    // compare through the same attribute decoding the frame used (entities such as &amp; in the query)
+    const authoredSrc =
+      entry?.tag === 'img'
+        ? new DOMParser()
+            .parseFromString(
+              textRef.current.slice(entry.startTag[0], entry.startTag[1]),
+              'text/html',
+            )
+            .querySelector('img')
+            ?.getAttribute('src')
+        : null
+    const stillThere = authoredSrc === src
+    if (!rel || !stillThere) {
+      // an unreferenced pending asset is discarded by the save-time reconciliation
+      setNotice(t('imageProcessFail'))
+      return
+    }
+    runManual([{ op: 'set_attr', sid, name: 'src', value: rel }])
+  }
+  const imageDialogLabels: ImageDialogLabels = {
+    cancel: t('cancel'),
+    apply: t('imageApply'),
+    applying: t('imageProcessing'),
+    loading: t('imageLoading'),
+    loadFailed: t('imageLoadFail'),
+    processFailed: t('imageProcessFail'),
+    cutoutTitle: t('imageRemoveBg'),
+    tolerance: t('imageCutoutTolerance'),
+    cutoutHint: (pct) => t('imageCutoutHint', { pct }),
+    cropTitle: t('imageCrop'),
+    cropHint: t('imageCropHint'),
   }
 
-  // Local Word (.docx) export
-  const handleExportWord = async () => {
+  // ── element-scoped AI edits: queue them on the selected element or run one right away ──
+  const askTarget = useMemo(() => {
+    if (!selectedEntry || STRUCTURAL.has(selectedEntry.tag)) return null
+    return {
+      sid: selectedEntry.sid,
+      tag: selectedEntry.tag,
+      excerpt: excerptOf(text, selectedEntry),
+      start: selectedEntry.range[0],
+    }
+  }, [selectedEntry, text])
+  const queueAdd = (instruction: string) => {
+    setAskMode(null)
+    if (!askTarget || editQueue.length >= EDIT_QUEUE_MAX) return
+    const qid = `q${++queueSeqRef.current}`
+    setEditQueue((prev) => [
+      ...prev,
+      { qid, sid: askTarget.sid, tag: askTarget.tag, capturedText: askTarget.excerpt, instruction },
+    ])
+    setAiOpen(true)
+  }
+  const queueUpdate = (qid: string, instruction: string) => {
+    setAskMode(null)
+    setEditQueue((prev) => prev.map((q) => (q.qid === qid ? { ...q, instruction } : q)))
+  }
+  const queueRemove = (qid: string) => {
+    setAskMode(null)
+    setEditQueue((prev) => prev.filter((q) => q.qid !== qid))
+  }
+  const queueConsume = (qids: string[]) =>
+    setEditQueue((prev) => prev.filter((q) => !qids.includes(q.qid)))
+  const queueFocus = (qid: string) => {
+    const item = editQueue.find((q) => q.qid === qid)
+    const target = item && resolveQueueItem(text, getMap(), item).target
+    if (target) selectSid(target.sid, { reveal: true })
+  }
+  const askSendNow = (instruction: string) => {
+    setAskMode(null)
+    if (!askTarget) return
+    flushPending()
+    setAiOpen(true)
+    const scope: AiScopeQuoteData = {
+      label: t('aiScopeElement', { tag: askTarget.tag }),
+      ...(askTarget.excerpt.trim() ? { text: askTarget.excerpt.trim() } : {}),
+    }
+    setAiPreset({
+      text: buildSelectionInstruction(askTarget, instruction),
+      displayText: instruction,
+      nonce: Date.now(),
+      scope,
+    })
+  }
+  /** viewport rect of the selected element, clipped to the stage; identity changes whenever the geometry does */
+  const getAskAnchorRect = useCallback((): AnchorRect | null => {
+    // stageTick: the stage moved or resized (AI dock, split view, device recentre) without the frame-local rect changing
+    void stageTick
+    const stage = stageRef.current?.getBoundingClientRect()
+    const host = stageRef.current?.querySelector('.preview-host')?.getBoundingClientRect()
+    if (!selRect || !stage || !host) return null
+    const z = zoom / 100
+    const left = Math.max(stage.left, host.left + selRect.x * z)
+    const top = Math.max(stage.top, host.top + selRect.y * z)
+    const right = Math.min(stage.right, host.left + (selRect.x + selRect.width) * z)
+    const bottom = Math.min(stage.bottom, host.top + (selRect.y + selRect.height) * z)
+    if (right <= left || bottom <= top) return null
+    return { left, top, right, bottom, viewTop: stage.top, viewBottom: stage.bottom }
+  }, [selRect, zoom, stageTick])
+
+  // ── live style editing: poke the preview DOM now, write one set_style op to the source shortly after ──
+  const flushStyles = useCallback(() => {
+    if (styleTimerRef.current !== null) window.clearTimeout(styleTimerRef.current)
+    styleTimerRef.current = null
+    const styles = pendingStylesRef.current
+    pendingStylesRef.current = {}
+    setPendingCount(0)
+    const sid = selectedSidRef.current
+    if (sid === null || Object.keys(styles).length === 0) return
+    flushingStylesRef.current = true
     try {
-      const bytes = await exportHtmlToDocxBytes(html)
-      const base64 = bytesToBase64(bytes)
-      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'ReveLith_Document'
-      await window.htmlApi?.exportDocx({
-        base64,
-        suggestedName,
+      // every poke went to the frame as gx:previewStyle: it already shows the committed state
+      runManual([{ op: 'set_style', sid, styles }], 'reselect', { inPlace: true })
+    } finally {
+      flushingStylesRef.current = false
+    }
+  }, [runManual])
+  flushStylesRef.current = flushStyles
+
+  const previewStyle = (styles: Record<string, string | null>) => {
+    const sid = selectedSidRef.current
+    if (sid === null) return
+    previewRef.current?.post({ type: 'gx:previewStyle', sid, styles })
+    pendingStylesRef.current = { ...pendingStylesRef.current, ...styles }
+    setPendingCount(Object.keys(pendingStylesRef.current).length)
+    if (styleTimerRef.current !== null) window.clearTimeout(styleTimerRef.current)
+    styleTimerRef.current = window.setTimeout(flushStyles, STYLE_COMMIT_MS)
+  }
+
+  previewStyleRef.current = previewStyle
+
+  /** drop uncommitted previews: reload the frame from the last pushed source */
+  const revertStyles = () => {
+    if (styleTimerRef.current !== null) window.clearTimeout(styleTimerRef.current)
+    styleTimerRef.current = null
+    pendingStylesRef.current = {}
+    setPendingCount(0)
+    setPreviewNonce((n) => n + 1)
+  }
+
+  const setCanvasMode = useCallback(
+    (mode: CanvasMode) => {
+      setCanvasModeState((prev) => {
+        if (prev === mode) return prev
+        if (mode === 'present') selectSid(null)
+        return mode
       })
-    } catch (err) {
-      console.error('[ReveLith HTML] Word Export error:', err)
+      flushPending()
+      setAskMode(null)
+    },
+    [flushPending, selectSid],
+  )
+  useEffect(() => {
+    if (canvasMode !== 'present') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCanvasMode('edit')
     }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [canvasMode, setCanvasMode])
+
+  const startPresent = useCallback(
+    (kind: PresentKind) => {
+      if (kind === 'newTab') {
+        // the new tab reads html-preview:// as it stands: land pending pokes and the debounced push first
+        flushPending()
+        pushPreview(textRef.current)
+        void window.htmlApi.presentInNewTab(path?.split(/[\\/]/).pop() ?? '')
+        return
+      }
+      setPresentFull(kind === 'fullscreen')
+      setCanvasMode('present')
+      // HTML fullscreen needs the click's user activation; macOS snaps via simpleFullScreen instead
+      if (kind === 'fullscreen' && !IS_MAC)
+        void document.documentElement.requestFullscreen?.().catch(() => {})
+    },
+    [path, setCanvasMode, flushPending, pushPreview],
+  )
+
+  // a link navigation inside the presented frame keeps focus in a document without our
+  // inspector; hand it back to the app so Esc still ends the presentation
+  const onPreviewLoad = useCallback(() => {
+    if (canvasModeRef.current !== 'present') return
+    const active = document.activeElement
+    if (active instanceof HTMLIFrameElement) active.blur()
+  }, [])
+
+  // Same shape as the slides show: the main process snaps the window (tab-strip bleed,
+  // macOS simpleFullScreen without the Space animation), HTML fullscreen only elsewhere.
+  // Entry is read from fullscreenchange, not the request promise, and only a loss that
+  // sticks (not a strict-mode remount blip) ends the presentation.
+  useEffect(() => {
+    if (canvasMode !== 'present' || !presentFull) return
+    let entered = !!document.fullscreenElement
+    let exitTimer = 0
+    void window.htmlApi.setPresentFullScreen(true).catch(() => {})
+    const onFsChange = () => {
+      if (document.fullscreenElement) {
+        entered = true
+        window.clearTimeout(exitTimer)
+        return
+      }
+      if (!entered) return
+      window.clearTimeout(exitTimer)
+      exitTimer = window.setTimeout(() => {
+        if (!document.fullscreenElement) setCanvasMode('edit')
+      }, 150)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => {
+      window.clearTimeout(exitTimer)
+      document.removeEventListener('fullscreenchange', onFsChange)
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+      void window.htmlApi.setPresentFullScreen(false).catch(() => {})
+    }
+  }, [canvasMode, presentFull, setCanvasMode])
+
+  const setRunText = (text: string) => {
+    if (!selectedEntry || selText.index < 0 || !getMap().bySid.has(selectedEntry.sid)) return
+    runManual([{ op: 'set_text_node', sid: selectedEntry.sid, index: selText.index, text }])
   }
 
-  // PDF export
-  const handleExportPdf = async () => {
+  const doSave = useCallback(
+    async (mode: SaveMode, suggestedName?: string): Promise<boolean> => {
+      if (statusRef.current !== 'ready') return false
+      // uncommitted live style pokes belong to the document being saved
+      flushPending()
+      // a menu save or ⌘S during an autosave queues behind it instead of being dropped;
+      // the main-process waiter is resolved by the save() call that follows
+      while (savingRef.current) await new Promise((r) => setTimeout(r, 50))
+      savingRef.current = true
+      setSaveState('saving')
+      try {
+        const textAtSave = textRef.current
+        const serialized = serializeDocText({ text: textAtSave, envelope: envelopeRef.current })
+        const result = await window.htmlApi.save({
+          text: serialized,
+          imageSources: [],
+          mode,
+          suggestedName,
+          defaultName: provisionalNameRef.current ?? undefined,
+        })
+        if (result.ok && 'path' in result) {
+          const adopted = adoptImageRewrites(textAtSave, textRef.current, result.imageRewrites)
+          if (adopted.liveText !== textRef.current) {
+            editorRef.current?.setDoc(adopted.liveText)
+            commitText(adopted.liveText, false, true)
+          }
+          setPath((previous) => {
+            if (previous !== result.path) setPreviewNonce((n) => n + 1)
+            return result.path
+          })
+          savedTextRef.current = adopted.savedText
+          setSavedText(adopted.savedText)
+          const saved = adopted.liveText === adopted.savedText
+          setSaveState(saved ? 'saved' : 'idle')
+          if (!saved) window.htmlApi.setDirty(true)
+          pushPreview(adopted.liveText)
+          return true
+        }
+        setSaveState(result.ok ? 'idle' : 'failed')
+        return false
+      } catch (err) {
+        console.error('[html] save failed:', err)
+        setSaveState('failed')
+        return false
+      } finally {
+        savingRef.current = false
+      }
+    },
+    [commitText, flushPending, pushPreview],
+  )
+
+  const zoomIn = useCallback(() => setZoom((z) => clampZoom(Math.round(z) + ZOOM_STEP)), [])
+  const zoomOut = useCallback(() => setZoom((z) => clampZoom(Math.round(z) - ZOOM_STEP)), [])
+  const cycleView = useCallback(
+    () => setView((v) => VIEW_MODES[(VIEW_MODES.indexOf(v) + 1) % VIEW_MODES.length]!),
+    [],
+  )
+
+  const openFind = useCallback((replace: boolean) => {
+    if (statusRef.current !== 'ready' || canvasModeRef.current === 'present') return
+    const target = editorRef.current?.findTarget()
+    if (!target) return
+    setFindTarget(target)
+    setFindFocus((f) => ({ field: replace ? 'replace' : 'find', nonce: f.nonce + 1 }))
+    // hits live in the source pane, so it must be on screen
+    setView((v) => (v === 'preview' ? 'split' : v))
+  }, [])
+  const closeFind = useCallback(() => setFindTarget(null), [])
+  useEffect(() => {
+    if (canvasMode === 'present') closeFind()
+  }, [canvasMode, closeFind])
+
+  const exportingRef = useRef(false)
+  /** `outPath` (headless export only) skips the save dialog; resolves true when a file was written. */
+  const runExport = useCallback(async (format: ExportFormat, outPath?: string) => {
+    if (statusRef.current !== 'ready' || exportingRef.current) return false
+    exportingRef.current = true
     try {
-      const suggestedName = filePath ? filePath.replace(/\.[^/.]+$/, '') : 'ReveLith_Document'
-      await window.htmlApi?.exportPdf({
-        html,
-        suggestedName,
-      })
-    } catch (err) {
-      console.error('[ReveLith HTML] PDF Export error:', err)
+      flushPending()
+      const html = textRef.current
+      const suggestedName =
+        pathRef.current?.replace(/^.*[/\\]/, '').replace(/\.html?$/i, '') ||
+        deriveAutoFileName(html) ||
+        ''
+      const request = { html, suggestedName, ...(outPath ? { outPath } : {}) }
+      let result
+      if (format === 'docx') {
+        // Word export converts in the renderer (DOM + in-tree OOXML builder);
+        // main only shows the dialog/headless path and writes the bytes.
+        try {
+          const bytes = await exportHtmlToDocxBytes(html)
+          result = await window.htmlApi.exportDocx({ ...request, base64: bytesToBase64(bytes) })
+        } catch (err) {
+          console.error('[html] docx conversion failed:', err)
+          setNotice(t('exportFailed'))
+          return false
+        }
+      } else {
+        result =
+          format === 'pdf'
+            ? await window.htmlApi.exportPdf(request)
+            : format === 'html'
+              ? await window.htmlApi.exportHtml(request)
+              : await window.htmlApi.exportDocx(request)
+      }
+      if (!result.ok) {
+        console.error('[html] export failed:', result.error)
+        setNotice(t('exportFailed'))
+        return false
+      }
+      if ('skipped' in result && result.skipped?.length) {
+        setNotice(
+          t('exportHtmlSkipped', { count: result.skipped.length, first: result.skipped[0]! }),
+        )
+      }
+      return !('canceled' in result)
+    } finally {
+      exportingRef.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t is not referentially stable
+  }, [])
+
+  // Headless export mode (--headless-export): this renderer lives in a hidden
+  // window whose only job is to run the File menu's PDF or Word export against
+  // a path the CLI chose, then report back so the main process can quit.
+  const headlessExportStartedRef = useRef(false)
+  useEffect(() => {
+    if (headlessExportStartedRef.current) return
+    headlessExportStartedRef.current = true
+    void (async () => {
+      const target = await window.htmlApi.consumeHeadlessExport()
+      if (!target) return
+      const report = await runHeadlessRendererExport(
+        target.outPath,
+        () =>
+          pollUntilReady(() => {
+            if (statusRef.current === 'error') throw new Error('the input document did not open')
+            return statusRef.current === 'ready'
+          }, 'no document opened'),
+        (outPath) => runExport(target.format === 'docx' ? 'docx' : 'pdf', outPath),
+      )
+      window.htmlApi.headlessExportDone(report)
+    })()
+  }, [runExport])
+
+  useEffect(() => {
+    const offSave = window.htmlApi.onSaveRequest((mode) => {
+      if (statusRef.current !== 'ready') {
+        window.htmlApi.sendSaveRequestAck(false)
+        return
+      }
+      void doSave(mode)
+    })
+    // MCP read of this open document: hand back the same serialization a save
+    // would write, so uncommitted edits are included. Staying silent while the
+    // editor is still loading keeps the main process retrying its request
+    // instead of failing on a document that is merely not ready yet.
+    const offReadText = window.htmlApi.onReadTextRequest(() => {
+      if (statusRef.current !== 'ready') return
+      try {
+        flushPending()
+        const serialized = serializeDocText({
+          text: textRef.current,
+          envelope: envelopeRef.current,
+        })
+        window.htmlApi.sendReadTextResult({ text: serialized })
+      } catch (err) {
+        window.htmlApi.sendReadTextResult({
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    })
+    const offClose = window.htmlApi.onCloseSaveRequest(() => {
+      void (async () => {
+        while (savingRef.current) await new Promise((r) => setTimeout(r, 50))
+        flushPending()
+        if (textRef.current === savedTextRef.current) {
+          window.htmlApi.sendCloseSaveResult(true)
+          return
+        }
+        window.htmlApi.sendCloseSaveResult(await doSave('save'))
+      })()
+    })
+    const offRenamed = window.htmlApi.onFileRenamed((next) => setPath(next))
+    const offExport = window.htmlApi.onExportRequest((format) => void runExport(format))
+    const offTheme = window.htmlApi.onThemeChanged(() => {
+      // let main.tsx flip data-theme first
+      window.setTimeout(
+        () => previewRef.current?.post({ type: 'gx:theme', dark: isDarkTheme() }),
+        0,
+      )
+    })
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return
+      const key = event.key.toLowerCase()
+      if (key === 's') {
+        event.preventDefault()
+        void doSave(event.shiftKey ? 'saveAs' : 'save')
+      } else if (key === '\\') {
+        event.preventDefault()
+        cycleView()
+      } else if (key === 'f' && !event.shiftKey) {
+        event.preventDefault()
+        openFind(false)
+      } else if (key === 'h' && !event.shiftKey) {
+        // Word's replace shortcut; macOS Cmd+H is the system hide role and never reaches here
+        event.preventDefault()
+        openFind(true)
+      } else if (key === '=' || key === '+') {
+        event.preventDefault()
+        zoomIn()
+      } else if (key === '-' || key === '_') {
+        event.preventDefault()
+        zoomOut()
+      } else if (key === '0') {
+        event.preventDefault()
+        setZoom(100)
+      } else if (key === 'b' || key === 'i') {
+        if (inTextField(event.target)) return
+        event.preventDefault()
+        wrapSelectionRef.current(key === 'b' ? 'strong' : 'em')
+      } else if (key === 'z' || (key === 'y' && !event.shiftKey)) {
+        // CodeMirror and form fields keep their own history
+        if (inTextField(event.target)) return
+        event.preventDefault()
+        if (key === 'z' && !event.shiftKey) editorRef.current?.undo()
+        else editorRef.current?.redo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      offSave()
+      offReadText()
+      offClose()
+      offRenamed()
+      offExport()
+      offTheme()
+      window.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [doSave, runExport, cycleView, zoomIn, zoomOut, flushPending, openFind])
+
+  // pinch / ctrl+wheel over the stage chrome around the frame; wheel inside the frame arrives as gx:zoom
+  useEffect(() => {
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      if (canvasModeRef.current === 'present') return
+      if (!(event.target as HTMLElement | null)?.closest?.('.preview-stage')) return
+      event.preventDefault()
+      setZoom((z) => clampZoom(z - event.deltaY * 0.6))
+    }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // autosave: every 30s and on window blur; untitled documents wait for an explicit first save
+  useEffect(() => {
+    if (!autoSave || !path) return
+    const tick = () => {
+      // a native Save As dialog blurs the window: autosave must not queue a write behind
+      // a user-driven save, only explicit saves do
+      if (savingRef.current) return
+      flushPending()
+      if (textRef.current === savedTextRef.current) return
+      void doSave('save')
+    }
+    const id = window.setInterval(tick, 30_000)
+    window.addEventListener('blur', tick)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('blur', tick)
+    }
+  }, [autoSave, path, doSave, flushPending])
+
+  const aiDeps: HtmlAiDeps = {
+    access: {
+      getText: () => textRef.current,
+      getVersion: () => versionRef.current,
+      getMap,
+      getLastManualVersion: () => lastManualVersionRef.current,
+      getFilePath: () => pathRef.current,
+      getSelectedSid: () => selectedSidRef.current,
+      applyOps: (ops) => {
+        flushPending()
+        return applyOps(ops, false)
+      },
+      replaceAll: (html) => replaceAll(html, true),
+    },
+    getSnapshot: () => ({ text: textRef.current }),
+    restoreSnapshot: (snapshot) => replaceAll(snapshot.text, false),
+    onPrompt: (text) => {
+      if (pathRef.current || provisionalNameRef.current) return
+      const name = deriveNameFromPrompt(text)
+      if (!name) return
+      provisionalNameRef.current = name
+      window.htmlApi.setProvisionalTitle(name)
+    },
+    onRunDone: (mutated) => {
+      // AI wrote into a never-saved document: save it silently under the page's own title,
+      // falling back to the name of the request that started it
+      if (!mutated || pathRef.current) return
+      const text = textRef.current
+      const name =
+        derivePageTitleName(text) || provisionalNameRef.current || deriveAutoFileName(text)
+      if (name) void doSave('save', name)
+    },
+    clearHighlights: () => editorRef.current?.clearHighlights(),
+    onBriefConfirmed: (brief) => {
+      briefRef.current = brief
+    },
+    previewDraft: setDraftHtml,
+    navigateTo: (sid) => {
+      const e = getMap().bySid.get(sid)
+      if (!e) return
+      selectSid(sid, { reveal: true })
+    },
+  }
+
+  const statusText = useMemo(() => {
+    if (saveState === 'saving') return t('saving')
+    if (saveState === 'failed') return t('saveFailedStatus')
+    if (dirty) return t('unsaved')
+    if (saveState === 'saved') return t('savedOk')
+    return ''
+  }, [saveState, dirty, t])
+
+  if (status === 'error') return <div className="center-note">{t('loadFailed')}</div>
+  if (status === 'loading') return <div className="center-note">{t('loading')}</div>
+
+  const hasElement = !!selectedEntry && !STRUCTURAL.has(selectedEntry.tag)
+  const panelShown = panelOpen && selectedEntry?.sid !== panelDismissedSid
+
+  /** stage geometry for the floating toolbar: frame coordinates scale with the CSS zoom and shift by the centred device host */
+  const floatLayout = () => {
+    void stageTick
+    const stage = stageRef.current?.getBoundingClientRect()
+    const host = stageRef.current?.querySelector('.preview-host')?.getBoundingClientRect()
+    return {
+      zoom,
+      offsetX: stage && host ? host.left - stage.left : 0,
+      offsetY: stage && host ? host.top - stage.top : 0,
+      // the style panel floats over the right edge of the stage
+      stageWidth: Math.max(0, (stage?.width ?? 0) - (panelShown && hasElement ? 280 : 0)),
+      barWidth: barSize.w,
+      barHeight: barSize.h,
     }
   }
 
-  // Injected HTML for the iframe
-  const previewHtml = `${html}\n${INJECTED_PREVIEW_SCRIPT}`
+  const findStrings: FindPanelStrings = {
+    findPlaceholder: t('findPlaceholder'),
+    replacePlaceholder: t('replacePlaceholder'),
+    matchCase: t('matchCase'),
+    wholeWord: t('wholeWord'),
+    noResults: t('noResults'),
+    prevMatch: t('prevMatch'),
+    nextMatch: t('nextMatch'),
+    closeEsc: t('closeEsc'),
+    replace: t('replace'),
+    replaceAll: t('replaceAll'),
+  }
 
   return (
     <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        background: '#09090b',
-        color: '#f4f4f5',
-      }}
+      className={`app${canvasMode === 'present' ? ` present${presentFull ? ' present-full' : ''}` : ''}`}
     >
       <Ribbon
-        viewLayout={viewLayout}
-        onChangeViewLayout={setViewLayout}
-        showLayers={showLayers}
-        onToggleLayers={() => setShowLayers((v) => !v)}
-        showInspector={showInspector}
-        onToggleInspector={() => setShowInspector((v) => !v)}
-        onOpenDesign={() => setDesignModalOpen(true)}
-        onOpenDocument={() => setDocumentModalOpen(true)}
-        onSummarize={() => void handleSummarize()}
-        onPresent={() => setShowPresent(true)}
-        onSave={() => void handleSave('save')}
-        onSaveAs={() => void handleSave('saveAs')}
-        onExportWord={handleExportWord}
-        onExportPdf={handleExportPdf}
-        onExportSingleFile={() => void handleExportSingleFile()}
-        onInsertSnippet={handleInsertSnippet}
-        onInsertImageUrl={handleInsertImageUrl}
+        disabled={status !== 'ready'}
         dirty={dirty}
+        onSave={() => void doSave('save')}
+        onSaveAs={() => void doSave('saveAs')}
+        onFind={() => openFind(false)}
+        canUndo={historyState.undo}
+        canRedo={historyState.redo}
+        onUndo={() => {
+          editorRef.current?.undo()
+          editorRef.current?.focus()
+        }}
+        onRedo={() => {
+          editorRef.current?.redo()
+          editorRef.current?.focus()
+        }}
         autoSave={autoSave}
         onToggleAutoSave={setAutoSave}
+        view={view}
+        onView={setView}
+        aiOpen={aiOpen}
+        onToggleAi={() => setAiOpen((v) => !v)}
+        canInsert={canvasMode === 'edit'}
+        onInsert={(kind, opts) => void insertElement(kind, opts)}
+        onAiPreset={(text) => {
+          flushPending()
+          setAiOpen(true)
+          setAiPreset({ text, nonce: Date.now() })
+        }}
+        canvasMode={canvasMode}
+        onPresent={startPresent}
       />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Layer Tree */}
-        {showLayers && (
-          <LayerTree
-            tree={domTree}
-            selectedSelector={selectedSelector}
-            onMove={handleMoveLayer}
-            onReorder={handleReorderLayer}
-            onSelect={(selector) => {
-              setSelectedSelector(selector)
-              iframeRef.current?.contentWindow?.postMessage(
-                {
-                  type: 'revelith:highlight-selector',
-                  selector,
-                },
-                '*',
-              )
-            }}
-          />
-        )}
-
-        {/* Center Main Stage */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          {/* Code Editor View (Split or Code only) */}
-          {(viewLayout === 'split' || viewLayout === 'code') && (
-            <div
-              style={{
-                flex: viewLayout === 'split' ? '0 0 45%' : '1 1 auto',
-                borderRight: '1px solid #27272a',
-                display: 'flex',
-                flexDirection: 'column',
-                background: '#121214',
-              }}
+      <div className="app-main">
+        <div className={`ai-dock${aiOpen ? '' : ' collapsed'}`}>
+          {!aiOpen && (
+            <button
+              className="ai-rail"
+              data-tip={t('aiOpenAssistant')}
+              aria-label={t('aiOpenAssistant')}
+              onClick={() => setAiOpen(true)}
             >
+              <ReveLithMark size={18} />
+            </button>
+          )}
+          {/* stays mounted while collapsed: an in-flight run, its snapshots and the loop context survive */}
+          <AiPanel
+            deps={aiDeps}
+            filePath={path}
+            preset={aiPreset}
+            editQueue={editQueue}
+            onQueueEditInstruction={queueUpdate}
+            onQueueRemove={queueRemove}
+            onQueueClear={() => setEditQueue([])}
+            onQueueFocus={queueFocus}
+            onQueueConsume={queueConsume}
+            onCollapse={() => setAiOpen(false)}
+          />
+        </div>
+        <div className="app-content">
+          {findTarget && (
+            <FindPanel
+              target={findTarget}
+              strings={findStrings}
+              onClose={closeFind}
+              focusRequest={findFocus}
+            />
+          )}
+          {view !== 'preview' && (
+            <Breadcrumb
+              text={text}
+              map={getMap()}
+              sid={selectedSid}
+              state={selectedState}
+              onSelect={(sid) => selectSid(sid, { reveal: true })}
+            />
+          )}
+          <div className={`workspace view-${canvasMode === 'present' ? 'preview' : view}`}>
+            <div className="pane pane-preview">
               <div
-                style={{
-                  padding: '6px 12px',
-                  borderBottom: '1px solid #27272a',
-                  fontSize: 11,
-                  color: '#a1a1aa',
-                  display: 'flex',
-                  justifyContent: 'space-between',
+                className="preview-stage"
+                ref={stageRef}
+                data-device={device}
+                onPointerDown={(e) => {
+                  if (e.target === e.currentTarget) selectSid(null)
                 }}
               >
-                <span>HTML Code</span>
-                <span>{html.length.toLocaleString()} chars</span>
+                <PreviewFrame
+                  ref={previewRef}
+                  url={previewUrl}
+                  nonce={previewNonce}
+                  zoom={zoom}
+                  onMessage={onInspectorMessage}
+                  onLoad={onPreviewLoad}
+                  draft={draftHtml}
+                />
+                {canvasMode === 'present' && (
+                  <button
+                    type="button"
+                    className="present-exit"
+                    onClick={() => setCanvasMode('edit')}
+                  >
+                    {t('presentExit')}
+                  </button>
+                )}
+                {canvasMode === 'edit' &&
+                  !dragging &&
+                  hasElement &&
+                  selectedEntry &&
+                  selRect &&
+                  selComputed && (
+                    <FloatToolbar
+                      barRef={barRef}
+                      {...floatPosition(selRect, floatLayout())}
+                      computed={selComputed}
+                      pending={pendingStylesRef.current}
+                      canEditText={selText.editable}
+                      onStyle={previewStyle}
+                      onEditText={() =>
+                        previewRef.current?.post({
+                          type: 'gx:beginTextEdit',
+                          sid: selectedEntry.sid,
+                        })
+                      }
+                      onReplaceImage={replaceImage}
+                      onCropImage={() => void openPictureDialog('crop')}
+                      onCutoutImage={() => void openPictureDialog('cutout')}
+                      canAskAi={askTarget !== null}
+                      onAskAi={askAi}
+                      tag={selectedEntry.tag}
+                      onMove={moveSelected}
+                      onDuplicate={duplicateSelected}
+                      onDelete={() =>
+                        runManual([{ op: 'remove', sid: selectedEntry.sid }], 'clear')
+                      }
+                      panelOpen={panelShown}
+                      onTogglePanel={() => {
+                        if (panelShown) setPanelOpen(false)
+                        else {
+                          setPanelDismissedSid(null)
+                          setPanelOpen(true)
+                        }
+                      }}
+                    />
+                  )}
+                {canvasMode === 'edit' &&
+                  hasElement &&
+                  selectedEntry &&
+                  selComputed &&
+                  panelShown && (
+                    <StylePanel
+                      key={selectedEntry.sid}
+                      tag={selectedEntry.tag}
+                      computed={selComputed}
+                      textRun={selText.run}
+                      onStyle={previewStyle}
+                      onText={setRunText}
+                      onAttr={setAttr}
+                      draftRef={flushDraftsRef}
+                      onCustomCss={(css) => {
+                        const decls = parseDeclarations(css)
+                        if (Object.keys(decls).length) previewStyle(decls)
+                      }}
+                      pending={pendingCount > 0}
+                      onRevert={revertStyles}
+                      onClose={() => setPanelDismissedSid(selectedEntry.sid)}
+                    />
+                  )}
               </div>
-              <textarea
-                value={html}
-                onChange={(e) => {
-                  setHtml(e.target.value)
-                  setDirty(true)
-                  window.htmlApi?.notifyDirty(true)
-                }}
-                style={{
-                  flex: 1,
-                  padding: 14,
-                  fontSize: 12,
-                  fontFamily: 'Consolas, monospace',
-                  background: '#09090b',
-                  color: '#e4e4e7',
-                  border: 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  lineHeight: 1.5,
-                }}
+            </div>
+            <div className="pane pane-source">
+              <SourceEditor
+                ref={editorRef}
+                className="source-editor"
+                initialText={text}
+                onChange={onEditorChange}
+                onCursor={onCursor}
+                onBeforeReplace={flushPending}
               />
             </div>
-          )}
+          </div>
 
-          {/* Live Interactive Preview */}
-          {(viewLayout === 'preview' || viewLayout === 'split') && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                background: '#27272a',
-                position: 'relative',
-              }}
-            >
-              <iframe
-                ref={iframeRef}
-                title="Live Preview"
-                srcDoc={previewHtml}
-                sandbox="allow-scripts allow-same-origin"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 'none',
-                  background: '#ffffff',
-                }}
-              />
+          <footer className="status-bar">
+            <div className="status-left">
+              {notice ? (
+                <span className="status-item status-notice">{notice}</span>
+              ) : (
+                !path && <span className="status-item status-hint">{t('previewNeedsSave')}</span>
+              )}
             </div>
-          )}
+            <div className="status-right">
+              {statusText && (
+                <span className={`status-save status-${saveState}`}>{statusText}</span>
+              )}
+              {view !== 'preview' && (
+                <span className="status-item">
+                  {t('cursorPos', { line: cursor.line, col: cursor.col })}
+                </span>
+              )}
+              <span className="status-item">{t('charCount', { n: text.length })}</span>
+              <Dropdown
+                className="device-dd"
+                value={device}
+                ariaLabel={t('device')}
+                tip={t('device')}
+                options={DEVICES.map((d) => ({
+                  value: d,
+                  label: t(
+                    d === 'desktop' ? 'devDesktop' : d === 'tablet' ? 'devTablet' : 'devPhone',
+                  ),
+                }))}
+                onPick={setDevice}
+              />
+              <button
+                type="button"
+                className="zoom-btn"
+                aria-label={t('zoomOut')}
+                onClick={zoomOut}
+                disabled={zoom <= MIN_ZOOM}
+              >
+                −
+              </button>
+              <input
+                className="zoom-slider"
+                type="range"
+                min={MIN_ZOOM}
+                max={MAX_ZOOM}
+                step={ZOOM_STEP}
+                value={Math.round(zoom)}
+                aria-label={t('zoom')}
+                onChange={(event) => setZoom(Number(event.target.value))}
+              />
+              <button
+                type="button"
+                className="zoom-btn"
+                aria-label={t('zoomIn')}
+                onClick={zoomIn}
+                disabled={zoom >= MAX_ZOOM}
+              >
+                +
+              </button>
+              <span className="zoom-value">{Math.round(zoom)}%</span>
+            </div>
+          </footer>
         </div>
-
-        {/* Element Restyler / Inspector */}
-        {showInspector && (
-          <ElementRestyler
-            element={selectedElement}
-            onApplyStyle={handleApplyStyle}
-            onUpdateText={handleUpdateText}
-            onDeleteElement={handleDeleteElement}
-            onDuplicateElement={handleDuplicateElement}
-            onAskAi={handleAskAiOnElement}
-            onClose={() => setShowInspector(false)}
-            aiError={refineError}
-            isAskingAi={isGenerating}
-          />
-        )}
       </div>
-
-      {/* Present Mode */}
-      {showPresent && <PresentMode html={html} onClose={() => setShowPresent(false)} />}
-
-      {/* AI Design Mode Modal */}
-      <AiDesignModal
-        isOpen={designModalOpen}
-        onClose={() => setDesignModalOpen(false)}
-        onGenerate={handleGenerateDesign}
-        isGenerating={isGenerating}
-        error={designError}
-        onCancel={handleCancelAi}
-      />
-
-      {/* AI Document Mode Modal */}
-      <AiDocumentModal
-        isOpen={documentModalOpen}
-        onClose={() => setDocumentModalOpen(false)}
-        onGenerate={handleGenerateDocument}
-        isGenerating={isGenerating}
-        error={documentError}
-        onCancel={handleCancelAi}
-      />
-
-      {/* AI Summary Modal */}
-      <AiSummaryModal
-        isOpen={summaryOpen}
-        summary={summaryText}
-        isSummarizing={summarizing}
-        error={summaryError}
-        onClose={() => setSummaryOpen(false)}
-        onCancel={handleCancelAi}
-      />
+      {askTarget && askMode && canvasMode !== 'present' && (
+        <AiAskPopover
+          key={askMode.kind === 'edit' ? askMode.qid : 'new'}
+          target={askTarget}
+          mode={askMode}
+          initialText={
+            askMode.kind === 'edit'
+              ? editQueue.find((q) => q.qid === askMode.qid)?.instruction
+              : undefined
+          }
+          getAnchorRect={getAskAnchorRect}
+          onSubmit={(instruction) =>
+            askMode.kind === 'edit' ? queueUpdate(askMode.qid, instruction) : queueAdd(instruction)
+          }
+          onCancel={() => setAskMode(null)}
+          onSendNow={askSendNow}
+          onRemove={() => askMode.kind === 'edit' && queueRemove(askMode.qid)}
+          queueFull={editQueue.length >= EDIT_QUEUE_MAX}
+        />
+      )}
+      {pictureDialog?.kind === 'cutout' && (
+        <CutoutDialog
+          labels={imageDialogLabels}
+          image={pictureDialog.image}
+          onApply={(png) => void applyPictureBytes(pictureDialog.sid, pictureDialog.src, png)}
+          onCancel={() => setPictureDialog(null)}
+        />
+      )}
+      {pictureDialog?.kind === 'crop' && (
+        <CropDialog
+          labels={imageDialogLabels}
+          lang={lang}
+          image={pictureDialog.image}
+          onApply={(png) => void applyPictureBytes(pictureDialog.sid, pictureDialog.src, png)}
+          onCancel={() => setPictureDialog(null)}
+        />
+      )}
     </div>
   )
 }

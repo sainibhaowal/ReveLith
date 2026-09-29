@@ -19,6 +19,7 @@ export type Lang =
   | 'hi'
   | 'zh-TW'
   | 'cs'
+  | 'vi'
 
 export const LANGS: readonly Lang[] = [
   'zh',
@@ -41,6 +42,7 @@ export const LANGS: readonly Lang[] = [
   'hi',
   'zh-TW',
   'cs',
+  'vi',
 ]
 
 export function isLang(value: unknown): value is Lang {
@@ -86,6 +88,7 @@ const HTML_LANGS: Record<Lang, string> = {
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
   cs: 'cs-CZ',
+  vi: 'vi-VN',
 }
 
 /** BCP-47 tag for document.documentElement.lang (drives CSS :lang() and Chromium's per-language font fallback) */
@@ -152,11 +155,16 @@ export function format(template: string, params?: Params): string {
   )
 }
 
-/** per-language dictionaries; zh defines the key set, all others must match it. cs falls back to en/zh if omitted. */
+/**
+ * Per-language dictionaries; zh defines the key set, en must match it exactly.
+ * Every other language may be partial: missing keys fall back to en, then zh.
+ * cs and vi are optional for that reason (added later than the rest).
+ */
 export type LangDicts<D extends Record<string, string>> = { zh: D; en: Record<keyof D, string> } & {
-  [L in Exclude<Lang, 'zh' | 'en' | 'cs'>]: Record<keyof D, string>
+  [L in Exclude<Lang, 'zh' | 'en' | 'cs' | 'vi'>]: Record<keyof D, string>
 } & {
   cs?: Partial<Record<keyof D, string>>
+  vi?: Partial<Record<keyof D, string>>
 }
 
 /**
@@ -191,8 +199,8 @@ export function onUiLangChange(listener: (lang: Lang) => void): () => void {
 
 /**
  * Build a translator over per-language dictionaries. The zh dictionary defines
- * the key set; every other language must cover exactly the same keys
- * (compile-time checked). cs falls back to en/zh if missing.
+ * the key set and en must cover it exactly (compile-time checked). Partial
+ * languages (cs, vi) fall back to en, then zh, for any key they omit.
  */
 export function createI18n<D extends Record<string, string>>(dicts: LangDicts<D>) {
   return (lang: Lang, key: keyof D, params?: Params): string => {
@@ -201,4 +209,3 @@ export function createI18n<D extends Record<string, string>>(dicts: LangDicts<D>
     return platformShortcuts(format(template, params))
   }
 }
-

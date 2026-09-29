@@ -31,6 +31,8 @@ export function AiComposer({
   onSend,
   onStop,
   onPasteFiles,
+  onPasteText,
+  spellcheck,
 }: {
   readonly value: string
   readonly busy: boolean
@@ -59,6 +61,16 @@ export function AiComposer({
   readonly onStop: () => void
   /** clipboard files pasted into the textarea (screenshots, copied files); text paste stays native */
   readonly onPasteFiles?: ((files: File[]) => void) | undefined
+  /**
+   * clipboard text pasted into the textarea. Left unset, the browser pastes
+   * natively; set, the handler owns the text and files are still routed to
+   * onPasteFiles first (an app that must normalize pasted markdown, e.g. a
+   * pasted URL, wants the raw string).
+   */
+  readonly onPasteText?:
+    ((text: string, event: React.ClipboardEvent<HTMLTextAreaElement>) => void) | undefined
+  /** native spellcheck on the textarea; follows Settings → General when unset */
+  readonly spellcheck?: boolean | undefined
 }): React.JSX.Element {
   const innerRef = useRef<HTMLTextAreaElement | null>(null)
   const ref = textareaRef ?? innerRef
@@ -86,6 +98,8 @@ export function AiComposer({
         placeholder={placeholder}
         aria-label={ariaLabel}
         rows={1}
+        spellCheck={spellcheck}
+        data-ai-composer=""
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -97,11 +111,18 @@ export function AiComposer({
           }
         }}
         onPaste={(e) => {
-          if (!onPasteFiles) return
-          const files = Array.from(e.clipboardData.files)
-          if (files.length === 0) return
+          // files first: a screenshot paste must never be read as text
+          if (onPasteFiles) {
+            const files = Array.from(e.clipboardData.files)
+            if (files.length > 0) {
+              e.preventDefault()
+              onPasteFiles(files)
+              return
+            }
+          }
+          if (!onPasteText) return
           e.preventDefault()
-          onPasteFiles(files)
+          onPasteText(e.clipboardData.getData('text/plain'), e)
         }}
       />
       <div className="ai-input-footer">
