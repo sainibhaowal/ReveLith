@@ -572,7 +572,9 @@ export function ReviewTab({
           <button
             className={`rb-big ${spellcheckEnabled ? 'active' : ''}`}
             disabled={!hasDoc}
-            title={spellcheckEnabled ? 'Spelling & Grammar (Enabled)' : 'Spelling & Grammar (Disabled)'}
+            title={
+              spellcheckEnabled ? 'Spelling & Grammar (Enabled)' : 'Spelling & Grammar (Disabled)'
+            }
             onClick={onToggleSpellcheck}
           >
             <span className="rb-big-icon">
@@ -1150,7 +1152,7 @@ export function ViewTab({
                     }}
                   >
                     {w.focused ? '✓ ' : ''}
-                    {w.title || 'Revelith Docs'}
+                    {w.title || 'ReveLith Docs'}
                   </button>
                 ))}
               </div>

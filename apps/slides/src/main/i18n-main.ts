@@ -1,4 +1,4 @@
-/** Main-process i18n strings for Revelith Slides (dialogs, native menus, export, autosave prompts). */
+/** Main-process i18n strings for ReveLith Slides (dialogs, native menus, export, autosave prompts). */
 import { createI18n, getUiLang } from '@revelith/i18n'
 
 export const tMain = createI18n({
@@ -179,7 +179,8 @@ export const tMain = createI18n({
       'Not signed in to ReveLith: click “Sign in to ReveLith” below, sign in, then retry',
     errNoApiKey: 'No API key configured for {provider}',
     errNoModel: 'No model name configured',
-    errAccountCli: 'account not signed in: run account login to sign in to your ReveLith account first',
+    errAccountCli:
+      'account not signed in: run account login to sign in to your ReveLith account first',
     errNoDeckAppend:
       'No deck to append to (session missing). Generate the first page with mode:"replace" or add pages with the native tools.',
     errAppendFailed: 'Append failed: {reason}',
@@ -852,7 +853,8 @@ export const tMain = createI18n({
       'ยังไม่ได้ลงชื่อเข้าใช้ ReveLith: แตะ “ลงชื่อเข้าใช้ ReveLith” ด้านล่าง แล้วลองอีกครั้ง',
     errNoApiKey: 'ยังไม่ได้ตั้งค่า API Key ของ {provider}',
     errNoModel: 'ยังไม่ได้ตั้งค่าชื่อโมเดล',
-    errAccountCli: 'account ยังไม่ได้เข้าสู่ระบบ: โปรดรัน account login เพื่อเข้าสู่ระบบบัญชี ReveLith ก่อน',
+    errAccountCli:
+      'account ยังไม่ได้เข้าสู่ระบบ: โปรดรัน account login เพื่อเข้าสู่ระบบบัญชี ReveLith ก่อน',
     errNoDeckAppend:
       'ไม่มีเอกสารให้เพิ่มต่อท้าย (ไม่มีเซสชัน) โปรดสร้างหน้าแรกด้วย mode:"replace" ก่อน หรือใช้เครื่องมือเนทีฟเพิ่มหน้าแทน',
     errAppendFailed: 'เพิ่มต่อท้ายไม่สำเร็จ: {reason}',
@@ -957,7 +959,8 @@ export const tMain = createI18n({
     errImageNoText:
       'Lampiran gambar tidak menyediakan teks; gambar telah dikirim bersama pesan pengguna, silakan lihat gambarnya langsung',
     errNotImage: 'bukan jenis gambar yang didukung',
-    errAccountNotLoggedIn: 'Belum masuk ke ReveLith: klik “Masuk ke ReveLith” di bawah, lalu coba lagi',
+    errAccountNotLoggedIn:
+      'Belum masuk ke ReveLith: klik “Masuk ke ReveLith” di bawah, lalu coba lagi',
     errNoApiKey: 'API Key untuk {provider} belum dikonfigurasi',
     errNoModel: 'Nama model belum dikonfigurasi',
     errAccountCli: 'account belum masuk: jalankan account login dulu untuk masuk ke akun ReveLith',
@@ -1186,7 +1189,8 @@ export const tMain = createI18n({
       'لم تسجّل الدخول إلى ReveLith: انقر على «تسجيل الدخول إلى ReveLith» أدناه ثم أعد المحاولة',
     errNoApiKey: 'لم يتم تكوين مفتاح API لـ {provider}',
     errNoModel: 'لم يتم تكوين اسم النموذج',
-    errAccountCli: 'account غير مسجَّل الدخول: شغّل account login أولًا لتسجيل الدخول إلى حساب ReveLith',
+    errAccountCli:
+      'account غير مسجَّل الدخول: شغّل account login أولًا لتسجيل الدخول إلى حساب ReveLith',
     errNoDeckAppend:
       'لا يوجد مستند يمكن الإلحاق به (الجلسة غير موجودة). أنشئ الصفحة الأولى باستخدام mode:"replace" أولًا، أو أضف صفحات بالأدوات الأصلية.',
     errAppendFailed: 'فشل الإلحاق: {reason}',
@@ -1295,7 +1299,8 @@ export const tMain = createI18n({
       'Não conectado ao ReveLith: clique em “Entrar no ReveLith” abaixo, entre e tente novamente',
     errNoApiKey: 'Nenhuma chave de API configurada para {provider}',
     errNoModel: 'Nenhum nome de modelo configurado',
-    errAccountCli: 'account não conectado: execute account login primeiro para entrar na sua conta ReveLith',
+    errAccountCli:
+      'account não conectado: execute account login primeiro para entrar na sua conta ReveLith',
     errNoDeckAppend:
       'Não há apresentação para anexar (sessão inexistente). Gere a primeira página com mode:"replace" ou adicione páginas com as ferramentas nativas.',
     errAppendFailed: 'Falha ao anexar: {reason}',
@@ -1966,7 +1971,8 @@ export const tMain = createI18n({
       'ReveLith में साइन इन नहीं है: नीचे “ReveLith में साइन इन करें” पर क्लिक करें, साइन इन करें और फिर से कोशिश करें',
     errNoApiKey: '{provider} के लिए कोई API कुंजी कॉन्फ़िगर नहीं है',
     errNoModel: 'कोई मॉडल नाम कॉन्फ़िगर नहीं है',
-    errAccountCli: 'account साइन इन नहीं है: पहले account login चलाकर अपने ReveLith खाते में साइन इन करें',
+    errAccountCli:
+      'account साइन इन नहीं है: पहले account login चलाकर अपने ReveLith खाते में साइन इन करें',
     errNoDeckAppend:
       'जोड़ने के लिए कोई प्रस्तुति नहीं है (सत्र मौजूद नहीं)। पहले mode:"replace" से पहला पृष्ठ बनाएँ, या नेटिव टूल से पृष्ठ जोड़ें।',
     errAppendFailed: 'जोड़ना विफल: {reason}',

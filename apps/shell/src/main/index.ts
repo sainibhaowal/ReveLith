@@ -147,7 +147,7 @@ import { getSearchIndex } from './search-index'
 import { startInAppMcpServer, type InAppMcpServerHandle } from './mcp-server'
 
 /**
- * Revelith unified shell: ONE Electron app, ONE BrowserWindow, hosting the
+ * ReveLith unified shell: ONE Electron app, ONE BrowserWindow, hosting the
  * docs and sheets modules as WebContentsView tabs behind a WPS-style tab
  * strip. The shell owns the lifecycle : single-instance lock, file-
  * association routing by extension, and per-active-tab menu switching.
@@ -157,13 +157,13 @@ import { startInAppMcpServer, type InAppMcpServerHandle } from './mcp-server'
 
 // ANY unpacked run (`npm run shell`, `npm run dev`, `npx electron .`) must not
 // share the installed app's userData or single-instance lock : otherwise a dev
-// run silently quits and forwards its argv to the running installed Revelith.
+// run silently quits and forwards its argv to the running installed ReveLith.
 // REVELITH_USER_DATA: test drivers point this at a scratch dir so an
 // automated instance can run alongside the dev instance (separate lock).
 if (!app.isPackaged)
   app.setPath(
     'userData',
-    process.env.REVELITH_USER_DATA ?? join(app.getPath('appData'), 'Revelith Dev'),
+    process.env.REVELITH_USER_DATA ?? join(app.getPath('appData'), 'ReveLith Dev'),
   )
 
 // module build outputs: packaged builds carry them as extraResources
@@ -1492,7 +1492,7 @@ function createShellWindow(): void {
     height: 900,
     minWidth: 980,
     minHeight: 600,
-    title: 'Revelith',
+    title: 'ReveLith',
     // vibrancy: editor modules punch translucent regions (e.g. the slides
     // thumbnail pane) through to the desktop
     ...(process.platform === 'darwin'
@@ -2089,7 +2089,7 @@ function registerHomeIpc(): void {
   // With an agent id installs only that agent; otherwise installs all.
   ipcMain.handle('skill:install', async (_event, agent?: unknown) => {
     try {
-      const { installRevelithSkill, installSkillFor } = await import('./skill-install.js')
+      const { installReveLithSkill, installSkillFor } = await import('./skill-install.js')
       const { join, dirname } = await import('node:path')
       const { fileURLToPath } = await import('node:url')
       const here = dirname(fileURLToPath(import.meta.url))
@@ -2099,7 +2099,7 @@ function registerHomeIpc(): void {
         const one = installSkillFor(agent, skillSrc)
         return one ? [one] : [{ agent, path: '', ok: false, error: 'unknown agent' }]
       }
-      return installRevelithSkill(skillSrc)
+      return installReveLithSkill(skillSrc)
     } catch (err) {
       return [
         {

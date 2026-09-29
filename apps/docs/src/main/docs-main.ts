@@ -176,7 +176,7 @@ const tMain = createI18n({
     menuMacros: '宏',
     menuWindow: '窗口',
     menuHelp: '帮助',
-    menuDocsHelp: 'Revelith Docs 帮助',
+    menuDocsHelp: 'ReveLith Docs 帮助',
   },
   en: {
     dlgOpenDoc: 'Open Document',
@@ -270,7 +270,7 @@ const tMain = createI18n({
     menuMacros: 'Macros',
     menuWindow: 'Window',
     menuHelp: 'Help',
-    menuDocsHelp: 'Revelith Docs Help',
+    menuDocsHelp: 'ReveLith Docs Help',
   },
   ja: {
     dlgOpenDoc: '文書を開く',
@@ -364,7 +364,7 @@ const tMain = createI18n({
     menuMacros: 'マクロ',
     menuWindow: 'ウィンドウ',
     menuHelp: 'ヘルプ',
-    menuDocsHelp: 'Revelith Docs ヘルプ',
+    menuDocsHelp: 'ReveLith Docs ヘルプ',
   },
   ko: {
     dlgOpenDoc: '문서 열기',
@@ -459,7 +459,7 @@ const tMain = createI18n({
     menuMacros: '매크로',
     menuWindow: '창',
     menuHelp: '도움말',
-    menuDocsHelp: 'Revelith Docs 도움말',
+    menuDocsHelp: 'ReveLith Docs 도움말',
   },
   fr: {
     dlgOpenDoc: 'Ouvrir un document',
@@ -555,7 +555,7 @@ const tMain = createI18n({
     menuMacros: 'Macros',
     menuWindow: 'Fenêtre',
     menuHelp: 'Aide',
-    menuDocsHelp: 'Aide Revelith Docs',
+    menuDocsHelp: 'Aide ReveLith Docs',
   },
   de: {
     dlgOpenDoc: 'Dokument öffnen',
@@ -651,7 +651,7 @@ const tMain = createI18n({
     menuMacros: 'Makros',
     menuWindow: 'Fenster',
     menuHelp: 'Hilfe',
-    menuDocsHelp: 'Revelith Docs-Hilfe',
+    menuDocsHelp: 'ReveLith Docs-Hilfe',
   },
   es: {
     dlgOpenDoc: 'Abrir documento',
@@ -746,7 +746,7 @@ const tMain = createI18n({
     menuMacros: 'Macros',
     menuWindow: 'Ventana',
     menuHelp: 'Ayuda',
-    menuDocsHelp: 'Ayuda de Revelith Docs',
+    menuDocsHelp: 'Ayuda de ReveLith Docs',
   },
   th: {
     dlgOpenDoc: 'เปิดเอกสาร',
@@ -840,7 +840,7 @@ const tMain = createI18n({
     menuMacros: 'แมโคร',
     menuWindow: 'หน้าต่าง',
     menuHelp: 'วิธีใช้',
-    menuDocsHelp: 'วิธีใช้ Revelith Docs',
+    menuDocsHelp: 'วิธีใช้ ReveLith Docs',
   },
   id: {
     dlgOpenDoc: 'Buka Dokumen',
@@ -935,7 +935,7 @@ const tMain = createI18n({
     menuMacros: 'Makro',
     menuWindow: 'Jendela',
     menuHelp: 'Bantuan',
-    menuDocsHelp: 'Bantuan Revelith Docs',
+    menuDocsHelp: 'Bantuan ReveLith Docs',
   },
   ru: {
     dlgOpenDoc: 'Открыть документ',
@@ -1030,7 +1030,7 @@ const tMain = createI18n({
     menuMacros: 'Макросы',
     menuWindow: 'Окно',
     menuHelp: 'Справка',
-    menuDocsHelp: 'Справка Revelith Docs',
+    menuDocsHelp: 'Справка ReveLith Docs',
   },
   ar: {
     dlgOpenDoc: 'فتح مستند',
@@ -1125,7 +1125,7 @@ const tMain = createI18n({
     menuMacros: 'وحدات الماكرو',
     menuWindow: 'نافذة',
     menuHelp: 'تعليمات',
-    menuDocsHelp: 'تعليمات Revelith Docs',
+    menuDocsHelp: 'تعليمات ReveLith Docs',
   },
   pt: {
     dlgOpenDoc: 'Abrir Documento',
@@ -1220,7 +1220,7 @@ const tMain = createI18n({
     menuMacros: 'Macros',
     menuWindow: 'Janela',
     menuHelp: 'Ajuda',
-    menuDocsHelp: 'Ajuda do Revelith Docs',
+    menuDocsHelp: 'Ajuda do ReveLith Docs',
   },
   it: {
     dlgOpenDoc: 'Apri documento',
@@ -1315,7 +1315,7 @@ const tMain = createI18n({
     menuMacros: 'Macro',
     menuWindow: 'Finestra',
     menuHelp: 'Aiuto',
-    menuDocsHelp: 'Guida di Revelith Docs',
+    menuDocsHelp: 'Guida di ReveLith Docs',
   },
   pl: {
     dlgOpenDoc: 'Otwórz dokument',
@@ -1410,7 +1410,7 @@ const tMain = createI18n({
     menuMacros: 'Makra',
     menuWindow: 'Okno',
     menuHelp: 'Pomoc',
-    menuDocsHelp: 'Pomoc Revelith Docs',
+    menuDocsHelp: 'Pomoc ReveLith Docs',
   },
   nl: {
     dlgOpenDoc: 'Document openen',
@@ -1505,7 +1505,7 @@ const tMain = createI18n({
     menuMacros: "Macro's",
     menuWindow: 'Venster',
     menuHelp: 'Help',
-    menuDocsHelp: 'Revelith Docs Help',
+    menuDocsHelp: 'ReveLith Docs Help',
   },
   ms: {
     dlgOpenDoc: 'Buka Dokumen',
@@ -1600,7 +1600,7 @@ const tMain = createI18n({
     menuMacros: 'Makro',
     menuWindow: 'Tetingkap',
     menuHelp: 'Bantuan',
-    menuDocsHelp: 'Bantuan Revelith Docs',
+    menuDocsHelp: 'Bantuan ReveLith Docs',
   },
   he: {
     dlgOpenDoc: 'פתיחת מסמך',
@@ -1693,7 +1693,7 @@ const tMain = createI18n({
     menuMacros: 'פקודות מאקרו',
     menuWindow: 'חלון',
     menuHelp: 'עזרה',
-    menuDocsHelp: 'עזרה של Revelith Docs',
+    menuDocsHelp: 'עזרה של ReveLith Docs',
   },
   hi: {
     dlgOpenDoc: 'दस्तावेज़ खोलें',
@@ -1788,7 +1788,7 @@ const tMain = createI18n({
     menuMacros: 'मैक्रो',
     menuWindow: 'विंडो',
     menuHelp: 'सहायता',
-    menuDocsHelp: 'Revelith Docs सहायता',
+    menuDocsHelp: 'ReveLith Docs सहायता',
   },
   'zh-TW': {
     dlgOpenDoc: '開啟文件',
@@ -1880,7 +1880,7 @@ const tMain = createI18n({
     menuMacros: '巨集',
     menuWindow: '視窗',
     menuHelp: '說明',
-    menuDocsHelp: 'Revelith Docs 說明',
+    menuDocsHelp: 'ReveLith Docs 說明',
   },
 })
 const tm = (key: Parameters<typeof tMain>[1], params?: Parameters<typeof tMain>[2]) =>
@@ -1957,7 +1957,7 @@ async function saveDialog(event: IpcMainInvokeEvent, options: SaveDialogOptions)
   return showSaveDialogWithMemory(dialog, dialogParent(event), options, defaultSaveDir())
 }
 
-/** default folder where new files land on their first (silent) save; shared with the other editors via shell. User-configurable (app-settings.json), falls back to <Documents>/Revelith. */
+/** default folder where new files land on their first (silent) save; shared with the other editors via shell. User-configurable (app-settings.json), falls back to <Documents>/ReveLith. */
 export function defaultSaveDir(): string {
   return configuredDefaultSaveDir(app)
 }
@@ -3623,7 +3623,7 @@ export function createDocsWindow(openPath?: string): BrowserWindow {
     height: 900,
     minWidth: 980,
     minHeight: 600,
-    title: 'Revelith Docs',
+    title: 'ReveLith Docs',
     // Word-like custom title bar (document name centered, quick-access buttons)
     ...(process.platform === 'darwin'
       ? { titleBarStyle: 'hiddenInset' as const }
@@ -3914,8 +3914,8 @@ export function startDocsStandalone(): void {
   installContextMenu(app, () => contextMenuLabels(getUiLang()))
   // dev runs must not share the packaged app's userData (recent files, AI settings)
   // or its single-instance lock : otherwise `npm run dev` silently quits whenever
-  // the installed Revelith Docs is open and forwards its argv there instead.
-  if (isDev) app.setPath('userData', join(app.getPath('appData'), 'Revelith Docs Dev'))
+  // the installed ReveLith Docs is open and forwards its argv there instead.
+  if (isDev) app.setPath('userData', join(app.getPath('appData'), 'ReveLith Docs Dev'))
 
   const hasSingleInstanceLock = app.requestSingleInstanceLock()
   if (!hasSingleInstanceLock) {

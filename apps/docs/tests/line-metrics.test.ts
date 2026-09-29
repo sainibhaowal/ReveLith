@@ -369,7 +369,7 @@ describe('cssFontFamily', () => {
       "'Times New Roman','Liberation Serif','Noto Serif CJK SC',serif",
     )
     expect(cssFontFamily('宋体')).toBe(
-      "'宋体','Revelith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
+      "'宋体','ReveLith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
     )
   })
 
@@ -430,22 +430,22 @@ describe('cssFontFamily', () => {
 
     it('missing SC sans routes to the SimSun-class serif chain', () => {
       expect(cssFontFamily('Noto Sans SC')).toBe(
-        "'Noto Sans SC','Revelith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
+        "'Noto Sans SC','ReveLith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
       )
     })
 
     it('bundled subset faces count as missing and never lead the chain', () => {
       expect(cssFontFamily('Noto Sans CJK SC')).toBe(
-        "'Revelith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
+        "'ReveLith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
       )
       expect(cssFontFamily('Noto Serif CJK SC')).toBe(
-        "'Revelith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
+        "'ReveLith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
       )
     })
 
     it('true SC serif declares keep their name at the head', () => {
       expect(cssFontFamily('Noto Serif SC')).toBe(
-        "'Noto Serif SC','Revelith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
+        "'Noto Serif SC','ReveLith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif",
       )
     })
 
@@ -461,26 +461,26 @@ describe('cssFontFamily', () => {
         "'Noto Sans CJK JP','Yu Mincho','Hiragino Mincho ProN','MS Mincho','Noto Serif JP',serif",
       )
       expect(cssFontFamily('Source Han Sans K')).toBe(
-        "'Source Han Sans K','Batang','Revelith Serif KR','AppleMyungjo','Noto Serif KR',serif",
+        "'Source Han Sans K','Batang','ReveLith Serif KR','AppleMyungjo','Noto Serif KR',serif",
       )
       expect(cssFontFamily('Noto Sans CJK TC')).toBe(
-        "'Noto Sans CJK TC','PMingLiU','MingLiU','Revelith Fullwidth TC','Songti TC','Noto Serif TC',serif",
+        "'Noto Sans CJK TC','PMingLiU','MingLiU','ReveLith Fullwidth TC','Songti TC','Noto Serif TC',serif",
       )
     })
   })
 
   it('Korean/Traditional Chinese fonts → same-script fallback chain', () => {
     expect(cssFontFamily('맑은 고딕')).toBe(
-      "'맑은 고딕','Malgun Gothic','Revelith Sans KR','Apple SD Gothic Neo','Noto Sans KR',sans-serif",
+      "'맑은 고딕','Malgun Gothic','ReveLith Sans KR','Apple SD Gothic Neo','Noto Sans KR',sans-serif",
     )
     expect(cssFontFamily('Batang')).toBe(
-      "'Batang','Revelith Serif KR','AppleMyungjo','Noto Serif KR',serif",
+      "'Batang','ReveLith Serif KR','AppleMyungjo','Noto Serif KR',serif",
     )
     expect(cssFontFamily('微軟正黑體')).toBe(
       "'微軟正黑體','Microsoft JhengHei','PingFang TC','Heiti TC','Noto Sans TC',sans-serif",
     )
     expect(cssFontFamily('新細明體')).toBe(
-      "'新細明體','PMingLiU','MingLiU','Revelith Fullwidth TC','Songti TC','Noto Serif TC',serif",
+      "'新細明體','PMingLiU','MingLiU','ReveLith Fullwidth TC','Songti TC','Noto Serif TC',serif",
     )
   })
 })
@@ -568,7 +568,7 @@ describe('Korean line metrics', () => {
 
   it('Korean ascii face in a dual-slot chain keeps only the literal family', () => {
     expect(cssDualFontFamily('맑은 고딕', 'Batang')).toBe(
-      "'맑은 고딕','Batang','Revelith Serif KR','AppleMyungjo','Noto Serif KR',serif",
+      "'맑은 고딕','Batang','ReveLith Serif KR','AppleMyungjo','Noto Serif KR',serif",
     )
   })
 

@@ -69,7 +69,7 @@ export function installSkillFor(agent: string, skillMdPath: string): SkillInstal
   }
 }
 
-export function installRevelithSkill(skillMdPath: string): SkillInstallResult[] {
+export function installReveLithSkill(skillMdPath: string): SkillInstallResult[] {
   return agentDirs().map(({ agent, dir }) => {
     try {
       if (!existsSync(skillMdPath))

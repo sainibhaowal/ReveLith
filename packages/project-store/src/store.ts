@@ -519,7 +519,7 @@ export class ProjectStore {
 
   /**
    * Lists files that currently exist for a project. Stored paths are historical
-   * records and may outlive files deleted or moved outside Revelith.
+   * records and may outlive files deleted or moved outside ReveLith.
    */
   listProjectFiles(projectId: string): string[] {
     const proj = this.readProject(projectId)

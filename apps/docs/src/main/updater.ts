@@ -5,7 +5,7 @@ import type { UpdateInfo } from 'electron-updater'
 import { createI18n, getUiLang } from '@revelith/i18n'
 
 /**
- * Full-package auto-update for the standalone Revelith Docs app over the generic
+ * Full-package auto-update for the standalone ReveLith Docs app over the generic
  * provider (Azure CDN).
  *
  * electron-builder bakes the publish URL into resources/app-update.yml at
@@ -171,7 +171,8 @@ const tUpd = createI18n({
   cs: {
     updTitle: 'Aktualizace softwaru',
     updHeadline: 'K dispozici je nová verze',
-    updDesc: 'Tato aktualizace obsahuje vylepšení výkonu a opravy chyb. Doporučujeme aktualizovat nyní.',
+    updDesc:
+      'Tato aktualizace obsahuje vylepšení výkonu a opravy chyb. Doporučujeme aktualizovat nyní.',
     updInstall: 'Restartovat a nainstalovat',
     updLater: 'Připomenout později',
   },

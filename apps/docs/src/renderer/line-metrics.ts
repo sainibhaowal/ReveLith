@@ -275,10 +275,10 @@ export function computeLineHeight(
 export const BUNDLED_FONTS = new Set([
   'Noto Sans CJK SC',
   'Noto Serif CJK SC',
-  'Revelith Sans KR',
-  'Revelith Serif KR',
-  'Revelith Fullwidth TC',
-  'Revelith Songti SC',
+  'ReveLith Sans KR',
+  'ReveLith Serif KR',
+  'ReveLith Fullwidth TC',
+  'ReveLith Songti SC',
   'Carlito GO',
   'Caladea',
   'Liberation Serif',
@@ -339,11 +339,11 @@ export function cssFontFamily(font: string): string {
     f.includes('zhongsong')
   )
     return `${chain(font, 'STZhongsong', 'Songti SC', 'STSong', 'SimSun', CJK_SERIF)},serif`
-  // 'Revelith Songti SC' (fonts.css local() alias of Songti SC): macOS Chromium
+  // 'ReveLith Songti SC' (fonts.css local() alias of Songti SC): macOS Chromium
   // refuses synthetic bold for 'Songti SC' by name at weight 600/700; the alias,
   // registered weight-normal only, lets Blink synthesize. Unresolvable elsewhere.
   if (f.includes('simsun') || f.includes('宋体') || f.includes('nsimsun')) {
-    return `${chain(font, 'Revelith Songti SC', 'STSong', 'SimSun', CJK_SERIF)},serif`
+    return `${chain(font, 'ReveLith Songti SC', 'STSong', 'SimSun', CJK_SERIF)},serif`
   }
   if (f.includes('simhei') || f.includes('黑体') || f.includes('细黑') || f.includes('xihei'))
     return `${chain(font, 'Heiti SC', 'STHeiti', 'SimHei', 'PingFang SC', CJK_SANS)},sans-serif`
@@ -360,13 +360,13 @@ export function cssFontFamily(font: string): string {
   // Japanese/Korean/Traditional Chinese: fall back within the same script (win/mac family names as mutual backups) so Han glyphs don't render with Simplified forms
   const JA_SANS = ['Yu Gothic', 'Hiragino Sans', 'Meiryo', 'Noto Sans JP']
   const JA_SERIF = ['Yu Mincho', 'Hiragino Mincho ProN', 'MS Mincho', 'Noto Serif JP']
-  const KO_SANS = ['Malgun Gothic', 'Revelith Sans KR', 'Apple SD Gothic Neo', 'Noto Sans KR']
-  const KO_SERIF = ['Batang', 'Revelith Serif KR', 'AppleMyungjo', 'Noto Serif KR']
+  const KO_SANS = ['Malgun Gothic', 'ReveLith Sans KR', 'Apple SD Gothic Neo', 'Noto Sans KR']
+  const KO_SERIF = ['Batang', 'ReveLith Serif KR', 'AppleMyungjo', 'Noto Serif KR']
   const TC_SANS = ['Microsoft JhengHei', 'PingFang TC', 'Heiti TC', 'Noto Sans TC']
-  // 'Revelith Fullwidth TC' (fonts.css): fullwidth U+FF0D/FF0F/FF3C/FF3F/FF5E whose Songti TC glyphs look half-width
-  const TC_SERIF = ['PMingLiU', 'MingLiU', 'Revelith Fullwidth TC', 'Songti TC', 'Noto Serif TC']
+  // 'ReveLith Fullwidth TC' (fonts.css): fullwidth U+FF0D/FF0F/FF3C/FF3F/FF5E whose Songti TC glyphs look half-width
+  const TC_SERIF = ['PMingLiU', 'MingLiU', 'ReveLith Fullwidth TC', 'Songti TC', 'Noto Serif TC']
   const SC_SANS = ['PingFang SC', 'Microsoft YaHei', CJK_SANS]
-  const SC_SERIF = ['Revelith Songti SC', 'STSong', 'SimSun', CJK_SERIF]
+  const SC_SERIF = ['ReveLith Songti SC', 'STSong', 'SimSun', CJK_SERIF]
   const nfkc = font.normalize('NFKC')
   // Arabic: bundled Noto subsets stand in for missing fonts; Chromium's silent
   // fallback is a Geeza Pro-style UI face, larger and heavier than the naskh

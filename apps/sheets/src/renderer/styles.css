@@ -568,7 +568,7 @@ textarea:disabled {
   overflow-x: scroll;
   overflow-y: hidden;
   /* Slim visible scrollbar so mouse users can reach overflowed groups
-     (sainibhaowal/Revelith#55). Its 5px lane is carved out of the bottom
+     (sainibhaowal/ReveLith#55). Its 5px lane is carved out of the bottom
      padding, keeping the 80px band and the content area unchanged; Chromium
      paints a thumb only while the row actually overflows. */
   padding: 6px 12px 1px;

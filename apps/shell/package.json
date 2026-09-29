@@ -9,7 +9,7 @@
   },
   "homepage": "https://github.com/sainibhaowal/ReveLith",
   "private": true,
-  "description": "Unified Revelith shell: one app hosting the docs and sheets modules behind a home/launcher window",
+  "description": "Unified ReveLith shell: one app hosting the docs and sheets modules behind a home/launcher window",
   "main": "out/main/index.js",
   "desktopName": "revelith.desktop",
   "scripts": {
@@ -49,5 +49,5 @@
     "vite": "^7.3.1",
     "vitest": "^4.1.10"
   },
-  "author": "Revelith"
+  "author": "ReveLith"
 }

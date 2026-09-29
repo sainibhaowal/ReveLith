@@ -125,7 +125,7 @@ export interface HomeApi {
   getTheme(): Promise<UiTheme>
   /** switch + persist the UI theme; broadcasts 'app:theme-changed' to all web contents */
   setTheme(theme: UiTheme): Promise<void>
-  /** effective default save folder for new/untitled files (configured in userData/app-settings.json, falls back to <Documents>/Revelith) */
+  /** effective default save folder for new/untitled files (configured in userData/app-settings.json, falls back to <Documents>/ReveLith) */
   getDefaultSaveDir(): Promise<string>
   /** directory picker to change the default save folder; resolves to the new folder, or null when canceled or the pick was unusable */
   pickDefaultSaveDir(): Promise<string | null>

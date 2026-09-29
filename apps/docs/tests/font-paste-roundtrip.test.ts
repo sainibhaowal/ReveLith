@@ -81,9 +81,9 @@ describe('fontAttrsFromFamilyChain', () => {
     })
   })
 
-  it('skips internal Revelith aliases even at the chain head', () => {
+  it('skips internal ReveLith aliases even at the chain head', () => {
     expect(
-      fontAttrsFromFamilyChain("'Revelith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif"),
+      fontAttrsFromFamilyChain("'ReveLith Songti SC','STSong','SimSun','Noto Serif CJK SC',serif"),
     ).toEqual({ font: 'STSong' })
   })
 

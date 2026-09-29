@@ -321,8 +321,8 @@ The repository provides extensive documentation tailored to different audiences:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/sainibhaowal/Revelith.git
-cd Revelith
+git clone https://github.com/sainibhaowal/ReveLith.git
+cd ReveLith
 
 # 2. Install workspace dependencies
 npm install

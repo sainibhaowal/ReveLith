@@ -7,6 +7,10 @@
   --tabstrip-text: #454746;
   --tabstrip-text-active: #1f1f1f;
   --tab-separator: rgba(0, 0, 0, 0.22);
+  /* floating menu shadow: a soft drop plus a hairline ring so the menu
+   * reads as detached from the strip in both themes */
+  --tab-menu-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --tab-menu-shadow-dark: 0 4px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1);
   position: relative;
   height: 40px;
   flex-shrink: 0;
@@ -54,7 +58,10 @@
   color: var(--tabstrip-text);
   font-size: 12.5px;
   user-select: none;
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), flex-basis 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    flex-basis 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   animation: tabZoomIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform-origin: center bottom;
 }
@@ -76,7 +83,7 @@
 
 /* Home carries the product name and is never closable, so it hugs its own
  * content instead of sharing the document tabs' 240px flex basis — and it
- * never shrinks, so "Revelith" stays whole however many tabs are open.
+ * never shrinks, so "ReveLith" stays whole however many tabs are open.
  * ("tab-home", not "home" — home.css owns `.home` for the home page
  * container living in this same document.) */
 .tab-item.tab-home {
@@ -85,7 +92,7 @@
   /* 2px tighter icon-to-label gap than document tabs: the home glyph is an
    * outline (no solid plate), so the default 8px reads too loose */
   gap: 6px;
-  /* 27px = 3px plate inset + 24px from "Revelith" to the plate's edge, so the
+  /* 27px = 3px plate inset + 24px from "ReveLith" to the plate's edge, so the
    * label gets a real 24px of breathing room (the 9px the other tabs' icons
    * get reads too tight after a word) */
   padding-right: 27px;
@@ -266,7 +273,10 @@
 
 .tab-overflow-btn {
   margin: 0 4px;
-  transition: background 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s ease;
+  transition:
+    background 0.18s ease,
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.18s ease;
 }
 
 .tab-overflow-btn:hover {
@@ -336,7 +346,7 @@
   background: #ffffff;
   border-radius: 10px;
   padding: 6px 0;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--tab-menu-shadow);
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -423,7 +433,7 @@
 
 [data-theme='dark'] .tab-new-menu {
   background: #222225;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: var(--tab-menu-shadow-dark);
 }
 
 [data-theme='dark'] .tab-new-menu-header {

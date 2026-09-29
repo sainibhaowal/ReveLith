@@ -53,7 +53,7 @@ describe('resolveDefaultSaveDir', () => {
   })
 
   it('creates and returns the fallback when nothing is configured', () => {
-    const fallback = join(root, 'Documents', 'Revelith')
+    const fallback = join(root, 'Documents', 'ReveLith')
     expect(resolveDefaultSaveDir(null, fallback)).toBe(fallback)
     expect(existsSync(fallback)).toBe(true)
   })
@@ -85,14 +85,14 @@ describe('configuredDefaultSaveDir', () => {
     expect(configuredDefaultSaveDir(app)).toBe(custom)
   })
 
-  it('falls back to <Documents>/Revelith without a setting', () => {
+  it('falls back to <Documents>/ReveLith without a setting', () => {
     const userData = join(root, 'userData')
     const documents = join(root, 'Documents')
     mkdirSync(userData, { recursive: true })
     const app = {
       getPath: (name: 'userData' | 'documents') => (name === 'userData' ? userData : documents),
     }
-    expect(configuredDefaultSaveDir(app)).toBe(join(documents, 'Revelith'))
-    expect(existsSync(join(documents, 'Revelith'))).toBe(true)
+    expect(configuredDefaultSaveDir(app)).toBe(join(documents, 'ReveLith'))
+    expect(existsSync(join(documents, 'ReveLith'))).toBe(true)
   })
 })

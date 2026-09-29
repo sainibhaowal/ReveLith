@@ -9,10 +9,10 @@ import { describe, expect, it } from 'vitest'
 import { advanceEm, readWoff2 } from './helpers/woff2-metrics'
 
 const FONTS = join(__dirname, '../src/renderer/fonts')
-const sans = readWoff2(join(FONTS, 'RevelithSansKR-Regular-subset.woff2'))
-const serif = readWoff2(join(FONTS, 'RevelithSerifKR-Regular-subset.woff2'))
+const sans = readWoff2(join(FONTS, 'ReveLithSansKR-Regular-subset.woff2'))
+const serif = readWoff2(join(FONTS, 'ReveLithSerifKR-Regular-subset.woff2'))
 
-describe('Revelith Sans KR (Malgun-normalized)', () => {
+describe('ReveLith Sans KR (Malgun-normalized)', () => {
   it('hangul syllables and compatibility jamo stay 1.0em', () => {
     for (const cp of [0xac00, 0xae4e, 0xd558, 0x3131]) {
       expect(advanceEm(sans, cp), `U+${cp.toString(16)}`).toBe(1)
@@ -54,7 +54,7 @@ describe('Revelith Sans KR (Malgun-normalized)', () => {
   })
 })
 
-describe('Revelith Serif KR (Batang-normalized)', () => {
+describe('ReveLith Serif KR (Batang-normalized)', () => {
   it('hangul 1.0em, digits 0.596em, space 0.333em', () => {
     expect(advanceEm(serif, 0xac00)).toBe(1)
     expect(advanceEm(serif, 0x3131)).toBe(1)

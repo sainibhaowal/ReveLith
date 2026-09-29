@@ -8,7 +8,7 @@
 
 An ultra-fast, local-first productivity powerhouse designed for modern engineering, writing, and analysis. Built from the ground up to handle real Microsoft Office formats, PDF, and Markdown without compromising privacy or document fidelity.
 
-[📥 Download ReveLith (.exe / .dmg / .deb)](https://github.com/sainibhaowal/Revelith/releases) • [🚀 v1.2.0 Release Notes](docs/PUBLIC_RELEASE_NOTES.md) • [📖 End-to-End Guide](docs/FEATURES_END_TO_END_GUIDE.md) • [Features](#key-capabilities) • [Architecture](#architecture--fidelity-model) • [Suite Overview](#applications) • [Build from Source](#building-from-source-for-developers) • [Security](#security--privacy)
+[📥 Download ReveLith (.exe / .dmg / .deb)](https://github.com/sainibhaowal/ReveLith/releases) • [🚀 v1.2.0 Release Notes](docs/PUBLIC_RELEASE_NOTES.md) • [📖 End-to-End Guide](docs/FEATURES_END_TO_END_GUIDE.md) • [Features](#key-capabilities) • [Architecture](#architecture--fidelity-model) • [Suite Overview](#applications) • [Build from Source](#building-from-source-for-developers) • [Security](#security--privacy)
 
 </div>
 
@@ -16,7 +16,7 @@ An ultra-fast, local-first productivity powerhouse designed for modern engineeri
 
 ## 📥 Download ReveLith
 
-Ready to use ReveLith on your computer? Download the pre-built installer for your operating system from our **[Releases Page](https://github.com/sainibhaowal/Revelith/releases)**:
+Ready to use ReveLith on your computer? Download the pre-built installer for your operating system from our **[Releases Page](https://github.com/sainibhaowal/ReveLith/releases)**:
 
 - 🪟 **Windows**: `.exe` (x64 and Native ARM64 for Snapdragon X & Windows on Arm)
 - 🍎 **macOS**: `.dmg` (Universal: Apple Silicon & Intel)
@@ -144,8 +144,8 @@ If you are a developer looking to explore the codebase or build ReveLith locally
 
 ```bash
 # Clone the repository
-git clone https://github.com/sainibhaowal/Revelith.git
-cd Revelith
+git clone https://github.com/sainibhaowal/ReveLith.git
+cd ReveLith
 
 # Install workspace dependencies
 
