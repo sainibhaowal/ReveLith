@@ -49,12 +49,40 @@ export type StreamTextOutcome =
 const PROGRESS_THROTTLE_MS = 120
 
 /**
+ * Cap used when the caller supplies no usable limit.
+ *
+ * A limit is a safety net, so an unusable one must not silently disable it.
+ * `NaN` is the dangerous case rather than an obvious one: a caller that
+ * derives the cap from a token estimate gets `NaN` from a divide-by-zero or a
+ * missing model price, and `raw.length > NaN` is false for every string, so the
+ * comparison never trips and the stream runs unbounded. Zero and negative
+ * limits are the mirror failure: they trip on the first delta and truncate the
+ * reply to nothing. All of them fall back here instead.
+ */
+const FALLBACK_MAX_CHARS = 200_000
+
+/**
  * Stream one tool-less turn and resolve with the extracted payload.
  * Never throws: transport errors, aborts and the output cap all come back as a
  * discriminated result so callers can show partial work instead of a dead end.
  */
 export function streamText(opts: StreamTextOptions): Promise<StreamTextOutcome> {
-  const { transport, system, user, signal, maxChars, extract, onProgress } = opts
+  const { transport, system, user, signal, extract, onProgress } = opts
+  const maxChars =
+    opts.maxChars !== undefined && Number.isFinite(opts.maxChars) && opts.maxChars > 0
+      ? opts.maxChars
+      : FALLBACK_MAX_CHARS
+  // An extract() that throws must settle the promise rather than strand the
+  // caller on a stream that will never report anything again. The raw reply is
+  // kept (marked incomplete) so a formatting bug degrades to raw output instead
+  // of losing the model's reply.
+  const safeExtract = (text: string): StreamTextExtractResult => {
+    try {
+      return extract(text)
+    } catch (err) {
+      return { text, complete: false }
+    }
+  }
   return new Promise<StreamTextOutcome>((resolve) => {
     let raw = ''
     let settled = false
@@ -76,12 +104,12 @@ export function streamText(opts: StreamTextOptions): Promise<StreamTextOutcome> 
       const now = Date.now()
       if (!force && now - lastProgress < PROGRESS_THROTTLE_MS) return
       lastProgress = now
-      onProgress(extract(raw).text)
+      onProgress(safeExtract(raw).text)
     }
 
     /** Runs the shared end-of-stream bookkeeping once the transport settles. */
     const settle = (status: 'done' | 'error') => {
-      const { text, complete = true } = extract(raw)
+      const { text, complete = true } = safeExtract(raw)
       if (!text) {
         finish(
           status === 'error'
@@ -90,7 +118,12 @@ export function streamText(opts: StreamTextOptions): Promise<StreamTextOutcome> 
         )
         return
       }
-      if (status === 'done' && complete) {
+      // A cancelled or capped run did not finish cleanly, so it is partial even
+      // when the extractor is perfectly happy with the text. Without this the
+      // happy `complete` below short-circuits first and the caller is told the
+      // reply is whole after the user pressed stop, or after we cut it off.
+      const interrupted = aborted || capped
+      if (status === 'done' && complete && !interrupted) {
         finish({ status: 'complete', text })
         return
       }
@@ -105,6 +138,14 @@ export function streamText(opts: StreamTextOptions): Promise<StreamTextOutcome> 
     // in a holder that is initialized before the call rather than in a `const`
     // whose binding would still be in the temporal dead zone.
     const live: { handle?: AgentStreamHandle } = {}
+
+    // Already cancelled: settle without opening a request. Sending anyway would
+    // bill a completion the user just refused.
+    if (aborted) {
+      finish({ status: 'empty', error: 'the request was cancelled before it started' })
+      return
+    }
+
     live.handle = transport.stream(
       { system, messages: [{ role: 'user', text: user }], tools: [] } satisfies AgentStreamRequest,
       {
@@ -114,6 +155,7 @@ export function streamText(opts: StreamTextOptions): Promise<StreamTextOutcome> 
           if (maxChars !== undefined && raw.length > maxChars) {
             raw = raw.slice(0, maxChars)
             capped = true
+            lastError = `output exceeded ${maxChars} chars`
             // a synchronous transport that already finished has no live handle; the
             // transport must still emit onDone, which settle() below consumes
             live.handle?.cancel()

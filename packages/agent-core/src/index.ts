@@ -14,7 +14,15 @@ export type {
 } from './types'
 export { composeSkills } from './skill'
 export type { AgentSkill } from './skill'
-export { AgentLoop, COMPLETED_VIA_TOOLS_TEXT, sanitizeAgentPayload } from './loop'
+export {
+  AgentLoop,
+  COMPLETED_VIA_TOOLS_TEXT,
+  DEFAULT_MAX_TURNS,
+  missingRequiredFields,
+  runtimePreamble,
+  sanitizeAgentPayload,
+  TOOL_ABORTED_OUTPUT,
+} from './loop'
 export type {
   AgentLoopEvents,
   AgentLoopOptions,
