@@ -34,10 +34,12 @@ interface TabSession {
 }
 
 const tabSessions = new Map<number, TabSession>()
-let pendingOpenPath: string | null = null
+const pendingOpenPaths: Array<string | null> = []
+
+let ipcRegistered = false
 
 export function setPendingHtmlOpen(filePath: string | null) {
-  pendingOpenPath = filePath
+  pendingOpenPaths.push(filePath)
 }
 
 export function htmlIsDirty(wcId: number): boolean {
@@ -71,10 +73,12 @@ export function htmlFileRenamed(wc: WebContents, oldPath: string, newPath: strin
 }
 
 export function registerHtmlIpc() {
+  if (ipcRegistered) return
+  ipcRegistered = true
+
   ipcMain.handle(HTML_CHANNELS.consumePending, (event) => {
     const wcId = event.sender.id
-    const p = pendingOpenPath
-    pendingOpenPath = null
+    const p = pendingOpenPaths.length > 0 ? (pendingOpenPaths.shift() ?? null) : null
     const session: TabSession = { filePath: p, dirty: false }
     tabSessions.set(wcId, session)
     return { path: p }

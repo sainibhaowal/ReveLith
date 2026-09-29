@@ -36,10 +36,42 @@ export interface ByokSettings {
   mediaAnalysisKey?: string
 }
 
+export type WebSearchProviderId = 'serper' | 'duckduckgo'
+
+/**
+ * AI Media & Search settings (Settings → AI Media & Search). Stored on this
+ * device only, inside AiSettings. Keys are threaded into the main-process
+ * search/image handlers; providers/models pick dedicated backends, falling
+ * back to the active chat provider or the free search fallback when unset.
+ */
+export interface MediaSearchSettings {
+  webSearch: {
+    provider: WebSearchProviderId
+    apiKey: string
+  }
+  imageGen: {
+    /** '' = use the active chat provider (legacy behavior) */
+    provider: AiProviderId | ''
+    model: string
+    apiKey: string
+    baseUrl: string
+  }
+  imageAnalysis: {
+    /** '' = use the active chat provider (legacy behavior) */
+    provider: AiProviderId | ''
+    model: string
+  }
+  videoAnalysis: {
+    /** '' = use the active chat provider (legacy behavior) */
+    provider: AiProviderId | ''
+  }
+}
+
 export interface AiSettings {
   provider: AiProviderId
   providers: Record<AiProviderId, AiProviderConfig>
   byok?: ByokSettings
+  mediaSearch?: MediaSearchSettings
 }
 
 /** pre-provider settings shape (single OpenAI-compatible endpoint); migrated into "custom" */

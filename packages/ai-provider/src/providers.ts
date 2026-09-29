@@ -1,4 +1,10 @@
-import type { AiProviderId, AiProviderMeta, AiSettings, LegacyAiSettings } from './types'
+import type {
+  AiProviderId,
+  AiProviderMeta,
+  AiSettings,
+  LegacyAiSettings,
+  MediaSearchSettings,
+} from './types'
 
 export const AI_PROVIDERS: AiProviderMeta[] = [
   {
@@ -115,7 +121,72 @@ export function defaultAiSettings(
   }
   // Local-first default. Users can select any hosted provider in Settings; a
   // first-run installation should not point at a nonexistent private server.
-  return { provider: 'lmstudio', providers }
+  return { provider: 'lmstudio', providers, mediaSearch: defaultMediaSearch() }
+}
+
+/** Fresh Media & Search settings: free search fallback, image/media follow the active chat provider. */
+export function defaultMediaSearch(): MediaSearchSettings {
+  return {
+    webSearch: { provider: 'duckduckgo', apiKey: '' },
+    imageGen: { provider: '', model: '', apiKey: '', baseUrl: '' },
+    imageAnalysis: { provider: '', model: '' },
+    videoAnalysis: { provider: '' },
+  }
+}
+
+/** Serper key actually threaded into the main-process search handlers. */
+export function resolveWebSearchKey(settings: AiSettings): string {
+  return settings.mediaSearch?.webSearch.apiKey || settings.byok?.webSearchKey || ''
+}
+
+export interface EffectiveImageGen {
+  provider: AiProviderId
+  config: { apiKey: string; model: string; baseUrl?: string | undefined }
+}
+
+/**
+ * Dedicated image-generation backend from Settings → AI Media & Search.
+ * Returns null when unconfigured, in which case callers keep the legacy
+ * behavior (generate with the active chat provider).
+ */
+export function resolveImageGenTarget(settings: AiSettings): EffectiveImageGen | null {
+  const wanted = settings.mediaSearch?.imageGen
+  const provider = wanted?.provider
+  if (!provider) return null
+  const stored = settings.providers?.[provider]
+  if (!stored) return null
+  const apiKey = wanted.apiKey || stored.apiKey
+  // Local servers work keyless; hosted ones need a key from either field.
+  const keyless = provider === 'lmstudio' || provider === 'ollama' || provider === 'custom'
+  if (!apiKey && !keyless) return null
+  return {
+    provider,
+    config: {
+      apiKey: apiKey || 'local-key',
+      model: wanted.model || stored.model,
+      baseUrl: wanted.baseUrl || stored.baseUrl,
+    },
+  }
+}
+
+export interface EffectiveMediaAnalysis {
+  provider: AiProviderId
+  model: string
+}
+
+/**
+ * Dedicated media-analysis backend from Settings → AI Media & Search.
+ * Returns null when unconfigured (callers use the active chat provider).
+ */
+export function resolveMediaAnalysisTarget(settings: AiSettings): EffectiveMediaAnalysis | null {
+  const media = settings.mediaSearch
+  const provider = media?.imageAnalysis.provider
+  if (!provider || !settings.providers?.[provider]) return null
+  const stored = settings.providers[provider]!
+  return {
+    provider,
+    model: media.imageAnalysis.model || stored.model,
+  }
 }
 
 /**
@@ -128,6 +199,22 @@ export function resolveAiSettings(
   stored: Partial<AiSettings> & LegacyAiSettings,
   defaults: AiSettings,
 ): AiSettings {
+  const fresh = defaultMediaSearch()
+  const s = stored.mediaSearch
+  const mediaSearch: MediaSearchSettings = {
+    webSearch: { ...fresh.webSearch, ...s?.webSearch },
+    imageGen: { ...fresh.imageGen, ...s?.imageGen },
+    imageAnalysis: { ...fresh.imageAnalysis, ...s?.imageAnalysis },
+    videoAnalysis: { ...fresh.videoAnalysis, ...s?.videoAnalysis },
+  }
+  // Migrate legacy BYOK keys (Settings wrote them before mediaSearch existed).
+  if (!mediaSearch.webSearch.apiKey && stored.byok?.webSearchKey) {
+    mediaSearch.webSearch.apiKey = stored.byok.webSearchKey
+  }
+  const extras = {
+    ...(stored.byok ? { byok: stored.byok } : {}),
+    mediaSearch,
+  }
   if (!stored.providers) {
     if (stored.apiKey) {
       defaults.providers.custom = {
@@ -136,10 +223,11 @@ export function resolveAiSettings(
         baseUrl: stored.baseUrl ?? 'https://api.openai.com/v1',
       }
     }
-    return defaults
+    return { ...defaults, ...extras }
   }
   return {
     provider: stored.provider ?? defaults.provider,
     providers: { ...defaults.providers, ...stored.providers },
+    ...extras,
   }
 }

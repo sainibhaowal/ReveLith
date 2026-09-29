@@ -17,6 +17,7 @@ import {
   defaultAiSettings,
   generateImageForProvider,
   resolveAiSettings,
+  resolveImageGenTarget,
   type AiSettings,
   type LegacyAiSettings,
 } from '@revelith/ai-provider'
@@ -620,7 +621,7 @@ function registerPdfIpc(): void {
       ok: true,
       available,
       platform,
-      method: available ? 'native' : 'tesseract'
+      method: available ? 'native' : 'tesseract',
     }
   })
 
@@ -639,13 +640,13 @@ function registerPdfIpc(): void {
         const result = await ocrPdfPage(path, pageIndex, {
           language,
           preprocessImage,
-          enhanceContrast
+          enhanceContrast,
         })
         return {
           ok: true,
           text: result.text,
           confidence: result.confidence,
-          lines: result.lines
+          lines: result.lines,
         }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -749,7 +750,8 @@ function registerPdfIpc(): void {
     }
     const win =
       BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow() ?? undefined
-    const safeBase = String(suggestedName || title || 'Untitled').replace(/[/\\:*?"<>|]/g, '_') || 'Untitled'
+    const safeBase =
+      String(suggestedName || title || 'Untitled').replace(/[/\\:*?"<>|]/g, '_') || 'Untitled'
     const picked = await showSaveDialogWithMemory(dialog, win, {
       title: 'Create PDF document',
       defaultPath: join(app.getPath('documents'), `${safeBase}.pdf`),
@@ -768,7 +770,8 @@ function registerPdfIpc(): void {
   // pdf-owned (unlike ai:image-search / ai:fetch-image, which the shell registers app-wide):
   // slides' ai:generate-image is only registered once a slides view exists, so pdf needs its own
   ipcMain.handle(
-    PDF_CHANNELS.generateImage,    async (_e, op: { prompt?: unknown; aspectRatio?: unknown }) => {
+    PDF_CHANNELS.generateImage,
+    async (_e, op: { prompt?: unknown; aspectRatio?: unknown }) => {
       const prompt = String(op?.prompt ?? '').trim()
       if (!prompt) return { error: 'prompt must not be empty' }
       try {
@@ -778,13 +781,12 @@ function registerPdfIpc(): void {
           stored = JSON.parse(readFileSync(settingsPath, 'utf-8')) as typeof stored
         }
         const settings = resolveAiSettings(stored, defaultAiSettings())
-        const provider = settings.provider
-        let config = settings.providers?.[provider]
-        if (
-          config &&
-          ['lmstudio', 'ollama', 'custom'].includes(provider) &&
-          !config.apiKey
-        ) {
+        // Dedicated image backend from Settings → AI Media & Search wins;
+        // otherwise generate with the active chat provider (legacy behavior).
+        const dedicated = resolveImageGenTarget(settings)
+        const provider = dedicated?.provider ?? settings.provider
+        let config = dedicated?.config ?? settings.providers?.[provider]
+        if (config && ['lmstudio', 'ollama', 'custom'].includes(provider) && !config.apiKey) {
           config = { ...config, apiKey: 'local-key' }
         }
         if (!config) return { error: 'The selected AI provider is not configured.' }

@@ -2051,14 +2051,19 @@ function registerHomeIpc(): void {
   ipcMain.handle(HOME_CHANNELS.getDefaultSaveDir, (): string => defaultSaveDir())
 
   // One-click skill install for coding agents (Claude Code, Codex, OpenCode).
-  ipcMain.handle('skill:install', async () => {
+  // With an agent id installs only that agent; otherwise installs all.
+  ipcMain.handle('skill:install', async (_event, agent?: unknown) => {
     try {
-      const { installRevelithSkill } = await import('./skill-install.js')
+      const { installRevelithSkill, installSkillFor } = await import('./skill-install.js')
       const { join, dirname } = await import('node:path')
       const { fileURLToPath } = await import('node:url')
       const here = dirname(fileURLToPath(import.meta.url))
       // dist layout: apps/shell/dist/main -> repo root skills/revelith/SKILL.md
       const skillSrc = join(here, '..', '..', '..', '..', 'skills', 'revelith', 'SKILL.md')
+      if (typeof agent === 'string' && agent) {
+        const one = installSkillFor(agent, skillSrc)
+        return one ? [one] : [{ agent, path: '', ok: false, error: 'unknown agent' }]
+      }
       return installRevelithSkill(skillSrc)
     } catch (err) {
       return [
@@ -2070,6 +2075,46 @@ function registerHomeIpc(): void {
         },
       ]
     }
+  })
+
+  // Coding agents detected on this machine (skill-install targets).
+  ipcMain.handle(HOME_CHANNELS.detectSkills, async (): Promise<string[]> => {
+    try {
+      const { detectedAgents } = await import('./skill-install.js')
+      return detectedAgents()
+    } catch {
+      return []
+    }
+  })
+
+  // Anonymous usage-statistics preference (default off). No analytics pipeline
+  // exists in this build, so the toggle is stored on-device and honored by any
+  // future diagnostics: nothing is uploaded while it is off.
+  ipcMain.handle(HOME_CHANNELS.getUsageStats, (): boolean => {
+    return readAppSettings(APP_SETTINGS_PATH()).usageStatsEnabled === true
+  })
+
+  ipcMain.handle(HOME_CHANNELS.setUsageStats, (_event, enabled: unknown) => {
+    writeAppSetting(APP_SETTINGS_PATH(), 'usageStatsEnabled', enabled === true)
+  })
+
+  // Local device profile for Settings → Account (stored only on this device).
+  ipcMain.handle(HOME_CHANNELS.getProfile, (): { displayName: string; email: string } => {
+    const saved = readAppSettings(APP_SETTINGS_PATH())
+    const displayName = saved.profileDisplayName
+    const email = saved.profileEmail
+    return {
+      displayName: typeof displayName === 'string' ? displayName : '',
+      email: typeof email === 'string' ? email : '',
+    }
+  })
+
+  ipcMain.handle(HOME_CHANNELS.setProfile, (_event, profile: unknown) => {
+    const p = (profile ?? {}) as { displayName?: unknown; email?: unknown }
+    const displayName = typeof p.displayName === 'string' ? p.displayName.slice(0, 120) : ''
+    const email = typeof p.email === 'string' ? p.email.slice(0, 320) : ''
+    writeAppSetting(APP_SETTINGS_PATH(), 'profileDisplayName', displayName)
+    writeAppSetting(APP_SETTINGS_PATH(), 'profileEmail', email)
   })
 
   ipcMain.handle(HOME_CHANNELS.pickDefaultSaveDir, async (): Promise<string | null> => {

@@ -51,6 +51,7 @@ import {
   chatForProvider,
   defaultAiSettings,
   resolveAiSettings,
+  resolveWebSearchKey,
   setRescueFetch,
   streamForProvider,
   type AiChatRequest,
@@ -2577,10 +2578,23 @@ export function registerAiIpc(): void {
     activeAiStreams.get(requestId)?.abort()
   })
 
-  // shared search tools (content + images): Serper with DuckDuckGo fallback (same source as slides/sheets)
+  // shared search tools (content + images): Serper with DuckDuckGo fallback (same source as slides/sheets).
+  // The Serper key comes from Settings → AI Media & Search (stored on-device in ai-settings.json).
+  const storedSearchKey = (): string | undefined => {
+    try {
+      const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
+      return resolveWebSearchKey(resolveAiSettings(stored, defaultAiSettings())) || undefined
+    } catch {
+      return undefined
+    }
+  }
   ipcMain.handle('ai:web-search', async (_event, query: string, maxResults?: number) => {
     try {
-      return await webSearch(String(query), typeof maxResults === 'number' ? maxResults : 6)
+      return await webSearch(
+        String(query),
+        typeof maxResults === 'number' ? maxResults : 6,
+        storedSearchKey(),
+      )
     } catch (err) {
       return { results: [], method: 'error', error: String(err) }
     }
@@ -2590,6 +2604,7 @@ export function registerAiIpc(): void {
       const result = await imageSearch(
         String(query),
         typeof maxResults === 'number' ? maxResults : 8,
+        storedSearchKey(),
       )
       // Search engines often return hotlink-protected thumbnails or HTML pages.
       // Keep only URLs that the same safe downloader used by insert_image can

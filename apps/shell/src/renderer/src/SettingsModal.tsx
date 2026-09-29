@@ -142,16 +142,68 @@ const _CHANNEL_OPTIONS = [
   { value: 'beta', labelKey: 'channelBeta' },
 ] as const satisfies readonly { value: 'stable' | 'beta'; labelKey: StringKey }[]
 
-type SectionId = 'ai' | 'integrations' | 'general' | 'about'
+type SectionId = 'account' | 'ai' | 'media' | 'general' | 'integrations' | 'about'
 
 const SECTIONS: readonly { id: SectionId; label: string }[] = [
+  { id: 'account', label: 'Account' },
   { id: 'ai', label: 'AI & Models' },
-  { id: 'integrations', label: 'Integrations' },
+  { id: 'media', label: 'AI Media & Search' },
   { id: 'general', label: 'General' },
+  { id: 'integrations', label: 'Integrations' },
   { id: 'about', label: 'About' },
 ]
 
 function SectionIcon({ id }: { id: SectionId }) {
+  if (id === 'account') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="5.2" r="2.6" stroke="currentColor" strokeWidth="1.3" />
+        <path
+          d="M2.5 13.5c.6-2.6 2.8-4 5.5-4s4.9 1.4 5.5 4"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+      </svg>
+    )
+  }
+  if (id === 'media') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect
+          x="1.8"
+          y="3"
+          width="12.4"
+          height="8.6"
+          rx="1.5"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        />
+        <circle cx="5.2" cy="6.4" r="1.1" fill="currentColor" />
+        <path
+          d="M3 10.4l3-3 2.4 2.4 2-2 2.8 2.8"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+        <path d="M6 13.6h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (id === 'integrations') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M6.5 2v3M9.5 2v3M5 5h6v2.5a3 3 0 0 1-6 0V5z"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path d="M8 10.5V14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    )
+  }
   if (id === 'ai') {
     return (
       <svg
@@ -372,13 +424,80 @@ const PROVIDER_METAS = [
   },
 ] as const
 
+/** Agents with a real one-click SKILL.md install target (see skill-install.ts). */
+const KNOWN_SKILL_AGENTS = ['claude-code', 'codex', 'opencode'] as const
+
+function agentDisplayName(agent: string): string {
+  if (agent === 'claude-code') return 'Claude Code'
+  if (agent === 'codex') return 'Codex'
+  if (agent === 'opencode') return 'OpenCode'
+  return agent
+}
+
 function IntegrationsSection() {
   const [skillStatus, setSkillStatus] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [agentRows, setAgentRows] = useState<
+    Array<{ agent: string; dir: string; hostDetected: boolean; installed: boolean }>
+  >([])
+  const [agentsBusy, setAgentsBusy] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<
     'claude-code' | 'claude-desktop' | 'cursor' | 'in-app' | 'cli'
   >('claude-code')
+
+  const refreshAgentRows = async () => {
+    try {
+      const detected = ((await window.aiOffice?.detectSkills?.()) ?? []) as string[]
+      setAgentRows((prev) => {
+        const prevByAgent = new Map(prev.map((r) => [r.agent, r]))
+        const rows: Array<{
+          agent: string
+          dir: string
+          hostDetected: boolean
+          installed: boolean
+        }> = KNOWN_SKILL_AGENTS.map((agent) => ({
+          agent,
+          dir: prevByAgent.get(agent)?.dir ?? '',
+          hostDetected: detected.includes(agent),
+          installed: prevByAgent.get(agent)?.installed ?? false,
+        }))
+        for (const agent of detected) {
+          if (!rows.some((r) => r.agent === agent)) {
+            rows.push({ agent, dir: '', hostDetected: true, installed: false })
+          }
+        }
+        return rows
+      })
+    } catch {}
+  }
+
+  useEffect(() => {
+    void refreshAgentRows()
+  }, [])
+
+  const installOneSkill = async (agent: string) => {
+    setAgentsBusy(agent)
+    try {
+      const res = (await window.aiOffice?.installSkill?.(agent)) ?? []
+      const ok = res.some((r) => r.agent === agent && r.ok)
+      const path = res.find((r) => r.agent === agent)?.path ?? ''
+      setAgentRows((prev) =>
+        prev.map((r) =>
+          r.agent === agent ? { ...r, installed: ok || r.installed, dir: path || r.dir } : r,
+        ),
+      )
+      setSkillStatus(
+        res
+          .map((r) => `${r.agent}: ${r.ok ? '✓ installed (' + r.path + ')' : 'skipped'}`)
+          .join('\n') || 'Done',
+      )
+    } catch (e: unknown) {
+      setSkillStatus(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAgentsBusy(null)
+    }
+  }
 
   const copyToClipboard = (text: string, key: string) => {
     void navigator.clipboard.writeText(text)
@@ -742,6 +861,138 @@ function IntegrationsSection() {
               One-click installer for local coding agents (Claude Code, Codex, OpenCode). Installs
               the native ReveLith skill definitions into agent config directories.
             </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginBottom: 14,
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                1
+              </span>
+              <span style={{ flex: 1 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Pick a route:</strong> CLI if your
+                assistant can run terminal commands, MCP if it cannot.
+              </span>
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                2
+              </span>
+              <span style={{ flex: 1 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Follow that section below</strong>—
+                usually a single click.
+              </span>
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: 'var(--surface-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                3
+              </span>
+              <span style={{ flex: 1 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Start a new chat</strong> and just
+                ask.
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                marginBottom: 6,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              Install the skill into your assistant
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {agentRows.map((row) => (
+                <div
+                  key={row.agent}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '8px 12px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 6,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>
+                      {agentDisplayName(row.agent)}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                      {row.installed
+                        ? `Skill installed (${row.dir})`
+                        : row.hostDetected
+                          ? 'Skill not installed'
+                          : 'Assistant not detected on this computer'}
+                    </div>
+                  </div>
+                  {row.installed ? (
+                    <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
+                      ✓ Installed
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="set-btn"
+                      disabled={agentsBusy !== null}
+                      onClick={() => void installOneSkill(row.agent)}
+                    >
+                      {agentsBusy === row.agent ? 'Installing…' : 'Install'}
+                    </button>
+                  )}
+                </div>
+              ))}
+              {agentRows.length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Detecting assistants on this computer…
+                </div>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
               <button
                 type="button"
@@ -805,7 +1056,82 @@ function IntegrationsSection() {
                   color: 'var(--text-secondary)',
                 }}
               >
-                Common CLI Commands:
+                Try it
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+                Once installed, open a new chat in your assistant and ask in plain words, for
+                example:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                {[
+                  'Turn ~/Downloads/report.md into a Word document',
+                  'Make a 6-slide deck about our Q3 results',
+                  'Convert budget.xlsx to PDF and open it in ReveLith',
+                ].map((prompt) => (
+                  <div
+                    key={prompt}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 12px',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <span style={{ flex: 1, fontSize: 12.5 }}>&ldquo;{prompt}&rdquo;</span>
+                    <button
+                      type="button"
+                      className="set-btn"
+                      onClick={() => copyToClipboard(prompt, `try-${prompt}`)}
+                    >
+                      {copiedKey === `try-${prompt}` ? '✓ Copied' : 'Copy'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' }}>
+                The assistant runs the revelith command line itself; you never have to type it.
+              </p>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginBottom: 6,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                My assistant is not listed
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+                Any MCP-capable assistant can drive ReveLith over stdio (nothing to switch on here),
+                or over Streamable HTTP for remote agents and sandboxes:
+              </p>
+              <pre
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  fontFamily: 'monospace',
+                  fontSize: 11.5,
+                  margin: '0 0 14px',
+                  lineHeight: 1.6,
+                }}
+              >
+                {`revelith mcp                             # stdio (Claude Desktop, Cursor, …)
+revelith mcp --http 3928 --token <secret>  # Streamable HTTP + PUT /files/<name> upload`}
+              </pre>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginBottom: 6,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                Advanced: revelith command line
               </div>
               <pre
                 style={{
@@ -823,7 +1149,9 @@ function IntegrationsSection() {
 revelith docs apply doc.docx --spec spec.json  # Apply document styles & content
 revelith sheet apply sheet.xlsx --spec spec.json # Apply formulas & conditional formats
 revelith slides apply deck.pptx --spec spec.json # Apply slide templates & shapes
-revelith check file.docx                   # Quality & validation check`}
+revelith deck build --spec spec.json --out out.pptx # Build deck from spec
+revelith open deck.pptx --slide 3            # Point editor at slide / range / page
+revelith check file.docx [--json]            # Quality & validation check`}
               </pre>
             </div>
           </div>
@@ -1664,6 +1992,423 @@ function AiSettingsSection() {
 }
 
 /** label-over-value field row with an optional right-aligned action */
+const DEFAULT_MEDIA_SEARCH = {
+  webSearch: { provider: 'duckduckgo', apiKey: '' },
+  imageGen: { provider: '', model: '', apiKey: '', baseUrl: '' },
+  imageAnalysis: { provider: '', model: '' },
+  videoAnalysis: { provider: '' },
+} as const
+
+type MediaSearchState = {
+  webSearch: { provider: string; apiKey: string }
+  imageGen: { provider: string; model: string; apiKey: string; baseUrl: string }
+  imageAnalysis: { provider: string; model: string }
+  videoAnalysis: { provider: string }
+}
+
+function mergeMediaSearch(raw: any): MediaSearchState {
+  const s = raw?.mediaSearch ?? {}
+  return {
+    webSearch: { ...DEFAULT_MEDIA_SEARCH.webSearch, ...(s.webSearch ?? {}) },
+    imageGen: { ...DEFAULT_MEDIA_SEARCH.imageGen, ...(s.imageGen ?? {}) },
+    imageAnalysis: { ...DEFAULT_MEDIA_SEARCH.imageAnalysis, ...(s.imageAnalysis ?? {}) },
+    videoAnalysis: { ...DEFAULT_MEDIA_SEARCH.videoAnalysis, ...(s.videoAnalysis ?? {}) },
+  }
+}
+
+function MediaSearchSection() {
+  const [settings, setSettings] = useState<any>(null)
+  const [showKeys, setShowKeys] = useState(false)
+  const [savedTick, setSavedTick] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      let s: any
+      try {
+        s = (await window.aiOffice?.getAiSettings?.()) ?? null
+      } catch {
+        /* fall through to localStorage below */
+      }
+      if (!s) {
+        try {
+          const stored = localStorage.getItem('revelith.aiSettings')
+          if (stored) s = JSON.parse(stored)
+        } catch {}
+      }
+      if (alive) setSettings(s ?? { provider: 'lmstudio', providers: {}, byok: {} })
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  if (!settings) return <div style={{ padding: 20 }}>Loading media & search settings...</div>
+  const media = mergeMediaSearch(settings)
+
+  const persist = (nextMedia: MediaSearchState) => {
+    const next = { ...settings, mediaSearch: nextMedia }
+    // Keep the legacy BYOK search key in sync so older readers still find it.
+    next.byok = { ...(settings.byok || {}), webSearchKey: nextMedia.webSearch.apiKey }
+    setSettings(next)
+    try {
+      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
+    } catch {}
+    try {
+      void window.aiOffice?.setAiSettings?.(next)
+    } catch {}
+    window.dispatchEvent(new Event('ai-settings-changed'))
+    setSavedTick(true)
+    setTimeout(() => setSavedTick(false), 1500)
+  }
+
+  const setMedia = <K extends keyof MediaSearchState>(
+    section: K,
+    patch: Partial<MediaSearchState[K]>,
+  ) => {
+    persist({ ...media, [section]: { ...media[section], ...patch } })
+  }
+
+  const imageProviderOptions = [
+    { value: '', label: 'Use active chat provider' },
+    ...PROVIDER_METAS.map((p) => ({ value: p.id, label: p.label })),
+  ]
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 500,
+    marginBottom: 4,
+    color: 'var(--text-secondary)',
+  }
+  const hintStyle: React.CSSProperties = {
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    margin: '8px 0 0',
+  }
+  const cardStyle: React.CSSProperties = {
+    padding: 16,
+    borderRadius: 8,
+    background: 'var(--surface-sunken)',
+    border: '1px solid var(--border-subtle)',
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div>
+        <h3 className="set-pane-title" style={{ margin: '0 0 6px' }}>
+          AI Media & Search
+        </h3>
+        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }}>
+          A vendor&apos;s key and base URL are shared across capabilities; enter them once.
+          Everything below is stored only on this device.
+          {savedTick && <span style={{ color: '#22c55e', marginLeft: 8 }}>✓ Saved</span>}
+        </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Web search</h4>
+        <div style={{ marginBottom: 10 }}>
+          <label style={labelStyle}>Provider</label>
+          <CustomSelect
+            value={media.webSearch.provider}
+            options={[
+              { value: 'serper', label: 'Serper (Google results, needs key)' },
+              { value: 'duckduckgo', label: 'DuckDuckGo (free, no key)' },
+            ]}
+            onChange={(val) => setMedia('webSearch', { provider: val })}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>API Key</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type={showKeys ? 'text' : 'password'}
+              className="ai-input"
+              value={media.webSearch.apiKey}
+              placeholder="tvly-..."
+              onChange={(e) => setMedia('webSearch', { apiKey: e.target.value })}
+            />
+            <button type="button" className="set-btn" onClick={() => setShowKeys((v) => !v)}>
+              {showKeys ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        </div>
+        <p style={hintStyle}>
+          {media.webSearch.provider === 'serper'
+            ? media.webSearch.apiKey
+              ? 'Serper serves web search with your key; image search falls back to free sources when its quota is exhausted.'
+              : 'Add your Serper key to enable Google results; until then the free fallback answers.'
+            : 'Web and image search use the free DuckDuckGo fallback; add a Serper key above for Google results.'}
+        </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Image generation</h4>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Provider</label>
+            <CustomSelect
+              value={media.imageGen.provider}
+              options={imageProviderOptions}
+              onChange={(val) => setMedia('imageGen', { provider: val })}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Model</label>
+            <input
+              type="text"
+              className="ai-input"
+              value={media.imageGen.model}
+              placeholder="model-id"
+              onChange={(e) => setMedia('imageGen', { model: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>API Key</label>
+            <input
+              type={showKeys ? 'text' : 'password'}
+              className="ai-input"
+              value={media.imageGen.apiKey}
+              placeholder="API Key"
+              onChange={(e) => setMedia('imageGen', { apiKey: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Base URL</label>
+            <input
+              type="text"
+              className="ai-input"
+              value={media.imageGen.baseUrl}
+              placeholder="https://.../v1"
+              onChange={(e) => setMedia('imageGen', { baseUrl: e.target.value })}
+            />
+          </div>
+        </div>
+        <p style={hintStyle}>
+          Any OpenAI-compatible endpoint: /images/generations and /chat/completions. Empty provider
+          means slides, sheets and PDF generate with the active chat provider.
+        </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Image analysis</h4>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Provider</label>
+            <CustomSelect
+              value={media.imageAnalysis.provider}
+              options={imageProviderOptions}
+              onChange={(val) => setMedia('imageAnalysis', { provider: val })}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Model</label>
+            <input
+              type="text"
+              className="ai-input"
+              value={media.imageAnalysis.model}
+              placeholder="vision model-id"
+              onChange={(e) => setMedia('imageAnalysis', { model: e.target.value })}
+            />
+          </div>
+        </div>
+        <p style={hintStyle}>
+          Vision-capable chat model used to describe images and media for the AI tools.
+        </p>
+      </div>
+
+      <div style={cardStyle}>
+        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Video analysis</h4>
+        <div>
+          <label style={labelStyle}>Provider</label>
+          <CustomSelect
+            value={media.videoAnalysis.provider}
+            options={imageProviderOptions}
+            onChange={(val) => setMedia('videoAnalysis', { provider: val })}
+          />
+        </div>
+        <p style={hintStyle}>
+          Provider used when the AI tools analyze attached video via the media pipeline.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function AccountSection() {
+  const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [savedTick, setSavedTick] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      let profile: { displayName?: string; email?: string } | null
+      try {
+        profile = (await window.aiOffice?.getProfile?.()) ?? null
+      } catch {
+        profile = null
+      }
+      if (!profile) {
+        try {
+          const stored = localStorage.getItem('revelith.profile')
+          if (stored) profile = JSON.parse(stored)
+        } catch {}
+      }
+      if (alive) {
+        setDisplayName(profile?.displayName ?? '')
+        setEmail(profile?.email ?? '')
+        setLoaded(true)
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const handleSave = () => {
+    const next = { displayName: displayName.trim(), email: email.trim() }
+    try {
+      localStorage.setItem('revelith.profile', JSON.stringify(next))
+    } catch {}
+    try {
+      void window.aiOffice?.setProfile?.(next)
+    } catch {}
+    setSavedTick(true)
+    setTimeout(() => setSavedTick(false), 2000)
+  }
+
+  const initial = (displayName.trim()[0] ?? email.trim()[0] ?? 'R').toUpperCase()
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <h3 className="set-pane-title" style={{ margin: 0 }}>
+        Account
+      </h3>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          padding: 16,
+          borderRadius: 8,
+          background: 'var(--surface-sunken)',
+          border: '1px solid var(--border-subtle)',
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            background: 'var(--color-btn-primary)',
+            color: 'var(--color-btn-primary-text)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 20,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        >
+          {initial}
+        </div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>{displayName || 'ReveLith Account'}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            {email || 'Local device profile — nothing leaves this computer.'}
+          </div>
+        </div>
+      </div>
+      <div
+        style={{
+          padding: 16,
+          borderRadius: 8,
+          background: 'var(--surface-sunken)',
+          border: '1px solid var(--border-subtle)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div>
+          <label
+            htmlFor="acct-name"
+            style={{
+              display: 'block',
+              fontSize: 12,
+              fontWeight: 500,
+              marginBottom: 4,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            Display name
+          </label>
+          <input
+            id="acct-name"
+            type="text"
+            className="ai-input"
+            value={displayName}
+            placeholder="Your name"
+            disabled={!loaded}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="acct-email"
+            style={{
+              display: 'block',
+              fontSize: 12,
+              fontWeight: 500,
+              marginBottom: 4,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            Email
+          </label>
+          <input
+            id="acct-email"
+            type="email"
+            className="ai-input"
+            value={email}
+            placeholder="you@example.com"
+            disabled={!loaded}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button type="button" className="set-btn primary" onClick={handleSave} disabled={!loaded}>
+            Save profile
+          </button>
+          {savedTick && (
+            <span style={{ color: '#22c55e', fontSize: 13 }}>✓ Saved on this device</span>
+          )}
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+          Stored only on this device. There is no cloud account: your documents, keys and settings
+          never leave this computer.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function Field({
   label,
   value,
@@ -1745,6 +2490,21 @@ export function SettingsModal({
       return 'left'
     }
   })
+  const [aiFontSize, setAiFontSize] = useState(() => {
+    try {
+      return localStorage.getItem('revelith.aiPanelFontSize') || '14px'
+    } catch {
+      return '14px'
+    }
+  })
+  const [aiSpellcheck, setAiSpellcheck] = useState(() => {
+    try {
+      return localStorage.getItem('revelith.aiSpellcheck') !== 'false'
+    } catch {
+      return true
+    }
+  })
+  const [usageStats, setUsageStats] = useState(false)
 
   const applyAiDock = (next: 'left' | 'right') => {
     setAiDock(next)
@@ -1782,6 +2542,36 @@ export function SettingsModal({
     )
   }
 
+  const changeAiFontSize = (size: string) => {
+    setAiFontSize(size)
+    try {
+      localStorage.setItem('revelith.aiPanelFontSize', size)
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { fontSize: size } }),
+    )
+  }
+
+  const toggleAiSpellcheck = (val: boolean) => {
+    setAiSpellcheck(val)
+    try {
+      localStorage.setItem('revelith.aiSpellcheck', String(val))
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('revelith-ai-panel-settings-changed', { detail: { spellcheck: val } }),
+    )
+  }
+
+  const toggleUsageStats = (val: boolean) => {
+    setUsageStats(val)
+    try {
+      localStorage.setItem('revelith.usageStats', String(val))
+    } catch {}
+    try {
+      void window.aiOffice?.setUsageStats?.(val)
+    } catch {}
+  }
+
   useEffect(() => {
     let alive = true
     void window.aiOffice?.getTheme?.().then((th) => {
@@ -1796,6 +2586,16 @@ export function SettingsModal({
     void window.aiOffice?.getAppVersion?.().then((v) => {
       if (alive && v) setAppVersion(v)
     })
+    void (async () => {
+      try {
+        const enabled = await window.aiOffice?.getUsageStats?.()
+        if (alive) setUsageStats(enabled === true)
+      } catch {
+        try {
+          if (alive) setUsageStats(localStorage.getItem('revelith.usageStats') === 'true')
+        } catch {}
+      }
+    })()
     return () => {
       alive = false
     }
@@ -1871,7 +2671,9 @@ export function SettingsModal({
             ))}
           </nav>
           <div className="set-pane">
+            {section === 'account' && <AccountSection />}
             {section === 'ai' && <AiSettingsSection />}
+            {section === 'media' && <MediaSearchSection />}
             {section === 'integrations' && <IntegrationsSection />}
             {section === 'general' && (
               <>
@@ -1903,6 +2705,39 @@ export function SettingsModal({
                       label: t(opt.labelKey),
                     }))}
                     onChange={(val) => applyTheme(val)}
+                  />
+                </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <label className="set-field-label" htmlFor="set-ai-font">
+                      AI panel text size
+                    </label>
+                  </div>
+                  <CustomSelect
+                    id="set-ai-font"
+                    value={aiFontSize}
+                    options={[
+                      { value: '12px', label: 'Small (12px)' },
+                      { value: '14px', label: 'Normal (14px)' },
+                      { value: '16px', label: 'Large (16px)' },
+                    ]}
+                    onChange={(val) => changeAiFontSize(val)}
+                  />
+                </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <label className="set-field-label" htmlFor="set-ai-spell">
+                      Spell check in AI chat
+                    </label>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Underline misspelled words while typing in the AI chat input.
+                    </div>
+                  </div>
+                  <input
+                    id="set-ai-spell"
+                    type="checkbox"
+                    checked={aiSpellcheck}
+                    onChange={(e) => toggleAiSpellcheck(e.target.checked)}
                   />
                 </div>
                 <div className="set-field">
@@ -1970,12 +2805,29 @@ export function SettingsModal({
                     )}
                   </div>
                 </div>
+                <div className="set-field" style={{ marginTop: 14 }}>
+                  <div className="set-field-text">
+                    <label className="set-field-label" htmlFor="set-usage-stats">
+                      Send anonymous usage statistics
+                    </label>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Helps improve ReveLith. No document contents or file names are ever collected,
+                      and nothing is uploaded while this is off.
+                    </div>
+                  </div>
+                  <input
+                    id="set-usage-stats"
+                    type="checkbox"
+                    checked={usageStats}
+                    onChange={(e) => toggleUsageStats(e.target.checked)}
+                  />
+                </div>
               </>
             )}
             {section === 'about' && (
               <>
                 <h3 className="set-pane-title">{t('setSecAbout')}</h3>
-                <Field label={t('versionLabel')} value={appVersion || '1.1.4'} />
+                <Field label={t('versionLabel')} value={appVersion || '0.10.100'} />
                 <Field label="Edition" value="ReveLith AI Desktop" />
                 <Field label="License" value="Apache-2.0 Open Source" />
               </>

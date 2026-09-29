@@ -125,8 +125,8 @@ export interface HomeApi {
   setAiSettings?(settings: any): Promise<void>
   /** discover live model names for a provider (real API query, runs in the main process so it works in the packaged app) */
   discoverAiModels?(provider: string, baseUrl: string, apiKey: string): Promise<string[]>
-  /** one-click ReveLith skill install into detected coding agents */
-  installSkill?(): Promise<Array<{ agent: string; ok: boolean; path: string }>>
+  /** one-click ReveLith skill install into detected coding agents (omit agent to install all) */
+  installSkill?(agent?: string): Promise<Array<{ agent: string; ok: boolean; path: string }>>
   /** make shell-owned modals appear above native editor views */
   setSettingsOverlay?(open: boolean): Promise<void>
   /** full-text search across all indexed files */
@@ -141,6 +141,16 @@ export interface HomeApi {
   createSaveFolder?(name: string): Promise<boolean>
   /** reveal a folder in the OS file explorer */
   openPathInExplorer?(path: string): Promise<void>
+  /** coding agents detected on this machine (skill-install targets) */
+  detectSkills?(): Promise<string[]>
+  /** anonymous usage-statistics preference (persisted in userData/app-settings.json; default off) */
+  getUsageStats?(): Promise<boolean>
+  /** persist the anonymous usage-statistics preference */
+  setUsageStats?(enabled: boolean): Promise<void>
+  /** local device profile shown on Settings → Account (stored only on this device) */
+  getProfile?(): Promise<UserProfile>
+  /** persist the local device profile */
+  setProfile?(profile: UserProfile): Promise<void>
 }
 
 export interface SaveFolderEntry {
@@ -149,6 +159,12 @@ export interface SaveFolderEntry {
   fileCount: number
   subfolderCount: number
   mtimeMs: number
+}
+
+/** Local device profile shown on Settings → Account (stored only on this device). */
+export interface UserProfile {
+  displayName: string
+  email: string
 }
 
 export interface SearchQuery {
@@ -267,6 +283,11 @@ export const HOME_CHANNELS = {
   listSaveFolders: 'home:list-save-folders',
   createSaveFolder: 'home:create-save-folder',
   openPathInExplorer: 'home:open-path-in-explorer',
+  detectSkills: 'home:detect-skills',
+  getUsageStats: 'home:get-usage-stats',
+  setUsageStats: 'home:set-usage-stats',
+  getProfile: 'home:get-profile',
+  setProfile: 'home:set-profile',
 } as const
 
 export const PROJECT_CHANNELS = {

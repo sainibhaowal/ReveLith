@@ -13,6 +13,9 @@ import {
   defaultAiSettings,
   generateImageForProvider,
   resolveAiSettings,
+  resolveImageGenTarget,
+  resolveMediaAnalysisTarget,
+  resolveWebSearchKey,
   setRescueFetch,
   streamForProvider,
   type AiSettings,
@@ -21,10 +24,7 @@ import {
   type LegacyAiSettings,
 } from '@revelith/ai-provider'
 import { fetchRemoteImage } from '@revelith/electron-utils'
-import {
-  webSearch,
-  imageSearch,
-} from '@revelith/ai-search'
+import { webSearch, imageSearch } from '@revelith/ai-search'
 import { addPicture, replacePictureBytes } from '@revelith/pptx-engine'
 import { EMU_PER_PX_96 } from '@revelith/pptx-render'
 import { tm } from './i18n-main'
@@ -60,7 +60,10 @@ function usableConfig(settings: AiSettings) {
   const original = settings.providers?.[provider]
   if (!original) return { provider, config: original }
   const keyless = ['lmstudio', 'ollama', 'custom'].includes(provider)
-  return { provider, config: keyless && !original.apiKey ? { ...original, apiKey: 'local-key' } : original }
+  return {
+    provider,
+    config: keyless && !original.apiKey ? { ...original, apiKey: 'local-key' } : original,
+  }
 }
 
 export function registerAiIpc(): void {
@@ -83,9 +86,7 @@ export function registerAiIpc(): void {
     let config = settings.providers?.[provider]
     // The revelith key never enters the settings file; it is fetched from the account login state per request
     if (
-      (provider === 'lmstudio' ||
-        provider === 'ollama' ||
-        provider === 'custom') &&
+      (provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') &&
       config &&
       !config.apiKey
     ) {
@@ -150,10 +151,22 @@ export function registerAiIpc(): void {
     activeAiStreams.get(requestId)?.abort()
   })
 
-  // Search tools (content + images), Serper with DuckDuckGo fallback
+  // Search tools (content + images), Serper with DuckDuckGo fallback.
+  // The Serper key comes from Settings → AI Media & Search (stored on-device).
+  const storedSearchKey = (): string | undefined => {
+    try {
+      return resolveWebSearchKey(selectedAiSettings()) || undefined
+    } catch {
+      return undefined
+    }
+  }
   ipcMain.handle('ai:web-search', async (_event, query: string, maxResults?: number) => {
     try {
-      return await webSearch(String(query), typeof maxResults === 'number' ? maxResults : 6)
+      return await webSearch(
+        String(query),
+        typeof maxResults === 'number' ? maxResults : 6,
+        storedSearchKey(),
+      )
     } catch (err) {
       return { results: [], method: 'error', error: String(err) }
     }
@@ -161,7 +174,11 @@ export function registerAiIpc(): void {
 
   ipcMain.handle('ai:image-search', async (_event, query: string, maxResults?: number) => {
     try {
-      return await imageSearch(String(query), typeof maxResults === 'number' ? maxResults : 8)
+      return await imageSearch(
+        String(query),
+        typeof maxResults === 'number' ? maxResults : 8,
+        storedSearchKey(),
+      )
     } catch (err) {
       return { images: [], method: 'error', error: String(err) }
     }
@@ -189,9 +206,15 @@ export function registerSlidesOnlyAiIpc(): void {
     ) => {
       try {
         if (op.referenceImageUrls?.length) {
-          return { error: 'The selected provider image endpoint does not support reference-image editing.' }
+          return {
+            error: 'The selected provider image endpoint does not support reference-image editing.',
+          }
         }
-        const { provider, config } = usableConfig(selectedAiSettings())
+        // Dedicated image backend from Settings → AI Media & Search wins;
+        // otherwise generate with the active chat provider (legacy behavior).
+        const settings = selectedAiSettings()
+        const dedicated = resolveImageGenTarget(settings)
+        const { provider, config } = dedicated ?? usableConfig(settings)
         if (!config) return { error: 'The selected AI provider is not configured.' }
         const r = await generateImageForProvider(provider, config, String(op.prompt), {
           model: op.model ? String(op.model) : undefined,
@@ -214,23 +237,38 @@ export function registerSlidesOnlyAiIpc(): void {
           if (!response?.ok) continue
           const mime = response.headers.get('content-type') || 'image/jpeg'
           if (!mime.startsWith('image/')) continue
-          images.push({ base64: Buffer.from(await response.arrayBuffer()).toString('base64'), mime })
+          images.push({
+            base64: Buffer.from(await response.arrayBuffer()).toString('base64'),
+            mime,
+          })
         }
         if (!images.length) return { error: 'No supported images could be loaded for analysis.' }
-        const { provider, config } = usableConfig(selectedAiSettings())
-        if (!config) return { error: 'The selected AI provider is not configured.' }
+        const settings = selectedAiSettings()
+        // Dedicated analysis backend from Settings → AI Media & Search wins;
+        // otherwise analyze with the active chat provider (legacy behavior).
+        const dedicated = resolveMediaAnalysisTarget(settings)
+        const active = usableConfig(settings)
+        const provider = dedicated?.provider ?? active.provider
+        const stored = settings.providers?.[provider]
+        if (!stored) return { error: 'The selected AI provider is not configured.' }
+        const keyless = ['lmstudio', 'ollama', 'custom'].includes(provider)
+        const config = keyless && !stored.apiKey ? { ...stored, apiKey: 'local-key' } : stored
+        const model = dedicated?.model || stored.model
+        if (!model) return { error: 'The selected AI provider has no model configured.' }
         let text = ''
         const controller = new AbortController()
         await streamForProvider(
           provider,
-          config,
+          { ...config, model },
           'Analyze the supplied media accurately. Do not call tools.',
           [{ role: 'user', text: String(op.requirements ?? ''), images }],
           [],
           4096,
           {
             signal: controller.signal,
-            onDelta: (delta) => { text += delta },
+            onDelta: (delta) => {
+              text += delta
+            },
             onToolCall: () => {},
           },
         )

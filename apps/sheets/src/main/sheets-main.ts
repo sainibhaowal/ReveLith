@@ -58,6 +58,8 @@ import {
   defaultAiSettings,
   generateImageForProvider,
   resolveAiSettings,
+  resolveImageGenTarget,
+  resolveWebSearchKey,
   setRescueFetch,
   streamForProvider,
   type AiProviderId,
@@ -66,10 +68,7 @@ import {
   type LegacyAiSettings,
 } from '@revelith/ai-provider'
 import { csvToXlsxBuffer, decodeCsvBuffer } from '../gateway/csv-import'
-import {
-  webSearch,
-  imageSearch,
-} from '@revelith/ai-search'
+import { webSearch, imageSearch } from '@revelith/ai-search'
 import { parseFileToText } from '@revelith/file-parse'
 import { importPdfToExcel, saveExcelFromPdf } from './pdf-import'
 import type { CellEdit, SheetStructuralOps } from '../gateway/xlsx-gateway'
@@ -520,7 +519,8 @@ const tMain = createI18n({
     errParseFailed: 'Gagal mengurai file',
     errImageNoText: 'Lampiran gambar tidak memiliki teks; gambar dikirim bersama pesan pengguna',
     errNotImage: 'bukan jenis gambar yang didukung',
-    errAccountNotLoggedIn: 'Belum masuk ke ReveLith: klik “Masuk ke ReveLith” di bawah, lalu coba lagi',
+    errAccountNotLoggedIn:
+      'Belum masuk ke ReveLith: klik “Masuk ke ReveLith” di bawah, lalu coba lagi',
     errNoApiKey: 'API Key untuk {provider} belum dikonfigurasi',
     errNoModel: 'Nama model belum dikonfigurasi',
     errImgAbsPath: 'Jalur gambar harus berupa jalur absolut.',
@@ -1755,32 +1755,40 @@ export function registerSheetsIpc(): void {
   // PDF to Excel conversion handlers
   ipcMain.handle(IPC_CHANNELS.importPdf, async (event, input: unknown) => {
     sessionFor(event)
-    const request = z.object({
-      pdfPath: z.string(),
-      options: z.object({
-        mergeCrossPageTables: z.boolean().optional(),
-        detectLabelValueGrids: z.boolean().optional(),
-        detectRuleLessBands: z.boolean().optional(),
-        minConfidence: z.number().optional(),
-        language: z.string().optional()
-      }).optional()
-    }).parse(input)
+    const request = z
+      .object({
+        pdfPath: z.string(),
+        options: z
+          .object({
+            mergeCrossPageTables: z.boolean().optional(),
+            detectLabelValueGrids: z.boolean().optional(),
+            detectRuleLessBands: z.boolean().optional(),
+            minConfidence: z.number().optional(),
+            language: z.string().optional(),
+          })
+          .optional(),
+      })
+      .parse(input)
     return importPdfToExcel(event, request)
   })
 
   ipcMain.handle(IPC_CHANNELS.savePdfAsExcel, async (event, input: unknown) => {
     sessionFor(event)
-    const request = z.object({
-      pdfPath: z.string(),
-      outputPath: z.string(),
-      options: z.object({
-        mergeCrossPageTables: z.boolean().optional(),
-        detectLabelValueGrids: z.boolean().optional(),
-        detectRuleLessBands: z.boolean().optional(),
-        minConfidence: z.number().optional(),
-        language: z.string().optional()
-      }).optional()
-    }).parse(input)
+    const request = z
+      .object({
+        pdfPath: z.string(),
+        outputPath: z.string(),
+        options: z
+          .object({
+            mergeCrossPageTables: z.boolean().optional(),
+            detectLabelValueGrids: z.boolean().optional(),
+            detectRuleLessBands: z.boolean().optional(),
+            minConfidence: z.number().optional(),
+            language: z.string().optional(),
+          })
+          .optional(),
+      })
+      .parse(input)
     return saveExcelFromPdf(request.pdfPath, request.outputPath, request.options)
   })
 
@@ -2318,9 +2326,7 @@ export function registerSheetsAiIpc(): void {
     const provider = request.settings.provider as AiProviderId
     let config = request.settings.providers[provider]
     if (
-      (provider === 'lmstudio' ||
-        provider === 'ollama' ||
-        provider === 'custom') &&
+      (provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') &&
       config &&
       !config.apiKey
     ) {
@@ -2351,9 +2357,7 @@ export function registerSheetsAiIpc(): void {
     // ReveLith's key never enters the settings file; it is read from the account
     // login state per request
     if (
-      (provider === 'lmstudio' ||
-        provider === 'ollama' ||
-        provider === 'custom') &&
+      (provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') &&
       config &&
       !config.apiKey
     ) {
@@ -2418,12 +2422,22 @@ export function registerSheetsAiIpc(): void {
   })
 
   // Shared search tools (content + images): Serper with DuckDuckGo fallback
-  // (same source as slides/docs)
+  // (same source as slides/docs). The Serper key comes from Settings → AI
+  // Media & Search (stored on-device in ai-settings.json).
+  const storedSearchKey = (): string | undefined => {
+    try {
+      const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
+      return resolveWebSearchKey(resolveAiSettings(stored, defaultAiSettings())) || undefined
+    } catch {
+      return undefined
+    }
+  }
   ipcMain.handle('ai:web-search', async (_event, query: unknown, maxResults?: unknown) => {
     try {
       return await webSearch(
         z.string().parse(query),
         typeof maxResults === 'number' ? maxResults : 6,
+        storedSearchKey(),
       )
     } catch (err) {
       return { results: [], method: 'error', error: String(err) }
@@ -2434,6 +2448,7 @@ export function registerSheetsAiIpc(): void {
       return await imageSearch(
         z.string().parse(query),
         typeof maxResults === 'number' ? maxResults : 8,
+        storedSearchKey(),
       )
     } catch (err) {
       return { images: [], method: 'error', error: String(err) }
@@ -2464,13 +2479,19 @@ export function registerSheetsAiIpc(): void {
     async (event, input: unknown): Promise<{ url?: string; error?: string }> => {
       sessionFor(event)
       const { prompt, aspectRatio } = z
-        .object({ prompt: z.string().trim().min(1).max(2000), aspectRatio: z.string().max(16).optional() })
+        .object({
+          prompt: z.string().trim().min(1).max(2000),
+          aspectRatio: z.string().max(16).optional(),
+        })
         .parse(input)
       try {
         const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
         const settings = resolveAiSettings(stored, defaultAiSettings())
-        const provider = settings.provider
-        let config = settings.providers?.[provider]
+        // Dedicated image backend from Settings → AI Media & Search wins;
+        // otherwise generate with the active chat provider (legacy behavior).
+        const dedicated = resolveImageGenTarget(settings)
+        const provider = dedicated?.provider ?? settings.provider
+        let config = dedicated?.config ?? settings.providers?.[provider]
         if (config && ['lmstudio', 'ollama', 'custom'].includes(provider) && !config.apiKey) {
           config = { ...config, apiKey: 'local-key' }
         }
@@ -2893,7 +2914,12 @@ async function prepareWorkbookForOpen(
   client: XlsxSidecarClient,
   path: string,
   parent?: BrowserWindow | undefined,
-): Promise<{ openPath: string; suggestSaveAs?: string; csvImport?: boolean; originalCsvPath?: string }> {
+): Promise<{
+  openPath: string
+  suggestSaveAs?: string
+  csvImport?: boolean
+  originalCsvPath?: string
+}> {
   const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
   if (extension !== 'csv' && extension !== 'xls') {
     // Unsaved work from a lost session: offer the recovery copy. Restoring

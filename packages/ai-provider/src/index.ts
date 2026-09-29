@@ -8,12 +8,19 @@ export type {
   AiStreamChunk,
   AiStreamRequest,
   LegacyAiSettings,
+  MediaSearchSettings,
+  WebSearchProviderId,
 } from './types'
 export {
   AI_PROVIDERS,
   defaultAiSettings,
+  defaultMediaSearch,
   resolveAiSettings,
+  resolveImageGenTarget,
+  resolveMediaAnalysisTarget,
+  resolveWebSearchKey,
 } from './providers'
+export type { EffectiveImageGen, EffectiveMediaAnalysis } from './providers'
 export { chatForProvider } from './chat'
 export { generateImageForProvider } from './image'
 export type { AiImageResult } from './image'

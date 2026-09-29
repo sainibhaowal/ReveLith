@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { AI_PROVIDERS, defaultAiSettings, resolveAiSettings } from '../src/providers'
+import {
+  AI_PROVIDERS,
+  defaultAiSettings,
+  defaultMediaSearch,
+  resolveAiSettings,
+  resolveImageGenTarget,
+  resolveMediaAnalysisTarget,
+  resolveWebSearchKey,
+} from '../src/providers'
 
 describe('defaultAiSettings', () => {
   it('gives every provider its default model and an empty key by default', () => {
@@ -80,5 +88,102 @@ describe('resolveAiSettings', () => {
 
     const defaults = defaultAiSettings()
     expect(defaults.providers.opper.baseUrl).toBe('https://api.opper.ai/v1')
+  })
+})
+
+describe('mediaSearch', () => {
+  it('defaults to the free search fallback with no dedicated backends', () => {
+    const settings = defaultAiSettings()
+    expect(settings.mediaSearch).toEqual(defaultMediaSearch())
+    expect(settings.mediaSearch?.webSearch.provider).toBe('duckduckgo')
+    expect(resolveWebSearchKey(settings)).toBe('')
+    expect(resolveImageGenTarget(settings)).toBeNull()
+    expect(resolveMediaAnalysisTarget(settings)).toBeNull()
+  })
+
+  it('preserves stored mediaSearch and byok through resolveAiSettings', () => {
+    const stored = {
+      provider: 'openai',
+      providers: { openai: { apiKey: 'sk-x', model: 'gpt-4.1-mini' } },
+      byok: { webSearchKey: 'legacy-serper' },
+      mediaSearch: {
+        ...defaultMediaSearch(),
+        webSearch: { provider: 'serper', apiKey: 'tvly-new' },
+      },
+    } as never
+    const resolved = resolveAiSettings(stored, defaultAiSettings())
+    expect(resolved.byok?.webSearchKey).toBe('legacy-serper')
+    expect(resolved.mediaSearch?.webSearch).toEqual({ provider: 'serper', apiKey: 'tvly-new' })
+    expect(resolveWebSearchKey(resolved)).toBe('tvly-new')
+  })
+
+  it('migrates legacy byok webSearchKey into mediaSearch', () => {
+    const resolved = resolveAiSettings(
+      { byok: { webSearchKey: 'legacy-serper' }, providers: {} } as never,
+      defaultAiSettings(),
+    )
+    expect(resolved.mediaSearch?.webSearch.apiKey).toBe('legacy-serper')
+    expect(resolved.mediaSearch?.webSearch.provider).toBe('duckduckgo')
+    expect(resolveWebSearchKey(resolved)).toBe('legacy-serper')
+  })
+
+  it('resolves the dedicated image backend only when usable', () => {
+    const settings = defaultAiSettings()
+    // no dedicated provider -> legacy behavior (null)
+    expect(resolveImageGenTarget(settings)).toBeNull()
+    // hosted provider without any key -> null
+    const nokey = resolveAiSettings(
+      {
+        mediaSearch: {
+          ...defaultMediaSearch(),
+          imageGen: { provider: 'openai', model: 'gpt-image-1', apiKey: '', baseUrl: '' },
+        },
+      } as never,
+      settings,
+    )
+    expect(resolveImageGenTarget(nokey)).toBeNull()
+    // hosted provider with key -> dedicated target with stored fallbacks
+    const keyed = resolveAiSettings(
+      {
+        mediaSearch: {
+          ...defaultMediaSearch(),
+          imageGen: { provider: 'openai', model: '', apiKey: 'sk-img', baseUrl: '' },
+        },
+      } as never,
+      settings,
+    )
+    expect(resolveImageGenTarget(keyed)).toEqual({
+      provider: 'openai',
+      config: { apiKey: 'sk-img', model: 'gpt-4.1-mini', baseUrl: undefined },
+    })
+    // keyless local provider works without a key
+    const local = resolveAiSettings(
+      {
+        mediaSearch: {
+          ...defaultMediaSearch(),
+          imageGen: { provider: 'ollama', model: 'llama3.2', apiKey: '', baseUrl: '' },
+        },
+      } as never,
+      settings,
+    )
+    expect(resolveImageGenTarget(local)?.provider).toBe('ollama')
+  })
+
+  it('resolves the dedicated media-analysis backend with model override', () => {
+    const settings = defaultAiSettings()
+    expect(resolveMediaAnalysisTarget(settings)).toBeNull()
+    const withAnalysis = resolveAiSettings(
+      {
+        mediaSearch: {
+          ...defaultMediaSearch(),
+          imageAnalysis: { provider: 'gemini', model: 'gemini-2.0-flash' },
+        },
+      } as never,
+      settings,
+    )
+    expect(resolveMediaAnalysisTarget(withAnalysis)).toEqual({
+      provider: 'gemini',
+      model: 'gemini-2.0-flash',
+    })
   })
 })

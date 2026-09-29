@@ -184,9 +184,37 @@ const homeApi: HomeApi = {
   async setAiSettings(settings) {
     await ipcRenderer.invoke('ai:set-settings', settings)
   },
-  async installSkill() {
-    const result: unknown = await ipcRenderer.invoke('skill:install')
+  async installSkill(agent) {
+    const result: unknown = await ipcRenderer.invoke('skill:install', agent)
     return Array.isArray(result) ? result : []
+  },
+  async detectSkills() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.detectSkills)
+    return Array.isArray(result) ? result.filter((a): a is string => typeof a === 'string') : []
+  },
+  async getUsageStats() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getUsageStats)
+    return result === true
+  },
+  async setUsageStats(enabled) {
+    await ipcRenderer.invoke(HOME_CHANNELS.setUsageStats, Boolean(enabled))
+  },
+  async getProfile() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getProfile)
+    if (result && typeof result === 'object') {
+      const p = result as { displayName?: unknown; email?: unknown }
+      return {
+        displayName: typeof p.displayName === 'string' ? p.displayName : '',
+        email: typeof p.email === 'string' ? p.email : '',
+      }
+    }
+    return { displayName: '', email: '' }
+  },
+  async setProfile(profile) {
+    await ipcRenderer.invoke(HOME_CHANNELS.setProfile, {
+      displayName: String(profile?.displayName ?? ''),
+      email: String(profile?.email ?? ''),
+    })
   },
   async setSettingsOverlay(open) {
     await ipcRenderer.invoke(HOME_CHANNELS.setSettingsOverlay, Boolean(open))
