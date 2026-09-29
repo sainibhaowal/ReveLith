@@ -77,7 +77,12 @@ import {
 } from './xlsx-defined-names'
 import { applyDvRules, type DvWireRule } from './xlsx-dv'
 import { applyPageSetupState, applyPrintAreas, type SheetPageSetupState } from './xlsx-page-setup'
-import { applySheetProtection } from './xlsx-protection'
+import {
+  applyProtectedRanges,
+  applySheetProtection,
+  applyWorkbookProtection,
+  type ProtectedRangeState,
+} from './xlsx-protection'
 import { applySheetNotes, type SheetNote } from './xlsx-notes'
 import {
   applySparklineAdditions,
@@ -146,6 +151,17 @@ export interface SheetDvState {
 export interface SheetProtectionState {
   readonly sheetName: string
   readonly protected: boolean
+}
+
+/** Allow-edit ranges for one sheet: which cells stay editable while locked. */
+export interface SheetProtectedRangesState {
+  readonly sheetName: string
+  readonly ranges: readonly ProtectedRangeState[]
+}
+
+/** Workbook-level lock. Only the structure lock is writable; a password is not. */
+export interface WorkbookProtectionState {
+  readonly lockStructure: boolean
 }
 
 /// Recalculated cached values for formula cells: the engine already
@@ -589,6 +605,8 @@ export async function planCellEditsToXlsx(
   visualEdits: readonly WorkbookVisualEdit[] = [],
   sparklineAdditions: readonly SheetSparklineAddition[] = [],
   formulaValues: readonly SheetFormulaValues[] = [],
+  workbookProtectionState: WorkbookProtectionState | null = null,
+  protectedRangeStates: readonly SheetProtectedRangesState[] = [],
 ): Promise<MutationPlan> {
   // A pending pivot pins final coordinates for its source and output; shifts
   // on either sheet, and sheet renames (worksheetSource@sheet), would desync
@@ -685,6 +703,7 @@ export async function planCellEditsToXlsx(
     ...cfStates.map((state) => state.sheetName),
     ...dvStates.map((state) => state.sheetName),
     ...sheetProtections.map((state) => state.sheetName),
+    ...protectedRangeStates.map((state) => state.sheetName),
     ...pageSetupStates.map((state) => state.sheetName),
   ])
   const worksheetXmls = new Map<string, string>()
@@ -870,6 +889,14 @@ export async function planCellEditsToXlsx(
     worksheetXmls.set(state.sheetName, applySheetProtection(worksheetXml, state.protected))
   }
 
+  // Allow-edit ranges are declarative snapshots, like filters: the whole set
+  // is replaced, so a range the user removed stops being editable.
+  for (const state of protectedRangeStates) {
+    const worksheetXml = worksheetXmls.get(state.sheetName)
+    if (worksheetXml === undefined) continue
+    worksheetXmls.set(state.sheetName, applyProtectedRanges(worksheetXml, state.ranges))
+  }
+
   // Page Layout settings merge attribute-by-attribute; untouched print
   // settings in the file stay verbatim.
   for (const state of pageSetupStates) {
@@ -1038,6 +1065,10 @@ export async function planCellEditsToXlsx(
 
   if (definedNamesState !== null) {
     workbookXml = applyDefinedNamesState(workbookXml, definedNamesState)
+  }
+
+  if (workbookProtectionState !== null) {
+    workbookXml = applyWorkbookProtection(workbookXml, workbookProtectionState.lockStructure)
   }
 
   // Print areas / title rows are sheet-scoped _xlnm names; they apply to the

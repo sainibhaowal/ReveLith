@@ -18,7 +18,9 @@ import type {
   SheetDvState,
   SheetHyperlinkEdits,
   SheetNoteState,
+  SheetProtectedRangesState,
   SheetProtectionState,
+  WorkbookProtectionState,
   SheetPivotAddition,
   SheetSparklineAddition,
   SheetStructuralOps,
@@ -100,6 +102,10 @@ export interface StreamingSaveRequest {
   readonly sparklineAdditions?: readonly SheetSparklineAddition[] | undefined
   /// Recalculated formula-cell values written into <v>
   readonly formulaValues?: readonly SheetFormulaValues[] | undefined
+  /// Workbook structure lock; null leaves any existing lock untouched
+  readonly workbookProtectionState?: WorkbookProtectionState | null | undefined
+  /// Allow-edit ranges per sheet, replacing whatever the file holds
+  readonly protectedRangeStates?: readonly SheetProtectedRangesState[] | undefined
 }
 
 export interface StreamingSaveResult {
@@ -163,6 +169,8 @@ export async function saveWorkbookViaSidecar(
       request.visualEdits ?? [],
       request.sparklineAdditions ?? [],
       request.formulaValues ?? [],
+      request.workbookProtectionState ?? null,
+      request.protectedRangeStates ?? [],
     )
 
     const replacements = await writePlanContents(workDir, 'replace', plan.replaced)
