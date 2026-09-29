@@ -73,7 +73,10 @@ describe('packager wiring', () => {
       'AZURE_TRUSTED_SIGNING_ENDPOINT',
       'rfc3161TimeStampServer',
       'timestamp.digicert.com',
-      'signDlls',
+      // electron-builder >=26.15 schema (signDlls/certificateFile were removed)
+      'signAndEditExecutable',
+      'signtoolOptions',
+      'cscLink',
     ]) {
       expect(config, key).toContain(key)
     }
