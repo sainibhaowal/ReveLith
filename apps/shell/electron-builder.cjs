@@ -40,6 +40,9 @@ for (const rel of [
   '../pdf/node_modules/harfbuzzjs/hb-subset.wasm',
   '../../node_modules/tesseract.js/package.json',
   '../../node_modules/tesseract.js-core/package.json',
+  'build/shell-new/blank.docx',
+  'build/shell-new/blank.xlsx',
+  'build/shell-new/blank.pptx',
 ]) {
   if (!existsSync(join(__dirname, rel))) {
     throw new Error(
@@ -92,6 +95,14 @@ const config = {
     {
       from: '../html/out',
       to: 'modules/html',
+    },
+    // Blank OOXML packages for the Explorer "New" submenu. installer.nsh points
+    // HKCR\.docx\Word Document\ShellNew at these, so Explorer copies a real
+    // document instead of a zero-byte NullFile that Word refuses to open.
+    // Regenerate with `npm run templates`.
+    {
+      from: 'build/shell-new',
+      to: 'shell-new',
     },
     // PDF text editing engines: the bundled main resolves these under
     // Resources/wasm when node_modules is absent (apps/pdf/src/main/wasm-path.ts)
