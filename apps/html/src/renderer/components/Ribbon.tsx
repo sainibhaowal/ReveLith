@@ -11,6 +11,7 @@ interface RibbonProps {
   onToggleInspector: () => void
   onOpenDesign: () => void
   onOpenDocument: () => void
+  onSummarize: () => void
   onPresent: () => void
   onSave: () => void
   onSaveAs: () => void
@@ -33,6 +34,7 @@ export function Ribbon({
   onToggleInspector,
   onOpenDesign,
   onOpenDocument,
+  onSummarize,
   onPresent,
   onSave,
   onSaveAs: _onSaveAs,
@@ -111,6 +113,26 @@ export function Ribbon({
             }}
           >
             <span>📝</span> AI Document
+          </button>
+          <button
+            type="button"
+            onClick={onSummarize}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '5px 10px',
+              background: 'linear-gradient(135deg, #059669, #047857)',
+              border: 'none',
+              borderRadius: 6,
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(5, 150, 105, 0.3)',
+            }}
+          >
+            <span>📋</span> AI Summarize
           </button>
         </div>
 

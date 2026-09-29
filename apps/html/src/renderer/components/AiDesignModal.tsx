@@ -2,7 +2,8 @@ import { useState } from 'react'
 
 export interface AiDesignRequest {
   layoutType: 'landing' | 'dashboard' | 'slides'
-  styleDirection: 'modern-dark' | 'glassmorphism' | 'clean-corporate' | 'minimalist' | 'vibrant-gradient'
+  styleDirection:
+    'modern-dark' | 'glassmorphism' | 'clean-corporate' | 'minimalist' | 'vibrant-gradient'
   brief: string
 }
 
@@ -11,11 +12,22 @@ interface AiDesignModalProps {
   onClose: () => void
   onGenerate: (req: AiDesignRequest) => void
   isGenerating?: boolean
+  error?: string | null
+  onCancel?: () => void
 }
 
-export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiDesignModalProps) {
+export function AiDesignModal({
+  isOpen,
+  onClose,
+  onGenerate,
+  isGenerating,
+  error,
+  onCancel,
+}: AiDesignModalProps) {
   const [layoutType, setLayoutType] = useState<'landing' | 'dashboard' | 'slides'>('landing')
-  const [styleDirection, setStyleDirection] = useState<'modern-dark' | 'glassmorphism' | 'clean-corporate' | 'minimalist' | 'vibrant-gradient'>('modern-dark')
+  const [styleDirection, setStyleDirection] = useState<
+    'modern-dark' | 'glassmorphism' | 'clean-corporate' | 'minimalist' | 'vibrant-gradient'
+  >('modern-dark')
   const [brief, setBrief] = useState('')
 
   if (!isOpen) return null
@@ -26,17 +38,52 @@ export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiD
   }
 
   const LAYOUTS = [
-    { id: 'landing' as const, icon: '🚀', title: 'Landing Page', desc: 'Hero section, feature grid, pricing & CTA' },
-    { id: 'dashboard' as const, icon: '📊', title: 'Dashboard', desc: 'KPI cards, charts, activity table & filters' },
-    { id: 'slides' as const, icon: '🎞️', title: 'Slides-Style', desc: '16:9 presentation decks with slide containers' },
+    {
+      id: 'landing' as const,
+      icon: '🚀',
+      title: 'Landing Page',
+      desc: 'Hero section, feature grid, pricing & CTA',
+    },
+    {
+      id: 'dashboard' as const,
+      icon: '📊',
+      title: 'Dashboard',
+      desc: 'KPI cards, charts, activity table & filters',
+    },
+    {
+      id: 'slides' as const,
+      icon: '🎞️',
+      title: 'Slides-Style',
+      desc: '16:9 presentation decks with slide containers',
+    },
   ]
 
   const STYLES = [
-    { id: 'modern-dark' as const, label: 'Modern Dark', desc: 'Deep background with glowing accents' },
-    { id: 'glassmorphism' as const, label: 'Glassmorphism', desc: 'Frosted glass cards & backdrop blur' },
-    { id: 'clean-corporate' as const, label: 'Clean Corporate', desc: 'Refined enterprise white & slate layout' },
-    { id: 'minimalist' as const, label: 'Minimalist', desc: 'Monochrome, generous whitespace & crisp fonts' },
-    { id: 'vibrant-gradient' as const, label: 'Vibrant Gradient', desc: 'Energetic gradients & punchy buttons' },
+    {
+      id: 'modern-dark' as const,
+      label: 'Modern Dark',
+      desc: 'Deep background with glowing accents',
+    },
+    {
+      id: 'glassmorphism' as const,
+      label: 'Glassmorphism',
+      desc: 'Frosted glass cards & backdrop blur',
+    },
+    {
+      id: 'clean-corporate' as const,
+      label: 'Clean Corporate',
+      desc: 'Refined enterprise white & slate layout',
+    },
+    {
+      id: 'minimalist' as const,
+      label: 'Minimalist',
+      desc: 'Monochrome, generous whitespace & crisp fonts',
+    },
+    {
+      id: 'vibrant-gradient' as const,
+      label: 'Vibrant Gradient',
+      desc: 'Energetic gradients & punchy buttons',
+    },
   ]
 
   return (
@@ -83,16 +130,38 @@ export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiD
           <button
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 18 }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#71717a',
+              cursor: 'pointer',
+              fontSize: 18,
+            }}
           >
             ✕
           </button>
         </div>
 
-        <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          style={{
+            padding: 20,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
           {/* Step 1: Layout Type */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', display: 'block', marginBottom: 8 }}>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#a1a1aa',
+                display: 'block',
+                marginBottom: 8,
+              }}
+            >
               1. Choose Page Type
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
@@ -112,7 +181,13 @@ export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiD
                   }}
                 >
                   <div style={{ fontSize: 22, marginBottom: 4 }}>{item.icon}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: layoutType === item.id ? '#fb7185' : '#fff' }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: layoutType === item.id ? '#fb7185' : '#fff',
+                    }}
+                  >
                     {item.title}
                   </div>
                   <div style={{ fontSize: 10, color: '#a1a1aa', marginTop: 2 }}>{item.desc}</div>
@@ -123,7 +198,15 @@ export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiD
 
           {/* Step 2: Style Direction */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', display: 'block', marginBottom: 8 }}>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#a1a1aa',
+                display: 'block',
+                marginBottom: 8,
+              }}
+            >
               2. Style Direction
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
@@ -142,7 +225,13 @@ export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiD
                     cursor: 'pointer',
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 600, color: styleDirection === st.id ? '#60a5fa' : '#fff' }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: styleDirection === st.id ? '#60a5fa' : '#fff',
+                    }}
+                  >
                     {st.label}
                   </div>
                   <div style={{ fontSize: 10, color: '#a1a1aa' }}>{st.desc}</div>
@@ -153,7 +242,15 @@ export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiD
 
           {/* Step 3: Brief */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', display: 'block', marginBottom: 8 }}>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#a1a1aa',
+                display: 'block',
+                marginBottom: 8,
+              }}
+            >
               3. Project Brief & Content Instructions
             </label>
             <textarea
@@ -187,6 +284,26 @@ export function AiDesignModal({ isOpen, onClose, onGenerate, isGenerating }: AiD
             gap: 10,
           }}
         >
+          {error && (
+            <span style={{ marginRight: 'auto', fontSize: 12, color: '#f87171' }}>⚠ {error}</span>
+          )}
+          {isGenerating && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              style={{
+                padding: '8px 16px',
+                background: '#27272a',
+                border: '1px solid #ef4444',
+                borderRadius: 6,
+                color: '#fca5a5',
+                cursor: 'pointer',
+                fontSize: 12,
+              }}
+            >
+              Stop
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

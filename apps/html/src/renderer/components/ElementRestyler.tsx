@@ -29,6 +29,8 @@ interface ElementRestylerProps {
   onDuplicateElement: () => void
   onAskAi: (instruction: string) => void
   onClose: () => void
+  aiError?: string | null
+  isAskingAi?: boolean
 }
 
 export function ElementRestyler({
@@ -39,6 +41,8 @@ export function ElementRestyler({
   onDuplicateElement,
   onAskAi,
   onClose,
+  aiError,
+  isAskingAi,
 }: ElementRestylerProps) {
   const [aiPrompt, setAiPrompt] = useState('')
   const [textVal, setTextVal] = useState('')
@@ -173,23 +177,28 @@ export function ElementRestyler({
         />
         <button
           type="button"
-          disabled={!aiPrompt.trim()}
+          disabled={!aiPrompt.trim() || isAskingAi}
           onClick={handleAsk}
           style={{
             width: '100%',
             marginTop: 6,
             padding: '6px 12px',
-            background: aiPrompt.trim() ? '#2563eb' : '#3f3f46',
+            background: aiPrompt.trim() && !isAskingAi ? '#2563eb' : '#3f3f46',
             border: 'none',
             borderRadius: 5,
             color: '#fff',
             fontWeight: 600,
             fontSize: 11,
-            cursor: aiPrompt.trim() ? 'pointer' : 'default',
+            cursor: aiPrompt.trim() && !isAskingAi ? 'pointer' : 'default',
           }}
         >
-          Change Just This Part
+          {isAskingAi ? 'Asking AI…' : 'Change Just This Part'}
         </button>
+        {aiError && (
+          <div style={{ marginTop: 6, fontSize: 11, color: '#f87171', lineHeight: 1.5 }}>
+            ⚠ {aiError}
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}

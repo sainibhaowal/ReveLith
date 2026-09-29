@@ -13,11 +13,24 @@ interface AiDocumentModalProps {
   onClose: () => void
   onGenerate: (req: AiDocumentRequest) => void
   isGenerating?: boolean
+  error?: string | null
+  onCancel?: () => void
 }
 
-export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: AiDocumentModalProps) {
-  const [docType, setDocType] = useState<'report' | 'whitepaper' | 'documentation' | 'article' | 'proposal'>('report')
-  const [tone, setTone] = useState<'professional' | 'technical' | 'executive' | 'journalistic'>('professional')
+export function AiDocumentModal({
+  isOpen,
+  onClose,
+  onGenerate,
+  isGenerating,
+  error,
+  onCancel,
+}: AiDocumentModalProps) {
+  const [docType, setDocType] = useState<
+    'report' | 'whitepaper' | 'documentation' | 'article' | 'proposal'
+  >('report')
+  const [tone, setTone] = useState<'professional' | 'technical' | 'executive' | 'journalistic'>(
+    'professional',
+  )
   const [topic, setTopic] = useState('')
   const [includeToc, setIncludeToc] = useState(true)
   const [includeTables, setIncludeTables] = useState(true)
@@ -30,11 +43,36 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
   }
 
   const DOC_TYPES = [
-    { id: 'report' as const, icon: '📑', label: 'Report', desc: 'Detailed business or operational report' },
-    { id: 'whitepaper' as const, icon: '🏛️', label: 'Whitepaper', desc: 'In-depth industry research and analysis' },
-    { id: 'documentation' as const, icon: '📘', label: 'Documentation', desc: 'API / system specs, guides and code' },
-    { id: 'proposal' as const, icon: '💼', label: 'Proposal', desc: 'Project plans, scope, timeline and deliverables' },
-    { id: 'article' as const, icon: '📰', label: 'Long Article', desc: 'Editorial deep-dive with headings and quotes' },
+    {
+      id: 'report' as const,
+      icon: '📑',
+      label: 'Report',
+      desc: 'Detailed business or operational report',
+    },
+    {
+      id: 'whitepaper' as const,
+      icon: '🏛️',
+      label: 'Whitepaper',
+      desc: 'In-depth industry research and analysis',
+    },
+    {
+      id: 'documentation' as const,
+      icon: '📘',
+      label: 'Documentation',
+      desc: 'API / system specs, guides and code',
+    },
+    {
+      id: 'proposal' as const,
+      icon: '💼',
+      label: 'Proposal',
+      desc: 'Project plans, scope, timeline and deliverables',
+    },
+    {
+      id: 'article' as const,
+      icon: '📰',
+      label: 'Long Article',
+      desc: 'Editorial deep-dive with headings and quotes',
+    },
   ]
 
   return (
@@ -76,21 +114,45 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>📝</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#3b82f6' }}>AI Document Mode</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#3b82f6' }}>
+              AI Document Mode
+            </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 18 }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#71717a',
+              cursor: 'pointer',
+              fontSize: 18,
+            }}
           >
             ✕
           </button>
         </div>
 
-        <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div
+          style={{
+            padding: 20,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
           {/* Document Type */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', display: 'block', marginBottom: 8 }}>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#a1a1aa',
+                display: 'block',
+                marginBottom: 8,
+              }}
+            >
               1. Document Format
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
@@ -110,7 +172,13 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
                   }}
                 >
                   <div style={{ fontSize: 18, marginBottom: 2 }}>{dt.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: docType === dt.id ? '#60a5fa' : '#fff' }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: docType === dt.id ? '#60a5fa' : '#fff',
+                    }}
+                  >
                     {dt.label}
                   </div>
                   <div style={{ fontSize: 10, color: '#a1a1aa' }}>{dt.desc}</div>
@@ -122,7 +190,15 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
           {/* Tone & Options */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', display: 'block', marginBottom: 6 }}>
+              <label
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#a1a1aa',
+                  display: 'block',
+                  marginBottom: 6,
+                }}
+              >
                 2. Writing Tone
               </label>
               <select
@@ -145,11 +221,28 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', display: 'block', marginBottom: 6 }}>
+              <label
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#a1a1aa',
+                  display: 'block',
+                  marginBottom: 6,
+                }}
+              >
                 Document Features
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#e4e4e7', cursor: 'pointer' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: '#e4e4e7',
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={includeToc}
@@ -157,7 +250,16 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
                   />
                   Include Table of Contents
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#e4e4e7', cursor: 'pointer' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: '#e4e4e7',
+                    cursor: 'pointer',
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={includeTables}
@@ -171,7 +273,15 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
 
           {/* Topic & Objectives */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#a1a1aa', display: 'block', marginBottom: 8 }}>
+            <label
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#a1a1aa',
+                display: 'block',
+                marginBottom: 8,
+              }}
+            >
               3. Topic, Outlines & Key Findings
             </label>
             <textarea
@@ -205,6 +315,26 @@ export function AiDocumentModal({ isOpen, onClose, onGenerate, isGenerating }: A
             gap: 10,
           }}
         >
+          {error && (
+            <span style={{ marginRight: 'auto', fontSize: 12, color: '#f87171' }}>⚠ {error}</span>
+          )}
+          {isGenerating && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              style={{
+                padding: '8px 16px',
+                background: '#27272a',
+                border: '1px solid #ef4444',
+                borderRadius: 6,
+                color: '#fca5a5',
+                cursor: 'pointer',
+                fontSize: 12,
+              }}
+            >
+              Stop
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}

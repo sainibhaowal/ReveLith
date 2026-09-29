@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### v0.10.100 — settings parity & HTML AI (implemented, on `release/v0.10.100`)
+
+#### Features
+
+- **settings:** new Account page (on-device profile with avatar, persisted via `home:get/set-profile`) and AI Media & Search page (Serper/DuckDuckGo + key, dedicated image provider/model/key/URL, image & video analysis providers)
+- **ai-provider:** `MediaSearchSettings` with defaults, legacy BYOK migration, `resolveWebSearchKey` / `resolveImageGenTarget` / `resolveMediaAnalysisTarget`; `resolveAiSettings` preserves `byok`/`mediaSearch`
+- **search & image:** docs/sheets/slides `ai:web-search` + `ai:image-search` use the stored Serper key; slides/sheets/PDF image generation and slides media analysis honor the dedicated backends with active-provider fallback
+- **shell:** `home:detect-skills`, per-agent skill install, `home:get/set-usage-stats` (default off), General rows for AI text size / spellcheck / usage stats, Integrations guide (3-step, per-assistant rows, try-it, full CLI reference)
+- **html ai:** new AI Summarize (ribbon button, streaming summary modal with copy/stop); Design/Document/element-refine failures now surface in-UI with Stop wired to `ai:stream-cancel`
+
+#### Bug Fixes
+
+- **html:** guard `registerHtmlIpc` against double registration (fixes `html:consume-pending` crash on the 2nd tab); per-tab pending queue (fixes blank untitled tab race)
+- **packaging:** `build:all` builds `@revelith/html` and the installer ships `modules/html` (packaged HTML tab previously loaded a missing bundle)
+- **release:** win packaging config updated for the electron-builder 26.15 schema (`cscLink`, `signtoolOptions`); signing test updated to match
+
 ### Features
 
 - **mcp & cli:** Streamable HTTP MCP server (`revelith mcp --http <port>`) for remote agents, sandboxes, and containers; Bearer `--token` security; `PUT /files/<name>` file uploads; auto-download of `http(s)://` file parameters; file-writing tools return download URLs; new MCP tools `pdf_read_text` (extract PDF text/page ranges), `docs_edit_text` (edit open Word document), and `sheet_set_cells` (drive visible Sheets grid)

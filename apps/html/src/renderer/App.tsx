@@ -5,6 +5,7 @@ import { ElementRestyler, type SelectedElementData } from './components/ElementR
 import { PresentMode } from './components/PresentMode'
 import { AiDesignModal, type AiDesignRequest } from './components/AiDesignModal'
 import { AiDocumentModal, type AiDocumentRequest } from './components/AiDocumentModal'
+import { AiSummaryModal } from './components/AiSummaryModal'
 import { buildDesignPrompt, buildDocumentPrompt, buildElementRefinePrompt } from './ai/generator'
 import { exportHtmlToDocxBytes, bytesToBase64 } from './export/htmlDocxExport'
 
@@ -227,6 +228,25 @@ export default function App() {
   const [designModalOpen, setDesignModalOpen] = useState(false)
   const [documentModalOpen, setDocumentModalOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [designError, setDesignError] = useState<string | null>(null)
+  const [documentError, setDocumentError] = useState<string | null>(null)
+  const [refineError, setRefineError] = useState<string | null>(null)
+  const [summaryOpen, setSummaryOpen] = useState(false)
+  const [summaryText, setSummaryText] = useState('')
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summarizing, setSummarizing] = useState(false)
+  /** in-flight ai:stream request id so the user can cancel it mid-run */
+  const cancelRef = useRef<string | null>(null)
+
+  const handleCancelAi = () => {
+    const requestId = cancelRef.current
+    cancelRef.current = null
+    setIsGenerating(false)
+    setSummarizing(false)
+    if (requestId && window.htmlApi) {
+      void window.htmlApi.aiStreamCancel(requestId).catch(() => {})
+    }
+  }
 
   const [selectedSelector, setSelectedSelector] = useState<string | null>(null)
   const [selectedElement, setSelectedElement] = useState<SelectedElementData | null>(null)
@@ -359,14 +379,17 @@ export default function App() {
   const handleAskAiOnElement = async (instruction: string) => {
     if (!selectedElement || !window.htmlApi) return
     setIsGenerating(true)
+    setRefineError(null)
     const prompt = buildElementRefinePrompt(selectedElement.outerHtml, instruction)
     let buffer = ''
+    let runError: string | null = null
     try {
       const requestId = `ai-refine-${Date.now()}`
+      cancelRef.current = requestId
       const offStream = window.htmlApi.onAiStream((chunk) => {
-        if (chunk.requestId === requestId && chunk.text) {
-          buffer += chunk.text
-        }
+        if (chunk.requestId !== requestId) return
+        if (chunk.text) buffer += chunk.text
+        else if (chunk.type === 'error') runError = chunk.error || 'The AI request failed.'
       })
       const settings = await window.htmlApi.getAiSettings()
       await window.htmlApi.aiStream({
@@ -376,6 +399,10 @@ export default function App() {
         messages: [{ role: 'user', text: prompt }],
       })
       offStream()
+      if (runError && !buffer.trim()) {
+        setRefineError(runError)
+        return
+      }
       const cleanHtml = buffer.replace(/^```html\s*|\s*```$/gi, '').trim()
       if (cleanHtml) {
         iframeRef.current?.contentWindow?.postMessage(
@@ -385,10 +412,14 @@ export default function App() {
           },
           '*',
         )
+      } else if (runError) {
+        setRefineError(runError)
       }
     } catch (err) {
       console.error('[ReveLith HTML] AI Element Refine error:', err)
+      setRefineError(err instanceof Error ? err.message : 'The AI request failed.')
     } finally {
+      cancelRef.current = null
       setIsGenerating(false)
     }
   }
@@ -396,14 +427,17 @@ export default function App() {
   // AI Design generator
   const handleGenerateDesign = async (req: AiDesignRequest) => {
     setIsGenerating(true)
+    setDesignError(null)
     const prompt = buildDesignPrompt(req)
     let buffer = ''
+    let runError: string | null = null
     try {
       const requestId = `ai-design-${Date.now()}`
+      cancelRef.current = requestId
       const offStream = window.htmlApi?.onAiStream?.((chunk) => {
-        if (chunk.requestId === requestId && chunk.text) {
-          buffer += chunk.text
-        }
+        if (chunk.requestId !== requestId) return
+        if (chunk.text) buffer += chunk.text
+        else if (chunk.type === 'error') runError = chunk.error || 'The AI request failed.'
       })
       const settings = (await window.htmlApi?.getAiSettings?.()) ?? {
         provider: 'openai',
@@ -424,10 +458,14 @@ export default function App() {
         setDirty(true)
         window.htmlApi?.notifyDirty(true)
         setDesignModalOpen(false)
+      } else {
+        setDesignError(runError ?? 'The model returned no usable HTML. Try a different brief.')
       }
     } catch (err) {
       console.error('[ReveLith HTML] AI Design Generation error:', err)
+      setDesignError(err instanceof Error ? err.message : 'The AI request failed.')
     } finally {
+      cancelRef.current = null
       setIsGenerating(false)
     }
   }
@@ -435,14 +473,17 @@ export default function App() {
   // AI Document generator
   const handleGenerateDocument = async (req: AiDocumentRequest) => {
     setIsGenerating(true)
+    setDocumentError(null)
     const prompt = buildDocumentPrompt(req)
     let buffer = ''
+    let runError: string | null = null
     try {
       const requestId = `ai-doc-${Date.now()}`
+      cancelRef.current = requestId
       const offStream = window.htmlApi?.onAiStream?.((chunk) => {
-        if (chunk.requestId === requestId && chunk.text) {
-          buffer += chunk.text
-        }
+        if (chunk.requestId !== requestId) return
+        if (chunk.text) buffer += chunk.text
+        else if (chunk.type === 'error') runError = chunk.error || 'The AI request failed.'
       })
       const settings = (await window.htmlApi?.getAiSettings?.()) ?? {
         provider: 'openai',
@@ -463,11 +504,66 @@ export default function App() {
         setDirty(true)
         window.htmlApi?.notifyDirty(true)
         setDocumentModalOpen(false)
+      } else {
+        setDocumentError(runError ?? 'The model returned no usable HTML. Try a different topic.')
       }
     } catch (err) {
       console.error('[ReveLith HTML] AI Document Generation error:', err)
+      setDocumentError(err instanceof Error ? err.message : 'The AI request failed.')
     } finally {
+      cancelRef.current = null
       setIsGenerating(false)
+    }
+  }
+
+  // AI Summarize: condense the current document into key points via the
+  // configured provider. Reads the live editor state, never the saved file.
+  const handleSummarize = async () => {
+    if (!window.htmlApi) return
+    let text: string
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html')
+      text = (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim()
+    } catch {
+      text = ''
+    }
+    setSummaryOpen(true)
+    setSummaryText('')
+    setSummaryError(null)
+    if (!text) return
+    setSummarizing(true)
+    let buffer = ''
+    let runError: string | null = null
+    try {
+      const requestId = `ai-summary-${Date.now()}`
+      cancelRef.current = requestId
+      const offStream = window.htmlApi.onAiStream((chunk) => {
+        if (chunk.requestId !== requestId) return
+        if (chunk.text) {
+          buffer += chunk.text
+          setSummaryText(buffer)
+        } else if (chunk.type === 'error') {
+          runError = chunk.error || 'The AI request failed.'
+        }
+      })
+      const settings = await window.htmlApi.getAiSettings()
+      await window.htmlApi.aiStream({
+        requestId,
+        settings,
+        system:
+          'You are a precise document summarizer. Summarize the supplied document text in a short paragraph followed by 3-7 bullet key points. Plain text only, no markdown fences.',
+        messages: [{ role: 'user', text: text.slice(0, 8000) }],
+      })
+      offStream()
+      if (!buffer.trim()) {
+        setSummaryError(runError ?? 'The model returned no summary.')
+      }
+    } catch (err) {
+      console.error('[ReveLith HTML] AI Summarize error:', err)
+      setSummaryError(err instanceof Error ? err.message : 'The AI request failed.')
+    } finally {
+      cancelRef.current = null
+      setSummarizing(false)
     }
   }
 
@@ -596,6 +692,7 @@ export default function App() {
         onToggleInspector={() => setShowInspector((v) => !v)}
         onOpenDesign={() => setDesignModalOpen(true)}
         onOpenDocument={() => setDocumentModalOpen(true)}
+        onSummarize={() => void handleSummarize()}
         onPresent={() => setShowPresent(true)}
         onSave={() => void handleSave('save')}
         onSaveAs={() => void handleSave('saveAs')}
@@ -716,6 +813,8 @@ export default function App() {
             onDuplicateElement={handleDuplicateElement}
             onAskAi={handleAskAiOnElement}
             onClose={() => setShowInspector(false)}
+            aiError={refineError}
+            isAskingAi={isGenerating}
           />
         )}
       </div>
@@ -729,6 +828,8 @@ export default function App() {
         onClose={() => setDesignModalOpen(false)}
         onGenerate={handleGenerateDesign}
         isGenerating={isGenerating}
+        error={designError}
+        onCancel={handleCancelAi}
       />
 
       {/* AI Document Mode Modal */}
@@ -737,6 +838,18 @@ export default function App() {
         onClose={() => setDocumentModalOpen(false)}
         onGenerate={handleGenerateDocument}
         isGenerating={isGenerating}
+        error={documentError}
+        onCancel={handleCancelAi}
+      />
+
+      {/* AI Summary Modal */}
+      <AiSummaryModal
+        isOpen={summaryOpen}
+        summary={summaryText}
+        isSummarizing={summarizing}
+        error={summaryError}
+        onClose={() => setSummaryOpen(false)}
+        onCancel={handleCancelAi}
       />
     </div>
   )
