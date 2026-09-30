@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { parseDocx } from '../src/parse'
 import { buildDocx } from './helpers/build-docx'
 
@@ -8,7 +8,7 @@ import { buildDocx } from './helpers/build-docx'
  *   <mc:AlternateContent><mc:Choice><w:drawing>…</mc:Choice>
  *   <mc:Fallback><w:pict>…</mc:Fallback></mc:AlternateContent>
  * The raw bytes therefore contain <w:pict> even for a plain decorated text
- * paragraph : classification must ignore fallback content or whole documents
+ * paragraph — classification must ignore fallback content or whole documents
  * degrade into embedded-object chips.
  */
 
@@ -118,5 +118,28 @@ describe('paragraphs with decorative shapes + VML fallbacks', () => {
     expect(block.type).toBe('paragraph')
     expect(block.originalXml).toContain('<mc:Fallback>')
     expect(block.originalXml).toContain('<w:pict>')
+  })
+})
+
+describe('picture content controls (w:picture in sdtPr, tdf#165359)', () => {
+  it('an sdt-wrapped inline picture with text stays an editable paragraph, not an Embedded object chip', async () => {
+    const drawing =
+      '<w:drawing><wp:inline><wp:extent cx="914400" cy="914400"/>' +
+      '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:pic><pic:blipFill><a:blip r:embed="rId10"/></pic:blipFill></pic:pic>' +
+      '</a:graphicData></a:graphic></wp:inline></w:drawing>'
+    const doc = await parseDocx(
+      await buildDocx({
+        bodyXml:
+          '<w:p><w:sdt><w:sdtPr><w:picture/></w:sdtPr>' +
+          `<w:sdtContent><w:r>${drawing}</w:r></w:sdtContent></w:sdt>` +
+          '<w:r><w:t>ITEM NUMBER</w:t></w:r></w:p>',
+        withImage: true,
+      }),
+    )
+    const block = doc.blocks[0]
+    expect(block.label).not.toBe('Embedded object')
+    expect(JSON.stringify(block.runs?.map((r) => r.text))).toContain('ITEM NUMBER')
+    expect(block.runs?.some((r) => r.image)).toBe(true)
   })
 })

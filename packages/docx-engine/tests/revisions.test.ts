@@ -1,4 +1,4 @@
-﻿import JSZip from 'jszip'
+import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { mergePPrFormat, parseDocx, saveDocx, setPPrChange, type SaveBlock } from '../src/index'
 import { buildDocx, TABLE_XML } from './helpers/build-docx'
@@ -21,7 +21,7 @@ const NESTED_P =
   '<w:r><w:delText>插了又删</w:delText></w:r>' +
   '</w:del></w:ins></w:p>'
 
-/** paragraph-mark revision lives in pPr : editable via rawPPr passthrough */
+/** paragraph-mark revision lives in pPr — editable via rawPPr passthrough */
 const PARA_MARK_P =
   '<w:p><w:pPr><w:rPr><w:del w:id="31" w:author="Alice"/></w:rPr></w:pPr>' +
   '<w:r><w:t>段落标记被删</w:t></w:r></w:p>'

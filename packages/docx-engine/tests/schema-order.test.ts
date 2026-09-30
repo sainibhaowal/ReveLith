@@ -1,6 +1,6 @@
 /**
  * OOXML schema-order gatekeeper: in the output of mergeRPrModel/mergePPrFormat, known
- * children must appear in CT_RPr/CT_PPr sequence : wrong order makes Word show the
+ * children must appear in CT_RPr/CT_PPr sequence — wrong order makes Word show the
  * "repair" dialog.
  */
 import { describe, expect, it } from 'vitest'
@@ -60,7 +60,7 @@ describe('rPr schema order (mergeRPrModel)', () => {
 
   it('raw children in unusual-but-valid subsets still merge in order', () => {
     const sparse = '<w:rPr><w:vanish/><w:vertAlign w:val="subscript"/></w:rPr>'
-    const out = mergeRPrModel(sparse, { text: 'x', bold: true, color: 'AA0000', vanish: true }, false)
+    const out = mergeRPrModel(sparse, { text: 'x', bold: true, color: 'AA0000' }, false)
     assertSchemaOrder(out, 'w:rPr', RPR_CHILD_ORDER)
     expect(out.indexOf('<w:b/>')).toBeLessThan(out.indexOf('<w:vanish/>'))
     expect(out.indexOf('<w:vanish/>')).toBeLessThan(out.indexOf('<w:color'))

@@ -20,7 +20,9 @@ const BITMAPINFOHEADER_SIZE = 40
 const BI_RGB = 0
 
 function base64Of(bytes: Uint8Array): string {
-  const bufferCtor = (globalThis as { Buffer?: { from(b: Uint8Array): { toString(e: string): string } } }).Buffer
+  const bufferCtor = (
+    globalThis as { Buffer?: { from(b: Uint8Array): { toString(e: string): string } } }
+  ).Buffer
   if (bufferCtor) return bufferCtor.from(bytes).toString('base64')
   let binary = ''
   const CHUNK = 0x8000

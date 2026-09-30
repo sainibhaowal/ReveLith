@@ -77,14 +77,19 @@ describe('hidden text (w:vanish)', () => {
     const block = doc.blocks.find((b) => b.type === 'paragraph')
     if (!block || block.type !== 'paragraph') throw new Error('fixture has no paragraph')
     const runs = (block as { runs: Array<{ text: string; vanish?: boolean }> }).runs ?? []
-    expect(runs.map((r) => r.text)).toEqual(['visible ', 'secret'])
+    // `<w:t>` without xml:space="preserve" trims its edges at parse (OOXML default)
+    expect(runs.map((r) => r.text)).toEqual(['visible', 'secret'])
     expect(runs[1]?.vanish).toBe(true)
     expect(runs[0]?.vanish).toBeUndefined()
   })
 
-  it('mergeRPrModel keeps vanish when modeled, drops it when cleared', () => {
+  it('mergeRPrModel keeps vanish when modeled, writes an explicit off when cleared', () => {
     const raw = '<w:rPr><w:vanish/></w:rPr>'
-    expect(mergeRPrModel(raw, { text: 'secret', vanish: true }, false)).toContain('<w:vanish/>')
-    expect(mergeRPrModel(raw, { text: 'secret' }, false)).not.toContain('w:vanish')
+    expect(mergeRPrModel(raw, { text: 'secret', vanishOwn: true }, false)).toContain('<w:vanish/>')
+    expect(mergeRPrModel(raw, { text: 'secret', vanishOwn: false }, false)).toContain(
+      '<w:vanish w:val="0"/>',
+    )
+    // vanish may be style-inherited: with no run-level value the raw bytes stay
+    expect(mergeRPrModel(raw, { text: 'secret' }, false)).toContain('<w:vanish/>')
   })
 })
