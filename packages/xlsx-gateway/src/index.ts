@@ -44,6 +44,14 @@ export type { StylesheetFormats } from './gateway/xlsx-style-read'
 export { spillsDynamicArray, withFutureFunctionMarkers } from './gateway/future-functions'
 
 export {
+  offsetFormulaRefs,
+  shiftFormulaRefs,
+  shiftIndex,
+  shiftSpecForOp,
+} from './domain/formula-shift'
+export type { FormulaShiftResult, ShiftSpec } from './domain/formula-shift'
+
+export {
   DEFAULT_SHORT_DATE,
   getSystemShortDate,
   setSystemShortDate,
