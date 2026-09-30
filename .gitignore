@@ -20,3 +20,7 @@ apps/shell/build/THIRD-PARTY-NOTICES.txt
 
 # Ignore prompt template
 docs/TASK_PROMPT_TEMPLATE.md
+
+# Vendored reference source used only while porting; never committed
+# (62 MB of upstream code that carries upstream branding).
+assets/genoffice-0.11.0/

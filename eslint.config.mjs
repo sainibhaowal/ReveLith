@@ -18,6 +18,9 @@ export default tseslint.config(
       'scripts/drivers/**',
       'apps/*/build/**',
       'packages/*/src/vendor/**',
+      // Reference source kept locally for porting; upstream's own lint rules
+      // and upstream branding, so neither of our gates reads it.
+      'assets/genoffice-0.11.0/**',
     ],
   },
   js.configs.recommended,
