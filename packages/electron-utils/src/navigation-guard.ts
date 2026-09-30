@@ -1,8 +1,8 @@
-﻿/// App-wide navigation lockdown for every webContents in the suite.
+/// App-wide navigation lockdown for every webContents in the suite.
 ///
 /// Every renderer is a local single-page app loaded exactly once via
 /// loadFile/loadURL (which do not emit will-navigate), so a full-page
-/// navigation is never part of normal operation : it can only come from
+/// navigation is never part of normal operation — it can only come from
 /// hostile document content or AI-generated markup. The guard blocks all of
 /// them except same-URL reloads (used by dev tooling), and installs a
 /// default-deny window.open handler.

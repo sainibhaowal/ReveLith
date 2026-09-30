@@ -1,64 +1,137 @@
-/**
- * Drag-and-drop "open this document in a new tab" bridge, installed from a
- * preload script (no Electron import: the module must stay loadable by a
- * sandboxed preload bundle).
- *
- * A file dropped onto an editor tab is a shell-level action, but the shell
- * renderer never receives the DOM drop event — the editor's own WebContentsView
- * does. The view therefore resolves the dropped paths and relays them to the
- * main process, which routes them to the right module.
- */
+/// Drag & drop a local document file anywhere in the app window to open it.
+///
+/// Renderers share one main process (the shell hosts every editor view), so the
+/// bridge only has to resolve dropped files to paths and send them over ONE
+/// channel; the shell routes each path through its normal open pipeline. The
+/// installer runs inside preloads, where `webUtils.getPathForFile` is callable
+/// and DOM listeners see real OS drops — paths never cross contextBridge.
+///
+/// Ownership contract with page-level drop zones: a zone that handles its own
+/// file drops (AI attachment panels, slides image insert) cancels the event
+/// before it bubbles here (`defaultPrevented`), and this bridge stays out of
+/// the way. Text/media drags without OS files are untouched.
+import { ipcRenderer, webUtils } from 'electron'
 
-/** Path detail exposed to the renderer alongside a drop. */
-export interface DroppedPathsDetail {
-  paths: string[]
+export const DROP_OPEN_CHANNEL = 'app:open-dropped-files'
+
+/** Extensions routed by apps/shell routeDocumentPath — keep in sync there and
+ *  with OPEN_DIALOG_EXTENSIONS / OPEN_LOCAL_EXTENSIONS on the home screen. */
+export const OPENABLE_DOC_RE = /\.(docx|xlsx|xlsm|xls|csv|tsv|pptx|pdf|md|markdown|html|htm)$/i
+
+/** Recognized-but-unsupported formats: kept in the sent payload so the shell
+ *  can show its "not supported" dialog instead of dropping them silently.
+ *  Mirrors UNSUPPORTED_DOC_RE in apps/shell/src/main/index.ts. */
+export const KNOWN_UNSUPPORTED_DOC_RE = /\.(doc|rtf|odt|ppt|pps|odp|ods|xlsb|pages|key|numbers)$/i
+
+/** upper bound on how many files one drop may ask to open */
+const MAX_DROPPED_FILES = 20
+
+/** the resolver signature webUtils.getPathForFile satisfies; injectable for tests */
+type PathResolver = (file: File) => string
+
+/** Resolve one dropped file, tolerating resolver failures (see droppableFilePaths). */
+function tryResolvePath(file: File, getPathForFile: PathResolver): string {
+  try {
+    return getPathForFile(file).trim()
+  } catch {
+    return ''
+  }
 }
 
-type DropListener = (paths: string[]) => void
+/** Early bound for path resolution: downstream caps opens at 20, but resolving
+ *  10k dropped files first still costs. Overlong paths are skipped outright. */
+export const MAX_RESOLVED_DROP_PATHS = 100
+export const MAX_DROP_PATH_CHARS = 4096
 
 /**
- * Resolve a `DataTransfer` / drag event to absolute file paths and deliver
- * them to `onPaths`. Text/URL drops and drags without files are ignored.
+ * Resolve an event's dropped files to local paths. Returns null when the drag
+ * carries no OS files at all (internal text/element drags), or [] when it does
+ * but none resolve (directories, virtual entries) — both mean "not ours".
  */
-export function installDropOpenBridge(
-  options: {
-    /** receives the resolved paths; defaults to window 'revelith:drop-open' */
-    onPaths?: DropListener
-    /** resolve a File to its absolute path; injected so the module stays Electron-free */
-    resolvePath: (file: File) => string
-    /** attach listeners here; defaults to window (preload runs before page scripts) */
-    target?: Pick<Window, 'addEventListener' | 'removeEventListener'>
-  } = { resolvePath: (file) => (file as File & { path?: string }).path ?? file.name },
-): () => void {
-  const target = options.target ?? window
-  const emit =
-    options.onPaths ??
-    ((paths) => {
-      window.dispatchEvent(
-        new CustomEvent<DroppedPathsDetail>('revelith:drop-open', { detail: { paths } }),
-      )
-    })
-
-  const handle = (event: DragEvent) => {
-    const files = Array.from(event.dataTransfer?.files ?? [])
-    if (files.length === 0) return
-    const paths = files
-      .map((file) => options.resolvePath(file))
-      .filter((path): path is string => typeof path === 'string' && path.length > 0)
-    if (paths.length === 0) return
-    event.preventDefault()
-    emit(paths)
+export function droppableFilePaths(
+  ev: Pick<DragEvent, 'dataTransfer'>,
+  getPathForFile: PathResolver,
+): string[] | null {
+  const transfer = ev.dataTransfer
+  if (!transfer || !transfer.types.includes('Files')) return null
+  const paths: string[] = []
+  for (const file of Array.from(transfer.files)) {
+    if (paths.length >= MAX_RESOLVED_DROP_PATHS) break
+    // A throwing resolver (e.g. a sandboxed entry Electron cannot map) must
+    // not abort the whole drop: skip that file like a virtual entry.
+    // Non-empty guard covers virtual entries (e.g. page-referenced blobs).
+    const path = tryResolvePath(file, getPathForFile)
+    if (!path || path.length > MAX_DROP_PATH_CHARS) continue
+    paths.push(path)
   }
+  return paths
+}
 
-  // preventDefault is required or the window navigates to the dropped file
-  const preventNavigation = (event: DragEvent) => {
-    if ((event.dataTransfer?.types ?? []).includes('Files')) event.preventDefault()
+/**
+ * Sanitize + classify a raw IPC payload: strings only, trimmed, deduped,
+ * capped, then split into directly-openable paths and known-unsupported
+ * extensions (unique, first-seen order). Anything unrecognized (.png, .zip,
+ * nonexistent junk from a hostile sender) falls out silently.
+ */
+export function partitionDropPayload(raw: unknown): {
+  supported: string[]
+  unsupportedExts: string[]
+} {
+  const supported: string[] = []
+  const unsupportedExts: string[] = []
+  if (!Array.isArray(raw)) return { supported, unsupportedExts }
+  const seen = new Set<string>()
+  for (const entry of raw as unknown[]) {
+    if (typeof entry !== 'string') continue
+    const path = entry.trim()
+    if (!path || seen.has(path)) continue
+    seen.add(path)
+    if (OPENABLE_DOC_RE.test(path)) {
+      // keep scanning for unsupported entries even after hitting the open cap
+      if (supported.length < MAX_DROPPED_FILES) supported.push(path)
+    } else if (KNOWN_UNSUPPORTED_DOC_RE.test(path)) {
+      const ext = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
+      if (!unsupportedExts.includes(ext)) unsupportedExts.push(ext)
+    }
   }
+  return { supported, unsupportedExts }
+}
 
-  target.addEventListener('dragover', preventNavigation as EventListener)
-  target.addEventListener('drop', handle as EventListener)
-  return () => {
-    target.removeEventListener('dragover', preventNavigation as EventListener)
-    target.removeEventListener('drop', handle as EventListener)
-  }
+/** Symbol.for keeps repeated installs idempotent when several bundled copies of
+ *  this module end up in one process (mirrors navigation-guard). */
+const INSTALLED = Symbol.for('revelith.drop-open-installed')
+
+/**
+ * Preload-side hook: makes `drop` fire for document drags anywhere in the
+ * page and forwards recognized files to the shell's router. Intentionally not
+ * exposed through contextBridge — page code cannot spoof these events with
+ * arbitrary paths because payload construction happens here in the preload
+ * world only.
+ */
+export function installDropOpenBridge(): void {
+  const holder = globalThis as Record<symbol, boolean | undefined>
+  if (typeof window === 'undefined' || holder[INSTALLED]) return
+  holder[INSTALLED] = true
+
+  // Without a canceled dragover Chromium never fires `drop`; canceling here is
+  // what lets a document-drag land anywhere that isn't already a drop zone.
+  window.addEventListener('dragover', (ev: DragEvent) => {
+    if (ev.defaultPrevented) return
+    if (!ev.dataTransfer?.types.includes('Files')) return
+    ev.preventDefault()
+  })
+
+  window.addEventListener('drop', (ev: DragEvent) => {
+    // first: something in the page already claimed this drop (image insert,
+    // AI attachments...) — never second-guess it
+    if (ev.defaultPrevented) return
+    const paths = droppableFilePaths(ev, (file) => webUtils.getPathForFile(file))
+    if (!paths) return
+    // only recognized documents ride along; stray images/folders are swallowed
+    // here so they neither navigate the page nor produce open attempts
+    const payload = paths.filter((p) => OPENABLE_DOC_RE.test(p) || KNOWN_UNSUPPORTED_DOC_RE.test(p))
+    ev.preventDefault()
+    if (payload.length === 0) return
+    ipcRenderer.send(DROP_OPEN_CHANNEL, payload.slice(0, MAX_DROPPED_FILES))
+  })
 }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Detail text for a non-OK HTTP response body. Real API errors (JSON/plain
  * text) are surfaced as-is, truncated. HTML bodies : an edge/WAF block page or
  * a login page served instead of an API response : are replaced with a short readable note, since dumping raw markup
