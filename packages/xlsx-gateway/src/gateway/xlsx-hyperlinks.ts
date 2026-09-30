@@ -1,6 +1,10 @@
-﻿/// Surgical hyperlink editing for a worksheet part and its .rels sibling.
+/// Surgical hyperlink editing for a worksheet part and its .rels sibling.
 /// External targets live as TargetMode="External" relationships referenced by
 /// r:id; internal anchors use the `location` attribute and need no rel.
+
+import { nextFreeRelationshipId } from './xlsx-sheets'
+
+export { ensureRelationshipNamespace } from './xlsx-namespace'
 
 export class HyperlinkEditError extends Error {}
 
@@ -55,15 +59,22 @@ export function applyHyperlinkEdits(
       rels = EMPTY_RELS
       relsChanged = true
     }
-    let maximum = 0
-    for (const id of rels.matchAll(/\bId="rId([0-9]+)"/g)) {
-      maximum = Math.max(maximum, Number(id[1]))
-    }
-    const relId = `rId${maximum + 1}`
+    const relId = nextFreeRelationshipId(rels)
     const element =
       `<Relationship Id="${relId}" Type="${HYPERLINK_REL_TYPE}" ` +
       `Target="${escapeXmlAttribute(target)}" TargetMode="External"/>`
-    rels = rels.replace('</Relationships>', () => `${element}</Relationships>`)
+    const close = rels.replace('</Relationships>', () => `${element}</Relationships>`)
+    if (close !== rels) {
+      rels = close
+    } else {
+      const emptyRoot = /<Relationships\b([^>]*)\/>/.exec(rels)
+      if (emptyRoot) {
+        rels = rels.replace(
+          emptyRoot[0],
+          `<Relationships${emptyRoot[1]}>${element}</Relationships>`,
+        )
+      }
+    }
     relsChanged = true
     return relId
   }
@@ -86,7 +97,7 @@ export function applyHyperlinkEdits(
     xml = insertHyperlinkElement(xml, element)
   }
 
-  // An emptied section must go : Excel repairs `<hyperlinks/>` with no children.
+  // An emptied section must go — Excel repairs `<hyperlinks/>` with no children.
   xml = xml.replace(/<hyperlinks>\s*<\/hyperlinks>/, '')
   return { worksheetXml: xml, relsXml: rels, relsChanged }
 }
@@ -108,17 +119,6 @@ function insertHyperlinkElement(xml: string, element: string): string {
   const end = xml.lastIndexOf('</worksheet>')
   if (end === -1) throw new HyperlinkEditError('Worksheet has no closing element.')
   return xml.slice(0, end) + section + xml.slice(end)
-}
-
-/// Adding an r:id-based link needs the relationships namespace on the root.
-export function ensureRelationshipNamespace(worksheetXml: string): string {
-  const root = /<worksheet\b[^>]*>/.exec(worksheetXml)?.[0]
-  if (!root || root.includes('xmlns:r=')) return worksheetXml
-  const patched = root.replace(
-    /<worksheet\b/,
-    '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"',
-  )
-  return worksheetXml.replace(root, () => patched)
 }
 
 function toA1(row: number, column: number): string {

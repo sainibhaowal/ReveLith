@@ -1,6 +1,6 @@
-﻿/// Excel Flash-Fill (the common subset): infer a template that rebuilds the
+/// Excel Flash-Fill (the common subset): infer a template that rebuilds the
 /// example outputs by concatenating source-column fields with literal glue.
-/// Substring extraction and case mapping are out of scope : when the
+/// Substring extraction and case mapping are out of scope — when the
 /// examples cannot be explained by concatenation, we return null instead of
 /// guessing.
 

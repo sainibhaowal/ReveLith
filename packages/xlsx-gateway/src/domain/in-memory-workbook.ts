@@ -1,16 +1,29 @@
-﻿import {
+import {
+  copyTargetBounds,
   expandToPrimitiveOps,
+  filteredCopySourceRows,
   formatOpLabel,
   isLayoutOp,
   isStructuralOp,
   layoutOpLabel,
+  matchableCellText,
+  MAX_EXPANDED_CELL_OPS,
   parseWorkbookCommandBatch,
   structuralOpLabel,
+  type BorderPatch,
   type CellFormatPatch,
+  type FillPatch,
   type FormatRangeOperation,
+  type StyleColorInput,
   type LayoutOperation,
   type StructuralOperation,
 } from './workbook-dsl'
+import {
+  fillDisplayColor,
+  normalizeStyleColor,
+  resolveStyleColor,
+  type FillSpec,
+} from './style-color'
 import {
   columnIndex,
   columnLabel,
@@ -28,7 +41,13 @@ import {
   type ChartStateEdit,
   type SheetVisual,
 } from './chart-visual'
-import { shiftFormulaRefs, shiftIndex, shiftSpecForOp, type ShiftSpec } from './formula-shift'
+import {
+  offsetFormulaRefs,
+  shiftFormulaRefs,
+  shiftIndex,
+  shiftSpecForOp,
+  type ShiftSpec,
+} from './formula-shift'
 import type {
   CellChange,
   CellFormatState,
@@ -101,6 +120,125 @@ export class InMemoryWorkbookAdapter implements WorkbookAdapter {
     }
 
     for (const operation of expandToPrimitiveOps(batch.operations, readCell)) {
+      if (operation.op === 'fill_range') {
+        // Demo workbooks clone every cell per revision, so fills stay at the
+        // per-cell preview scale; imported files get the range-level executor
+        // with the 200k cap instead.
+        const target = parseRange(operation.target)
+        if (rangeCellCount(target) > MAX_EXPANDED_CELL_OPS) {
+          throw new WorkbookConflictError(
+            `fill_range on an in-memory workbook is limited to ${MAX_EXPANDED_CELL_OPS} cells per operation (imported xlsx files allow up to 200,000).`,
+          )
+        }
+        const source = parseRange(operation.source)
+        // Captured once: when source and target overlap they share their
+        // top-left corner (validated at expansion), so the only source cells
+        // rewritten during the loop are identity copies of themselves.
+        const sourceSheet = findSheet(working, operation.sourceSheetId ?? operation.sheetId)
+        const targetBefore = findSheet(working, operation.sheetId)
+        const sourceRows = source.endRow - source.startRow + 1
+        const sourceColumns = source.endColumn - source.startColumn + 1
+        for (let row = target.startRow; row <= target.endRow; row += 1) {
+          for (let column = target.startColumn; column <= target.endColumn; column += 1) {
+            const sourceRow = source.startRow + ((row - target.startRow) % sourceRows)
+            const sourceColumn =
+              source.startColumn + ((column - target.startColumn) % sourceColumns)
+            const cell = sourceSheet.cells[formatAddress(sourceRow, sourceColumn)] ?? {
+              value: null,
+            }
+            const after: CellState = cell.formula
+              ? {
+                  value: null,
+                  formula: offsetFormulaRefs(cell.formula, row - sourceRow, column - sourceColumn),
+                }
+              : { value: cell.value }
+            const address = formatAddress(row, column)
+            const before = targetBefore.cells[address] ?? { value: null }
+            cellChanges.push({ sheetId: targetBefore.id, address, before, after })
+            replaceCell(working, targetBefore.id, address, after)
+          }
+        }
+        continue
+      }
+      if (operation.op === 'copy_range') {
+        // Same per-cell scale as fill_range: demo workbooks clone every cell
+        // per revision, so big-block copies belong to imported files.
+        const target = copyTargetBounds(operation)
+        if (rangeCellCount(target) > MAX_EXPANDED_CELL_OPS) {
+          throw new WorkbookConflictError(
+            `copy_range on an in-memory workbook is limited to ${MAX_EXPANDED_CELL_OPS} cells per operation (imported xlsx files allow up to 200,000).`,
+          )
+        }
+        const source = parseRange(operation.source)
+        const sourceSheet = findSheet(working, operation.sourceSheetId ?? operation.sheetId)
+        const targetBefore = findSheet(working, operation.sheetId)
+        const rowDelta = target.startRow - source.startRow
+        const columnDelta = target.startColumn - source.startColumn
+        // Filtered copies extract matching rows, compacted at the target, as
+        // static values (the snapshot only knows written values, not what
+        // formulas evaluate to — same values-only contract as the lazy path).
+        const sourceRows = filteredCopySourceRows(operation, (row, column) =>
+          matchableCellText(sourceSheet.cells[formatAddress(row, column)]?.value ?? null),
+        )
+        if (sourceRows === null) {
+          throw new WorkbookConflictError(
+            `copy_range filter matched no source rows — none of the ${operation.filterColumn} cells equal ${(operation.filterValues ?? []).join(', ')} (matching is trimmed and case-insensitive).`,
+          )
+        }
+        for (const [targetOffset, row] of sourceRows.entries()) {
+          for (let column = source.startColumn; column <= source.endColumn; column += 1) {
+            const cell = sourceSheet.cells[formatAddress(row, column)] ?? { value: null }
+            const after: CellState =
+              operation.filterColumn !== undefined
+                ? { value: cell.value }
+                : cell.formula
+                  ? { value: null, formula: offsetFormulaRefs(cell.formula, rowDelta, columnDelta) }
+                  : { value: cell.value }
+            const address = formatAddress(target.startRow + targetOffset, column + columnDelta)
+            const before = targetBefore.cells[address] ?? { value: null }
+            cellChanges.push({ sheetId: targetBefore.id, address, before, after })
+            replaceCell(working, targetBefore.id, address, after)
+          }
+        }
+        continue
+      }
+      if (operation.op === 'convert_to_values') {
+        // The AI propose path pre-expands this into set_cell ops using the
+        // live grid's computed values (this snapshot only stores what was
+        // written, not what formulas evaluate to).
+        throw new WorkbookConflictError(
+          'convert_to_values reaches the in-memory adapter only above the ' +
+            `${MAX_EXPANDED_CELL_OPS}-cell demo limit — convert smaller ranges, or work on an imported xlsx file.`,
+        )
+      }
+      if (operation.op === 'find_replace') {
+        // Only >MAX_EXPANDED_CELL_OPS ranges arrive range-level; smaller
+        // ones were already expanded into plain set_cell edits.
+        throw new WorkbookConflictError(
+          `find_replace on an in-memory workbook is limited to ${MAX_EXPANDED_CELL_OPS} cells per operation (imported xlsx files allow up to 200,000).`,
+        )
+      }
+      if (operation.op === 'sort_range') {
+        throw new WorkbookConflictError(
+          `sort_range on an in-memory workbook is limited to ${MAX_EXPANDED_CELL_OPS} cells per operation (imported xlsx files allow up to 200,000).`,
+        )
+      }
+      if (operation.op === 'clear_range') {
+        // Range-level clear (only ranges above the per-cell expansion cap
+        // arrive in this form): existing cells become ordinary cell changes,
+        // empty ones need no work.
+        const bounds = parseRange(operation.range)
+        const sheet = findSheet(working, operation.sheetId)
+        for (const [address, cell] of Object.entries(sheet.cells)) {
+          const parsed = parseAddress(address)
+          if (parsed.row < bounds.startRow || parsed.row > bounds.endRow) continue
+          if (parsed.column < bounds.startColumn || parsed.column > bounds.endColumn) continue
+          if (cell.value === null && cell.formula === undefined) continue
+          cellChanges.push({ sheetId: sheet.id, address, before: cell, after: { value: null } })
+          replaceCell(working, sheet.id, address, { value: null })
+        }
+        continue
+      }
       if (isLayoutOp(operation)) {
         applyLayoutOp(working, operation)
         structuralChanges.push({ op: operation, label: layoutOpLabel(operation) })
@@ -191,7 +329,9 @@ export class InMemoryWorkbookAdapter implements WorkbookAdapter {
     }
     for (const change of plan.structuralChanges) {
       if (isLayoutOp(change.op)) applyLayoutOp(next, change.op)
-      else applyStructuralOp(next, change.op)
+      else if (isStructuralOp(change.op)) applyStructuralOp(next, change.op)
+      // fill_range / clear_range never reach the demo adapter as range-level
+      // entries — plan() expands them into ordinary cellChanges above.
     }
     for (const change of plan.cellChanges) {
       replaceCell(next, change.sheetId, change.address, change.after)
@@ -300,7 +440,7 @@ export class InMemoryWorkbookAdapter implements WorkbookAdapter {
 function applyStructuralOp(snapshot: WorkbookSnapshot, op: StructuralOperation): string[] {
   if (op.op === 'duplicate_sheet' || op.op === 'set_sheet_hidden' || op.op === 'move_sheet') {
     throw new WorkbookConflictError(
-      `${op.op} needs an imported xlsx file : the demo workbook does not support it.`,
+      `${op.op} needs an imported xlsx file — the demo workbook does not support it.`,
     )
   }
   if (op.op === 'add_sheet') {
@@ -310,7 +450,13 @@ function applyStructuralOp(snapshot: WorkbookSnapshot, op: StructuralOperation):
     const sheets = snapshot.sheets as WorksheetState[]
     let serial = sheets.length + 1
     while (sheets.some((sheet) => sheet.id === `sheet-${serial}`)) serial += 1
-    sheets.push({ id: `sheet-${serial}`, name: op.name, cells: {} })
+    sheets.push({
+      id: `sheet-${serial}`,
+      name: op.name,
+      cells: {},
+      ...(op.rows !== undefined ? { gridRows: op.rows } : {}),
+      ...(op.columns !== undefined ? { gridColumns: op.columns } : {}),
+    })
     return []
   }
 
@@ -485,7 +631,7 @@ function applyLayoutOp(snapshot: WorkbookSnapshot, op: LayoutOperation): void {
       chartVisual.chart.chartTypes.some((type) => /pie|doughnut/i.test(type))
     ) {
       throw new WorkbookConflictError(
-        'Pie/doughnut charts have no axes : axisTitles does not apply.',
+        'Pie/doughnut charts have no axes — axisTitles does not apply.',
       )
     }
     if (op.grouping !== undefined) {
@@ -590,7 +736,7 @@ function applyLayoutOp(snapshot: WorkbookSnapshot, op: LayoutOperation): void {
     // Shapes, images, links, filters, CF/DV, protection, and defined names
     // save into a real file; the demo snapshot has nowhere to keep them.
     throw new WorkbookConflictError(
-      `${op.op} needs an imported xlsx file : the demo workbook does not support it.`,
+      `${op.op} needs an imported xlsx file — the demo workbook does not support it.`,
     )
   }
   const sheet = findSheet(snapshot, op.sheetId)
@@ -651,14 +797,26 @@ function mergeFormat(
   const merged: Record<string, unknown> = { ...existing }
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue
-    if (value === null) delete merged[key]
-    else merged[key] = value
+    if (value === null) {
+      delete merged[key === 'fill' ? 'fillColor' : key]
+    } else if (key === 'fontColor' || key === 'fillColor') {
+      merged[key] = resolveStyleColor(normalizeStyleColor(value as StyleColorInput))
+    } else if (key === 'fill') {
+      const display = fillDisplayColor(value as FillPatch as FillSpec)
+      if (display) merged.fillColor = resolveStyleColor(normalizeStyleColor(display))
+    } else if (key === 'border') {
+      const border = value as BorderPatch
+      merged.border =
+        border.color === undefined
+          ? border
+          : { ...border, color: resolveStyleColor(normalizeStyleColor(border.color)) }
+    } else merged[key] = value
   }
   return Object.keys(merged).length > 0 ? (merged as CellFormatState) : null
 }
 
 /// Cell values over a range as a row-major grid. Formula cells surface their
-/// stored value, which the demo snapshot keeps as null (never computed) : a
+/// stored value, which the demo snapshot keeps as null (never computed) — a
 /// chart over formula results is rejected by the numeric-column check.
 function gridFromRange(sheet: WorksheetState, range: string): ChartGridValue[][] {
   const bounds = parseRange(range)

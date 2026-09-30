@@ -1,28 +1,19 @@
-/**
- * Document theme writer: rewrites the `<a:clrScheme>` and/or `<a:fontScheme>`
- * of `xl/theme/theme1.xml` in place.
- *
- * Styles that reference theme slots (`color theme=`, `font scheme=`) follow the
- * new theme, so one edit re-themes a workbook that uses slots. Styles with an
- * explicit `rgb` stay exactly as they were, which is the point: explicit means
- * explicit.
- */
+/// Document theme writer: rewrites xl/theme/theme1.xml's <a:clrScheme> and/or
+/// <a:fontScheme> in place. Styles referencing theme slots (color theme=,
+/// font scheme=) follow the new theme in Excel; explicit rgb stays verbatim.
 
 export class ThemeStateError extends Error {}
 
 export interface WorkbookThemeState {
-  /** `#RRGGBB` values in theme index order: lt1, dk1, lt2, dk2, accent1-6, hlink, folHlink */
+  /// #RRGGBB values in theme index order [lt1, dk1, lt2, dk2, accent1-6,
+  /// hlink, folHlink].
   readonly colors?: { readonly name: string; readonly values: readonly string[] } | undefined
   readonly fonts?:
     { readonly name: string; readonly major: string; readonly minor: string } | undefined
 }
 
-/**
- * Document order of `clrScheme`, paired with each slot's position in theme
- * index order. They differ: Excel swaps the lt/dk pairs between the two, so
- * writing values in index order straight into document order would put every
- * light color where a dark one belongs.
- */
+/// clrScheme document order, paired with the slot's position in the theme
+/// index order the renderer uses (light/dark pairs are swapped).
 const SCHEME_SLOTS: readonly (readonly [string, number])[] = [
   ['dk1', 1],
   ['lt1', 0],
@@ -60,9 +51,6 @@ export function applyThemeState(themeXml: string, state: WorkbookThemeState): st
       if (!pattern.test(xml)) {
         throw new ThemeStateError(`The theme has no ${slot} color scheme slot.`)
       }
-      // Replace the whole slot rather than its child: a slot may hold a sysClr
-      // with a lastClr fallback, an srgbClr, or a schemeClr reference, and only
-      // a full replacement is valid for all three.
       xml = xml.replace(pattern, `<a:${slot}><a:srgbClr val="${hex}"/></a:${slot}>`)
     }
     xml = xml.replace(/(<a:clrScheme name=")[^"]*(")/, `$1${escapeAttr(name)}$2`)

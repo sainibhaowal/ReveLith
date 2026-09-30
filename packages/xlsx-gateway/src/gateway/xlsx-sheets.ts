@@ -1,4 +1,9 @@
-﻿import { FORMULA_REFERENCE_PATTERN, qualifierMatches } from './xlsx-structure'
+import { FORMULA_REFERENCE_PATTERN, qualifierMatches } from './xlsx-structure'
+import { ensureRelationshipNamespace } from './xlsx-namespace'
+
+/// '>' is legal inside XML attribute values (sheet names can carry it), so
+/// element scans consume quoted runs atomically instead of using [^>]*.
+const TAG_ATTRIBUTES = `(?:"[^"]*"|'[^']*'|[^>"'])*?`
 
 /// Sheet-level workbook surgery: rename, add, and remove worksheets. Renames
 /// rewrite every qualified reference (other sheets' formulas, defined names,
@@ -23,7 +28,7 @@ export interface SheetEditPlan {
   readonly order: readonly string[]
   /// visibility toggles, keyed by original (pre-rename) or added name
   readonly hiddenChanges?: readonly { readonly sheetName: string; readonly hidden: boolean }[]
-  /// True when the tab order differs from the file : calcChain sheet indexes
+  /// True when the tab order differs from the file — calcChain sheet indexes
   /// go stale, so the save drops it for Excel to rebuild.
   readonly orderChanged?: boolean
 }
@@ -117,7 +122,7 @@ export function renameSheetReferencesInWorksheet(
       `<${tag}>${escapeXmlText(renameSheetInFormula(decodeEntities(body), oldName, newName))}</${tag}>`,
   )
   return xml.replace(
-    /(<hyperlink\b[^>]*\blocation=")([^"]+)(")/g,
+    new RegExp(`(<hyperlink\\b${TAG_ATTRIBUTES}\\blocation=")([^"]+)(")`, 'g'),
     (full, prefix: string, location: string, suffix: string) => {
       const renamed = renameHyperlinkLocation(decodeAttribute(location), oldName, newName)
       if (renamed === null) return full
@@ -185,7 +190,7 @@ export function chartReferencesSheet(chartXml: string, sheetName: string): boole
 /// Prepares a source sheet's relationships part for its duplicate. Hyperlink
 /// relationships clone verbatim (ids are part-scoped, targets are external or
 /// workbook-internal anchors). Printer settings reference a part the copy
-/// must not share, so they are dropped : the caller strips the matching
+/// must not share, so they are dropped — the caller strips the matching
 /// r:id attributes. Anything else (drawings, tables, comments, pivots) would
 /// leave the clone pointing at parts that cannot be shared: fail closed.
 export function prepareClonedSheetRels(
@@ -202,7 +207,7 @@ export function prepareClonedSheetRels(
       continue
     }
     throw new SheetEditError(
-      `Sheet "${sourceName}" carries charts, images, tables, or comments : ` +
+      `Sheet "${sourceName}" carries charts, images, tables, or comments — ` +
         'duplicating it is not supported yet.',
     )
   }
@@ -238,7 +243,7 @@ export function assertNoSheetScopedDefinedNames(workbookXml: string, sourceName:
   if (index < 0) throw new SheetEditError(`Sheet "${sourceName}" was not found in the workbook.`)
   if (new RegExp(`<definedName\\b[^>]*?\\blocalSheetId="${index}"`).test(workbookXml)) {
     throw new SheetEditError(
-      `Sheet "${sourceName}" has sheet-scoped defined names : duplicating it is ` +
+      `Sheet "${sourceName}" has sheet-scoped defined names — duplicating it is ` +
         'not supported yet.',
     )
   }
@@ -264,7 +269,9 @@ export interface SheetElement {
 
 export function parseSheetElements(workbookXml: string): SheetElement[] {
   const elements: SheetElement[] = []
-  for (const match of workbookXml.matchAll(/<sheet\b[^>]*?(?:\/>|>[\s\S]*?<\/sheet>)/g)) {
+  for (const match of workbookXml.matchAll(
+    new RegExp(`<sheet\\b${TAG_ATTRIBUTES}(?:/>|>[\\s\\S]*?</sheet>)`, 'g'),
+  )) {
     const xml = match[0]
     const name = readAttribute(xml, 'name')
     if (name === undefined) continue
@@ -274,7 +281,7 @@ export function parseSheetElements(workbookXml: string): SheetElement[] {
       name: decodeAttribute(name),
       hidden: state === 'hidden' || state === 'veryHidden',
       // The relationships namespace is conventionally bound to "r", but any
-      // prefix is legal : fall back to whatever prefix the producer chose.
+      // prefix is legal — fall back to whatever prefix the producer chose.
       relationshipId:
         readAttribute(xml, 'r:id') ?? /(?:^|\s)[A-Za-z_][\w.-]*:id="([^"]*)"/.exec(xml)?.[1],
     })
@@ -284,7 +291,9 @@ export function parseSheetElements(workbookXml: string): SheetElement[] {
 
 export function maxSheetIdInWorkbook(workbookXml: string): number {
   let max = 0
-  for (const match of workbookXml.matchAll(/<sheet\b[^>]*?\bsheetId="([0-9]+)"/g)) {
+  for (const match of workbookXml.matchAll(
+    new RegExp(`<sheet\\b${TAG_ATTRIBUTES}\\bsheetId="([0-9]+)"`, 'g'),
+  )) {
     max = Math.max(max, Number(match[1]))
   }
   return max
@@ -296,6 +305,33 @@ export function maxRelationshipId(relationshipsXml: string): number {
     max = Math.max(max, Number(match[1]))
   }
   return max
+}
+
+function relationshipIds(relationshipsXml: string): Set<string> {
+  return new Set(
+    [...relationshipsXml.matchAll(/\bId="rId([0-9]+)"/g)].map((match) => `rId${match[1]}`),
+  )
+}
+
+function firstFreeRelationshipId(used: ReadonlySet<string>): string {
+  let index = 1
+  while (used.has(`rId${index}`)) index += 1
+  return `rId${index}`
+}
+
+export function nextFreeRelationshipId(relationshipsXml: string): string {
+  return firstFreeRelationshipId(relationshipIds(relationshipsXml))
+}
+
+export function nextFreeRelationshipIds(relationshipsXml: string, count: number): string[] {
+  const used = relationshipIds(relationshipsXml)
+  const ids: string[] = []
+  for (let index = 0; index < count; index += 1) {
+    const id = firstFreeRelationshipId(used)
+    used.add(id)
+    ids.push(id)
+  }
+  return ids
 }
 
 /// Rebuilds workbook.xml for the plan: sheet elements renamed / added /
@@ -370,7 +406,7 @@ export function applySheetPlanToWorkbookXml(
   )
   result = result.replace(/<definedNames>\s*<\/definedNames>/, '')
 
-  return result.replace(
+  result = result.replace(
     /(<workbookView\b[^>]*?\bactiveTab=")([0-9]+)(")/,
     (_full, prefix: string, activeTab: string, suffix: string) => {
       const mapped = oldIndexToNew(Number(activeTab))
@@ -378,10 +414,14 @@ export function applySheetPlanToWorkbookXml(
       return `${prefix}${mapped ?? Math.max(fallback, 0)}${suffix}`
     },
   )
+
+  // Added <sheet> elements carry r:id; hosts that bind r per element only
+  // would leave the new element's prefix undeclared.
+  return additions.length > 0 ? ensureRelationshipNamespace(result) : result
 }
 
 /// Toggles a `<sheet>` element's state attribute. Unhiding also clears
-/// veryHidden : the only way a user reaches such a sheet is on purpose.
+/// veryHidden — the only way a user reaches such a sheet is on purpose.
 function setSheetStateAttribute(sheetXml: string, hidden: boolean): string {
   const withoutState = sheetXml.replace(/\s+state="[^"]*"/, '')
   if (!hidden) return withoutState
@@ -469,7 +509,7 @@ export function partPathForRels(relsPath: string): string {
 
 /// Returns the (unresolved) targets of a removed sheet's owned satellite
 /// parts, for the caller to cascade-delete. Relationships that never block a
-/// removal are skipped; anything else : pivot tables, slicers, OLE objects :
+/// removal are skipped; anything else — pivot tables, slicers, OLE objects —
 /// fails closed rather than leave dangling references for Excel to repair.
 export function classifyRemovedSheetRels(relsXml: string, sheetName: string): string[] {
   const owned: string[] = []
@@ -483,13 +523,13 @@ export function classifyRemovedSheetRels(relsXml: string, sheetName: string): st
       ? 'a pivot table'
       : `a part this build cannot delete safely (${entry.type})`
     throw new SheetEditError(
-      `Sheet "${sheetName}" carries ${kind} : deleting it is not supported yet.`,
+      `Sheet "${sheetName}" carries ${kind} — deleting it is not supported yet.`,
     )
   }
   return owned
 }
 
-/// displayName of the table defined in a table part : the token surviving
+/// displayName of the table defined in a table part — the token surviving
 /// formulas would use in structured references (Table1[Amount]).
 export function tableDisplayName(tableXml: string): string | undefined {
   const openTag = /<table\b[^>]*>/.exec(tableXml)?.[0]
@@ -526,7 +566,9 @@ export function definedNamesUseToken(
 /// case-insensitively, matching Excel.
 export function pivotCacheReadsFromSheet(cacheXml: string, sheetName: string): boolean {
   const target = sheetName.toLowerCase()
-  for (const match of cacheXml.matchAll(/<worksheetSource\b[^>]*>/g)) {
+  for (const match of cacheXml.matchAll(
+    new RegExp(`<worksheetSource\\b${TAG_ATTRIBUTES}/?>`, 'g'),
+  )) {
     const sheet = readAttribute(match[0], 'sheet')
     if (sheet !== undefined && decodeAttribute(sheet).toLowerCase() === target) return true
   }
@@ -534,7 +576,7 @@ export function pivotCacheReadsFromSheet(cacheXml: string, sheetName: string): b
 }
 
 /// Rewrites worksheetSource@sheet in a pivotCacheDefinition part when the
-/// pivot's source sheet is renamed : the attribute holds the plain sheet
+/// pivot's source sheet is renamed — the attribute holds the plain sheet
 /// name, so the formula-oriented rename helpers never see it.
 export function renameSheetInPivotCacheSource(
   cacheXml: string,
@@ -542,7 +584,7 @@ export function renameSheetInPivotCacheSource(
   newName: string,
 ): string {
   const target = oldName.toLowerCase()
-  return cacheXml.replace(/<worksheetSource\b[^>]*>/g, (element) => {
+  return cacheXml.replace(new RegExp(`<worksheetSource\\b${TAG_ATTRIBUTES}/?>`, 'g'), (element) => {
     const sheet = readAttribute(element, 'sheet')
     if (sheet === undefined || decodeAttribute(sheet).toLowerCase() !== target) return element
     return element.replace(/\ssheet="[^"]*"/, () => ` sheet="${escapeXmlAttribute(newName)}"`)
@@ -581,7 +623,7 @@ const NAMED_ENTITIES: Record<string, string> = {
 }
 
 /// Single-pass decode of the XML named entities plus numeric character
-/// references (&#dd; / &#xhh;) : producers may encode non-ASCII sheet names
+/// references (&#dd; / &#xhh;) — producers may encode non-ASCII sheet names
 /// as numeric references, which sequential replaceAll would miss.
 function decodeEntities(input: string): string {
   return input.replace(

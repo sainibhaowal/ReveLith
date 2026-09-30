@@ -1,11 +1,3 @@
-/**
- * Pivot layout: from a source grid, both the output the app bakes into cells and
- * the definition the gateway writes as OOXML.
- *
- * Pure, and shared on purpose: the app and the headless CLI both call this and
- * then place the result on a sheet, so there is one definition of what a pivot
- * looks like rather than two that drift.
- */
 import { allowedByValueFilter, matchesLabelFilter, type PivotFilterDef } from './pivot-filters'
 import { evaluatePivotFormula, parsePivotFormula } from './pivot-formula'
 import { groupValue, type PivotFieldGrouping } from './pivot-grouping'
@@ -13,22 +5,15 @@ import type { AddPivotOperation } from './workbook-dsl'
 
 export type PivotScalar = string | number | boolean | null
 
-/**
- * Numeric coercion, mirroring the pivot engine so the grid baked here and a
- * later refresh total the same thing. A cell holding the text "42" is a number
- * to both; blank, empty and unparseable cells are not.
- */
+/// Mirror pivot-engine's numeric coercion so the grid baked here and a later
+/// refresh total the same thing. A cell holding the text "42" is a number to
+/// both; blank, empty and unparseable cells are not.
 function numericValue(value: PivotScalar): number | null {
   if (value === null || value === '') return null
   const numeric = typeof value === 'number' ? value : Number(String(value).trim())
   return Number.isFinite(numeric) ? numeric : null
 }
 
-/**
- * Every way a layout can be rejected. Each code carries a message a person can
- * act on, because a pivot that silently produces an empty grid is worse than one
- * that says which field name was not a header.
- */
 export type PivotLayoutErrorCode =
   | 'sourceNeedsRows'
   | 'sourceRowLimit'
@@ -88,16 +73,12 @@ export interface PivotLayoutValue {
   calcName?: string | undefined
 }
 
-/** One output line: either a data row/column, or a default (subtotal) line. */
 export interface PivotLayoutLine {
   t: 'data' | 'default'
   members: number[]
 }
 
-/**
- * The sheet-independent half of a pivot addition: what the OOXML definition
- * needs. Mutable so it feeds the app's edit journal unchanged.
- */
+/** The sheet-independent part of a pivot addition: what the OOXML definition needs. Mutable so it feeds the app's journal as-is. */
 export interface PivotLayoutDefinition {
   fieldNames: string[]
   rowFieldIndices: number[]
@@ -123,11 +104,7 @@ export interface PivotLayout {
   readonly matrix: readonly (readonly (string | number | null)[])[]
   readonly width: number
   readonly height: number
-  /**
-   * Number formats for value columns, offset from the anchor column. Only
-   * populated without column dimensions, since with them every value cell sits
-   * in the same column and one format cannot describe them all.
-   */
+  /** number formats for value columns (offset from the anchor column); only without column dimensions */
   readonly numberFormats: readonly { readonly columnOffset: number; readonly format: string }[]
 }
 
@@ -147,6 +124,11 @@ export const AGG_CAPTIONS: Record<PivotLayoutValue['agg'], string> = {
 export const PIVOT_SOURCE_ROW_LIMIT = 10_001
 export const PIVOT_SOURCE_COL_LIMIT = 200
 
+/**
+ * Computes the pivot output the app bakes into cells and the definition the
+ * gateway writes as OOXML, from the source grid (header row first). Pure: the
+ * app and the CLI both call it, then place the result on a sheet.
+ */
 export function buildPivotLayout(
   grid: readonly (readonly PivotScalar[])[],
   op: PivotLayoutSpec,
@@ -158,8 +140,6 @@ export function buildPivotLayout(
 
   const fieldNames = (grid[0] ?? []).map((value) => String(value ?? '').trim())
   if (fieldNames.some((name) => name.length === 0)) throw new PivotLayoutError('headerBlank')
-  // case-insensitive: two headers differing only in case produce a pivot whose
-  // field references are ambiguous
   if (new Set(fieldNames.map((name) => name.toLowerCase())).size !== fieldNames.length) {
     throw new PivotLayoutError('headerDuplicate')
   }
@@ -201,8 +181,6 @@ export function buildPivotLayout(
 
   const valueSpecs = op.values.map((value) => {
     const isCalc = value.formula !== undefined
-    // a calculated field shares the value namespace with the headers, so a
-    // clash would make its own reference unresolvable
     if (
       isCalc &&
       fieldNames.some((name) => name.toLowerCase() === value.field.trim().toLowerCase())
@@ -227,15 +205,13 @@ export function buildPivotLayout(
     throw new PivotLayoutError('calcFieldNameDuplicate')
   }
 
-  // One globally deduplicated member list per level. First-seen order is the
-  // sharedItems order the definition records.
+  // one globally deduplicated member list per level (first-seen = sharedItems order)
   const levelItems: string[][] = rowFieldIndices.map(() => [])
   const comboKeys = new Set<string>()
   const colLevelItems: string[][] = columnFieldIndices.map(() => [])
   const colComboKeys = new Set<string>()
   const levelSortKeys: Map<string, number | null>[] = rowFieldIndices.map(() => new Map())
   const colLevelSortKeys: Map<string, number | null>[] = columnFieldIndices.map(() => new Map())
-  // NUL-joined so two members whose concatenation is ambiguous cannot collide
   const joinPath = (path: readonly string[]): string => path.join('\u0000')
   const dataRows = grid.slice(1)
   for (const row of dataRows) {
@@ -254,8 +230,7 @@ export function buildPivotLayout(
       }
     })
   }
-  // Grouped levels sort by bucket; pass-through values keep first-seen order
-  // after them.
+  // grouped levels sort by bucket; pass-through values keep first-seen order after them
   const sortGroupedLevel = (
     items: string[],
     fieldIdx: number,
@@ -290,8 +265,6 @@ export function buildPivotLayout(
     spec: (typeof valueSpecs)[number],
   ): number | null => {
     if (spec.ast) {
-      // a calculated field aggregates a whole row, so a field reference
-      // resolves to that field's total across the rows in scope
       return evaluatePivotFormula(spec.ast, (name) => {
         const refIndex = fieldIndex(name)
         return rows
@@ -333,8 +306,7 @@ export function buildPivotLayout(
           ...(filter.to !== undefined ? { to: filter.to } : {}),
         },
   )
-  // Label filters pick members outright; a value filter aggregates each
-  // candidate over the label-filtered rows, so it has to run after them.
+  // label filters pick members; value filters aggregate each candidate over the label-filtered rows
   const membersOfField = (fieldIdx: number): string[] => {
     const rowLevel = rowFieldIndices.indexOf(fieldIdx)
     if (rowLevel >= 0) return levelItems[rowLevel]!
@@ -359,9 +331,8 @@ export function buildPivotLayout(
   for (const filter of filterEntries) {
     if (filter.kind !== 'value') continue
     const spec = valueSpecs[filter.dataField]
-    if (!spec) {
+    if (!spec)
       throw new PivotLayoutError('valueFilterFieldMissing', { index: filter.dataField + 1 })
-    }
     const labelRows = dataRows.filter(rowVisible)
     const hidden = hiddenByField.get(filter.field) ?? new Set<string>()
     const candidates = membersOfField(filter.field).filter((member) => !hidden.has(member))
@@ -379,8 +350,6 @@ export function buildPivotLayout(
     hiddenByField.set(filter.field, hidden)
   }
   const visibleRows = dataRows.filter(rowVisible)
-  // Members are hidden by index, because the definition indexes into the
-  // sharedItems list rather than naming members.
   const hiddenIndexesOf = (
     fieldIndices: readonly number[],
     items: readonly (readonly string[])[],
@@ -393,8 +362,6 @@ export function buildPivotLayout(
   const rowHiddenItems = hiddenIndexesOf(rowFieldIndices, levelItems)
   const colHiddenItems = hiddenIndexesOf(columnFieldIndices, colLevelItems)
 
-  // Only combinations that actually occur become a line; a cartesian product
-  // over all members would emit lines for members no row has.
   for (const row of visibleRows) {
     const path: string[] = []
     rowFieldIndices.forEach((fieldIdx) => {
@@ -408,8 +375,7 @@ export function buildPivotLayout(
     })
   }
 
-  // Column lines, without the grand-total column: a data column at each leaf,
-  // and a subtotal column after every non-leaf member.
+  // column lines (without the grand-total column): data columns on every level, a subtotal column after each non-leaf member
   const colLines: PivotLayoutLine[] = []
   const colLinePaths: string[][] = []
   const emitColLevel = (path: string[], indices: number[], depth: number): void => {
@@ -446,16 +412,12 @@ export function buildPivotLayout(
     colPrefix: readonly string[],
   ): number | null => {
     if (spec.showDataAs === undefined || raw === null) return raw
-    // the denominator is the whole bucket the cell sits in, computed by
-    // dropping the level that varies within that bucket
     const base =
       spec.showDataAs === 'percentOfTotal'
         ? aggregate(bucketRows([], []), spec)
         : spec.showDataAs === 'percentOfRow'
           ? aggregate(bucketRows(prefix, []), spec)
           : aggregate(bucketRows([], colPrefix), spec)
-    // a zero or empty base has no meaningful percentage; null says "not
-    // computable" rather than showing a 0% that looks like a real value
     return base === null || base === 0 ? null : raw / base
   }
 
@@ -465,7 +427,6 @@ export function buildPivotLayout(
         applyShowDataAs(aggregate(bucketRows(prefix, []), spec), spec, prefix, []),
       )
     }
-    // with a column dimension, one value entry spreads across the column lines
     const spec = valueSpecs[0]
     if (!spec) throw new PivotLayoutError('needsValues')
     return [
@@ -484,8 +445,6 @@ export function buildPivotLayout(
     const headers: (string | number | null)[][] = Array.from({ length: colLevels }, () =>
       new Array<string | number | null>(totalWidth).fill(null),
     )
-    // row field names sit on the last header row, where they label the
-    // leftmost columns
     rowFieldsArray.forEach((name, level) => {
       headers[colLevels - 1]![level] = name
     })
@@ -501,9 +460,6 @@ export function buildPivotLayout(
         previousColPath = null
       } else {
         path.forEach((member, level) => {
-          // a label already printed on the previous column carries down as
-          // long as the prefix is unchanged, which is how a grouped header
-          // spans its members instead of repeating
           if (previousColPath !== null && level < path.length - 1) {
             let samePrefix = true
             for (let k = 0; k <= level; k += 1) {
@@ -523,8 +479,6 @@ export function buildPivotLayout(
     matrix.push(...headers)
   }
   const rowLines: PivotLayoutLine[] = []
-  // A member label is held over to the row where it first becomes the leaf, so
-  // an outer level is printed once rather than on every descendant row.
   const pendingLabels: (string | null)[] = new Array(Math.max(0, levels - 1)).fill(null)
   const emitLevel = (path: string[], indices: number[], depth: number): void => {
     levelItems[depth]!.forEach((member, memberIndex) => {
@@ -570,8 +524,6 @@ export function buildPivotLayout(
     definition: {
       fieldNames,
       rowFieldIndices,
-      // a single column field is recorded by index alone; two or more need the
-      // full level list, which is the shape OOXML expects
       ...(colLevels === 1 ? { columnFieldIndex: columnFieldIndices[0]! } : {}),
       ...(pageFieldIndices.length > 0 ? { pageFieldIndices } : {}),
       rowItems,
@@ -613,10 +565,6 @@ export function pivotOutputArea(
   }
 }
 
-/**
- * Whether two areas share a cell. The pivot output must not overlap its own
- * source, so this is what stops a pivot from overwriting the data it reads.
- */
 export function areasOverlap(a: PivotArea, b: PivotArea): boolean {
   return (
     a.startRow <= b.endRow &&

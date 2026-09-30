@@ -1,16 +1,19 @@
-﻿import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { closeSync, openSync, readFileSync, writeFileSync, writeSync } from 'node:fs'
+import { copyFile, mkdir, mkdtemp, rename, rm, stat, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 
 import { z } from 'zod'
 
+import { MAX_PATCH_ENTRY_BYTES } from '../shared/edit-schemas'
 import type { WorkbookChartEdit, WorkbookVisualEdit } from '../shared/edit-schemas'
 import type { SheetFilterState } from './xlsx-filter'
 import type { DefinedNamesState } from './xlsx-defined-names'
 import type { SheetPageSetupState } from './xlsx-page-setup'
 import type {
   CellEdit,
+  BulkConstantFill,
   EntrySource,
   MutationPlan,
   PivotRefreshUpdate,
@@ -20,7 +23,6 @@ import type {
   SheetNoteState,
   SheetProtectedRangesState,
   SheetProtectionState,
-  WorkbookProtectionState,
   SheetPivotAddition,
   SheetSparklineAddition,
   SheetStructuralOps,
@@ -29,11 +31,9 @@ import type {
   SheetFormulaValues,
 } from './xlsx-gateway'
 import { planCellEditsToXlsx, syncFileBestEffort } from './xlsx-gateway'
+import { normalizeOoxmlPartPrefix } from './xlsx-namespace'
+import type { WorkbookThemeState } from './xlsx-theme'
 import type { SheetEditPlan } from './xlsx-sheets'
-
-/// Mirrors the sidecar's per-entry extraction cap: only entries the gateway
-/// patches must fit in memory : the archive as a whole has no size limit.
-const MAX_PATCH_ENTRY_BYTES = 256 * 1024 * 1024
 
 const archiveEntrySchema = z.object({
   name: z.string(),
@@ -82,6 +82,7 @@ export interface StreamingSaveRequest {
   readonly sourcePath: string
   readonly targetPath: string
   readonly edits: readonly CellEdit[]
+  readonly bulkConstantFills?: readonly BulkConstantFill[] | undefined
   readonly structuralOps?: readonly SheetStructuralOps[] | undefined
   readonly chartEdits?: readonly WorkbookChartEdit[] | undefined
   readonly sheetPlan?: SheetEditPlan | undefined
@@ -102,9 +103,8 @@ export interface StreamingSaveRequest {
   readonly sparklineAdditions?: readonly SheetSparklineAddition[] | undefined
   /// Recalculated formula-cell values written into <v>
   readonly formulaValues?: readonly SheetFormulaValues[] | undefined
-  /// Workbook structure lock; null leaves any existing lock untouched
-  readonly workbookProtectionState?: WorkbookProtectionState | null | undefined
-  /// Allow-edit ranges per sheet, replacing whatever the file holds
+  readonly themeState?: WorkbookThemeState | null | undefined
+  readonly workbookProtectionState?: { readonly lockStructure: boolean } | null | undefined
   readonly protectedRangeStates?: readonly SheetProtectedRangesState[] | undefined
 }
 
@@ -128,14 +128,14 @@ export async function readArchiveEntryText(
     )
     const filePath = extracted.entries[0]?.path
     if (!filePath) throw new Error(`Workbook is missing ${entryName}.`)
-    return await readFile(filePath, 'utf8')
+    return normalizeOoxmlPartPrefix(readFileSync(filePath, 'utf8'))
   } finally {
     await rm(workDir, { recursive: true, force: true })
   }
 }
 
 /// Streaming save channel: the gateway plans patched entry contents in
-/// memory, the sidecar reassembles the archive on disk : untouched entries
+/// memory, the sidecar reassembles the archive on disk — untouched entries
 /// are raw-copied compressed bytes, verified afterwards via CRC manifests.
 export async function saveWorkbookViaSidecar(
   request: StreamingSaveRequest,
@@ -169,8 +169,10 @@ export async function saveWorkbookViaSidecar(
       request.visualEdits ?? [],
       request.sparklineAdditions ?? [],
       request.formulaValues ?? [],
+      request.themeState ?? null,
       request.workbookProtectionState ?? null,
       request.protectedRangeStates ?? [],
+      request.bulkConstantFills ?? [],
     )
 
     const replacements = await writePlanContents(workDir, 'replace', plan.replaced)
@@ -191,7 +193,7 @@ export async function saveWorkbookViaSidecar(
     // The source manifest was read before planning; if the file changed on
     // disk in between, the save's own before-manifest exposes the drift.
     if (!manifestsEqual(manifest, result.beforeEntries)) {
-      throw new Error('The workbook changed on disk while saving : aborted.')
+      throw new Error('The workbook changed on disk while saving — aborted.')
     }
     assertManifestPreserved(plan, result.beforeEntries, result.afterEntries)
 
@@ -229,6 +231,9 @@ function createSidecarEntrySource(
       )
       return scanned.matches.includes(path)
     },
+    releaseText: (path) => {
+      cache.delete(path)
+    },
     readText: async (path) => {
       const cached = cache.get(path)
       if (cached !== undefined) return cached
@@ -236,8 +241,8 @@ function createSidecarEntrySource(
       if (!entry) throw new Error(`Workbook is missing ${path}.`)
       if (entry.uncompressedSize > MAX_PATCH_ENTRY_BYTES) {
         throw new Error(
-          `${path} is ${entry.uncompressedSize} bytes uncompressed : too large to edit. ` +
-            'Entries above 256MB can be preserved but not patched.',
+          `${path} is ${entry.uncompressedSize} bytes uncompressed — too large to edit. ` +
+            'Entries above 500MB can be preserved but not patched.',
         )
       }
       const extractDir = join(workDir, `extract-${extractionCount}`)
@@ -248,7 +253,7 @@ function createSidecarEntrySource(
       )
       const filePath = extracted.entries[0]?.path
       if (!filePath) throw new Error(`Sidecar did not extract ${path}.`)
-      const content = await readFile(filePath, 'utf8')
+      const content = normalizeOoxmlPartPrefix(readFileSync(filePath, 'utf8'))
       cache.set(path, content)
       return content
     },
@@ -265,11 +270,40 @@ async function writePlanContents(
   for (const [name, content] of contents) {
     const contentPath = join(workDir, `${prefix}-${index}.bin`)
     index += 1
-    if (typeof content === 'string') await writeFile(contentPath, content, 'utf8')
-    else await writeFile(contentPath, content)
+    if (typeof content === 'string') writeUtf8StringChunked(contentPath, content)
+    else writeFileSync(contentPath, content)
     written.push({ name, contentPath })
   }
   return written
+}
+
+function writeUtf8StringChunked(path: string, content: string): void {
+  const descriptor = openSync(path, 'wx')
+  try {
+    const chunkCharacters = 1024 * 1024
+    // One reusable buffer (4 bytes/char upper bound) instead of a fresh
+    // Buffer per chunk — a 300MB entry otherwise churns hundreds of MB of
+    // external allocations while the GC is already under string pressure.
+    const buffer = Buffer.allocUnsafe(4 * chunkCharacters)
+    for (let start = 0; start < content.length;) {
+      let end = Math.min(content.length, start + chunkCharacters)
+      // Do not split a Unicode surrogate pair between independently encoded
+      // chunks, or a non-BMP character would be replaced on disk.
+      if (end < content.length) {
+        const last = content.charCodeAt(end - 1)
+        if (last >= 0xd800 && last <= 0xdbff) end -= 1
+      }
+      const bytes = buffer.write(content.slice(start, end), 0, 'utf8')
+      for (let offset = 0; offset < bytes;) {
+        const written = writeSync(descriptor, buffer, offset, bytes - offset)
+        if (written === 0) throw new Error(`Could not finish writing ${path}.`)
+        offset += written
+      }
+      start = end
+    }
+  } finally {
+    closeSync(descriptor)
+  }
 }
 
 function manifestsEqual(left: readonly ArchiveEntry[], right: readonly ArchiveEntry[]): boolean {
@@ -299,35 +333,129 @@ export function assertManifestPreserved(
   for (const entry of before) {
     const saved = afterByName.get(entry.name)
     if (removed.has(entry.name)) {
-      if (saved) throw new Error(`Saving should have removed ${entry.name} but did not : aborted.`)
+      if (saved) throw new Error(`Saving should have removed ${entry.name} but did not — aborted.`)
       continue
     }
-    if (!saved) throw new Error(`Saving would drop ${entry.name} : aborted.`)
+    if (!saved) throw new Error(`Saving would drop ${entry.name} — aborted.`)
     if (replaced.has(entry.name)) continue
     if (
       saved.crc32 !== entry.crc32 ||
       saved.compressedSize !== entry.compressedSize ||
       saved.uncompressedSize !== entry.uncompressedSize
     ) {
-      throw new Error(`Saving would unexpectedly modify ${entry.name} : aborted.`)
+      throw new Error(`Saving would unexpectedly modify ${entry.name} — aborted.`)
     }
   }
   for (const name of added) {
     if (beforeByName.has(name)) {
-      throw new Error(`Saving should have created ${name} but it already existed : aborted.`)
+      throw new Error(`Saving should have created ${name} but it already existed — aborted.`)
     }
     if (!afterByName.has(name)) {
-      throw new Error(`Saving should have created ${name} but did not : aborted.`)
+      throw new Error(`Saving should have created ${name} but did not — aborted.`)
     }
   }
   for (const entry of after) {
     if (!beforeByName.has(entry.name) && !added.has(entry.name)) {
-      throw new Error(`Saving would unexpectedly create ${entry.name} : aborted.`)
+      throw new Error(`Saving would unexpectedly create ${entry.name} — aborted.`)
     }
   }
 }
 
-async function promoteFileAtomically(temporaryPath: string, path: string): Promise<void> {
+/** Transient Windows codes: antivirus/indexer/cloud sync briefly locks a path. */
+const RETRYABLE_RENAME_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const RENAME_RETRIES = 4
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Same-directory temp + rename keeps the save atomic. Windows refuses the
+ * rename with EPERM/EACCES/EBUSY while antivirus, search indexing, or cloud
+ * sync briefly holds either path (user report: "EPERM: operation not permitted,
+ * rename .tmp.xlsx → …") — retry with backoff, then fall back to copying the
+ * finished bytes over the target in place; the temp file survives until the
+ * copy lands. The in-place copy truncates the target before writing, so the
+ * target is backed up first and restored if the copy dies halfway (the caller
+ * deletes the temp on failure). A persistent lock (the workbook is open in
+ * Excel) still fails: surface an actionable message instead of the raw errno,
+ * keyed by a stable substring for the renderer's save-error localization table.
+ */
+export async function promoteFileAtomically(temporaryPath: string, path: string): Promise<void> {
   await syncFileBestEffort(temporaryPath)
-  await rename(temporaryPath, path)
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(temporaryPath, path)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      if (!RETRYABLE_RENAME_CODES.has(code)) throw error
+      if (attempt >= RENAME_RETRIES) break
+      await sleep(50 * 2 ** attempt)
+    }
+  }
+  await copyOverLockedTarget(temporaryPath, path)
+  await unlink(temporaryPath).catch(() => {})
+}
+
+const lockedTargetError = (path: string, cause: unknown) =>
+  new Error(`The save target is locked by another program: ${path}`, { cause })
+
+async function copyOverLockedTarget(temporaryPath: string, path: string): Promise<void> {
+  const before = await stat(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null
+    throw error
+  })
+  const backup = before ? join(tmpdir(), recoveredName(path, randomUUID())) : null
+  if (backup) {
+    try {
+      await copyFile(path, backup)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      throw RETRYABLE_RENAME_CODES.has(code) ? lockedTargetError(path, error) : error
+    }
+  }
+  try {
+    await copyFile(temporaryPath, path)
+  } catch (error) {
+    if (backup && before) {
+      const after = await stat(path).catch(() => null)
+      const untouched = after?.size === before.size && after?.mtimeMs === before.mtimeMs
+      const restored =
+        untouched ||
+        (await copyFile(backup, path).then(
+          () => true,
+          () => false,
+        ))
+      if (!restored) {
+        // deliberately not matched by the renderer's localization table so
+        // the surviving path reaches the user verbatim
+        const survivor = await preserveBackup(backup, path)
+        throw new Error(
+          `The save target ${path} could not be restored after a failed save; the previous workbook contents were preserved at: ${survivor}`,
+          { cause: error },
+        )
+      }
+      await unlink(backup).catch(() => {})
+    }
+    const code = (error as NodeJS.ErrnoException).code ?? ''
+    throw RETRYABLE_RENAME_CODES.has(code) ? lockedTargetError(path, error) : error
+  }
+  if (backup) await unlink(backup).catch(() => {})
+}
+
+/** Openable as a workbook wherever it ends up: keeps the name and extension. */
+const recoveredName = (path: string, tag: string) => {
+  const ext = extname(path)
+  return `${basename(path, ext)}.recovered-${tag}${ext}`
+}
+
+/** Move the backup next to the workbook (temp dirs get swept); keep it where it is if that fails too. */
+async function preserveBackup(backup: string, path: string): Promise<string> {
+  const recovered = join(dirname(path), recoveredName(path, String(Date.now())))
+  try {
+    await copyFile(backup, recovered)
+  } catch {
+    return backup
+  }
+  await unlink(backup).catch(() => {})
+  return recovered
 }

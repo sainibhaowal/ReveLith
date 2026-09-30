@@ -1,6 +1,9 @@
-﻿/// Persists visuals created in the editor (charts for now) as brand-new
+/// Persists visuals created in the editor (charts for now) as brand-new
 /// OOXML parts: a chart part, a drawing part (created or extended), the
 /// worksheet/drawing relationships, and the [Content_Types].xml overrides.
+
+import { ensureRelationshipNamespace } from './xlsx-namespace'
+import { nextFreeRelationshipId } from './xlsx-sheets'
 
 export class VisualAddError extends Error {}
 
@@ -189,7 +192,7 @@ async function ensureSheetDrawing(
   return { path: drawingPath }
 }
 
-/// `<drawing>` sits near the end of CT_Worksheet : before the trailing
+/// `<drawing>` sits near the end of CT_Worksheet — before the trailing
 /// optional members if any of them are present.
 const AFTER_DRAWING_ELEMENTS = [
   'legacyDrawing',
@@ -212,12 +215,7 @@ async function insertWorksheetDrawingElement(
   if (/<drawing[\s/>]/.test(xml)) {
     throw new VisualAddError(`${worksheetPath} already has a drawing element but no drawing rel.`)
   }
-  if (!/<worksheet[^>]*xmlns:r=/.test(xml)) {
-    xml = xml.replace(
-      /<worksheet\b/,
-      '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"',
-    )
-  }
+  xml = ensureRelationshipNamespace(xml)
   const element = `<drawing r:id="${escapeXmlAttribute(relId)}"/>`
   let insertAt = xml.lastIndexOf('</worksheet>')
   if (insertAt < 0) throw new VisualAddError(`${worksheetPath} has no closing worksheet tag.`)
@@ -235,14 +233,31 @@ async function appendAnchor(
   anchor: DrawingAnchor,
   buildInner: (shapeId: number) => string,
 ): Promise<void> {
-  const xml = await pkg.readText(drawingPath)
-  const closeAt = xml.lastIndexOf('</xdr:wsDr>')
+  let xml = await pkg.readText(drawingPath)
+  // Other producers write the wsDr root with any prefix and self-close it
+  // when the drawing is empty (Google Sheets exports do); normalize before
+  // appending, and declare our prefixes locally when the root lacks them.
+  const root = /<(?:([A-Za-z_][\w.-]*):)?wsDr(?=[\s/>])([^>]*)>/.exec(xml)
+  if (!root) throw new VisualAddError(`${drawingPath} is not a spreadsheet drawing part.`)
+  const closeTag = `</${root[1] === undefined ? '' : `${root[1]}:`}wsDr>`
+  if ((root[2] ?? '').trimEnd().endsWith('/')) {
+    const openTag = root[0].replace(/\/\s*>$/, '>')
+    xml = xml.slice(0, root.index) + openTag + closeTag + xml.slice(root.index + root[0].length)
+  }
+  const closeAt = xml.lastIndexOf(closeTag)
   if (closeAt < 0) throw new VisualAddError(`${drawingPath} is not a spreadsheet drawing part.`)
+  const namespaceFix =
+    (root[0].includes('xmlns:xdr=')
+      ? ''
+      : ' xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"') +
+    (root[0].includes('xmlns:a=')
+      ? ''
+      : ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"')
   const marker = (row: number, column: number, rowOffset: number, columnOffset: number) =>
     `<xdr:col>${column}</xdr:col><xdr:colOff>${columnOffset}</xdr:colOff>` +
     `<xdr:row>${row}</xdr:row><xdr:rowOff>${rowOffset}</xdr:rowOff>`
   const element =
-    '<xdr:twoCellAnchor>' +
+    `<xdr:twoCellAnchor${namespaceFix}>` +
     `<xdr:from>${marker(anchor.fromRow, anchor.fromColumn, anchor.fromRowOffset, anchor.fromColumnOffset)}</xdr:from>` +
     `<xdr:to>${marker(anchor.toRow, anchor.toColumn, anchor.toRowOffset, anchor.toColumnOffset)}</xdr:to>` +
     buildInner(nextShapeId(xml)) +
@@ -322,7 +337,7 @@ function shapeXml(shapeId: number, shape: ShapeAdd): string {
 
 function nextShapeId(drawingXml: string): number {
   let max = 1
-  for (const match of drawingXml.matchAll(/<xdr:cNvPr [^>]*id="(\d+)"/g)) {
+  for (const match of drawingXml.matchAll(/<(?:[\w.-]+:)?cNvPr [^>]*id="(\d+)"/g)) {
     max = Math.max(max, Number(match[1]))
   }
   return max + 1
@@ -343,7 +358,7 @@ const DLBL_POSITIONS: Record<NonNullable<ChartAdd['dataLabelPosition']>, string>
   'outside-end': 'outEnd',
 }
 
-/// Office theme accent cycle : same order as the renderer's chartColors, so
+/// Office theme accent cycle — same order as the renderer's chartColors, so
 /// Excel opens a new chart with the colors the canvas showed.
 const OFFICE_PALETTE = [
   '4472C4',
@@ -409,7 +424,7 @@ export function buildChartXml(chart: ChartAdd): string {
       ? '<c:overlap val="100"/>'
       : ''
   // Bars ride the primary axes, the line rides a secondary right value axis
-  // plus a hidden category axis : PowerPoint's combo-with-secondary shape
+  // plus a hidden category axis — PowerPoint's combo-with-secondary shape
   // (mirrors pptx-engine chart-insert).
   const comboPlot = (): string => {
     const lineCount = chart.series.length >= 2 ? 1 : 0
@@ -741,12 +756,42 @@ function matchRelationship(relsXml: string, type: string): { id: string; target:
 }
 
 export function resolveRelTarget(fromPart: string, target: string): string {
-  const base = fromPart.split('/').slice(0, -1)
-  for (const segment of target.split('/')) {
-    if (segment === '..') base.pop()
-    else if (segment !== '.' && segment !== '') base.push(segment)
+  const trimmed = target.trim()
+  const withoutFragment = trimmed.split('#', 1)[0] ?? ''
+  if (withoutFragment.length === 0) throw new Error('Invalid OPC relationship target.')
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(withoutFragment)
+  } catch {
+    throw new Error('Invalid OPC relationship target.')
   }
-  return base.join('/')
+  if (
+    decoded.length === 0 ||
+    decoded.includes('\0') ||
+    decoded.startsWith('//') ||
+    decoded.startsWith('\\') ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(decoded)
+  ) {
+    throw new Error('Invalid OPC relationship target.')
+  }
+  const base = decoded.startsWith('/')
+    ? []
+    : fromPart
+        .replaceAll('\\', '/')
+        .split('/')
+        .slice(0, -1)
+        .filter((segment) => segment !== '' && segment !== '.')
+  for (const segment of decoded.replaceAll('\\', '/').split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..') {
+      if (base.pop() === undefined) throw new Error('Invalid OPC relationship target.')
+      continue
+    }
+    base.push(segment)
+  }
+  const resolved = base.join('/')
+  if (resolved.length === 0) throw new Error('Invalid OPC relationship target.')
+  return resolved
 }
 
 /// Adds a relationship (creating the rels part when missing); returns its id.
@@ -762,11 +807,7 @@ export async function appendRelationship(
     : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
       '</Relationships>'
-  let max = 0
-  for (const match of xml.matchAll(/\bId="rId(\d+)"/g)) {
-    max = Math.max(max, Number(match[1]))
-  }
-  const id = `rId${max + 1}`
+  const id = nextFreeRelationshipId(xml)
   const element =
     `<Relationship Id="${id}" Type="${escapeXmlAttribute(type)}" ` +
     `Target="${escapeXmlAttribute(target)}"/>`

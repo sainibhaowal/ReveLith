@@ -1,18 +1,13 @@
-/**
- * Excel stores function names introduced after 2007 in file formulas behind a
- * marker, and shows the plain name in the UI. The marker is `_xlfn.` for most,
- * and `_xlfn._xlws.` for the worksheet-scope dynamic-array functions.
- *
- * A read strips the markers so callers see `FILTER(…)`; this restores them when
- * a formula is serialized back into sheet XML. Without the marker Excel treats
- * the name as an undefined name and repairs the call to #NAME?, so a formula
- * that read fine comes back broken after a round trip.
- */
+/// Excel stores post-2007 function names in file formulas behind an
+/// `_xlfn.` marker (worksheet-scope dynamic-array functions behind
+/// `_xlfn._xlws.`) and shows the plain name in the UI. The sidecar strips
+/// the markers on read; this restores them when a formula is serialized
+/// back into sheet XML — without the marker Excel repairs the call to
+/// #NAME?.
 
-/** Worksheet-scope functions, which need both markers. */
+/// Functions Excel 2007 does not know, keyed by the marker they need.
 const XLWS_FUNCTIONS = new Set(['FILTER', 'SORT'])
 
-/** Functions introduced after 2007, keyed by the marker they need. */
 const XLFN_FUNCTIONS = new Set([
   // Excel 2010
   'AGGREGATE',
@@ -36,7 +31,6 @@ const XLFN_FUNCTIONS = new Set([
   'F.DIST',
   'F.DIST.RT',
   'F.INV',
-  'F.INV.2T',
   'F.INV.RT',
   'F.TEST',
   'FLOOR.PRECISE',
@@ -176,14 +170,10 @@ const XLFN_FUNCTIONS = new Set([
   'ANCHORARRAY',
 ])
 
-/**
- * Functions whose result spills into neighbouring cells.
- *
- * Excel 365 only spills a stored formula marked as a dynamic array (`t="array"`
- * on the `<f>` plus `cm="1"` on the cell). An unmarked call is read as the
- * implicit-intersection form `@FILTER` and yields a single value, so a formula
- * that should fill a range silently returns one cell.
- */
+/// Functions whose result spills into neighbouring cells. Excel 365 only
+/// spills a stored formula that is marked as a dynamic array (`t="array"` on
+/// the <f> plus `cm="1"` on the cell); an unmarked call is read as `@FILTER`
+/// and returns one value.
 const SPILL_FUNCTIONS = new Set([
   'BYCOL',
   'BYROW',
@@ -214,11 +204,9 @@ interface FormulaCall {
   start: number
   end: number
   name: string
-  /** the token already carried a marker, so it must be left alone */
   marked: boolean
 }
 
-/** A name character, including the backslash escape and the reference sigils. */
 function isNameCharacter(character: string): boolean {
   return (
     character === '_' ||
@@ -229,7 +217,6 @@ function isNameCharacter(character: string): boolean {
   )
 }
 
-/** Index just past a quoted literal opened at `start`; a doubled quote is escaped. */
 function quotedEnd(formula: string, start: number): number {
   const quote = formula[start]
   let index = start + 1
@@ -246,11 +233,6 @@ function quotedEnd(formula: string, start: number): number {
   return formula.length
 }
 
-/**
- * Every function call in a formula, skipping anything inside a string literal
- * or a quoted sheet name. Scanning rather than substituting on a regex is what
- * keeps `="FILTER("` from being rewritten.
- */
 function functionCalls(formula: string): FormulaCall[] {
   const calls: FormulaCall[] = []
   let cursor = 0
@@ -290,11 +272,8 @@ export function spillsDynamicArray(formula: string): boolean {
   return functionCalls(formula).some((call) => SPILL_FUNCTIONS.has(call.name.toUpperCase()))
 }
 
-/**
- * Prefix future-function calls with their storage markers, leaving string
- * literals untouched. An already-marked call is preserved verbatim; a newly
- * marked one stores the canonical uppercase name, which is what Excel writes.
- */
+/// Prefixes future-function calls with their storage markers, outside
+/// string literals. Marked calls store the canonical uppercase name.
 export function withFutureFunctionMarkers(formula: string): string {
   let out = ''
   let cursor = 0

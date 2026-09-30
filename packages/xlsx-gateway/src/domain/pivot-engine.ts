@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   PivotDataField,
   PivotDefinition,
   PivotFieldItem,
@@ -10,8 +10,8 @@ import { evaluatePivotFormula, parsePivotFormula, type PivotFormulaAst } from '.
 import { groupLabel } from './pivot-grouping'
 
 /// Recomputes a pivot table's DATA AREA from fresh source values, keeping the
-/// file's recorded layout (rowItems/colItems). Layout drift : new or renamed
-/// categories in the source : fails closed: growing the layout is a separate
+/// file's recorded layout (rowItems/colItems). Layout drift — new or renamed
+/// categories in the source — fails closed: growing the layout is a separate
 /// concern (M2), a silently truncated refresh would lie.
 
 export class PivotRefreshError extends Error {}
@@ -41,7 +41,7 @@ interface AxisPredicate {
 
 /// Grouping key of a source cell on a dimension field: grouped fields
 /// (date/numeric ranges) are first bucketed into labels, then keyed with pivot
-/// semantics : the cache's sharedItems are the group labels, so both sides agree.
+/// semantics — the cache's sharedItems are the group labels, so both sides agree.
 function sourceKey(definition: PivotDefinition, field: number, value: SourceCell): string {
   const grouping = definition.fields[field]?.grouping
   return groupKey(grouping ? groupLabel(grouping, value) : value)
@@ -96,9 +96,13 @@ function aggregate(subtotal: string, values: readonly SourceCell[]): number | nu
     case 'average':
       return numbers.length === 0 ? null : numbers.reduce((t, v) => t + v, 0) / numbers.length
     case 'max':
-      return numbers.length === 0 ? null : Math.max(...numbers)
+      return numbers.length === 0
+        ? null
+        : numbers.reduce((max, value) => Math.max(max, value), -Infinity)
     case 'min':
-      return numbers.length === 0 ? null : Math.min(...numbers)
+      return numbers.length === 0
+        ? null
+        : numbers.reduce((min, value) => Math.min(min, value), Infinity)
     case 'product':
       return numbers.length === 0 ? null : numbers.reduce((t, v) => t * v, 1)
     default:
@@ -124,7 +128,7 @@ function assertSourceMatchesCache(
   const header = sourceValues[0]
   if (!header || header.length < sourceFieldCount) {
     throw new PivotRefreshError(
-      'The source data region is narrower than the pivot cache field count : the data source may have moved.',
+      'The source data region is narrower than the pivot cache field count — the data source may have moved.',
     )
   }
   definition.fields.forEach((field, index) => {
@@ -132,7 +136,7 @@ function assertSourceMatchesCache(
     const label = String(header[index] ?? '').trim()
     if (label.toLowerCase() !== field.name.trim().toLowerCase()) {
       throw new PivotRefreshError(
-        `Source data column ${index + 1} header "${label}" does not match cache field "${field.name}" : the data source may have moved.`,
+        `Source data column ${index + 1} header "${label}" does not match cache field "${field.name}" — the data source may have moved.`,
       )
     }
   })
@@ -159,7 +163,7 @@ export function recomputePivotData(
 
   // Layout drift: a new distinct value in an axis/page column cannot be
   // placed into the recorded layout. Growth is a separate step
-  // (growPivotDefinition) : recompute itself stays fail-closed; callers grow
+  // (growPivotDefinition) — recompute itself stays fail-closed; callers grow
   // first, then recompute.
   const axisFieldSet = axisFields(definition)
   for (const field of axisFieldSet) {
@@ -168,7 +172,7 @@ export function recomputePivotData(
       if (!known.has(sourceKey(definition, field, row[field]))) {
         throw new PivotRefreshError(
           `The source data column "${definition.fields[field]?.name}" contains a new item not in the cache ` +
-            `("${String(row[field])}") : refresh the layout in Excel before it can be recomputed.`,
+            `("${String(row[field])}") — refresh the layout in Excel before it can be recomputed.`,
         )
       }
     }
@@ -222,7 +226,7 @@ export function recomputePivotData(
   // Calculated fields: source fields referenced by the formula resolve by
   // name; each group first takes the SUM of every referenced field, then
   // evaluates the formula. Formulas parse once and are
-  // reused (validated at parse time; a failure here is exceptional : fail-closed).
+  // reused (validated at parse time; a failure here is exceptional — fail-closed).
   const fieldIndexByName = new Map<string, number>()
   definition.fields.forEach((field, index) => {
     if (field.formula === undefined) fieldIndexByName.set(field.name, index)
@@ -257,7 +261,7 @@ export function recomputePivotData(
   }
 
   // Denominator for "show values as" (percentages): re-aggregate by
-  // predicates instead of reading grand-total cells : the denominator stays
+  // predicates instead of reading grand-total cells — the denominator stays
   // correct even when the layout disables total rows/columns. The same
   // (row line/col line × data field) denominator is reused by many cells, so memoize.
   const baseCache = new Map<string, number | null>()
@@ -324,7 +328,7 @@ export interface PivotGrowth {
 
 /// Automatic layout growth on refresh: when the source data has categories on
 /// axis/report-filter fields that are missing from the cache, refresh is no
-/// longer rejected : new members are appended to sharedItems/fieldItems, and
+/// longer rejected — new members are appended to sharedItems/fieldItems, and
 /// the affected axes' layout lines are rebuilt in per-level fieldItems order
 /// (old members keep their order, new members are appended at the end of
 /// their level, the standard append-on-refresh order).
@@ -365,7 +369,7 @@ export function growPivotDefinition(
     }
     if (additions.length > 0) additionsByField.set(field, additions)
   }
-  // Append to sharedItems and fieldItems (append-only, old indices untouched :
+  // Append to sharedItems and fieldItems (append-only, old indices untouched —
   // item references from layout lines and report filters stay valid).
   let grownBase = definition
   if (additionsByField.size > 0) {
@@ -419,14 +423,14 @@ export function growPivotDefinition(
 /// (rows/columns of hidden members vanish from the layout; reselecting
 /// restores combinations from the source data). Like label/value filters,
 /// hidden items exclude source rows from every aggregate (including
-/// subtotals/grand totals) : equivalent to Excel slicers writing hidden items
+/// subtotals/grand totals) — equivalent to Excel slicers writing hidden items
 /// on the pivotField.
 ///
 /// selectedMembers is a set of fieldItems indices; null = all selected (clear
 /// the filter). Note: if the field also carries a label/value filter
 /// (definition.filters), the next refresh's reapplyPivotFilters recomputes
 /// hidden bits from the filter conditions, overriding the slicer's manual
-/// selection : slicers and field filters share the same hidden-items
+/// selection — slicers and field filters share the same hidden-items
 /// state.
 export function applyPivotSlicer(
   definition: PivotDefinition,
@@ -657,15 +661,15 @@ function rebuildAxisLines(
 ): PivotLayoutLine[] {
   if (oldLines.some((line) => line.t === 'blank')) {
     throw new PivotRefreshError(
-      'Pivot layouts containing blank lines do not support automatic growth : refresh in Excel.',
+      'Pivot layouts containing blank lines do not support automatic growth — refresh in Excel.',
     )
   }
   const levels = axis.length
   // Compact/outline layouts have data lines that don't pin every level
-  // (parent heading lines); rebuilding would lose that structure : fail-closed.
+  // (parent heading lines); rebuilding would lose that structure — fail-closed.
   if (oldLines.some((line) => line.t === 'data' && line.depth !== levels)) {
     throw new PivotRefreshError(
-      'Compact/outline pivot layouts do not support automatic growth yet : refresh in Excel.',
+      'Compact/outline pivot layouts do not support automatic growth yet — refresh in Excel.',
     )
   }
 

@@ -1,10 +1,10 @@
-﻿/// Pure-function model for pivot grouped fields (date/numeric ranges): groups a
+/// Pure-function model for pivot grouped fields (date/numeric ranges): groups a
 /// dimension field's raw values into group labels by rule. Creation (baking the
 /// grid + writing cache records) and recompute share the same label functions,
 /// keeping the group-member space self-consistent and round-trippable in-engine.
 ///
 /// TODO(OOXML persistence): ECMA-376 <fieldGroup> + <rangePr> + <groupItems> are
-/// not generated yet : grouping params live in a private extension under
+/// not generated yet — grouping params live in a private extension under
 /// pivotTableDefinition/extLst (Excel ignores unknown ext, so the file remains
 /// valid OOXML; a manual refresh in Excel degrades to grouping by raw values).
 /// After reopening the file our engine reads the params back from extLst and can
@@ -110,12 +110,18 @@ export function groupValue(
   if (!Number.isFinite(numeric)) return { label: String(value), sort: null }
   const start = grouping.rangeStart ?? 0
   const step = grouping.rangeStep
-  const bucketStart = start + Math.floor((numeric - start) / step) * step
+  const bucketStart = start + rangeBucketIndex((numeric - start) / step) * step
   // Labels are half-open intervals [bucketStart, bucketStart+step).
   return {
     label: `${formatBoundary(bucketStart)}-${formatBoundary(bucketStart + step)}`,
     sort: bucketStart,
   }
+}
+
+function rangeBucketIndex(quotient: number): number {
+  const nearest = Math.round(quotient)
+  if (Math.abs(quotient - nearest) <= Math.abs(quotient) * 4 * Number.EPSILON) return nearest
+  return Math.floor(quotient)
 }
 
 /// Label only (hot function on the recompute path).

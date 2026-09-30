@@ -1,12 +1,4 @@
-/**
- * The edit contract: zod schemas and limits that both the spreadsheet gateway
- * and the desktop IPC surface validate against.
- *
- * These live here rather than in the app's IPC module because they describe
- * workbook edits, not IPC. The renderer and the headless CLI have to agree on
- * exactly what a valid style or chart edit is; two copies of that definition
- * drift, and the drift only shows up as a rejection in one caller.
- */
+// Zod schemas and limits shared by the xlsx gateway and the sheets app IPC surface.
 import { z } from 'zod'
 
 import { PATTERN_TYPES } from '../domain/style-color'
@@ -35,32 +27,28 @@ export const drawingAnchorSchema = z
     toColumn: z.number().int().nonnegative(),
     toRowOffset: z.number().int(),
     toColumnOffset: z.number().int(),
-    /**
-     * True when the file carried a real `<xdr:to>` marker. Its offset clamps at
-     * the cell edge (Excel's behavior for a broken writer) instead of walking
-     * past it the way a synthesized oneCellAnchor/absoluteAnchor does.
-     */
+    /// True when the file carried a real `<xdr:to>` marker: its offset
+    /// clamps at the cell edge (Excel behavior for broken writers) instead
+    /// of walking past it like synthesized oneCellAnchor/absoluteAnchor
+    /// encodings.
     explicitTo: z.boolean().optional(),
   })
   .strict()
 
-/**
- * The gateway's per-entry patch cap: only entries it patches have to fit in
- * memory.
- *
- * A large, densely styled worksheet routinely exceeds 256 MiB as XML even when
- * the .xlsx itself is modest, so the cap has to be generous enough to keep
- * those editable while staying a real bound — it sits deliberately below V8's
- * maximum string length, so an oversized entry fails with a clear message
- * instead of dying mid-stringify. Shared so a renderer can pre-reject an edit on
- * a worksheet whose XML could never be rewritten, rather than letting Apply
- * succeed and every save fail afterwards.
- */
+/// The gateway's per-entry patch cap: only entries it patches must fit in
+/// memory. Large, densely styled worksheets routinely exceed 256 MiB as XML
+/// even when the .xlsx itself is modest (the 88k-row suppliers fixture is
+/// about 307 MiB). 500 MiB keeps those editable while retaining a finite
+/// decompression-bomb / main-process-memory bound — deliberately below V8's
+/// maximum string length (536,870,888 bytes), so an oversized entry fails
+/// with a clear message instead of blowing up mid-stringify. Shared so the
+/// renderer pre-rejects edits on a worksheet whose XML can never be
+/// rewritten, instead of letting Apply succeed and every save fail.
 export const MAX_PATCH_ENTRY_BYTES = 500 * 1024 * 1024
 
 export const hexColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/)
 
-/** A styles.xml color: literal rgb, or a theme slot Excel re-resolves on a theme change. */
+/// styles.xml color: literal rgb, or a theme slot Excel re-resolves on theme change.
 export const themeColorSchema = z
   .object({
     theme: z.number().int().min(0).max(11),
@@ -96,7 +84,7 @@ export const gradientFillSchema = z
   .strict()
 export const fillSpecSchema = z.union([patternFillSchema, gradientFillSchema])
 
-/** OOXML border line styles the editor can write. */
+/// OOXML border line styles the editor can write.
 export const editableBorderStyleSchema = z.enum([
   'thin',
   'medium',
@@ -113,7 +101,7 @@ export const editableBorderStyleSchema = z.enum([
   'slantDashDot',
 ])
 
-/** One border edge delta: an object sets the edge, null removes it. */
+/// One border edge delta: an object sets the edge, null removes it.
 export const styleEditBorderSchema = z.union([
   z
     .object({
@@ -124,10 +112,8 @@ export const styleEditBorderSchema = z.union([
   z.null(),
 ])
 
-/**
- * Renderer-neutral style delta: only the keys the user changed are present, and
- * `false` means "remove this attribute from the cell's style".
- */
+/// Renderer-neutral style delta: only keys the user changed are present.
+/// `false` means "remove this attribute from the cell's style".
 export const workbookStyleEditSchema = z
   .object({
     bold: z.boolean().optional(),
@@ -137,26 +123,23 @@ export const workbookStyleEditSchema = z
     strikethrough: z.boolean().optional(),
     fontFamily: z.string().min(1).max(128).optional(),
     fontSize: z.number().positive().max(409).optional(),
-    /** null removes the explicit font color, back to the theme default. */
+    /// null removes the explicit font color (back to the theme default).
     fontColor: z.union([styleColorSchema, z.null()]).optional(),
-    /** null clears the fill back to the default "none" pattern. */
+    /// null clears the fill back to the default "none" pattern.
     fillColor: z.union([styleColorSchema, z.null()]).optional(),
-    /** Pattern or gradient fill. Wins over fillColor when both are present. */
+    /// pattern or gradient fill; wins over fillColor when both are present
     fill: z.union([fillSpecSchema, z.null()]).optional(),
     horizontalAlignment: z.enum(['left', 'center', 'right', 'justify', 'distributed']).optional(),
     verticalAlignment: z.enum(['top', 'center', 'bottom']).optional(),
     wrapText: z.boolean().optional(),
-    /**
-     * OOXML textRotation: 0-90 counterclockwise, 91-180 clockwise (value-90),
-     * 255 stacked vertical; 0 clears the rotation.
-     */
+    /// OOXML textRotation: 0-90 counterclockwise, 91-180 clockwise (value-90),
+    /// 255 stacked vertical; 0 clears the rotation.
     textRotation: z.union([z.number().int().min(0).max(180), z.literal(255)]).optional(),
-    /** OOXML alignment indent steps; 0 clears. Renders as left cell padding. */
+    /// OOXML alignment indent steps; 0 clears. Renders on screen as left cell
+    /// padding (INDENT_STEP_PX per step).
     indent: z.number().int().min(0).max(250).optional(),
-    /**
-     * Cell protection flags (xf <protection>). Meaningful once the sheet is
-     * protected: true is the OOXML default for locked, false for hidden.
-     */
+    /// Cell protection flags (xf <protection>); meaningful once the sheet is
+    /// protected. true = OOXML default for locked, false for hidden.
     protectionLocked: z.boolean().optional(),
     protectionHidden: z.boolean().optional(),
     numberFormat: z.string().min(1).max(255).optional(),
@@ -167,33 +150,29 @@ export const workbookStyleEditSchema = z
   })
   .strict()
 
-/**
- * Caps for chart strings that carry cell-derived text on the save wire. The
- * emitters clamp to these, so a long cell can never fail a whole save with a
- * schema rejection.
- */
+/// Caps for chart strings that carry cell-derived text on the save wire.
+/// The save-request emitters clamp to these, so a long cell can never fail
+/// the whole save with a schema rejection.
 export const CHART_TEXT_WIRE_MAX = 255
 
 export const CHART_CATEGORY_WIRE_MAX = 1_024
 
 export const workbookChartEditSchema = z
   .object({
-    /** Constrained to the charts directory — the caller chooses the path. */
+    /// Constrained to the charts directory — the renderer chooses the path.
     chartPath: z.string().regex(/^xl\/charts\/[A-Za-z0-9._-]+\.xml$/),
     title: z.string().max(CHART_TEXT_WIRE_MAX).optional(),
     chartType: z.enum(['column', 'bar', 'line', 'area', 'pie', 'doughnut']).optional(),
     seriesColors: z.record(z.string().regex(/^[0-9]{1,3}$/), hexColorSchema).optional(),
-    /** 'none' removes the legend; a side re-positions it, creating it if needed. */
+    /// 'none' removes the legend; a side re-positions (creating it if needed).
     legend: z.enum(['none', 'right', 'bottom', 'top', 'left']).optional(),
-    /**
-     * Plot-level data labels: values on bars and points, category+percent or
-     * percent on pie slices. 'none' removes them.
-     */
+    /// Plot-level data labels: values on bars/points, category+percent or
+    /// percent on pie slices. 'none' removes them.
     dataLabels: z.enum(['none', 'value', 'percent', 'category-percent']).optional(),
-    /** Placement and number format of the data labels (`c:dLblPos` / `c:numFmt`). */
+    /// Placement and number format of the data labels (`c:dLblPos`/`c:numFmt`).
     dataLabelPosition: z.enum(['center', 'inside-end', 'outside-end']).optional(),
     dataLabelFormat: z.string().max(64).optional(),
-    /** null removes that axis title. Axis-based charts only. */
+    /// null removes that axis title. Axis-based charts only.
     axisTitles: z
       .object({
         category: z.string().max(CHART_TEXT_WIRE_MAX).nullable().optional(),
@@ -201,24 +180,20 @@ export const workbookChartEditSchema = z
       })
       .strict()
       .optional(),
-    /**
-     * Per-point fills (`c:dPt`), keyed series index then point index; this is
-     * how pie and doughnut slices get individual colors.
-     */
+    /// Per-point fills (`c:dPt`), keyed series index → point index → color;
+    /// how pie/doughnut slices get individual colors.
     pointColors: z
       .record(
         z.string().regex(/^[0-9]{1,3}$/),
         z.record(z.string().regex(/^[0-9]{1,3}$/), hexColorSchema),
       )
       .optional(),
-    /**
-     * Bar/line/area stacking. 'clustered' means side by side, which line and
-     * area write as 'standard'.
-     */
+    /// Bar/line/area stacking; 'clustered' means side-by-side (line/area
+    /// write it as 'standard').
     grouping: z.enum(['clustered', 'stacked', 'percentStacked']).optional(),
-    /** Value-axis major gridlines on/off. Axis charts only. */
+    /// Value-axis major gridlines on/off (axis charts only).
     gridlines: z.boolean().optional(),
-    /** Value-axis bounds; null resets that bound to auto. */
+    /// Value-axis bounds; null resets that bound to auto.
     valueAxis: z
       .object({
         min: z.number().finite().nullable().optional(),
@@ -229,20 +204,18 @@ export const workbookChartEditSchema = z
         message: 'A value-axis edit needs min or max.',
       })
       .optional(),
-    /** Bar-family gap between categories, as a percentage of one bar's width. */
+    /// Bar family gap between categories, % of one bar width.
     gapWidthPct: z.number().int().min(0).max(500).optional(),
-    /** Doughnut hole diameter, as a percentage of the chart size. */
+    /// Doughnut hole diameter, % of chart size.
     holeSizePct: z.number().int().min(10).max(90).optional(),
-    /** Pie whole-ring explosion (series 0), as a percentage of the radius. */
+    /// Pie whole-ring explosion (series 0), % of radius.
     explosionPct: z.number().int().min(0).max(400).optional(),
-    /** Pie per-slice explosion overrides (series 0), point index to percentage. */
+    /// Pie per-slice explosion overrides (series 0), point index → %.
     pointExplosions: z
       .record(z.string().regex(/^[0-9]{1,3}$/), z.number().int().min(0).max(400))
       .optional(),
-    /**
-     * Full series replacement (Select Data): every existing series drops and
-     * these are written in order. Wins over `series` and `seriesColors`.
-     */
+    /// Full series replacement (Select Data): existing series all drop and
+    /// these are written in order. Wins over `series`/`seriesColors` edits.
     seriesSet: z
       .array(
         z
@@ -259,10 +232,8 @@ export const workbookChartEditSchema = z
       .min(1)
       .max(24)
       .optional(),
-    /**
-     * Per-series rewrite of name and/or data. Refs and caches travel together so
-     * the file and the on-screen render stay in sync.
-     */
+    /// Per-series rewrite of name and/or data (refs + caches travel together
+    /// so the file and the on-screen render stay in sync).
     series: z
       .array(
         z
@@ -310,22 +281,17 @@ export const workbookChartEditSchema = z
     { message: 'A chart edit needs at least one property.' },
   )
 
-/**
- * Edit to a visual that already lives in the file, located by its
- * (drawingPath, anchor index) pair. `remove` deletes the anchor — charts fail
- * closed in the gateway rather than leaving a dangling reference — and `anchor`
- * rewrites the from/to markers.
- */
+/// Edit to a visual that already lives in the file, located by the sidecar's
+/// (drawingPath, anchor index) pair. `remove` deletes the anchor (charts
+/// fail closed in the gateway); `anchor` rewrites its from/to markers.
 export const workbookVisualEditSchema = z
   .object({
     drawingPath: z.string().regex(/^xl\/drawings\/[A-Za-z0-9._/-]+\.xml$/),
     drawingIndex: z.number().int().nonnegative().max(10_000),
     remove: z.literal(true).optional(),
     anchor: drawingAnchorSchema.optional(),
-    /**
-     * New xfrm ext in EMU. Sent with `anchor` when a rotated shape is resized,
-     * because the anchor stores the rotated bounding box, not the true frame.
-     */
+    /// New xfrm ext in EMU — sent with `anchor` when a rotated shape is
+    /// resized (its anchor stores the rotated AABB, not the true frame).
     frameSize: z
       .object({
         width: z.number().int().positive(),

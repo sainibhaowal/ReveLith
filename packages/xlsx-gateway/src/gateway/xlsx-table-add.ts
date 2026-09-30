@@ -1,12 +1,14 @@
-﻿import { columnLabel } from '../domain/cell-address'
+import { columnLabel } from '../domain/cell-address'
 import {
   allocatePartPath,
   appendRelationship,
   registerContentTypeOverride,
   relativeTarget,
   relsPathFor,
+  resolveRelTarget,
   type MutablePackage,
 } from './xlsx-drawing-add'
+import { ensureRelationshipNamespace } from './xlsx-namespace'
 
 /// Persists tables (ListObjects) created in the editor as brand-new OOXML
 /// parts: xl/tables/tableN.xml, the worksheet's <tableParts> element, the
@@ -154,7 +156,7 @@ async function assertNoTableOverlap(pkg: MutablePackage, addition: TableAddition
     if (!tag.includes(`Type="${TABLE_REL_TYPE}"`)) continue
     const target = /\bTarget="([^"]+)"/.exec(tag)?.[1]
     if (!target) continue
-    const tablePath = resolveTarget(addition.worksheetPath, target)
+    const tablePath = resolveRelTarget(addition.worksheetPath, target)
     if (!(await pkg.has(tablePath))) continue
     const ref = /<table\b[^>]*\bref="([^"]+)"/.exec(await pkg.readText(tablePath))?.[1]
     if (ref && areasOverlap(addition.area, parseRef(ref))) {
@@ -168,27 +170,17 @@ function assertNoSheetConflicts(addition: TableAddition, worksheetXml: string): 
   const autoFilterRef = /<autoFilter\b[^>]*\bref="([^"]+)"/.exec(worksheetXml)?.[1]
   if (autoFilterRef && areasOverlap(addition.area, parseRef(autoFilterRef))) {
     throw new TableAddError(
-      `Table "${addition.name}" overlaps the sheet auto-filter (${autoFilterRef}) : clear it first.`,
+      `Table "${addition.name}" overlaps the sheet auto-filter (${autoFilterRef}) — clear it first.`,
     )
   }
   for (const match of worksheetXml.matchAll(/<mergeCell\b[^>]*\bref="([^"]+)"/g)) {
     const ref = match[1]
     if (ref && areasOverlap(addition.area, parseRef(ref))) {
       throw new TableAddError(
-        `Table "${addition.name}" overlaps merged cells (${ref}) : unmerge them first.`,
+        `Table "${addition.name}" overlaps merged cells (${ref}) — unmerge them first.`,
       )
     }
   }
-}
-
-/// Resolves a relationship target relative to its source part.
-function resolveTarget(fromPart: string, target: string): string {
-  const base = fromPart.split('/').slice(0, -1)
-  for (const segment of target.split('/')) {
-    if (segment === '..') base.pop()
-    else if (segment !== '.' && segment !== '') base.push(segment)
-  }
-  return base.join('/')
 }
 
 function buildTableXml(id: number, addition: TableAddition): string {
@@ -231,19 +223,6 @@ function appendTablePart(worksheetXml: string, relId: string): string {
   const closeAt = xml.lastIndexOf('</worksheet>')
   if (closeAt < 0) throw new TableAddError('The worksheet part is malformed.')
   return xml.slice(0, closeAt) + element + xml.slice(closeAt)
-}
-
-/// <tablePart> uses r:id; declare the relationships namespace when the
-/// worksheet root does not already carry it.
-function ensureRelationshipNamespace(worksheetXml: string): string {
-  const root = /<worksheet\b[^>]*>/.exec(worksheetXml)?.[0]
-  if (!root) throw new TableAddError('The worksheet part is malformed.')
-  if (root.includes('xmlns:r=')) return worksheetXml
-  const declared = root.replace(
-    /<worksheet\b/,
-    '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"',
-  )
-  return worksheetXml.replace(root, declared)
 }
 
 function areaToRef(area: TableArea): string {

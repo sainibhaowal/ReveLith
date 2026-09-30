@@ -1,4 +1,4 @@
-﻿/// Pure-function model for pivot timelines: a month-granularity date-range
+/// Pure-function model for pivot timelines: a month-granularity date-range
 /// filter over one pivot dimension field. The range maps to a member set and
 /// rides the same hidden-items mechanism as slicers (applyPivotSlicer).
 import { parseDateParts } from './pivot-grouping'
@@ -30,7 +30,7 @@ export function monthKeyParts(key: MonthKey): { year: number; month: number } {
 
 /// Builds the timeline domain for one cache field. Returns null when the field
 /// does not qualify as a date field: every non-blank shared item must parse as
-/// a date (blank members stay out of the domain : a range hides them, clearing
+/// a date (blank members stay out of the domain — a range hides them, clearing
 /// the timeline shows them, matching Excel).
 export function timelineDomainOf(
   sharedItems: readonly (string | number | boolean | null)[],

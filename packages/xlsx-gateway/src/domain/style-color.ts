@@ -1,24 +1,18 @@
-/**
- * Cell colors as `styles.xml` actually stores them: a literal `#RRGGBB`, or a
- * theme slot with an optional tint that a spreadsheet application re-resolves
- * whenever the document theme changes.
- *
- * The tint math is the ECMA-376 HLS algorithm, so a resolved value matches what
- * Excel shows for the same slot and tint. That matters because a color stored
- * as `accent1 + 40%` has no fixed rgb: reporting one without the theme would be
- * a guess.
- */
+/// Cell colors as styles.xml stores them: a literal #RRGGBB, or a theme slot
+/// with an optional tint that Excel re-resolves when the document theme
+/// changes. The tint math is Excel's HLS algorithm, so resolved values match
+/// what Excel shows.
 
 export interface ThemeColor {
-  /** `theme` attribute index: 0 lt1, 1 dk1, 2 lt2, 3 dk2, 4-9 accent1-6, 10 hlink, 11 folHlink */
+  /// theme attribute index: 0 lt1, 1 dk1, 2 lt2, 3 dk2, 4-9 accent1-6, 10 hlink, 11 folHlink
   theme: number
-  /** -1 (black) to 1 (white); absent or 0 means the slot color unmodified */
+  /// -1 (black) … 1 (white); 0 or absent = the slot color itself
   tint?: number | undefined
 }
 
 export type StyleColor = string | ThemeColor
 
-/** Slot names by theme index. The index order swaps the lt/dk pairs relative to document order in `clrScheme`. */
+/// Slot names by theme index (Excel swaps the dk/lt pairs relative to clrScheme order).
 export const THEME_SLOT_NAMES = [
   'lt1',
   'dk1',
@@ -36,7 +30,6 @@ export const THEME_SLOT_NAMES = [
 
 export type ThemeSlotName = (typeof THEME_SLOT_NAMES)[number]
 
-/** Names Excel accepts in a cell color string that are not slot names. */
 const SLOT_ALIASES: Record<string, number> = {
   bg1: 0,
   background1: 0,
@@ -50,7 +43,7 @@ const SLOT_ALIASES: Record<string, number> = {
   followedhyperlink: 11,
 }
 
-/** Office theme (2013+), in theme index order. */
+/// Office theme (Excel 2013+), theme index order.
 export const DEFAULT_THEME_PALETTE: readonly string[] = [
   '#FFFFFF',
   '#000000',
@@ -66,7 +59,6 @@ export const DEFAULT_THEME_PALETTE: readonly string[] = [
   '#954F72',
 ]
 
-/** `accent1`, `accent1 + 40%`, `dk2 - 25%` and the alias spellings. */
 export const THEME_SHORTHAND_PATTERN =
   /^(lt1|dk1|lt2|dk2|accent[1-6]|hlink|folHlink|bg1|bg2|tx1|tx2|background[12]|text[12]|hyperlink|followedHyperlink)(?:\s*([+-])\s*(\d{1,3})%)?$/i
 
@@ -85,10 +77,7 @@ export function isThemeColor(color: StyleColor | null | undefined): color is The
   return typeof color === 'object' && color !== null && typeof color.theme === 'number'
 }
 
-/**
- * Accepts `#RRGGBB`, `accent1`, `accent1+40%`, `dk2-25%`, or
- * `{ theme: 4 | 'accent1', tint? }`.
- */
+/// Accepts `#RRGGBB`, `accent1`, `accent1+40%`, `dk2-25%` or `{theme: 4 | 'accent1', tint?}`.
 export function normalizeStyleColor(
   input: string | { theme: number | string; tint?: number | undefined },
 ): StyleColor {
@@ -111,12 +100,10 @@ export function normalizeStyleColor(
 function withTint(theme: number, tint: number | undefined): ThemeColor {
   if (tint === undefined || tint === 0) return { theme }
   if (!(tint >= -1 && tint <= 1)) throw new Error(`Tint ${tint} is outside -1..1`)
-  // six decimals: a tint is stored as a double in the file, and rounding here
-  // keeps the value stable across a read/write round trip
   return { theme, tint: Math.round(tint * 1e6) / 1e6 }
 }
 
-/** `#RRGGBB` the color displays as under `palette` (theme index order). */
+/// #RRGGBB the color shows as under `palette` (theme index order).
 export function resolveStyleColor(
   color: StyleColor,
   palette: readonly string[] = DEFAULT_THEME_PALETTE,
@@ -126,16 +113,11 @@ export function resolveStyleColor(
   return applyTint(base, color.tint ?? 0)
 }
 
-/**
- * ECMA-376 tint: lighten toward white for a positive tint, darken toward black
- * for a negative one, both applied to the HLS luminance channel.
- *
- * Channels truncate rather than round on the way back, which is what lands on
- * Office's own palette swatches (a rounding difference of one per channel is
- * visible as a different swatch). Malformed hex falls back to black, matching
- * resolveStyleColor's missing-palette fallback, so a NaN channel can never leak
- * into a result.
- */
+/// ECMA-376 tint: lighten towards white for positive, darken towards black for
+/// negative, on the HLS luminance channel. Channels truncate on the way back,
+/// which lands on Office's palette swatches within one step per channel.
+/// Malformed hex falls back to black, matching the missing-palette fallback
+/// in resolveStyleColor, so NaN channels never leak into outputs.
 export function applyTint(hex: string, tint: number): string {
   if (!isValidHexColor(hex)) return '#000000'
   if (tint === 0) return hex.toUpperCase()
@@ -190,10 +172,7 @@ function hlsToRgb(h: number, l: number, s: number): string {
   return `#${toHex(channel(h + 1 / 3))}${toHex(channel(h))}${toHex(channel(h - 1 / 3))}`
 }
 
-/**
- * What to tell a caller about a color: the resolved rgb, plus the slot it came
- * from so the origin is not lost when only a rendered value is kept.
- */
+/// Agent-facing echo of a color: the resolved rgb plus the theme slot it came from.
 export interface StyleColorEcho {
   rgb: string
   theme?: ThemeSlotName | undefined
@@ -218,7 +197,9 @@ export function describeStyleColor(color: StyleColor): string {
   return `${name}${tint > 0 ? '+' : '-'}${Math.round(Math.abs(tint) * 100)}%`
 }
 
-/** ST_PatternType without `none`: a cleared fill is `fill: null`, not a pattern. */
+// ── fills ──────────────────────────────────────────────────────────────
+
+/// ST_PatternType minus `none` (a cleared fill is `fill: null`).
 export const PATTERN_TYPES = [
   'solid',
   'mediumGray',
@@ -244,13 +225,13 @@ export type PatternType = (typeof PATTERN_TYPES)[number]
 
 export interface PatternFill {
   pattern: PatternType
-  /** Pattern foreground. For `solid` this is the cell's own color. */
+  /// pattern foreground; for `solid` the cell color
   fg: StyleColor
   bg?: StyleColor | undefined
 }
 
 export interface GradientStop {
-  /** 0 to 1 along the gradient */
+  /// 0 … 1 along the gradient
   position: number
   color: StyleColor
 }
@@ -258,9 +239,9 @@ export interface GradientStop {
 export interface GradientFill {
   gradient: {
     type?: 'linear' | 'path' | undefined
-    /** linear: clockwise degrees, 0 = left-to-right, 90 = top-to-bottom */
+    /// linear: clockwise degrees, 0 = left→right, 90 = top→bottom
     angle?: number | undefined
-    /** path: inner rectangle edges as fractions of the cell */
+    /// path: inner rectangle edges as fractions of the cell
     left?: number | undefined
     right?: number | undefined
     top?: number | undefined
@@ -275,7 +256,7 @@ export function isGradientFill(fill: FillSpec): fill is GradientFill {
   return 'gradient' in fill
 }
 
-/** The one color to paint when the target cannot render patterns or gradients. */
+/// The single color a renderer without pattern/gradient support should paint.
 export function fillDisplayColor(fill: FillSpec): StyleColor | undefined {
   if (isGradientFill(fill)) return fill.gradient.stops[0]?.color
   return fill.fg

@@ -1,4 +1,4 @@
-﻿/// PivotTable definition reader: parses a pivotTable part plus its
+/// PivotTable definition reader: parses a pivotTable part plus its
 /// pivotCacheDefinition into the layout/fields model the recompute engine
 /// consumes. Anything outside the supported envelope lands in `unsupported`
 /// (with a reason) instead of producing a silently wrong refresh.
@@ -113,7 +113,7 @@ function decodeEntities(value: string): string {
     .replace(/&amp;/g, '&')
 }
 
-/// All <tag …>…</tag> or <tag …/> occurrences at any depth (regex-scoped :
+/// All <tag …>…</tag> or <tag …/> occurrences at any depth (regex-scoped —
 /// fine for pivot parts, which never nest a tag inside itself). The self-closing
 /// branch is matched first on its own: otherwise, when <tag …/> is followed by a
 /// paired tag of the same name, the `>[\s\S]*?` branch would swallow both elements
@@ -177,7 +177,7 @@ function parseLayoutLines(containerXml: string | null, axisFieldCount: number): 
   return lines
 }
 
-/// Marks a pivotCacheDefinition so Excel rebuilds the cache on open : the
+/// Marks a pivotCacheDefinition so Excel rebuilds the cache on open — the
 /// recomputed output cells and the stale cacheRecords then re-converge.
 export function setPivotRefreshOnLoad(cacheDefinitionXml: string): string {
   const root = /<pivotCacheDefinition\b[^>]*>/.exec(cacheDefinitionXml)
@@ -217,12 +217,8 @@ export function parsePivotDefinition(
 
   // Our own grouped-field metadata: stored in a private pivotTable extLst
   // extension (fieldIndex → grouping rule). Corrupt/invalid metadata fails closed.
-  // The legacy element name is still accepted so workbooks saved by an earlier
-  // build keep their groupings instead of silently losing them.
   const groupingByField = new Map<number, PivotFieldGrouping>()
-  const groupingExt =
-    /<(?:\w+:)?revelithPivotGroupings\b[^>]*\bv="([^"]*)"/.exec(pivotTableXml) ??
-    /<(?:\w+:)?aioPivotGroupings\b[^>]*\bv="([^"]*)"/.exec(pivotTableXml)
+  const groupingExt = /<(?:\w+:)?revelithPivotGroupings\b[^>]*\bv="([^"]*)"/.exec(pivotTableXml)
   if (groupingExt) {
     try {
       const entries = JSON.parse(decodeEntities(groupingExt[1] ?? '')) as unknown

@@ -1,4 +1,6 @@
-﻿import { columnLabel } from '../domain/cell-address'
+import { ensureRelationshipNamespace } from './xlsx-namespace'
+import { columnLabel } from '../domain/cell-address'
+import { shortDateNumFmtId } from '../shared/short-date'
 import { isValidPivotFilter, type PivotFilterDef } from '../domain/pivot-filters'
 import { formatPivotFormula, parsePivotFormula } from '../domain/pivot-formula'
 import { groupLabel, isValidGrouping, type PivotFieldGrouping } from '../domain/pivot-grouping'
@@ -19,7 +21,7 @@ import { parseSheetElements } from './xlsx-sheets'
 /// without having to perform a refresh first.
 ///
 /// The linkage is rels-only: workbook.xml gains a <pivotCaches> entry (via
-/// the returned workbook XML : the caller owns that string), the workbook
+/// the returned workbook XML — the caller owns that string), the workbook
 /// rels point at the cache, the target worksheet rels point at the pivot
 /// table part, and the pivot table rels point back at the cache.
 
@@ -70,7 +72,7 @@ export interface PivotAddition {
   /// Baked output area, headers and grand totals included.
   readonly location: PivotArea
   readonly name: string
-  /// All source headers in column order : the cacheFields order.
+  /// All source headers in column order — the cacheFields order.
   readonly fieldNames: readonly string[]
   /// Indices into fieldNames for the row dimension levels (outer → inner).
   readonly rowFieldIndices: readonly number[]
@@ -356,7 +358,7 @@ function extractCellValue(
   sharedStrings: readonly string[],
 ): SourceValue {
   const cellPattern = new RegExp(
-    `<c\\b([^>]*)\\br="${address.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"([^>]*)(?:/>|>([\\s\\S]*?)</c>)`,
+    `<c\\b([^>]*)\\br="${address.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`,
   )
   const match = cellPattern.exec(worksheetXml)
   if (!match) return null
@@ -443,7 +445,7 @@ function buildCacheRecordsXml(
           }
           return `<x v="${idx}"/>`
         }
-        // Value field (or pageField : treat as raw value)
+        // Value field (or pageField — treat as raw value)
         if (value === null || value === '') return '<m/>'
         if (typeof value === 'number') return `<n v="${value}"/>`
         const n = Number(value)
@@ -596,6 +598,7 @@ function maxCacheId(workbookXml: string): number {
 /// Adds a <pivotCache> entry; workbook.xml schema order puts pivotCaches
 /// after calcPr, before extLst.
 function addWorkbookPivotCache(workbookXml: string, cacheId: number, relId: string): string {
+  workbookXml = ensureRelationshipNamespace(workbookXml)
   const entry = `<pivotCache cacheId="${cacheId}" r:id="${relId}"/>`
   if (workbookXml.includes('</pivotCaches>')) {
     return workbookXml.replace('</pivotCaches>', `${entry}</pivotCaches>`)
@@ -754,7 +757,7 @@ export function buildPivotTableXml(cacheId: number, addition: PivotAddition): st
         '</pageFields>'
       : ''
 
-  // Column axis: symmetric with the row axis : colLines (data/subtotal columns)
+  // Column axis: symmetric with the row axis — colLines (data/subtotal columns)
   // are encoded with r (repeat) into <colItems>, appending the grand-total column;
   // single level stays compatible with the legacy columnItems form.
   let columnPart: string
@@ -907,8 +910,8 @@ function buildGroupingExtLst(addition: PivotAddition): string {
   const groupings = addition.groupings ?? []
   if (groupings.length === 0) return ''
   return (
-    '<extLst><ext uri="{REVELITH-PIVOT-GROUPINGS}" xmlns:revelith="urn:revelith:pivot">' +
-    `<revelith:revelithPivotGroupings v="${escapeAttribute(JSON.stringify(groupings))}"/>` +
+    '<extLst><ext uri="{REVELITH-PIVOT-GROUPINGS}" xmlns:rvl="urn:revelith:pivot">' +
+    `<rvl:revelithPivotGroupings v="${escapeAttribute(JSON.stringify(groupings))}"/>` +
     '</ext></extLst>'
   )
 }
@@ -917,6 +920,8 @@ function buildGroupingExtLst(addition: PivotAddition): string {
 /// Returns 0 (General) for unrecognised patterns.
 function resolveNumFmtId(numFmt: string): number {
   const fmt = numFmt.trim()
+  const shortDate = shortDateNumFmtId(fmt)
+  if (shortDate !== undefined) return shortDate
   const knownFormats: Record<string, number> = {
     '0': 1,
     '0.00': 2,

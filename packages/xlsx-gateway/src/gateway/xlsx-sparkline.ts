@@ -1,4 +1,4 @@
-﻿/// x14 sparkline writer: appends sparkline groups to a worksheet's extLst
+/// x14 sparkline writer: appends sparkline groups to a worksheet's extLst
 /// (creating extLst / the x14 ext as needed). Existing groups stay verbatim.
 
 export class SparklineAddError extends Error {}
@@ -75,7 +75,7 @@ function insertGroups(worksheetXml: string, groupsXml: string): string {
   }
   const ext =
     `<ext uri="${SPARKLINE_EXT_URI}" xmlns:x14="${X14_NS}">` + `${wrapGroups(groupsXml)}</ext>`
-  // Only the worksheet-level extLst (past sheetData) qualifies : cells may
+  // Only the worksheet-level extLst (past sheetData) qualifies — cells may
   // carry their own extLst.
   const extLstClose = worksheetXml.lastIndexOf('</extLst>')
   if (extLstClose !== -1 && extLstClose > worksheetXml.lastIndexOf('</sheetData>')) {

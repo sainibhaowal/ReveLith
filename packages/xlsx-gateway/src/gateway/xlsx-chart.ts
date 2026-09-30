@@ -1,8 +1,8 @@
-﻿import type { WorkbookChartEdit } from '../shared/edit-schemas'
+import type { WorkbookChartEdit } from '../shared/edit-schemas'
 
 /// Surgical edits to a chart part (xl/charts/chartN.xml): title text, chart
 /// type conversion within the axis-based family, and series solid colors.
-/// Anything outside the supported envelope throws : fail closed, never
+/// Anything outside the supported envelope throws — fail closed, never
 /// corrupt a chart part.
 
 export class ChartEditError extends Error {}
@@ -257,7 +257,7 @@ function withFirstPieSeries(
 }
 
 /// Series-level explosion (whole ring). CT_PieSer order: …spPr, explosion,
-/// dPt* : a dPt's own explosion must stay untouched, so only the slice
+/// dPt* — a dPt's own explosion must stay untouched, so only the slice
 /// before the first dPt is considered.
 function setSeriesExplosion(chartXml: string, pct: number): string {
   return withFirstPieSeries(chartXml, 'explosion', (serXml) => {
@@ -630,6 +630,13 @@ function setSeriesData(
           entry.categories.every(
             (value, idx) => value.trim() !== '' && Number.isFinite(numeric[idx]),
           )
+        // A ref-less entry must not demote an existing reference to a
+        // literal: keep the previous c:f (already escaped) and only refresh
+        // the cache.
+        const catRefXml =
+          entry.categoriesRef !== undefined
+            ? escapeXmlText(entry.categoriesRef)
+            : /<c:f>([\s\S]*?)<\/c:f>/.exec(previousCat)?.[1]
         let cat: string
         if (keepNumeric) {
           const formatCode =
@@ -640,9 +647,9 @@ function setSeriesData(
             numeric.map((value, idx) => `<c:pt idx="${idx}"><c:v>${value}</c:v></c:pt>`).join('')
           // c:f is mandatory inside numRef, so ref-less data must be a literal.
           cat =
-            entry.categoriesRef === undefined
+            catRefXml === undefined
               ? `<c:cat><c:numLit>${data}</c:numLit></c:cat>`
-              : `<c:cat><c:numRef><c:f>${escapeXmlText(entry.categoriesRef)}</c:f>` +
+              : `<c:cat><c:numRef><c:f>${catRefXml}</c:f>` +
                 `<c:numCache>${data}</c:numCache></c:numRef></c:cat>`
         } else {
           const points =
@@ -652,9 +659,9 @@ function setSeriesData(
               .join('')
           // c:f is mandatory inside strRef, so ref-less data must be a literal.
           cat =
-            entry.categoriesRef === undefined
+            catRefXml === undefined
               ? `<c:cat><c:strLit>${points}</c:strLit></c:cat>`
-              : `<c:cat><c:strRef><c:f>${escapeXmlText(entry.categoriesRef)}</c:f>` +
+              : `<c:cat><c:strRef><c:f>${catRefXml}</c:f>` +
                 `<c:strCache>${points}</c:strCache></c:strRef></c:cat>`
         }
         if (previousCat !== '') {
@@ -678,11 +685,16 @@ function setSeriesData(
       const data =
         `<c:formatCode>${formatCode}</c:formatCode>` +
         `<c:ptCount val="${entry.values.length}"/>${points}`
-      // c:f is mandatory inside numRef, so ref-less data must be a literal.
+      // c:f is mandatory inside numRef, so ref-less data must be a literal —
+      // but never demote an existing reference (see the c:cat rewrite above).
+      const valRefXml =
+        entry.valuesRef !== undefined
+          ? escapeXmlText(entry.valuesRef)
+          : /<c:f>([\s\S]*?)<\/c:f>/.exec(previousVal)?.[1]
       const val =
-        entry.valuesRef === undefined
+        valRefXml === undefined
           ? `<c:${tag}><c:numLit>${data}</c:numLit></c:${tag}>`
-          : `<c:${tag}><c:numRef><c:f>${escapeXmlText(entry.valuesRef)}</c:f>` +
+          : `<c:${tag}><c:numRef><c:f>${valRefXml}</c:f>` +
             `<c:numCache>${data}</c:numCache></c:numRef></c:${tag}>`
       if (!valPattern.test(next)) throw new ChartEditError('Chart series has no value element.')
       next = next.replace(valPattern, () => val)
@@ -709,12 +721,18 @@ function setScatterXValues(
         return `<c:pt idx="${idx}"><c:v>${x}</c:v></c:pt>`
       })
       .join('')
-  const xVal =
-    categoriesRef === undefined
-      ? `<c:xVal><c:numLit>${points}</c:numLit></c:xVal>`
-      : `<c:xVal><c:numRef><c:f>${escapeXmlText(categoriesRef)}</c:f>` +
-        `<c:numCache>${points}</c:numCache></c:numRef></c:xVal>`
   const xValPattern = /<c:xVal\/>|<c:xVal>[\s\S]*?<\/c:xVal>/
+  // Same demotion guard as c:cat/c:val: a ref-less rewrite keeps an
+  // existing c:f rather than baking the reference into a literal.
+  const refXml =
+    categoriesRef !== undefined
+      ? escapeXmlText(categoriesRef)
+      : /<c:f>([\s\S]*?)<\/c:f>/.exec(xValPattern.exec(serXml)?.[0] ?? '')?.[1]
+  const xVal =
+    refXml === undefined
+      ? `<c:xVal><c:numLit>${points}</c:numLit></c:xVal>`
+      : `<c:xVal><c:numRef><c:f>${refXml}</c:f>` +
+        `<c:numCache>${points}</c:numCache></c:numRef></c:xVal>`
   if (xValPattern.test(serXml)) return serXml.replace(xValPattern, () => xVal)
   // CT_ScatterSer: xVal precedes yVal and smooth.
   const anchor = /<c:yVal[>/]|<c:smooth[\s/>]/.exec(serXml)
@@ -724,7 +742,7 @@ function setScatterXValues(
 
 /// Replaces the first title run's text (preserving its styling), blanks any
 /// further runs, or inserts a fresh title when the chart has none.
-/// Only the chart-level title qualifies : axes carry their own c:title
+/// Only the chart-level title qualifies — axes carry their own c:title
 /// inside the plot area, so the search stops there.
 function setChartTitle(chartXml: string, title: string): string {
   const escaped = escapeXmlText(title)

@@ -1,4 +1,4 @@
-﻿/// Declarative data-validation save: the renderer snapshots the full Univer
+/// Declarative data-validation save: the renderer snapshots the full Univer
 /// rule set of a dirty sheet and this module rewrites the worksheet's
 /// `<dataValidations>` section from it (mirroring the CF/filter recipe).
 /// Mappings are the exact inverse of the read-side install in App.tsx.
@@ -13,7 +13,7 @@ export interface DvCellArea {
 }
 
 /// One rule in the Univer data-validation model shape (validated structurally
-/// here : unknown shapes fail the save rather than guess).
+/// here — unknown shapes fail the save rather than guess).
 export interface DvWireRule {
   readonly ranges: readonly DvCellArea[]
   readonly rule: Record<string, unknown>
@@ -37,10 +37,21 @@ const DV_ERROR_STYLE_NAMES: Record<number, string | undefined> = {
   2: 'warning',
 }
 
-export function applyDvRules(worksheetXml: string, rules: readonly DvWireRule[]): string {
+export interface DvApplyOptions {
+  /** keep the existing rules, replace those on the same ranges, drop `remove`, add the rest */
+  readonly append?: boolean | undefined
+  readonly remove?: readonly DvCellArea[] | undefined
+}
+
+export function applyDvRules(
+  worksheetXml: string,
+  rules: readonly DvWireRule[],
+  options: DvApplyOptions = {},
+): string {
+  if (options.append) return appendDvRules(worksheetXml, rules, options.remove ?? [])
   if (/<x14:dataValidation\b/.test(worksheetXml)) {
     throw new DvEditError(
-      'This sheet has extended (x14) data validation : editing its rules is not ' +
+      'This sheet has extended (x14) data validation — editing its rules is not ' +
         'supported yet.',
     )
   }
@@ -64,6 +75,57 @@ export function applyDvRules(worksheetXml: string, rules: readonly DvWireRule[])
   return xml.slice(0, end) + section + xml.slice(end)
 }
 
+const DV_SECTION_RE =
+  /<dataValidations\b[^>]*>([\s\S]*?)<\/dataValidations>|<dataValidations\b[^>]*\/>/
+const DV_ENTRY_RE = /<dataValidation\b[^>]*?\/>|<dataValidation\b[^>]*>[\s\S]*?<\/dataValidation>/g
+
+function appendDvRules(
+  worksheetXml: string,
+  rules: readonly DvWireRule[],
+  remove: readonly DvCellArea[],
+): string {
+  const section = DV_SECTION_RE.exec(worksheetXml)
+  const replaced = new Set(
+    [...rules.flatMap((rule) => rule.ranges), ...remove].map((area) => normalizeRef(toRef(area))),
+  )
+  // an existing rule loses the areas the batch takes over; a multi-area sqref keeps the rest
+  const kept: string[] = []
+  for (const entry of section?.[1] ? [...section[1].matchAll(DV_ENTRY_RE)].map((m) => m[0]) : []) {
+    const sqref = /\bsqref="([^"]*)"/.exec(entry)?.[1] ?? ''
+    const areas = sqref.split(/\s+/).filter(Boolean)
+    const remaining = areas.filter((area) => !replaced.has(normalizeRef(area)))
+    if (remaining.length === 0) continue
+    kept.push(
+      remaining.length === areas.length
+        ? entry
+        : entry.replace(/\bsqref="[^"]*"/, `sqref="${remaining.join(' ')}"`),
+    )
+  }
+  const entries = [...kept, ...rules.map(serializeRule)]
+  const xml = section ? worksheetXml.replace(section[0], '') : worksheetXml
+  if (entries.length === 0) return xml
+  const body = `<dataValidations count="${entries.length}">${entries.join('')}</dataValidations>`
+  if (section) return xml.slice(0, section.index) + body + xml.slice(section.index)
+  return insertBeforeTail(xml, body)
+}
+
+/** `A1:A1` and `$A$1` name the same cell as `A1`. */
+function normalizeRef(ref: string): string {
+  const [a, b] = ref.replace(/\$/g, '').split(':')
+  return b === undefined || b === a ? a! : `${a}:${b}`
+}
+
+function insertBeforeTail(xml: string, section: string): string {
+  const anchor =
+    /<hyperlinks\b|<printOptions\b|<pageMargins\b|<pageSetup\b|<headerFooter\b|<rowBreaks\b|<colBreaks\b|<drawing\b|<legacyDrawing\b|<picture\b|<oleObjects\b|<tableParts\b|<extLst\b/.exec(
+      xml,
+    )
+  if (anchor) return xml.slice(0, anchor.index) + section + xml.slice(anchor.index)
+  const end = xml.lastIndexOf('</worksheet>')
+  if (end === -1) throw new DvEditError('Worksheet has no closing element.')
+  return xml.slice(0, end) + section + xml.slice(end)
+}
+
 function serializeRule(wireRule: DvWireRule): string {
   if (wireRule.ranges.length === 0) {
     throw new DvEditError('A data-validation rule has no ranges.')
@@ -72,7 +134,7 @@ function serializeRule(wireRule: DvWireRule): string {
   let rawType = String(rule.type ?? '')
   if (rawType === 'listMultiple') {
     throw new DvEditError(
-      'Multi-select list rules are Univer-only and cannot be saved to xlsx : ' +
+      'Multi-select list rules are Univer-only and cannot be saved to xlsx — ' +
         'delete the rule before saving.',
     )
   }
@@ -182,6 +244,9 @@ function formulaText(type: string | undefined, raw: unknown): string | undefined
 
 /// 'YYYY-MM-DD[ HH:mm[:ss]]' (or slashes) → Excel serial (days since
 /// 1899-12-30). Plain numbers and references pass through untouched.
+/// Impossible calendar dates or clock times return undefined so the caller
+/// keeps the original text instead of writing a silently wrong serial; a
+/// pre-1900 year throws DvEditError, because it has no serial to write.
 function dateToSerial(text: string): number | undefined {
   const match =
     /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/.exec(
@@ -189,17 +254,57 @@ function dateToSerial(text: string): number | undefined {
     )
   if (!match) return undefined
   const [, year, month, day, hour, minute, second] = match
-  const days =
-    (Date.UTC(Number(year), Number(month) - 1, Number(day)) - Date.UTC(1899, 11, 30)) / 86_400_000
-  const seconds = Number(hour ?? 0) * 3600 + Number(minute ?? 0) * 60 + Number(second ?? 0)
+  const yearNum = Number(year)
+  const monthNum = Number(month)
+  const dayNum = Number(day)
+  // Excel's 1900 date system has no serial before 1900-01-01, so such a date
+  // cannot be written at all. Date.UTC also maps a 0..99 year onto 19xx
+  // (0099 -> 1999), which would otherwise store a plausible, silently wrong
+  // serial; reject the year outright instead.
+  if (yearNum < 1900) {
+    throw new DvEditError(
+      `Data-validation date "${text.trim()}" is before 1900, which Excel cannot store.`,
+    )
+  }
+  if (monthNum < 1 || monthNum > 12) return undefined
+  if (dayNum < 1 || dayNum > daysInMonth(yearNum, monthNum)) return undefined
+  let seconds = 0
+  if (hour !== undefined) {
+    const hourNum = Number(hour)
+    const minuteNum = Number(minute)
+    const secondNum = Number(second ?? 0)
+    if (hourNum < 0 || hourNum > 23) return undefined
+    if (minuteNum < 0 || minuteNum > 59) return undefined
+    if (secondNum < 0 || secondNum > 59) return undefined
+    seconds = hourNum * 3600 + minuteNum * 60 + secondNum
+  }
+  const days = (Date.UTC(yearNum, monthNum - 1, dayNum) - Date.UTC(1899, 11, 30)) / 86_400_000
   return seconds === 0 ? days : days + seconds / 86_400
+}
+
+/// Days in a 1-based month, with the Gregorian leap-year rule for February.
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) return isLeapYear(year) ? 29 : 28
+  if (month === 4 || month === 6 || month === 9 || month === 11) return 30
+  return 31
+}
+
+/// Gregorian leap-year rule: divisible by 4, except centuries not by 400.
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
 }
 
 function timeToFraction(text: string): number | undefined {
   const match = /^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/.exec(text.trim())
   if (!match) return undefined
   const [, hour, minute, second] = match
-  return (Number(hour) * 3600 + Number(minute) * 60 + Number(second ?? 0)) / 86_400
+  const hourNum = Number(hour)
+  const minuteNum = Number(minute)
+  const secondNum = Number(second ?? 0)
+  if (hourNum < 0 || hourNum > 23) return undefined
+  if (minuteNum < 0 || minuteNum > 59) return undefined
+  if (secondNum < 0 || secondNum > 59) return undefined
+  return (hourNum * 3600 + minuteNum * 60 + secondNum) / 86_400
 }
 
 function toRef(range: DvCellArea): string {

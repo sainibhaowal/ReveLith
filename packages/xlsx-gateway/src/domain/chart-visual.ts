@@ -1,4 +1,4 @@
-﻿import { numfmt } from '@univerjs/core'
+import * as numfmt from 'numfmt'
 
 import { columnLabel, parseAddress, parseRange, rangeCellCount } from './cell-address'
 
@@ -32,8 +32,13 @@ export type ChartGridValue = string | number | boolean | null | undefined
 /// renderer's WorkbookVisualObject.chart (structurally identical).
 export interface ChartSeriesVisualState {
   name: string
+  /// `c:tx` cell reference when the name carries no cached text.
+  nameRef?: string | undefined
   categories: string[]
   values: number[]
+  /// Blank value-cache slots (`values` holds 0 there); the chart-level
+  /// dispBlanksAs decides whether they plot as gaps, zeros, or bridges.
+  blanks?: number[] | undefined
   numberFormat?: string | undefined
   /// numCache formatCode of the category (or scatter X) data.
   categoryFormat?: string | undefined
@@ -46,6 +51,44 @@ export interface ChartSeriesVisualState {
   explosionPct?: number | undefined
   /// Pie: per-slice `c:dPt/c:explosion` overrides.
   pointExplosions?: { index: number; pct: number }[] | undefined
+  /// spPr/a:ln color; "none" = explicit no line.
+  lineColor?: string | undefined
+  /// spPr/a:ln/@w in CSS px (EMU / 12700 pt · 96/72).
+  lineWidth?: number | undefined
+  smooth?: boolean | undefined
+  /// c:marker symbol; "none" hides scatter/line markers.
+  marker?: string | undefined
+  /// First outer multiLvlStrCache level; start/end index the compacted
+  /// `categories` (end exclusive).
+  categoryGroups?: { label: string; start: number; end: number }[] | undefined
+  /// Parent plot group (barChart, lineChart, ...); combo charts draw each
+  /// series with its own group's type.
+  plot?: string | undefined
+}
+
+/// One plot axis keyed by its side (b/t → x, l/r → y).
+export interface ChartAxisInfoState {
+  title?: string | undefined
+  min?: number | undefined
+  max?: number | undefined
+  majorUnit?: number | undefined
+  numFmt?: string | undefined
+  majorGridlines: boolean
+  /// c:delete — scales its series but is not drawn.
+  hidden: boolean
+  /// c:scaling/c:orientation val="maxMin".
+  reversed: boolean
+  /// c:axPos side the axis is drawn on.
+  position?: 'l' | 'r' | 't' | 'b' | undefined
+  /// Tick label / axis title font sizes in points (c:txPr defRPr sz).
+  labelSize?: number | undefined
+  labelColor?: string | undefined
+  titleSize?: number | undefined
+  titleColor?: string | undefined
+  /// c:dispUnits divisor; ticks display divided by it.
+  displayUnit?: number | undefined
+  /// c:dispUnitsLbl text, only when the file draws the label.
+  displayUnitLabel?: string | undefined
 }
 
 export interface ChartVisualState {
@@ -56,7 +99,9 @@ export interface ChartVisualState {
   legend?: 'none' | 'right' | 'bottom' | 'top' | 'left' | undefined
   axisTitles?:
     { category?: string | null | undefined; value?: string | null | undefined } | undefined
-  dataLabels?: 'none' | 'value' | 'percent' | 'category-percent' | undefined
+  /// 'category-value-percent' is read-only (all three show* flags on).
+  dataLabels?:
+    'none' | 'value' | 'percent' | 'category-percent' | 'category-value-percent' | undefined
   dataLabelPosition?: 'center' | 'inside-end' | 'outside-end' | undefined
   dataLabelFormat?: string | undefined
   grouping?: 'clustered' | 'stacked' | 'percentStacked' | 'standard' | undefined
@@ -70,6 +115,30 @@ export interface ChartVisualState {
   gapWidthPct?: number | undefined
   /// Doughnut `c:holeSize`.
   holeSizePct?: number | undefined
+  xAxis?: ChartAxisInfoState | undefined
+  yAxis?: ChartAxisInfoState | undefined
+  /// Second left/right value axis (combo charts).
+  secondaryYAxis?: ChartAxisInfoState | undefined
+  /// c:scatterStyle — whether scatter points connect with lines.
+  scatterStyle?: string | undefined
+  /// Plot-level c:lineChart/c:marker flag; per-series symbols refine it.
+  lineMarkers?: boolean | undefined
+  /// `c:dispBlanksAs` — how blank cells plot (OOXML defaults to zero).
+  dispBlanksAs?: 'gap' | 'zero' | 'span' | undefined
+  /// c:title/c:txPr//a:defRPr shorthand.
+  titleStyle?: ChartTextStyleState | undefined
+  /// c:dLbls/c:txPr//a:defRPr shorthand.
+  dataLabelStyle?: ChartTextStyleState | undefined
+  /// c:chartSpace/c:spPr fill behind the whole chart (flat color).
+  chartAreaFill?: string | undefined
+  /// c:plotArea/c:spPr fill behind the plot rectangle (flat color).
+  plotAreaFill?: string | undefined
+}
+
+export interface ChartTextStyleState {
+  size?: number | undefined
+  bold?: boolean | undefined
+  color?: string | undefined
 }
 
 /// Numeric category labels (date serials, percents) render through their
@@ -107,20 +176,81 @@ export interface ScatterAxis {
 /// nice-step ceiling. Ticks are 5 evenly spaced values.
 export function scatterAxisBounds(
   values: readonly number[],
-  explicit?: { min?: number | undefined; max?: number | undefined },
+  explicit?: { min?: number | undefined; max?: number | undefined; majorUnit?: number | undefined },
 ): ScatterAxis {
   const finite = values.filter((value) => Number.isFinite(value))
-  const dataMin = finite.length > 0 ? Math.min(...finite) : 0
-  const dataMax = finite.length > 0 ? Math.max(...finite) : 1
+  const dataMin = finite.length > 0 ? finite.reduce((min, value) => (value < min ? value : min)) : 0
+  const dataMax = finite.length > 0 ? finite.reduce((max, value) => (value > max ? value : max)) : 1
   const min = explicit?.min ?? (dataMin >= 0 ? 0 : -niceCeiling(-dataMin))
   let max = explicit?.max ?? (dataMax <= 0 ? 0 : niceCeiling(dataMax))
   if (!(max > min)) max = min + 1
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((fraction) => min + fraction * (max - min))
+  const ticks = explicit?.majorUnit
+    ? unitTicks(min, max, explicit.majorUnit)
+    : [0, 0.25, 0.5, 0.75, 1].map((fraction) => min + fraction * (max - min))
   return { min, max, ticks }
 }
 
+/// Excel-like value-axis scale. Explicit bounds/unit win. Excel's auto max
+/// leaves ~5% headroom above the data: with bumped = span · 1.05, the unit
+/// is the smallest 1/2/5×10^n giving at most 10 intervals of bumped, and
+/// max = min + unit · ceil(bumped / unit). Calibrated on Excel-rendered
+/// refs: 18 → 20 step 2, 148 → 160 step 20, 877 → 1000 step 100, 1000 →
+/// 1200 step 200, 289753.76 → 350000 step 50000 (real-run1 + prod corpora).
+export function valueAxisScale(
+  dataMax: number,
+  explicit?: { min?: number | undefined; max?: number | undefined; majorUnit?: number | undefined },
+): { min: number; max: number; ticks: number[] } {
+  const min = explicit?.min ?? 0
+  const target = explicit?.max ?? Math.max(dataMax, min)
+  const span = target - min
+  // Flat data (all zeros): Excel scales 0..1 in 0.2 steps.
+  if (!(span > 0)) {
+    return { min, max: min + 1, ticks: unitTicks(min, min + 1, 0.2) }
+  }
+  const bumped = explicit?.max === undefined ? span * 1.05 : span
+  const unit = explicit?.majorUnit ?? autoAxisUnit(bumped)
+  const max = explicit?.max ?? min + Math.ceil(bumped / unit - 1e-9) * unit
+  return { min, max: max > min ? max : min + unit, ticks: unitTicks(min, max, unit) }
+}
+
+function autoAxisUnit(span: number): number {
+  let exponent = Math.floor(Math.log10(span)) - 1
+  for (let guard = 0; guard < 6; guard += 1) {
+    for (const base of [1, 2, 5]) {
+      const unit = base * 10 ** exponent
+      // Excel allows up to 10 intervals (877 bumps to 920.85 → unit 100 /
+      // max 1000; 1000 bumps to 1050 → 11 intervals reject 100, unit 200).
+      if (span / unit <= 10 + 1e-9) return unit
+    }
+    exponent += 1
+  }
+  return 10 ** Math.ceil(Math.log10(span))
+}
+
+/// Ceiling for `unitTicks`; far above any axis a reader can draw, and only
+/// reachable when a c:majorUnit is finer than float noise.
+const MAX_AXIS_TICKS = 10_000
+
+function unitTicks(min: number, max: number, unit: number): number[] {
+  // A zero or non-finite unit has no tick count at all: min + index · 0
+  // never advances, so fall back to the bounds pair instead of looping.
+  if (!Number.isFinite(unit) || !(unit > 0)) return [min, max]
+  const ticks: number[] = []
+  // Walk exactly the ticks min..max imply, rather than a fixed number of
+  // iterations: a fine c:majorUnit (0.1 over 0..10) needs 101 of them, and a
+  // fixed cap left the axis short of its own data. MAX_AXIS_TICKS only stops
+  // a unit so fine that the implied count is effectively unbounded.
+  const count = Math.min(Math.floor((max - min) / unit + 1e-6) + 1, MAX_AXIS_TICKS)
+  for (let index = 0; index < count; index += 1) {
+    const tick = min + index * unit
+    if (tick > max + unit * 1e-6) break
+    ticks.push(Number(tick.toPrecision(12)))
+  }
+  return ticks.length >= 2 ? ticks : [min, max]
+}
+
 /// Smallest 1/2/2.5/5×10^n step whose multiple covers `value` within 9
-/// intervals : Excel-ish: 0.152 → 0.16, 0.449 → 0.45, 7 → 7, 130 → 140.
+/// intervals — Excel-ish: 0.152 → 0.16, 0.449 → 0.45, 7 → 7, 130 → 140.
 function niceCeiling(value: number): number {
   let exponent = Math.floor(Math.log10(value)) - 1
   for (let guard = 0; guard < 8; guard += 1) {
@@ -135,7 +265,7 @@ function niceCeiling(value: number): number {
 }
 
 /// Excel inserts charts with value labels off; opened single-series
-/// bar/column charts upgrade to labelled by default (product decision :
+/// bar/column charts upgrade to labelled by default (product decision —
 /// diverges from source-file fidelity until the user removes the labels).
 export function withDefaultBarLabels(chart: ChartVisualState): ChartVisualState {
   const upgradable =
@@ -144,7 +274,9 @@ export function withDefaultBarLabels(chart: ChartVisualState): ChartVisualState 
     chart.series.length === 1 &&
     chart.grouping !== 'stacked' &&
     chart.grouping !== 'percentStacked' &&
-    (chart.dataLabels === undefined || chart.dataLabels === 'none')
+    // Only when the file carries no dLbls at all — an explicit
+    // showVal="0" must stay off (fidelity beats the product default).
+    chart.dataLabels === undefined
   return upgradable ? { ...chart, dataLabels: 'value' } : chart
 }
 
@@ -195,7 +327,7 @@ export interface ChartStateEdit {
     | undefined
 }
 
-/// Switch Row/Column: cache-based transpose : old series names become the
+/// Switch Row/Column: cache-based transpose — old series names become the
 /// categories, each old category becomes a series (cell references cannot
 /// survive a transpose). Null when there are no categories to pivot on.
 export function transposeChartSeries(
@@ -300,7 +432,7 @@ export function applyChartStateEdit(
       : edit.grouping
   const fallbackCategories = chart.series[0]?.categories ?? []
   // A full replacement drops every existing series (and their per-point
-  // styling : matching the save-side rewrite).
+  // styling — matching the save-side rewrite).
   const baseSeries: ChartSeriesVisualState[] = edit.seriesSet
     ? edit.seriesSet.map((entry) => ({
         name: entry.name,
@@ -345,8 +477,13 @@ export function applyChartStateEdit(
           ? { explosionPct: edit.explosionPct }
           : {}),
         ...(data?.name === undefined ? {} : { name: data.name }),
-        ...(data?.values === undefined ? {} : { values: data.values }),
-        ...(data?.categories === undefined ? {} : { categories: data.categories }),
+        // New values are dense numbers — stale blank markers must not
+        // survive them.
+        ...(data?.values === undefined ? {} : { values: data.values, blanks: undefined }),
+        // Replacing the categories orphans the parsed outer-level spans.
+        ...(data?.categories === undefined
+          ? {}
+          : { categories: data.categories, categoryGroups: undefined }),
         ...(data?.valuesRef === undefined ? {} : { valuesRef: data.valuesRef }),
         ...(data?.categoriesRef === undefined ? {} : { categoriesRef: data.categoriesRef }),
       }
@@ -400,7 +537,7 @@ export function chartDataFromValues(
   const width = firstRow.length
   // A header row is signalled by non-numeric labels, or by the cross-tab
   // fingerprint Excel also uses: blank corner cell with filled cells across
-  // the rest of the first row (numeric headers : years, months : are data
+  // the rest of the first row (numeric headers — years, months — are data
   // otherwise).
   const hasLabelHeader =
     grid.length > 1 &&
@@ -433,6 +570,25 @@ export function chartDataFromValues(
       column,
     })
     if (series.length >= MAX_CHART_SERIES) break
+  }
+  // A mixed first column (labels plus numbers) gets claimed as the category
+  // axis; when every other column is text that claim starves the chart even
+  // though Excel still plots the numbers — chart it as the value series.
+  if (series.length === 0 && hasCategoryColumn && body.some((row) => isNumeric(row[0]))) {
+    const header = hasHeaderRow ? firstRow[0] : null
+    return {
+      byRow,
+      hasHeaderRow,
+      hasCategoryColumn: false,
+      categories: body.map((_, i) => String(i + 1)),
+      series: [
+        {
+          name: isBlank(header) ? 'Series 1' : String(header),
+          values: body.map((row) => toNumber(row[0])),
+          column: 0,
+        },
+      ],
+    }
   }
   return series.length > 0 ? { byRow, hasHeaderRow, hasCategoryColumn, categories, series } : null
 }
@@ -518,8 +674,8 @@ const CHART_KIND_TO_TYPES: Record<BuildChartVisualInput['chartType'], string[]> 
   doughnut: ['doughnutChart'],
   scatter: ['scatterChart'],
   radar: ['radarChart'],
-  // Bar+line combo: the renderer draws the last series as a line (degrades to
-  // pure bars with a single series).
+  // Bar+line combo: series carry no plot tag here, so the renderer draws the
+  // last series as a line (degrades to pure bars with a single series).
   combo: ['barChart', 'lineChart'],
 }
 
