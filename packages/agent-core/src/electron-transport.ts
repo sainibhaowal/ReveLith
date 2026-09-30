@@ -13,13 +13,14 @@ import type {
  */
 export interface IpcStreamChunk {
   requestId: string
-  /** 'ping' = wire-level keepalive; re-arms the silence watchdog and carries no payload */
-  type: 'delta' | 'tool-call' | 'done' | 'error' | 'ping'
+  /** 'ping' = wire-level keepalive; re-arms the silence watchdog and carries no payload;
+   * 'reasoning' = model thinking delta (text carries it) */
+  type: 'delta' | 'reasoning' | 'tool-call' | 'done' | 'error' | 'ping'
   text?: string
   toolCall?: AgentToolCall
   error?: string
-  /** machine-readable error cause; maps to the localized timeout/credits message */
-  errorCode?: 'timeout' | 'credits' | 'overloaded'
+  /** machine-readable error cause; maps to the localized timeout/credits/network/overloaded message */
+  errorCode?: 'timeout' | 'credits' | 'network' | 'overloaded'
   /** normalized stop reason on 'done' ('max_tokens' = cut off by the token limit) */
   stopReason?: string
 }
@@ -27,6 +28,9 @@ export interface IpcStreamChunk {
 /** The request forwarded to the main process to start one streaming turn. */
 export interface IpcStreamStart<S> {
   requestId: string
+  /** Stable for the lifetime of one renderer-side transport. Providers with
+   * native conversations can reuse it across the tool loop and follow-ups. */
+  sessionId: string
   settings: S
   system: string
   messages: AgentMessage[]
@@ -56,9 +60,9 @@ export interface IpcTransportOptions<S> {
   /** localized message for exhausted credits (errorCode 'credits') */
   creditsErrorText?(): string
   /**
-   * localized message for transport-level failures (the request never
-   * reached the main process, or the IPC bridge rejected it). Without it a
-   * raw transport message would surface in the chat UI.
+   * localized message for network connectivity failures (errorCode 'network',
+   * and transport-level failures that never reached the main process). Without
+   * it a raw transport message would surface in the chat UI.
    */
   networkErrorText?(): string
   /** localized message when the provider reports itself busy/overloaded */
@@ -81,6 +85,7 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
     err instanceof Error && err.message
       ? err.message
       : (options.networkErrorText?.() ?? options.unknownErrorText())
+  const sessionId = crypto.randomUUID()
   return {
     stream(request: AgentStreamRequest, cb) {
       const requestId = crypto.randomUUID()
@@ -110,6 +115,9 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
         } else if (chunk.type === 'delta') {
           armSilence()
           cb.onDelta(chunk.text ?? '')
+        } else if (chunk.type === 'reasoning') {
+          armSilence()
+          if (chunk.text) cb.onReasoning?.(chunk.text)
         } else if (chunk.type === 'tool-call') {
           armSilence()
           if (chunk.toolCall) cb.onToolCall(chunk.toolCall)
@@ -125,6 +133,9 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
             cb.onError(options.creditsErrorText?.() ?? chunk.error ?? options.unknownErrorText())
           } else if (chunk.errorCode === 'overloaded') {
             cb.onError(options.overloadedErrorText?.() ?? chunk.error ?? options.unknownErrorText())
+          } else if (chunk.errorCode === 'network') {
+            // connectivity failures get the localized wording when the app has one
+            cb.onError(options.networkErrorText?.() ?? chunk.error ?? options.unknownErrorText())
           } else if (chunk.error) {
             cb.onError(chunk.error)
           } else {
@@ -139,6 +150,7 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
         Promise.resolve(
           options.start({
             requestId,
+            sessionId,
             settings: options.getSettings(),
             system: request.system,
             messages: request.messages,

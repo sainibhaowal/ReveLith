@@ -8,12 +8,13 @@ export type {
   AgentToolDef,
   AgentToolResult,
   AgentTransport,
-  ExecutedToolCall,
   ToolDisplay,
   ToolExecution,
 } from './types'
 export { composeSkills } from './skill'
-export type { AgentSkill } from './skill'
+// ExecutedToolCall is declared in ./types and re-exported by ./skill; the
+// barrel lists it once (from ./skill, the module that consumes it)
+export type { AgentSkill, ExecutedToolCall } from './skill'
 export {
   AgentLoop,
   COMPLETED_VIA_TOOLS_TEXT,

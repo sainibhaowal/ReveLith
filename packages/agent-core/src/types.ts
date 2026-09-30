@@ -14,6 +14,8 @@ export interface AgentToolCall {
   inputError?: string | undefined
   /** The argument stream was cut off by the token limit (stop_reason max_tokens); the loop asks the model to split the call instead of "fixing JSON" */
   truncated?: boolean | undefined
+  /** Opaque provider token that must travel back with the call in history (Gemini 3 thoughtSignature; a 400 otherwise) */
+  signature?: string | undefined
 }
 
 export interface AgentToolResult {
@@ -41,7 +43,14 @@ export interface AgentImage {
 
 export type AgentMessage =
   | { role: 'user'; text: string; images?: AgentImage[] | undefined }
-  | { role: 'assistant'; text: string; toolCalls?: AgentToolCall[] | undefined }
+  /** reasoning: opaque vendor thinking captured during the turn; interleaved-thinking
+   * models (MiniMax M3, DeepSeek V4) degrade in tool loops unless it is echoed back */
+  | {
+      role: 'assistant'
+      text: string
+      toolCalls?: AgentToolCall[] | undefined
+      reasoning?: string | undefined
+    }
   | { role: 'tool'; results: AgentToolResult[] }
 
 /**
@@ -98,6 +107,8 @@ export interface AgentStreamRequest {
 
 export interface AgentStreamCallbacks {
   onDelta(text: string): void
+  /** raw model reasoning delta; the loop stores it on the assistant message for interleaved-thinking echo */
+  onReasoning?(text: string): void
   /** complete parsed tool call (arguments finished streaming) */
   onToolCall(call: AgentToolCall): void
   /** Phase changes within the model stream (thinking / responding / tool-input); older transports may omit this */

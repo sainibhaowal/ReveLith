@@ -18,6 +18,8 @@ export default tseslint.config(
       'scripts/drivers/**',
       'apps/*/build/**',
       'packages/*/src/vendor/**',
+      // Browser-injected scripts (port from upstream, not our code to lint)
+      'packages/html2docx/src/browser/**',
       // Reference source kept locally for porting; upstream's own lint rules
       // and upstream branding, so neither of our gates reads it.
       'assets/genoffice-0.11.0/**',

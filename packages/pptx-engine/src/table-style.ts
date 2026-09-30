@@ -1,5 +1,5 @@
 /**
- * Table style resolution : tableStyleId referenced by a:tblPr → final fill/text styles
+ * Table style resolution — tableStyleId referenced by a:tblPr → final fill/text styles
  * for each table region.
  *
  * Two sources:
@@ -13,8 +13,8 @@
  *    (keeping the unstyled rendering).
  */
 import { XMLParser } from 'fast-xml-parser'
+import { applyColorMods } from './color'
 import { resolveSchemeColor, type Theme } from './theme'
-import { PRESET_COLORS } from './color'
 import type { Fill, Stroke } from './types'
 import { asXmlNode, xmlArray, type XmlNode } from './xml-utils'
 
@@ -43,6 +43,10 @@ export interface TableStyleDef {
   /** First-row bottom edge / last-row top edge (header separator lines, used when the firstRow/lastRow flags are on) */
   firstRowBottom?: Stroke
   lastRowTop?: Stroke
+  /** <a:tblBg> direct fill: whole-table background under transparent/alpha cell fills */
+  tblBg?: Fill
+  /** <a:tblBg><a:fillRef>: theme fillStyleLst template ref (parse.ts instantiates it with phClr) */
+  tblBgRef?: { idx: number; phClr?: string }
 }
 
 /** Region toggles from a:tblPr. */
@@ -145,6 +149,80 @@ const BUILTIN: Record<string, { family: BuiltinFamily; accent?: string }> = {
   '{0660B408-B3CF-4A94-85FC-2B1E0A45F4A2}': { family: 'dark2', accent: 'accent1' },
   '{91EBBBCC-DAD2-459C-BE2E-F6DE35CF9A28}': { family: 'dark2', accent: 'accent3' },
   '{46F890A9-2807-4EBB-B81D-B2AA78EC7F39}': { family: 'dark2', accent: 'accent5' },
+}
+
+const FAMILY_LABEL: Record<BuiltinFamily, string> = {
+  themed1: 'Themed Style 1',
+  themed2: 'Themed Style 2',
+  light1: 'Light Style 1',
+  light2: 'Light Style 2',
+  light3: 'Light Style 3',
+  medium1: 'Medium Style 1',
+  medium2: 'Medium Style 2',
+  medium3: 'Medium Style 3',
+  medium4: 'Medium Style 4',
+  dark1: 'Dark Style 1',
+  dark2: 'Dark Style 2',
+}
+
+export interface BuiltinTableStyle {
+  id: string
+  /** Gallery name as PowerPoint shows it ("Medium Style 2 - Accent 1") */
+  name: string
+  family: BuiltinFamily
+  accent?: string
+}
+
+function builtinName(family: BuiltinFamily, accent?: string): string {
+  if (!accent) {
+    if (family === 'themed1') return 'No Style, No Grid'
+    if (family === 'themed2') return 'No Style, Table Grid'
+    return FAMILY_LABEL[family]
+  }
+  const n = accent.slice('accent'.length)
+  // Dark Style 2 pairs two accents per definition (official gallery labels)
+  if (family === 'dark2') return `${FAMILY_LABEL[family]} - Accent ${n}/Accent ${Number(n) + 1}`
+  return `${FAMILY_LABEL[family]} - Accent ${n}`
+}
+
+/** The 74 PowerPoint built-in table styles, gallery order. */
+export const BUILTIN_TABLE_STYLES: readonly BuiltinTableStyle[] = Object.entries(BUILTIN).map(
+  ([id, def]) => ({
+    id,
+    name: builtinName(def.family, def.accent),
+    family: def.family,
+    ...(def.accent ? { accent: def.accent } : {}),
+  }),
+)
+
+/** Gallery name of a built-in style id, or undefined for custom/unknown ids. */
+export function builtinTableStyleName(styleId: string | undefined): string | undefined {
+  if (!styleId) return undefined
+  const def = BUILTIN[styleId]
+  return def ? builtinName(def.family, def.accent) : undefined
+}
+
+/**
+ * GUID for a built-in style given its GUID or gallery name (case-insensitive,
+ * "Dark Style 2 - Accent 2" resolves to the Accent 1/Accent 2 definition).
+ */
+export function resolveBuiltinTableStyleId(nameOrId: string): string | undefined {
+  const key = nameOrId.trim()
+  if (/^\{[0-9A-Fa-f-]{36}\}$/.test(key)) {
+    const upper = key.toUpperCase()
+    return BUILTIN[upper] ? upper : undefined
+  }
+  const norm = key.toLowerCase().replace(/\s+/g, ' ')
+  for (const s of BUILTIN_TABLE_STYLES) {
+    if (s.name.toLowerCase() === norm) return s.id
+    if (s.family === 'dark2' && s.accent) {
+      const n = Number(s.accent.slice('accent'.length))
+      for (const alt of [n, n + 1]) {
+        if (norm === `dark style 2 - accent ${alt}`) return s.id
+      }
+    }
+  }
+  return undefined
 }
 
 /** Compatibility: the made-up "no style" GUID this app used to write (not in the official table). */
@@ -387,6 +465,10 @@ export function resolveTableStyle(
     const def = parseTableStylesXml(tableStylesXml, styleId, theme)
     if (def) return def
   }
+  // The built-in gallery backs an undefined id even when the part defines other styles
+  // (prod deck: Light Style 1 - Accent 3 banding drawn next to a one-entry part). The
+  // earlier "transparent with a populated part" reading came from decks whose cells
+  // carried an explicit <a:noFill/>, which hides any style fill anyway.
   const builtin = BUILTIN[styleId]
   if (builtin) return builtinStyle(builtin.family, builtin.accent, theme)
   if (styleId === LEGACY_NO_STYLE) return {}
@@ -431,20 +513,23 @@ const tsParser = new XMLParser({
 function readColor(node: unknown, theme: Theme | undefined): string | undefined {
   if (!node || typeof node !== 'object') return undefined
   const n = asXmlNode(node)
-  const srgb = asXmlNode(n['a:srgbClr'])['@_val']
-  if (srgb) return '#' + String(srgb).toUpperCase()
+  // tint/shade/alpha via the canonical linear-gamma modifier path (PPT computes
+  // table-style tints in linear space: accent tint 20% renders ≈(244,231,231),
+  // not the straight-sRGB (242,204,204) — prod_043 pixel-verified); alpha lands
+  // as an #RRGGBBAA suffix so banded fills composite over <a:tblBg>
+  if (n['a:srgbClr']) {
+    const srgb = asXmlNode(n['a:srgbClr'])
+    return applyColorMods('#' + String(srgb['@_val']).toUpperCase(), srgb)
+  }
   if (n['a:schemeClr']) {
     const scheme = asXmlNode(n['a:schemeClr'])
     const base = resolveSchemeColor(String(scheme['@_val']), theme)
     if (!base) return undefined
-    const t = asXmlNode(scheme['a:tint'])['@_val']
-    return t ? tint(base, parseInt(String(t), 10) / 100000) : base
+    return applyColorMods(base, scheme)
   }
-  const prstRaw = asXmlNode(n['a:prstClr'])['@_val']
-  if (prstRaw) {
-    const prst = String(prstRaw).toLowerCase()
-    if (PRESET_COLORS[prst]) return PRESET_COLORS[prst]
-  }
+  const prst = asXmlNode(n['a:prstClr'])['@_val']
+  if (prst === 'black') return '#000000'
+  if (prst === 'white') return '#FFFFFF'
   return undefined
 }
 
@@ -465,16 +550,30 @@ function readPart(part: unknown, theme: Theme | undefined): TablePartStyle | und
 
 function readInside(
   part: unknown,
-  tag: 'a:insideH' | 'a:insideV',
+  tag: 'a:insideH' | 'a:insideV' | 'a:left' | 'a:right' | 'a:top' | 'a:bottom',
   theme: Theme | undefined,
 ): Stroke | undefined {
   const bdr = asXmlNode(asXmlNode(asXmlNode(part)['a:tcStyle'])['a:tcBdr'])
-  const lnRaw = asXmlNode(bdr[tag])['a:ln']
-  if (!lnRaw) return undefined
-  const ln = asXmlNode(lnRaw)
-  const c = readColor(ln['a:solidFill'], theme)
-  if (!c) return undefined
-  return line(c, parseInt(String(ln['@_w']), 10) || 12700)
+  const edge = asXmlNode(bdr[tag])
+  const lnRaw = edge['a:ln']
+  if (lnRaw) {
+    const ln = asXmlNode(lnRaw)
+    if ('a:noFill' in ln) return undefined
+    const c = readColor(ln['a:solidFill'], theme)
+    if (!c) return undefined
+    return line(c, parseInt(String(ln['@_w']), 10) || 12700)
+  }
+  // <a:lnRef idx>: theme lnStyleLst template; the ref's child color substitutes phClr
+  const refRaw = edge['a:lnRef']
+  if (refRaw) {
+    const ref = asXmlNode(refRaw)
+    const c = readColor(ref, theme)
+    if (!c) return undefined
+    const idx = parseInt(String(ref['@_idx'] ?? '0'), 10) || 0
+    const tplLn = asXmlNode(asXmlNode(theme?.lnStyles?.[idx - 1])['a:ln'])
+    return line(c, parseInt(String(tplLn['@_w']), 10) || 12700)
+  }
+  return undefined
 }
 
 function parseTableStylesXml(
@@ -492,6 +591,18 @@ function parseTableStylesXml(
   const style = xmlArray(list).find((s) => s['@_styleId'] === styleId)
   if (!style) return undefined
   const def: TableStyleDef = {}
+  const tblBgRaw = style['a:tblBg']
+  if (tblBgRaw) {
+    const bg = asXmlNode(tblBgRaw)
+    const direct = readColor(asXmlNode(bg['a:fill'])['a:solidFill'], theme)
+    if (direct) def.tblBg = solid(direct)
+    const refRaw = bg['a:fillRef']
+    if (refRaw) {
+      const ref = asXmlNode(refRaw)
+      const idx = parseInt(String(ref['@_idx'] ?? '0'), 10) || 0
+      if (idx > 0) def.tblBgRef = { idx, phClr: readColor(ref, theme) }
+    }
+  }
   for (const key of [
     'wholeTbl',
     'band1H',
@@ -510,6 +621,13 @@ function parseTableStylesXml(
   def.insideV = readInside(style['a:wholeTbl'], 'a:insideV', theme)
   if (!def.insideH) delete def.insideH
   if (!def.insideV) delete def.insideV
+  const outer = {
+    l: readInside(style['a:wholeTbl'], 'a:left', theme),
+    r: readInside(style['a:wholeTbl'], 'a:right', theme),
+    t: readInside(style['a:wholeTbl'], 'a:top', theme),
+    b: readInside(style['a:wholeTbl'], 'a:bottom', theme),
+  }
+  if (outer.l || outer.r || outer.t || outer.b) def.outer = outer
   return Object.keys(def).length ? def : undefined
 }
 

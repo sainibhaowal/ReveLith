@@ -42,7 +42,7 @@ describe('chartStyleInfo kind mapping', () => {
   })
 
   it('passes line/area/pieOfPie/scatter/radar through', () => {
-    for (const kind of ['line', 'area', 'pieOfPie', 'scatter', 'radar'] as const) {
+    for (const kind of ['line', 'area', 'scatter', 'radar', 'funnel'] as const) {
       expect(chartStyleInfo(model({ kind })).kind).toBe(kind)
     }
   })

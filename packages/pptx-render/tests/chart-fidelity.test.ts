@@ -117,7 +117,10 @@ describe('varyColors bars', () => {
     const node = buildChartNode(
       'c1',
       's1',
-      barModel({ varyColors: true, series: [{ name: 'S', values: [10, 20, 30], pointColors: [undefined, '#123456'] }] }),
+      barModel({
+        varyColors: true,
+        series: [{ name: 'S', values: [10, 20, 30], pointColors: [undefined, '#123456'] }],
+      }),
       box,
       vp,
       metrics,
@@ -132,7 +135,7 @@ describe('manual plot on a real chart', () => {
     const manual = buildChartNode(
       'c1',
       's1',
-      barModel({ plotLayout: { x: 0.1, y: 0.1, w: 0.5, h: 0.5, xMode: 'edge', yMode: 'edge' } }),
+      barModel({ plotLayout: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } }),
       box,
       vp,
       metrics,
@@ -210,7 +213,7 @@ describe('radar manual plot', () => {
     const manual = buildChartNode(
       'c1',
       's1',
-      radarModel({ plotLayout: { x: 0.5, y: 0, w: 0.5, h: 1, xMode: 'edge', yMode: 'edge' } }),
+      radarModel({ plotLayout: { x: 0.5, y: 0, w: 0.5, h: 1 } }),
       box,
       vp,
       metrics,

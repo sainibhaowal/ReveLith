@@ -101,7 +101,8 @@ describe('RTL generate', () => {
 })
 
 describe('direction toggle ops', () => {
-  it('setElementParagraphFormat direction sets and clears rtl="1" (run bytes untouched)', () => {    const RUN = '<a:r><a:rPr sz="1800"/><a:t>مرحبا</a:t></a:r>'
+  it('setElementParagraphFormat direction sets and clears rtl="1" (run bytes untouched)', () => {
+    const RUN = '<a:r><a:rPr sz="1800"/><a:t>مرحبا</a:t></a:r>'
     const { slide, el } = parseOne(`<a:bodyPr/><a:p>${RUN}</a:p>`)
     expect(setElementParagraphFormat(slide, el.id, { direction: 'rtl' })).toBe(true)
     expect(el.text!.paragraphs[0]!.rtl).toBe(true)
@@ -125,7 +126,8 @@ describe('direction toggle ops', () => {
     expect(el.anchor.originalXml).not.toContain('rtl=')
   })
 
-  it('setTableRtl creates tblPr when absent', () => {    const slide = parseSlide({
+  it('setTableRtl creates tblPr when absent', () => {
+    const slide = parseSlide({
       path: 'ppt/slides/slide1.xml',
       slideXml: slideWith(
         TABLE_FRAME('')

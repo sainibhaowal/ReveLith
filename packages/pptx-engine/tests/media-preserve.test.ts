@@ -1,11 +1,11 @@
-﻿/** Undecodable media (e.g. TIFF) must never be dropped from the saved package. */
+/** Undecodable media (e.g. TIFF) must never be dropped from the saved package. */
 import { describe, it, expect } from 'vitest'
 import JSZip from 'jszip'
 import { openPptx, savePptx, createBlankPptx } from '../src/index'
 
 async function deckWithTiffMedia(): Promise<Buffer> {
   const zip = await JSZip.loadAsync(await createBlankPptx())
-  // Payload content doesn't matter for preservation : only the bytes surviving does
+  // Payload content doesn't matter for preservation — only the bytes surviving does
   const tiffBytes = new Uint8Array([0x49, 0x49, 0x2a, 0x00, 1, 2, 3, 4, 5, 6, 7, 8])
   zip.file('ppt/media/image1.tiff', tiffBytes)
   zip.file('ppt/media/image2.tif', tiffBytes)

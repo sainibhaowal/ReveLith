@@ -73,9 +73,11 @@ function tableEl(rtl: boolean | undefined): TableElement {
     id: 't1',
     type: 'table',
     anchor: { originalXml: '' },
-    transform: { x: 0, y: 0, cx: 100, cy: 100, rotationDeg: 0, flipH: false, flipV: false },
-    colWidths: [2000000, 1000000],
-    rowHeights: [500000],
+    // the grid sums to exactly the 300px tableBox (1280/12192000 EMU per px),
+    // so the frame ext and a:gridCol agree the way a real deck's do
+    transform: { x: 0, y: 0, cx: 2857500, cy: 533400, rotationDeg: 0, flipH: false, flipV: false },
+    colWidths: [1905000, 952500],
+    rowHeights: [533400],
     rows: [[cell('a'), cell('b')]],
     ...(rtl ? { rtl: true } : {}),
   } as unknown as TableElement

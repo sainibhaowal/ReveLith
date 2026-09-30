@@ -34,14 +34,26 @@ describe('manualLayout parsing', () => {
   it('reads plot, legend and title layouts with edge modes', () => {
     const m = parseChartXml(MANUAL_CHART)!
     expect(m.plotLayout).toEqual({ x: 0.1, y: 0.15, w: 0.7, h: 0.6, xMode: 'edge', yMode: 'edge' })
-    expect(m.legendLayout).toEqual({ x: 0.8, y: 0.2, w: 0.15, h: 0.5, xMode: 'edge', yMode: 'edge' })
-    expect(m.titleLayout).toEqual({ x: 0.3, y: 0.01, w: 0.4, h: 0.08, xMode: 'edge', yMode: 'edge' })
+    expect(m.legendLayout).toEqual({
+      x: 0.8,
+      y: 0.2,
+      w: 0.15,
+      h: 0.5,
+      xMode: 'edge',
+      yMode: 'edge',
+    })
+    expect(m.titleLayout).toEqual({
+      x: 0.3,
+      y: 0.01,
+      w: 0.4,
+      h: 0.08,
+      xMode: 'edge',
+      yMode: 'edge',
+    })
   })
 
   it('charts without manualLayout stay auto', () => {
-    const m = parseChartXml(
-      MANUAL_CHART.replace(/<c:layout>[\s\S]*?<\/c:layout>/g, ''),
-    )!
+    const m = parseChartXml(MANUAL_CHART.replace(/<c:layout>[\s\S]*?<\/c:layout>/g, ''))!
     expect(m.plotLayout).toBeUndefined()
     expect(m.legendLayout).toBeUndefined()
     expect(m.titleLayout).toBeUndefined()

@@ -169,8 +169,8 @@ describe('missingRequiredFields', () => {
     // the tool that was missing its argument must not have run
     expect(executeTool).not.toHaveBeenCalled()
     const out = toolResults(loop)[0]?.output ?? ''
-    expect(out).toContain('Required argument')
-    expect(out).toContain('path')
+    expect(out).toContain('missing the required argument(s) "path"')
+    expect(out).toContain('do_thing')
   })
 
   it('still executes when the required field is supplied', async () => {

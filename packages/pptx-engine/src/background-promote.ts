@@ -1,4 +1,4 @@
-﻿/// Full-page background normalization. The cloud html→pptx converter encodes the
+/// Full-page background normalization. The cloud html→pptx converter encodes the
 /// page background as ordinary bottom-of-z-order full-page shapes when its own
 /// promotion heuristics miss (e.g. a 1px fully-transparent border on the
 /// container). Such shapes swallow every click/marquee on the slide, so:
@@ -55,7 +55,7 @@ function hasVisibleText(el: TextElement): boolean {
 /**
  * Strict predicate for the destructive rewrite: an unrotated, unflipped,
  * non-placeholder full-page rect with an opaque solid fill, invisible stroke, no
- * effects and no text : nothing is lost by replacing it with <p:bg>.
+ * effects and no text — nothing is lost by replacing it with <p:bg>.
  */
 function isPromotableBackgroundShape(el: SlideElement, size: SlideSize): el is TextElement {
   if (el.type !== 'shape' && el.type !== 'text') return false
@@ -88,7 +88,7 @@ function isReferencedByTiming(slide: Slide, el: SlideElement): boolean {
 
 /**
  * Promote the bottom-of-z-order contiguous run of full-page opaque solid shapes
- * into a native <p:bg> (topmost color wins : it is the one visible) and delete
+ * into a native <p:bg> (topmost color wins — it is the one visible) and delete
  * them. Returns whether anything was promoted; on success the slide is
  * structureDirty and its model background is updated.
  */

@@ -1,172 +1,154 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AgentLoop } from '../src'
-import type { AgentMessage, AgentSkill, AgentStreamCallbacks, AgentTransport } from '../src'
+import {
+  AgentLoop,
+  type AgentSkill,
+  type AgentStreamCallbacks,
+  type AgentStreamRequest,
+  type AgentTransport,
+} from '../src'
 
-/**
- * Compaction runs a second, summarising request through the same transport.
- * This one is scripted by message content so a test can tell the summarising
- * call apart from the real turn, and hold the summary open while it asserts
- * what a concurrent reset() does to it.
- */
-function compactionTransport(opts: {
-  /** gate the summarising call until released */
-  holdSummary?: boolean
-  summary?: string
-}) {
-  let realTurns = 0
-  const summaries: string[] = []
-  const realRequests: string[] = []
-  let releaseSummary: (() => void) | null = null
-  let summarySeen = 0
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
+function controlledTransport() {
+  const calls: Array<{
+    request: AgentStreamRequest
+    callbacks: AgentStreamCallbacks
+    cancel: ReturnType<typeof vi.fn>
+  }> = []
   const transport: AgentTransport = {
-    stream(request: { messages: AgentMessage[]; system: string }, cb: AgentStreamCallbacks) {
-      const isSummary = request.system.includes('conversation compressor')
-      if (isSummary) {
-        summarySeen++
-        summaries.push(request.system)
-        const emit = (): void => {
-          cb.onDelta(opts.summary ?? 'SUMMARY')
-          cb.onDone()
-        }
-        if (opts.holdSummary) releaseSummary = emit
-        else queueMicrotask(emit)
-        return { cancel: () => undefined }
-      }
-      realTurns++
-      // a tool-role message has results, not text
-      const last = request.messages.at(-1)
-      realRequests.push((last && last.role !== 'tool' ? last.text : '') ?? '')
-      queueMicrotask(() => {
-        cb.onDelta('answer')
-        cb.onDone()
-      })
-      return { cancel: () => undefined }
+    stream(request, callbacks) {
+      // Like the Electron transport, cancellation completes asynchronously.
+      const cancel = vi.fn(() => queueMicrotask(() => callbacks.onDone()))
+      calls.push({ request, callbacks, cancel })
+      return { cancel }
     },
   }
-  return {
-    transport,
-    summaries,
-    realRequests,
-    get realTurns() {
-      return realTurns
-    },
-    get summarySeen() {
-      return summarySeen
-    },
-    release: () => {
-      const r = releaseSummary
-      releaseSummary = null
-      r?.()
-    },
-  }
+  return { transport, calls }
 }
 
-const flush = async (n = 8) => {
-  for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0))
-}
-
-/** A skill whose context alone is enough to blow a tiny byte budget. */
-function bulkySkill(): AgentSkill {
-  return {
+async function startCompaction(advance: () => Promise<unknown> = flush) {
+  const { transport, calls } = controlledTransport()
+  const skill: AgentSkill = {
     id: 'test',
-    systemPrompt: 'system',
-    tools: [],
-    buildContext: () => 'C'.repeat(400),
-    executeTool: () => ({ output: 'ok', summary: 'x' }),
+    systemPrompt: 'Test system prompt',
+    tools: [{ name: 'read', description: 'Read', inputSchema: { type: 'object' } }],
+    executeTool: () => ({ output: 'ok', summary: 'Read completed' }),
   }
-}
-
-/** Fill history past maxBytes so the next run compacts. */
-async function grow(loop: AgentLoop, turns: number): Promise<void> {
-  for (let i = 0; i < turns; i++) {
-    loop.run(`message ${i}`)
-    await flush()
-  }
-}
-
-describe('compaction across a reset', () => {
-  it('keeps history empty when reset cancels a pending summary', async () => {
-    const t = compactionTransport({ holdSummary: true })
-    const loop = new AgentLoop({
-      transport: t.transport,
-      skill: bulkySkill(),
-      // a tiny budget so the second run always compacts
-      compaction: { maxBytes: 200, keepRecentBytes: 80, disableLlmSummary: false },
-      events: { onDone: vi.fn(), onError: vi.fn() },
-    })
-
-    await grow(loop, 2)
-    expect(t.realTurns).toBeGreaterThan(0)
-    expect(loop.messages.length).toBeGreaterThan(0)
-
-    // start a run, then reset while its summarising request is still open
-    loop.run('this will compact')
-    await flush(2)
-    expect(t.summarySeen).toBeGreaterThan(0)
-
-    loop.reset()
-    // the summary lands after the reset: it must not repopulate history
-    t.release()
-    await flush()
-
-    expect(loop.messages).toEqual([])
-    expect(loop.busy).toBe(false)
+  const onDone = vi.fn()
+  const loop = new AgentLoop({
+    transport,
+    skill,
+    events: { onDone },
+    compaction: { maxBytes: 500, keepRecentBytes: 100 },
   })
 
-  it('preserves a new conversation started right after a reset', async () => {
-    const t = compactionTransport({ holdSummary: true })
-    const loop = new AgentLoop({
-      transport: t.transport,
-      skill: bulkySkill(),
-      compaction: { maxBytes: 200, keepRecentBytes: 80 },
-      events: { onDone: vi.fn(), onError: vi.fn() },
-    })
+  // Build history through public calls. The long first reply exceeds the budget;
+  // a second user turn supplies a boundary at which that history can be folded.
+  loop.run('Old conversation instruction')
+  await advance()
+  calls[0]!.callbacks.onDelta('Old answer '.repeat(80))
+  calls[0]!.callbacks.onDone()
+  loop.run('Recent question')
+  await advance()
+  calls[1]!.callbacks.onDelta('Recent answer')
+  calls[1]!.callbacks.onDone()
 
-    await grow(loop, 2)
-    loop.run('compacting run')
-    await flush(2)
+  onDone.mockClear()
+  loop.run('Continue the old conversation')
+  await advance()
+  expect(calls).toHaveLength(3)
+  expect(calls[2]!.request.tools).toEqual([])
+  expect(calls[2]!.request.messages).toContainEqual({
+    role: 'user',
+    text: 'Old conversation instruction',
+  })
+  expect(loop.busy).toBe(true)
+  return { loop, calls, onDone, summary: calls[2]! }
+}
+
+describe('AgentLoop reset during compaction', () => {
+  it('keeps history empty when reset cancels a pending summary', async () => {
+    const { loop, calls, onDone, summary } = await startCompaction()
 
     loop.reset()
-    loop.run('brand new question')
-    t.release()
+    expect(summary.cancel).toHaveBeenCalledOnce()
+    expect(loop.messages).toEqual([])
     await flush()
 
-    // the new run's own turn is what history holds, and it is intact
-    const users = loop.messages.filter((m) => m.role === 'user').map((m) => m.text)
-    expect(users.some((u) => u.startsWith('brand new question'))).toBe(true)
+    // Cancellation without summary text must not reintroduce a mechanical digest.
+    expect(loop.messages).toEqual([])
+    expect(loop.busy).toBe(false)
+    expect(calls).toHaveLength(3)
+    expect(onDone).not.toHaveBeenCalled()
+  })
+
+  it('cancels a timed-out summary before starting the real turn', async () => {
+    vi.useFakeTimers()
+    try {
+      const { calls, loop, summary } = await startCompaction(() => vi.advanceTimersByTimeAsync(0))
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(summary.cancel).toHaveBeenCalledOnce()
+      expect(calls).toHaveLength(4)
+      const continuation = calls[3]!
+      expect(continuation.request.messages[0]).toEqual({
+        role: 'user',
+        text: expect.stringContaining('[Summary of earlier conversation'),
+      })
+      continuation.callbacks.onDelta('Continued answer')
+      continuation.callbacks.onDone()
+      expect(loop.busy).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves a new conversation started immediately after reset', async () => {
+    const { loop, calls, onDone, summary } = await startCompaction()
+    summary.callbacks.onDelta('Summary belonging only to the old conversation')
+
+    loop.reset()
+    loop.run('Fresh conversation instruction')
+    await flush()
+    expect(calls).toHaveLength(4)
+    const freshTurn = calls[3]!
+    freshTurn.callbacks.onDelta('Fresh conversation answer')
+    freshTurn.callbacks.onDone()
+
+    expect(loop.messages).toEqual([
+      { role: 'user', text: 'Fresh conversation instruction' },
+      { role: 'assistant', text: 'Fresh conversation answer' },
+    ])
+    expect(freshTurn.request.messages).toEqual([
+      { role: 'user', text: 'Fresh conversation instruction' },
+    ])
+    expect(loop.busy).toBe(false)
+    expect(onDone).toHaveBeenCalledExactlyOnceWith({
+      text: 'Fresh conversation answer',
+      cancelled: false,
+      turnLimit: false,
+    })
   })
 
   it('retains the summary and recent messages when the conversation is not reset', async () => {
-    const t = compactionTransport({ summary: 'EARLIER WORK SUMMARY' })
-    const loop = new AgentLoop({
-      transport: t.transport,
-      skill: bulkySkill(),
-      compaction: { maxBytes: 200, keepRecentBytes: 80 },
-      events: { onDone: vi.fn(), onError: vi.fn() },
-    })
-
-    await grow(loop, 3)
+    const { loop, calls, summary } = await startCompaction()
+    summary.callbacks.onDelta('Old conversation summary')
+    summary.callbacks.onDone()
     await flush()
 
-    // compaction happened and its digest stayed in history
-    expect(t.summarySeen).toBeGreaterThan(0)
-    const dump = JSON.stringify(loop.messages)
-    expect(dump).toContain('EARLIER WORK SUMMARY')
-    // and the conversation is still usable afterwards
+    expect(calls).toHaveLength(4)
+    const continuation = calls[3]!
+    expect(continuation.request.messages[0]).toEqual({
+      role: 'user',
+      text: expect.stringContaining('Old conversation summary'),
+    })
+    expect(continuation.request.messages.slice(2)).toEqual([
+      { role: 'user', text: 'Recent question' },
+      { role: 'assistant', text: 'Recent answer' },
+      { role: 'user', text: 'Continue the old conversation' },
+    ])
+    continuation.callbacks.onDelta('Continued answer')
+    continuation.callbacks.onDone()
+    expect(loop.messages.at(-1)).toEqual({ role: 'assistant', text: 'Continued answer' })
     expect(loop.busy).toBe(false)
-  })
-
-  it('can be disabled entirely', async () => {
-    const t = compactionTransport({})
-    const loop = new AgentLoop({
-      transport: t.transport,
-      skill: bulkySkill(),
-      compaction: false,
-      events: { onDone: vi.fn(), onError: vi.fn() },
-    })
-    await grow(loop, 3)
-    await flush()
-    expect(t.summarySeen).toBe(0)
   })
 })
