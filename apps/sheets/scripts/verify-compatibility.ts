@@ -1,8 +1,8 @@
-﻿import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-import { applyPlanToXlsx } from '../src/gateway/xlsx-gateway'
-import type { CellState, ChangePlan } from '../src/domain/workbook.types'
+import { applyPlanToXlsx } from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
+import type { CellState, ChangePlan } from '@revelith/xlsx-gateway/domain/workbook.types'
 
 interface CorpusCase {
   fixture: string
@@ -90,7 +90,7 @@ async function verifyCase(entry: CorpusCase): Promise<FixtureReport> {
     const changedEntries = mutation.afterEntries
       .filter((e) => beforeByPath.get(e.path) !== e.sha256)
       .map((e) => e.path)
-    // entries that vanished from the package are preservation failures too :
+    // entries that vanished from the package are preservation failures too —
     // hash comparison alone never sees them because they have no after-entry
     const removedEntries = mutation.beforeEntries
       .filter((e) => !afterPaths.has(e.path))

@@ -1,10 +1,10 @@
-﻿import type { Editor } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 
 /**
  * Tracks which textbox sub-editor (if any) should receive ribbon commands.
  * The last-focused sub-editor stays active until the main editor takes focus
  * back, so clicking a ribbon button (which briefly steals focus) still routes
- * the command into the textbox : mirroring how Word keeps the shape selected.
+ * the command into the textbox — mirroring how Word keeps the shape selected.
  */
 
 type Listener = (docChanged: boolean) => void

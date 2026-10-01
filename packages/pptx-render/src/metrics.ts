@@ -1,5 +1,5 @@
-﻿/**
- * 2.3 Text metrics (fidelity linchpin) : font metrics abstraction layer.
+/**
+ * 2.3 Text metrics (fidelity linchpin) — font metrics abstraction layer.
  *
  * The key to fidelity is owning the font metrics: don't rely on browser Canvas
  * measureText (untestable, inconsistent across environments); instead parse real
@@ -8,8 +8,8 @@
  * line-height results.
  *
  * Design: FontMetricsProvider interface + two implementations:
- *   1. OpentypeMetrics : real fonts (opentype.Font), pixel-accurate.
- *   2. HeuristicMetrics : deterministic fallback without font files (advance
+ *   1. OpentypeMetrics — real fonts (opentype.Font), pixel-accurate.
+ *   2. HeuristicMetrics — deterministic fallback without font files (advance
  *      estimated by character class), keeping wrapping logic unit-testable and
  *      cross-environment consistent; once the frontend loads real fonts it
  *      switches to exact metrics automatically.
@@ -20,6 +20,15 @@ export interface RunStyle {
   fontSizePx: number
   bold: boolean
   italic: boolean
+  /** Apply kern pairs when measuring (PowerPoint kerns only at fontSize ≥ rPr kern; default true) */
+  kerning?: boolean
+  /** CJK substitution script for a missing fontFamily (from run altLang/lang or the
+   *  bucket @charset, PowerPoint semantics); overrides name-based classification */
+  substScript?: 'ja' | 'ko' | 'sc' | 'tc'
+  /** The text has no CJK characters: a missing family substitutes as western even when
+   *  its name looks CJK (PowerPoint picks the substitute per character script — prod_026's
+   *  "ISO 45001" in a missing NanumSquare face sets in Calibri, not Malgun) */
+  latinOnly?: boolean
 }
 
 export interface FontMetrics {
@@ -27,8 +36,11 @@ export interface FontMetrics {
   ascent: number
   /** Descent at the font size (baseline to bottom, px, positive) */
   descent: number
-  /** Suggested line height (px) */
+  /** Suggested line height (px) — the line box, without external leading */
   lineHeight: number
+  /** External leading (hhea lineGap, px): advances the next line but sits outside the
+   *  line box (CoreText/PowerPoint single-spacing = lineHeight + externalLeading) */
+  externalLeading?: number
 }
 
 export interface FontMetricsProvider {
@@ -45,6 +57,13 @@ export interface FontMetricsProvider {
    * script (complex-script runs measure/draw with the same shaping font).
    */
   displayFamily?(style: RunStyle, text?: string): string
+  /**
+   * True when the requested family is missing and a same-script/class font was
+   * substituted. PowerPoint never kerns substituted text, so layout drops kerning for
+   * these runs. Metric-compatible alias resolutions (Calibri→Carlito) are NOT
+   * substitutions — PowerPoint has those fonts and kerns them. Unimplemented = never.
+   */
+  substituted?(style: RunStyle): boolean
 }
 
 // ── Grapheme clusters ───────────────────────────────────────────────
@@ -57,7 +76,7 @@ const SEGMENTER: Intl.Segmenter | null =
 /**
  * Split by grapheme cluster (combining marks / ZWJ emoji / flags / skin-tone
  * sequences stay intact). Both measurement and line breaking must treat clusters
- * as the smallest unit : splitting by code point would push Thai combining vowels
+ * as the smallest unit — splitting by code point would push Thai combining vowels
  * to a line start and measure an emoji sequence as N character widths.
  */
 export function graphemes(text: string): string[] {
@@ -105,11 +124,13 @@ function charAdvanceEm(code: number): number {
   if (isWideChar(code)) return 1.0
   // emoji ranges (rough)
   if (code >= 0x1f000 || (code >= 0x2600 && code <= 0x27bf)) return 1.0
-  // Geometric shapes (◆ ○ ▪ ► …) and the CJK reference mark ※: EAW "Ambiguous" :
+  // Geometric shapes (◆ ○ ▪ ► …) and the CJK reference mark ※: EAW "Ambiguous" —
   // this fallback runs when the resolved font lacks the glyph, and the browser then
   // substitutes a CJK font where these draw full-width. Over-estimating only widens
   // a gap; under-estimating makes bullet glyphs overlap the text they precede.
   if ((code >= 0x25a0 && code <= 0x25ff) || code === 0x203b) return 1.0
+  // Enclosed alphanumerics (① … ⑸ … ⓩ): same ambiguous-width fallback story as above
+  if (code >= 0x2460 && code <= 0x24ff) return 1.0
   // narrow characters
   if ("iIlj.,:;'!|".includes(String.fromCharCode(code))) return 0.28
   if (' ftr'.includes(String.fromCharCode(code))) return 0.32
@@ -166,7 +187,10 @@ export interface OpentypeFontLike {
   unitsPerEm: number
   ascender: number
   descender: number
-  getAdvanceWidth(text: string, fontSize: number): number
+  /** hhea lineGap (external leading, font units); part of the single-spacing line height */
+  lineGap?: number
+  /** options matches opentype.js Font.getAdvanceWidth (kerning defaults to true) */
+  getAdvanceWidth(text: string, fontSize: number, options?: { kerning?: boolean }): number
   /** Optional: char → glyph index (0 = missing glyph). Used for the missing-glyph heuristic fallback. */
   charToGlyphIndex?(char: string): number
 }
@@ -187,7 +211,17 @@ export class OpentypeMetrics implements FontMetricsProvider {
     const scale = style.fontSizePx / font.unitsPerEm
     const ascent = font.ascender * scale
     const descent = Math.abs(font.descender) * scale
-    return { ascent, descent, lineHeight: ascent + descent }
+    // Single spacing includes the hhea lineGap as EXTERNAL leading: CoreText — and with
+    // it PowerPoint for Mac — paces Times New Roman/Arial at (asc+desc+gap) = 1.15em,
+    // not the bare asc+desc 1.107/1.117em (dropping the gap made multi-line text creep
+    // upward). The gap advances lines but stays outside the line box.
+    const lineGap = (font.lineGap ?? 0) * scale
+    return {
+      ascent,
+      descent,
+      lineHeight: ascent + descent,
+      ...(lineGap > 0 ? { externalLeading: lineGap } : {}),
+    }
   }
 
   measure(text: string, style: RunStyle): number {
@@ -202,7 +236,7 @@ export class OpentypeMetrics implements FontMetricsProvider {
           if (font.charToGlyphIndex(ch) === 0) return this.fallback.measure(text, style)
         }
       }
-      return font.getAdvanceWidth(text, style.fontSizePx)
+      return font.getAdvanceWidth(text, style.fontSizePx, { kerning: style.kerning !== false })
     } catch {
       return this.fallback.measure(text, style)
     }

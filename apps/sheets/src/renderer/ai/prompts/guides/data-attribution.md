@@ -1,4 +1,4 @@
-﻿# Data source attribution guide (data-attribution)
+# Data source attribution guide (data-attribution)
 
 When filling a sheet with external data (web search, scraping, APIs, etc.), you must leave traceable source citations. Implement them with `set_hyperlink` + `set_cell` + `format_range`.
 
@@ -8,9 +8,9 @@ When filling a sheet with external data (web search, scraping, APIs, etc.), you 
 |---|---|---|
 | Financial data (SEC, earnings reports) | Required | Footer row or a dedicated Sources sheet |
 | Web search results | Required | Source column |
-| Data uploaded by the user | Not needed | : |
-| Values derived by formulas/calculation | Not needed | : |
-| Common knowledge (dates, unit conversions) | Not needed | : |
+| Data uploaded by the user | Not needed | — |
+| Values derived by formulas/calculation | Not needed | — |
+| Common knowledge (dates, unit conversions) | Not needed | — |
 
 ## Method 1: Source column
 
@@ -64,5 +64,5 @@ After it applies, write into the new sheet:
 ## Discipline
 
 - **Never fabricate data**: every factual cell needs a source (user-provided / already in the sheet / read via tools); attribution makes the source verifiable.
-- Derived values are computed with formulas and their methodology explained : they do not need source tracing.
+- Derived values are computed with formulas and their methodology explained — they do not need source tracing.
 - When a hyperlink target is a bare domain the system prepends `https://` automatically; use "Sheet!A1" for in-workbook references.

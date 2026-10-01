@@ -1,22 +1,110 @@
-# Ignore Electron & build artifacts
-node_modules
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build, Output & Distribution
+#
+# `build/` is deliberately NOT ignored repo-wide. apps/docs/build/ and
+# apps/shell/build/ hold TRACKED source assets (app icons, mac entitlements,
+# NSIS installer scripts, blank.* templates). A blanket `build/` rule makes git
+# silently skip any NEW icon or script added there, so it could only be staged
+# with `git add -f`. Only the generated files inside those dirs are ignored,
+# and they are listed explicitly in the last section of this file.
+
+# electron-vite output (main / preload / renderer bundles)
 out/
+# tsc / vite / rollup library output
 dist/
+# electron-builder installer output (.exe .msi .dmg .AppImage .deb .rpm)
+release/
+# cargo / rust build output
+target/
+*.tsbuildinfo
+*.node
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.zip
+*.tar.gz
+
+# Cache & Temporary Directories
+.cache/
+*.cache
+tmp/
+temp/
+.tmp/
+.temp/
+.turbo/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Test Coverage & Generated Test Reports
+coverage/
+.nyc_output/
+.task/
+test-results/
+playwright-report/
+blob-report/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Databases & Runtime State
 *.db
 *.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+.revelith/
 
-# Ignore IDE & log files
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# IDE & Editor Configurations
 .vscode/
-*.log
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Ignore generated test reports
-.task/
-
-# Ignore prompt template
+# Packaging Artifacts & Reference Sources
+# Generated files inside the tracked apps/*/build/ asset dirs
+# (see the note in the Build section above -- `build/` itself is NOT ignored)
+apps/shell/build/THIRD-PARTY-NOTICES.txt
+# per-filetype Windows/mac icons baked into OS file associations
+# (tools/gen-file-association-icons.mjs -> apps/shell/build/<type>.{ico,icns})
+apps/shell/build/*.ico
+apps/shell/build/*.icns
+# ...but keep the tracked main app icon
+!apps/shell/build/icon.ico
+!apps/shell/build/icon.icns
+# electron-builder NSIS/Linux hooks
+apps/shell/build/linux-after-install.sh
+apps/shell/build/linux-after-remove.sh
+# generated size ladder in apps/shell/build/icons/ (keeps docx.png, md.png, ...)
+apps/shell/build/icons/[0-9]*x[0-9]*.png
 docs/TASK_PROMPT_TEMPLATE.md
-# Ignore SSH keys & credentials
-*.pub
-revelith_vps*
-id_*
-*.pem
-*.key
+assets/genoffice-0.11.0/
+# local scratch notes
+assets/new.md

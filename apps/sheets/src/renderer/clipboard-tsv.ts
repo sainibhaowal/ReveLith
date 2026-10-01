@@ -1,6 +1,6 @@
-﻿/**
+/**
  * Clipboard plain-text interop. Univer's copy joins raw cell text with
- * tabs : booleans land as 1/0 and embedded newlines go out unquoted (as bare
+ * tabs — booleans land as 1/0 and embedded newlines go out unquoted (as bare
  * \r), so Excel/Numbers/scripts mis-parse the paste. Wrap the clipboard
  * service's content generation and rebuild the plain slice with Excel's TSV
  * conventions: TRUE/FALSE for booleans, CSV-style quoting for fields carrying
@@ -23,16 +23,24 @@ type ClipboardCell = ICellData & { displayV?: string }
 /// CSV-style quoting when the text carries tabs/newlines/quotes.
 export function clipboardField(cell: ClipboardCell | null | undefined): string {
   if (!cell) return ''
+  if (
+    cell.t === CellValueType.BOOLEAN &&
+    (cell.v === null || cell.v === undefined || cell.v === '')
+  ) {
+    return ''
+  }
   const text =
     cell.t === CellValueType.BOOLEAN
       ? Number(cell.v) === 0
         ? 'FALSE'
         : 'TRUE'
       : (cell.displayV ??
-        // extractPureTextFromCell strips \r line breaks : keep string values
+        // extractPureTextFromCell strips \r line breaks — keep string values
         // verbatim so embedded newlines survive to be quoted below
         (typeof cell.v === 'string' ? cell.v : extractPureTextFromCell(cell)))
-  const normalized = text.replace(/\r\n|\r+/g, '\n').replace(/\n+$/, '')
+  // Only normalize line endings: trailing newlines are significant cell
+  // content and must survive (quoted) instead of being stripped.
+  const normalized = text.replace(/\r\n|\r/g, '\n')
   return /[\t\n"]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized
 }
 

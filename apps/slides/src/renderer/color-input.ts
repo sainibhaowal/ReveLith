@@ -1,9 +1,9 @@
-﻿/**
+/**
  * Native <input type="color"> never fires a change event when the user picks the exact
  * color the input already holds (e.g. adding a black stroke while the input's default is
  * already black, or applying the same custom text color to a second element). Call this
  * right before the picker opens: it flips the lowest bit of the blue channel, so any
- * confirmed selection : including the previously shown color : differs from the input's
+ * confirmed selection — including the previously shown color — differs from the input's
  * value and fires change. The 1/255 difference is imperceptible in the picker preview.
  */
 export function armColorInput(input: HTMLInputElement): void {

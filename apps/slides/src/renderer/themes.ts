@@ -1,11 +1,11 @@
-﻿/**
- * Built-in theme presets (Design tab theme gallery) : full color + font schemes.
+/**
+ * Built-in theme presets (Design tab theme gallery) — full color + font schemes.
  *
  * Each set = the 12 OOXML clrScheme slots + latin fonts for headings/body. On apply, the main
  * process rewrites theme*.xml in the package (scheme-referenced colors follow), and remaps the
  * deck's explicit srgbClr colors onto the new palette (neutrals
  * move along the dk1<->lt1 axis, chromatic colors map to accent1..6 by frequency, changing hue
- * only while keeping lightness) : so decks with explicit colors can also be reskinned in one click.
+ * only while keeping lightness) — so decks with explicit colors can also be reskinned in one click.
  *
  * Slot semantics: dk1=body text color, lt1=page background, dk2/lt2=secondary dark/light,
  * accent1..6=accent colors, hlink/folHlink=hyperlink colors.

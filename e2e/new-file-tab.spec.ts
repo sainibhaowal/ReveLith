@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
 
 test.describe('new file from home', () => {
@@ -16,9 +16,9 @@ test.describe('new file from home', () => {
       await page.screenshot({ path: screenshotPath('new-doc-tab-bar') })
 
       // the docs editor loads in a WebContentsView, which surfaces as a new
-      // page : poll for it instead of waitForLoadState, which hangs on Linux
+      // page — poll for it instead of waitForLoadState, which hangs on Linux
       // when Playwright attaches mid-navigation and misses lifecycle events
-      const editorPage = await waitForPageWithUrl(app, 'docs/out')
+      const editorPage = await waitForPageWithUrl(app, '://docs/')
       await expect(editorPage.locator('body')).toBeVisible()
       await editorPage.screenshot({ path: screenshotPath('new-doc-editor') })
     } finally {

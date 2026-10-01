@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Unit tests for pure geometry align/distribute functions (alignRects / distributeRects).
  * No IO, no model dependency; verifies correctness of 6 alignments + 2 distributions.
  */
@@ -12,7 +12,7 @@ const R = (x: number, y: number, w: number, h: number) => ({ x, y, w, h })
 // ── Alignment tests ───────────────────────────────────────────────────────────
 
 describe('alignRects', () => {
-  describe('multi-select (no container : aligns to bounding box)', () => {
+  describe('multi-select (no container — aligns to bounding box)', () => {
     const rects = [R(100, 200, 50, 30), R(300, 100, 80, 60)]
 
     it('left: all elements x = bounding box left edge', () => {

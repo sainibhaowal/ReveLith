@@ -13,7 +13,7 @@ interface LocaleValue {
   setLang: (lang: Lang) => void
 }
 
-const LocaleContext = createContext<LocaleValue>({ lang: 'en', setLang: () => {} })
+const LocaleContext = createContext<LocaleValue>({ lang: 'zh', setLang: () => {} })
 
 export function LocaleProvider({ initial, children }: { initial: Lang; children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(initial)
@@ -55,11 +55,13 @@ const DATE_LOCALES: Record<Lang, string> = {
   pt: 'pt-BR',
   it: 'it-IT',
   pl: 'pl-PL',
+  cs: 'cs-CZ',
   nl: 'nl-NL',
   ms: 'ms-MY',
   he: 'he-IL',
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
+  vi: 'vi-VN',
 }
 
 export function useI18n(): I18n {

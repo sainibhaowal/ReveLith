@@ -1,5 +1,5 @@
-﻿/**
- * Phase 2: Connector shape attachments (a:stCxn/a:endCxn) :
+/**
+ * Phase 2: Connector shape attachments (a:stCxn/a:endCxn) —
  * setElementConnection byte surgery + move-following via updateConnectorsForMoved.
  */
 import { describe, it, expect } from 'vitest'

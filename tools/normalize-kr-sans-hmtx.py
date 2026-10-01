@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalize Revelith Sans KR Basic Latin advances to Malgun Gothic.
+"""Normalize ReveLith Sans KR Basic Latin advances to Malgun Gothic.
 
 Word substitutes missing Korean sans families with Malgun Gothic; the bundled
 subset (Noto Sans CJK KR) ships hangul already normalized to 1.0em but keeps

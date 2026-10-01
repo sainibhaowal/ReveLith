@@ -1,8 +1,9 @@
+import { aiPanelWidthAtPointer, AiPanelSideButton } from '@revelith/ui'
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react'
 import { AgentLoop } from '@revelith/agent-core'
-import type { AiSettings } from '@revelith/ai-provider'
-import { AiComposer, AiTypingIndicator, QuickModelSelector } from '@revelith/ui'
+import { imageGenerationAvailable, type AiSettings } from '@revelith/ai-provider/browser'
+import { AiComposer, AiScopeQuote, AiTypingIndicator, type AiScopeQuoteData } from '@revelith/ui'
 import { aiLangDirective, t as tGlobal, useI18n } from '../i18n/locale'
 import { Markdown } from '@revelith/ui'
 import sendEnterOn from '../assets/send-enter-on.png'
@@ -10,7 +11,17 @@ import sendEnterOff from '../assets/send-enter-off.png'
 import sendStop from '../assets/send-stop.png'
 import { createPdfSkill } from './pdf-skill'
 import { createElectronTransport } from './transport'
-import type { PdfAiDeps } from './tools'
+import { PDF_NAV_SCHEME, parsePdfNavHref } from './pdf-nav'
+import type { FileOpConfirm, PdfAiDeps, PdfAppDeps } from './tools'
+
+// Word-parity count (same as docs/markdown): Asian chars one by one + non-Asian words
+const ASIAN_RE =
+  /[ᄀ-ᇿ⺀-⿟、-〿぀-ヿ㄀-ㄯ㄰-㆏㇀-ㇿ㐀-䶿一-鿿가-힯豈-﫿！-｠￠-￦]|[\uD840-\uD87F][\uDC00-\uDFFF]/g
+const NON_ASIAN_WORD_RE = /[A-Za-z0-9À-ɏ]+(?:['-][A-Za-z0-9À-ɏ]+)*/g
+
+function countWords(text: string): number {
+  return (text.match(ASIAN_RE) ?? []).length + (text.match(NON_ASIAN_WORD_RE) ?? []).length
+}
 
 const PANEL_WIDTH_KEY = 'pdf-ai-panel-width'
 const PANEL_WIDTH_DEFAULT = 360
@@ -25,7 +36,7 @@ function clampPanelWidth(w: number): number {
 
 function loadPanelWidth(): number {
   const saved = Number(localStorage.getItem(PANEL_WIDTH_KEY))
-  // static bounds only : clamping against the window here would bake a
+  // static bounds only — clamping against the window here would bake a
   // transiently small viewport into the restored preference
   return Number.isFinite(saved) && saved > 0
     ? Math.min(Math.max(saved, PANEL_WIDTH_MIN), 720)
@@ -47,27 +58,182 @@ interface ChatEntry {
   /** the run failed and this user message was rolled back out of the model context */
   undelivered?: boolean
   tools?: ToolActivity[]
+  /** the passage this user message targeted, frozen at send */
+  scope?: AiScopeQuoteData
 }
+
+/** longest selection excerpt echoed on a user bubble */
+const SCOPE_TEXT_MAX = 200
 
 type Phase = 'thinking' | 'replying' | 'working'
 
+interface PendingConfirm {
+  req: FileOpConfirm
+  settle: (ok: boolean) => void
+}
+
 export function AiPanel({
   api,
+  filePath,
   onCollapse,
   preset,
+  onRunDone,
+  onClearSelection,
 }: {
-  api: PdfAiDeps
+  api: PdfAppDeps
+  /** Absolute path of the open PDF (chat history is keyed to it) */
+  filePath?: string
   onCollapse: () => void
   /** Ribbon AI buttons push a one-shot prompt; a new nonce triggers an auto-run */
   preset?: { text: string; nonce: number } | null
+  /** Fired when a run that mutated the document finishes (drives the untitled-blank auto-save) */
+  onRunDone?: () => void
+  /** The × on the scope chip: drop the cached selection so runs target the whole document */
+  onClearSelection?: () => void
 }): ReactElement {
   const { lang, t } = useI18n()
   const [chat, setChat] = useState<ChatEntry[]>([])
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
   const [phase, setPhase] = useState<Phase>('thinking')
+  /** the scope chip's expandable preview of the selected text */
+  const [scopePreviewOpen, setScopePreviewOpen] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
+
+  // ── Chat-history persistence (r142): same shared store Docs/Sheets use ──
+  const chatIdsRef = useRef<{ projectId: string; chatId: string } | null>(null)
+  /** current turn's streamed text; completed turns collect into runTextsRef */
+  const segTextRef = useRef('')
+  /** whole-run accumulation: one stored assistant message per run (consecutive
+      assistant rows would break restore() on strict-alternation providers) */
+  const runTextsRef = useRef<string[]>([])
+  const runToolsRef = useRef<ToolActivity[]>([])
+  const chatStore = () =>
+    (
+      window as Window & {
+        projectApi?: {
+          resolveChat(args: {
+            filePath: string | null
+            tempChatId?: string
+          }): Promise<{ projectId: string; chatId: string }>
+          appendChat(args: {
+            projectId: string
+            chatId: string
+            role: 'user' | 'assistant'
+            text: string
+            tools?: Array<{ name: string; summary: string; isError?: boolean; output?: string }>
+            scope?: AiScopeQuoteData
+          }): Promise<void>
+          loadChat(args: { projectId: string; chatId: string; limit?: number }): Promise<
+            Array<{
+              role: 'user' | 'assistant'
+              text: string
+              tools?: Array<{ name: string; summary: string; isError?: boolean; output?: string }>
+              scope?: AiScopeQuoteData
+            }>
+          >
+          rebindChat(args: {
+            projectId: string
+            tempChatId: string
+            newFilePath: string
+          }): Promise<{ projectId: string; chatId: string } | null>
+        }
+      }
+    ).projectApi
+  const persistMessage = (
+    role: 'user' | 'assistant',
+    text: string,
+    tools?: ToolActivity[],
+    scope?: AiScopeQuoteData,
+  ): void => {
+    const ids = chatIdsRef.current
+    const store = chatStore()
+    if (!ids || !store || (!text && !tools?.length)) return
+    void store
+      .appendChat({
+        projectId: ids.projectId,
+        chatId: ids.chatId,
+        role,
+        text,
+        ...(tools && tools.length > 0
+          ? {
+              tools: tools.map((tool) => ({
+                name: tool.name,
+                summary: tool.summary,
+                isError: tool.isError,
+                output: tool.output,
+              })),
+            }
+          : {}),
+        ...(scope ? { scope } : {}),
+      })
+      .catch(() => {
+        /* silent */
+      })
+  }
+  /** persist the whole run as ONE assistant message (docs parity: restore()
+      feeds these back verbatim, and providers require user/assistant
+      alternation; cancelled runs persist nothing — the unanswered user
+      message is filtered out by restore()) */
+  const persistRun = (): void => {
+    const texts = [...runTextsRef.current, segTextRef.current].filter(Boolean)
+    const tools = runToolsRef.current
+    segTextRef.current = ''
+    runTextsRef.current = []
+    runToolsRef.current = []
+    if (texts.length > 0 || tools.length > 0) {
+      persistMessage('assistant', texts.join('\n\n'), tools)
+    }
+  }
+  useEffect(() => {
+    const store = chatStore()
+    if (!store) return
+    const tempChatId = `unsaved-${Date.now()}`
+    void store
+      .resolveChat({ filePath: filePath || null, tempChatId })
+      .then((ids) => {
+        chatIdsRef.current = ids
+        return store.loadChat({ projectId: ids.projectId, chatId: ids.chatId, limit: 200 })
+      })
+      .then((msgs) => {
+        if (msgs.length === 0) return
+        setChat((prev) => [
+          ...msgs.map((m) => ({
+            role: m.role,
+            text: m.text,
+            tools: m.tools?.map((tool) => ({
+              name: tool.name,
+              summary: tool.summary,
+              isError: tool.isError,
+              output: tool.output,
+            })),
+            ...(m.scope ? { scope: m.scope } : {}),
+          })),
+          ...prev,
+        ])
+        // follow-ups after reopening continue the previous conversation
+        loopRef.current?.restore(msgs.map((m) => ({ role: m.role, text: m.text })))
+      })
+      .catch(() => {
+        /* history load failures are silent */
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only, like Docs
+  }, [])
+  /** blank/generated PDFs get a path on first save: bind the unsaved-* history to it */
+  useEffect(() => {
+    const ids = chatIdsRef.current
+    const store = chatStore()
+    if (!store || !ids || !filePath || !ids.chatId.startsWith('unsaved-')) return
+    void store
+      .rebindChat({ projectId: ids.projectId, tempChatId: ids.chatId, newFilePath: filePath })
+      .then((rebound) => {
+        if (rebound?.chatId) chatIdsRef.current = rebound
+      })
+      .catch(() => {
+        /* silent */
+      })
+  }, [filePath])
   // preferred = the user's chosen width (the only value persisted); panelWidth =
   // what fits the current window. Deriving the display width from the preference
   // means a transiently small window never permanently shrinks the panel.
@@ -83,10 +249,59 @@ export function AiPanel({
     dock?.style.setProperty('--ai-panel-width', `${panelWidth}px`)
   }, [panelWidth])
   const settingsRef = useRef<AiSettings | null>(null)
+
+  /** gsk login state for the cloud-tools gate (refreshed on mount and window focus) */
+  const gskLoggedInRef = useRef(false)
+  useEffect(() => {
+    let alive = true
+    const refresh = () => {
+      void window.pdfApi
+        ?.gskStatus()
+        .then((s) => {
+          if (alive) gskLoggedInRef.current = !!s?.loggedIn
+        })
+        .catch(() => {})
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    return () => {
+      alive = false
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
   const langRef = useRef(lang)
   langRef.current = lang
   const apiRef = useRef(api)
   apiRef.current = api
+  const onRunDoneRef = useRef(onRunDone)
+  onRunDoneRef.current = onRunDone
+  /** Any tool in the current run reported mutated: true */
+  const runMutatedRef = useRef(false)
+
+  /** Confirmation card for irreversible file operations; one at a time, a second request is refused */
+  const [fileOpConfirm, setFileOpConfirm] = useState<FileOpConfirm | null>(null)
+  const confirmRef = useRef<PendingConfirm | null>(null)
+  const requestFileOpConfirm = (req: FileOpConfirm, signal?: AbortSignal): Promise<boolean> =>
+    new Promise((resolve) => {
+      if (confirmRef.current || signal?.aborted) {
+        resolve(false)
+        return
+      }
+      const pending: PendingConfirm = {
+        req,
+        settle: (ok) => {
+          if (confirmRef.current !== pending) return
+          confirmRef.current = null
+          setFileOpConfirm(null)
+          resolve(ok)
+        },
+      }
+      confirmRef.current = pending
+      setFileOpConfirm(req)
+      signal?.addEventListener('abort', () => pending.settle(false), { once: true })
+    })
+  // another document or the panel going away answers a pending card with "no"
+  useEffect(() => () => confirmRef.current?.settle(false), [filePath])
 
   const patchLast = (patch: Partial<ChatEntry> | ((last: ChatEntry) => Partial<ChatEntry>)) => {
     setChat((prev) => {
@@ -107,17 +322,47 @@ export function AiPanel({
       pageCount: () => apiRef.current.pageCount(),
       currentPage: () => apiRef.current.currentPage(),
       readOnly: () => apiRef.current.readOnly(),
+      ocrText: (idx) => apiRef.current.ocrText(idx),
+      selection: () => apiRef.current.selection(),
+      pendingSummary: () => apiRef.current.pendingSummary(),
       outline: () => apiRef.current.outline(),
       searchIndex: () => apiRef.current.searchIndex(),
       isDeleted: (i) => apiRef.current.isDeleted(i),
       gotoPage: (p) => apiRef.current.gotoPage(p),
-      addMarkup: (type, idx, rects) => apiRef.current.addMarkup(type, idx, rects),
+      addMarkup: (type, idx, rects, color) => apiRef.current.addMarkup(type, idx, rects, color),
+      annotationSummary: () => apiRef.current.annotationSummary(),
+      createDocument: (request) => apiRef.current.createDocument(request),
+      confirmFileOp: requestFileOpConfirm,
+      insertBlankPage: (afterVis) => apiRef.current.insertBlankPage(afterVis),
+      setPageSize: (w, h) => apiRef.current.setPageSize(w, h),
+      cropPages: (vis, rect) => apiRef.current.cropPages(vis, rect),
+      replacePages: (vis) => apiRef.current.replacePages(vis),
+      extractPages: (vis) => apiRef.current.extractPages(vis),
+      splitPdf: (n) => apiRef.current.splitPdf(n),
+      splitPages: (n) => apiRef.current.splitPages(n),
+      mergePages: (n, direction, separator) => apiRef.current.mergePages(n, direction, separator),
+      stamps: () => apiRef.current.stamps(),
+      setStamps: (cfg) => apiRef.current.setStamps(cfg),
+      annotationsOn: (idx) => apiRef.current.annotationsOn(idx),
+      addNote: (idx, at, contents, color) => apiRef.current.addNote(idx, at, contents, color),
+      findNoteRoot: (idx, key) => apiRef.current.findNoteRoot(idx, key),
+      replyToThread: (idx, root, contents) => apiRef.current.replyToThread(idx, root, contents),
+      editNote: (idx, item, contents) => apiRef.current.editNote(idx, item, contents),
+      deleteMarkups: (idx, keys) => apiRef.current.deleteMarkups(idx, keys),
+      deleteNoteThread: (idx, root) => apiRef.current.deleteNoteThread(idx, root),
       editText: (input) => apiRef.current.editText(input),
+      moveTextBlock: (idx, block, d) => apiRef.current.moveTextBlock(idx, block, d),
+      insertText: (input) => apiRef.current.insertText(input),
+      addFormMark: (idx, kind, rect) => apiRef.current.addFormMark(idx, kind, rect),
+      textInserts: () => apiRef.current.textInserts(),
+      updateTextInsert: (id, edit) => apiRef.current.updateTextInsert(id, edit),
+      moveTextInsert: (id, origin) => apiRef.current.moveTextInsert(id, origin),
+      deleteTextInsert: (id) => apiRef.current.deleteTextInsert(id),
       editFonts: () => apiRef.current.editFonts(),
       formEdits: () => apiRef.current.formEdits(),
-      applyFormEdit: (v) => apiRef.current.applyFormEdit(v),
-      rotatePage: (idx, dir) => apiRef.current.rotatePage(idx, dir),
-      deletePage: (idx) => apiRef.current.deletePage(idx),
+      applyOps: (ops, opts) => apiRef.current.applyOps(ops, opts),
+      metadata: () => apiRef.current.metadata(),
+      pageOrder: () => apiRef.current.pageOrder(),
       pageGeom: (idx) => apiRef.current.pageGeom(idx),
       listImages: () => apiRef.current.listImages(),
       isImageClaimed: (ref) => apiRef.current.isImageClaimed(ref),
@@ -125,9 +370,12 @@ export function AiPanel({
       transformImage: (ref, rect, layer, quarterTurns) =>
         apiRef.current.transformImage(ref, rect, layer, quarterTurns),
       replaceImage: (ref, png) => apiRef.current.replaceImage(ref, png),
+      bakeImage: (ref, op, signal) => apiRef.current.bakeImage(ref, op, signal),
       deleteImage: (ref) => apiRef.current.deleteImage(ref),
       searchImages: (query, max) => apiRef.current.searchImages(query, max),
       generateImage: (op) => apiRef.current.generateImage(op),
+      imageGenAvailable: () =>
+        imageGenerationAvailable(settingsRef.current, gskLoggedInRef.current),
       fetchImage: (url) => apiRef.current.fetchImage(url),
     }
     loopRef.current = new AgentLoop({
@@ -137,10 +385,18 @@ export function AiPanel({
       events: {
         onText: (text) => {
           setPhase('replying')
+          segTextRef.current = text
           patchLast({ text })
         },
         onToolExecuted: ({ call, execution }) => {
           setPhase('working')
+          if (execution.mutated) runMutatedRef.current = true
+          runToolsRef.current.push({
+            name: call.name,
+            summary: execution.summary,
+            isError: execution.isError,
+            output: execution.output?.slice(0, 2000),
+          })
           patchLast((last) => ({
             tools: [
               ...(last.tools ?? []),
@@ -155,23 +411,43 @@ export function AiPanel({
         },
         onTurnEnd: () => {
           setPhase('thinking')
+          runTextsRef.current.push(segTextRef.current)
+          segTextRef.current = ''
           patchLast({ streaming: false })
           setChat((prev) => [...prev, { role: 'assistant', text: '', streaming: true }])
         },
-        onDone: ({ text, cancelled, turnLimit }) => {
-          const final = turnLimit
+        onDone: ({ text, cancelled, turnLimit, truncated }) => {
+          const base = turnLimit
             ? [text, tGlobal('aiTurnLimit')].filter(Boolean).join('\n\n')
             : text || (cancelled ? tGlobal('aiStopped') : '')
+          // finish_reason=length with no prose (a reasoning model that spent the whole
+          // output budget thinking) must say so instead of showing the bare "(no reply)",
+          // which reads like the assistant ignored the user — same handling as docs
+          const final = truncated
+            ? [base, tGlobal('aiTruncatedNote')].filter(Boolean).join('\n\n')
+            : base
+          if (cancelled) {
+            segTextRef.current = ''
+            runTextsRef.current = []
+            runToolsRef.current = []
+          } else {
+            segTextRef.current = final || segTextRef.current
+            persistRun()
+          }
           patchLast((last) => ({
             streaming: false,
             text: final || (last.tools?.length ? last.text : tGlobal('aiNoReply')),
           }))
           setBusy(false)
+          if (runMutatedRef.current) {
+            runMutatedRef.current = false
+            onRunDoneRef.current?.()
+          }
         },
         onError: (error) => {
           setChat((prev) => {
             const next = [...prev]
-            // the loop rolled this run's user message out of the model context : surface that
+            // the loop rolled this run's user message out of the model context — surface that
             for (let i = next.length - 1; i >= 0; i--) {
               const entry = next[i]!
               if (entry.role === 'user') {
@@ -195,7 +471,7 @@ export function AiPanel({
     if (stickToBottomRef.current) {
       chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight })
     }
-  }, [chat, busy])
+  }, [chat, busy, fileOpConfirm])
 
   const onChatScroll = (): void => {
     const el = chatRef.current
@@ -203,19 +479,26 @@ export function AiPanel({
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
   }
 
-  const send = (text: string): void => {
+  /** retryScope: null = a retry that had no scope; undefined = capture the live selection */
+  const send = (text: string, retryScope?: AiScopeQuoteData | null): void => {
     const instruction = text.trim()
     const loop = loopRef.current
     if (!instruction || !loop || loop.busy) return
     stickToBottomRef.current = true
+    const scope = retryScope !== undefined ? (retryScope ?? undefined) : selectionScopeQuote()
+    persistMessage('user', instruction, undefined, scope)
+    segTextRef.current = ''
+    runTextsRef.current = []
+    runToolsRef.current = []
     setChat((prev) => [
       ...prev,
-      { role: 'user', text: instruction },
+      { role: 'user', text: instruction, ...(scope ? { scope } : {}) },
       { role: 'assistant', text: '', streaming: true },
     ])
     setPrompt('')
     setBusy(true)
     setPhase('thinking')
+    runMutatedRef.current = false
     void (async () => {
       try {
         settingsRef.current = await window.pdfApi.getAiSettings()
@@ -233,9 +516,12 @@ export function AiPanel({
 
   const stop = (): void => loopRef.current?.cancel()
 
-  // One-click AI actions from the ribbon (same pattern as the docs ribbon presets)
+  // One-click AI actions from the ribbon / Ask popover; while a run is active the
+  // preset lands in the composer instead of being dropped silently (markdown parity)
   useEffect(() => {
-    if (preset) send(preset.text)
+    if (!preset) return
+    if (loopRef.current?.busy) setPrompt(preset.text)
+    else send(preset.text)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per nonce
   }, [preset?.nonce])
 
@@ -250,7 +536,7 @@ export function AiPanel({
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   useEffect(() => () => resizeCleanupRef.current?.(), [])
 
-  /** Drag the right edge to resize: the panel is flush with the window's left edge, so width = clientX */
+  /** Drag the inner panel edge to resize from the selected window side. */
   const startResize = (e: ReactPointerEvent<HTMLDivElement>): void => {
     e.preventDefault()
     const resizer = e.currentTarget
@@ -258,7 +544,7 @@ export function AiPanel({
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
     const onMove = (ev: PointerEvent): void => {
-      const w = clampPanelWidth(ev.clientX)
+      const w = clampPanelWidth(aiPanelWidthAtPointer(ev.clientX))
       preferredWidthRef.current = w
       setPanelWidth(w)
     }
@@ -288,28 +574,60 @@ export function AiPanel({
   const typingLabel =
     phase === 'replying' ? t('aiReplying') : phase === 'working' ? t('aiWorking') : t('aiThinking')
 
+  // scope chip data, read per render (App re-renders on every selection change)
+  const scopeSel = api.selection()
+  const hasScopeSelection = !!scopeSel && scopeSel.text.trim().length > 0
+
+  const selectionScopeQuote = (): AiScopeQuoteData | undefined => {
+    const sel = api.selection()
+    const text = sel?.text.replace(/\s+/g, ' ').trim() ?? ''
+    if (!sel || !text) return undefined
+    return {
+      label: t('aiScopeSelection', {
+        page: sel.lastPage > sel.page ? `${sel.page}-${sel.lastPage}` : sel.page,
+        words: countWords(text),
+      }),
+      text: text.length > SCOPE_TEXT_MAX ? `${text.slice(0, SCOPE_TEXT_MAX)}…` : text,
+    }
+  }
+
+  // the selection can vanish without the × (click-away, another file): close the preview too
+  useEffect(() => {
+    if (!hasScopeSelection) setScopePreviewOpen(false)
+  }, [hasScopeSelection])
+
+  /** [p.N](pdfnav://page/N) links in replies scroll the reading view to that page */
+  const pdfNav = {
+    scheme: PDF_NAV_SCHEME,
+    onNavigate: (href: string) => {
+      const page = parsePdfNavHref(href)
+      if (page !== null) apiRef.current.gotoPage(page)
+    },
+  }
+
   return (
     <aside
       ref={asideRef}
       className={`copilot${resizing ? ' ai-panel-resizing' : ''}`}
       style={{ width: '100%' }}
+      dir={lang === 'ar' || lang === 'he' ? 'rtl' : undefined}
     >
       <div
         className="ai-panel-resizer"
         onPointerDown={startResize}
         role="separator"
         aria-orientation="vertical"
-        aria-label="ReveLith"
+        aria-label={t('ribbonAiAssistant')}
       />
       <header className="ai-panel-header">
         <span className="ai-panel-title">
-          <ReveLithAiMark size={22} />
-          ReveLith AI
+          <ReveLithMark size={22} />
+          ReveLith
         </span>
         <div className="ai-panel-header-actions">
-          <QuickModelSelector
-            getSettings={() => window.pdfApi.getAiSettings()}
-            setSettings={(settings) => window.pdfApi.setAiSettings(settings as AiSettings)}
+          <AiPanelSideButton
+            lang={lang}
+            onMove={(side) => window.pdfApi.setAiPanelPrefs({ side })}
           />
           {chat.length > 0 && (
             <button
@@ -327,7 +645,7 @@ export function AiPanel({
             </button>
           )}
           <button
-            className="ai-header-btn"
+            className="ai-header-btn ai-panel-collapse"
             onClick={onCollapse}
             data-tip={t('aiCollapsePanel')}
             aria-label={t('aiCollapsePanel')}
@@ -343,10 +661,22 @@ export function AiPanel({
             <div className="ai-chat-empty-title">{t('aiEmptyTitle')}</div>
             <div className="ai-chat-empty-body">{t('aiEmptyBody')}</div>
             <div className="ai-quick-actions">
-              <button className="ai-quick-btn" onClick={() => send(t('aiQuickSummaryPrompt'))}>
+              <button
+                className="ai-quick-btn"
+                onClick={() =>
+                  send(t(hasScopeSelection ? 'aiQuickSummarySelPrompt' : 'aiQuickSummaryPrompt'))
+                }
+              >
                 {t('aiQuickSummary')}
               </button>
-              <button className="ai-quick-btn" onClick={() => send(t('aiQuickKeyPointsPrompt'))}>
+              <button
+                className="ai-quick-btn"
+                onClick={() =>
+                  send(
+                    t(hasScopeSelection ? 'aiQuickKeyPointsSelPrompt' : 'aiQuickKeyPointsPrompt'),
+                  )
+                }
+              >
                 {t('aiQuickKeyPoints')}
               </button>
             </div>
@@ -356,12 +686,16 @@ export function AiPanel({
           if (entry.role === 'user') {
             return (
               <div key={i} className="ai-msg ai-msg-user">
-                {entry.text}
+                {entry.scope && <AiScopeQuote scope={entry.scope} />}
+                <span dir="auto">{entry.text}</span>
                 {entry.undelivered && (
                   <div className="ai-msg-undelivered">
                     {t('aiUndelivered')}
                     {!busy && (
-                      <button className="ai-retry-btn" onClick={() => send(entry.text)}>
+                      <button
+                        className="ai-retry-btn"
+                        onClick={() => send(entry.text, entry.scope ?? null)}
+                      >
                         {t('aiRetry')}
                       </button>
                     )}
@@ -378,10 +712,40 @@ export function AiPanel({
               className={`ai-msg ai-msg-assistant${entry.isError ? ' ai-msg-error' : ''}`}
             >
               {hasTools && <ToolChipList tools={entry.tools!} />}
-              {entry.text && <Markdown text={entry.text} />}
+              {entry.text && (
+                <div dir="auto">
+                  <Markdown text={entry.text} nav={pdfNav} />
+                </div>
+              )}
             </div>
           )
         })}
+        {fileOpConfirm && (
+          <div className="ai-confirm-card" role="group" aria-label={t('aiFileOpConfirmTitle')}>
+            <div className="ai-confirm-title">{t('aiFileOpConfirmTitle')}</div>
+            <div className="ai-confirm-summary">{fileOpConfirm.summary}</div>
+            {fileOpConfirm.detail && (
+              <div className="ai-confirm-detail">{fileOpConfirm.detail}</div>
+            )}
+            <div className="ai-confirm-warning">{t('aiFileOpConfirmWarning')}</div>
+            <div className="ai-confirm-actions">
+              <button
+                type="button"
+                className="pdf-modal-btn"
+                onClick={() => confirmRef.current?.settle(false)}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="pdf-modal-btn primary"
+                onClick={() => confirmRef.current?.settle(true)}
+              >
+                {t('aiFileOpConfirm')}
+              </button>
+            </div>
+          </div>
+        )}
         {/* In-progress state: a standalone three-dot row at the end of the stream, kept until done */}
         {busy && <AiTypingIndicator label={typingLabel} />}
       </div>
@@ -390,6 +754,54 @@ export function AiPanel({
         <AiComposer
           value={prompt}
           busy={busy}
+          header={
+            hasScopeSelection && (
+              <div className="ai-scope-row">
+                <span className="ai-scope-hint">
+                  <button
+                    className="ai-scope-label"
+                    onClick={() => setScopePreviewOpen((v) => !v)}
+                    aria-expanded={scopePreviewOpen}
+                    data-tip={t('aiScopeSelectionTip')}
+                  >
+                    {t('aiScopeSelection', {
+                      page:
+                        scopeSel!.lastPage > scopeSel!.page
+                          ? `${scopeSel!.page}-${scopeSel!.lastPage}`
+                          : scopeSel!.page,
+                      words: countWords(scopeSel!.text),
+                    })}
+                  </button>
+                  <button
+                    className="ai-scope-clear"
+                    onClick={() => {
+                      setScopePreviewOpen(false)
+                      onClearSelection?.()
+                    }}
+                    data-tip={t('aiScopeClearTitle')}
+                    aria-label={t('aiScopeClearTitle')}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden>
+                      <path
+                        d="M4 4l8 8M12 4l-8 8"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </span>
+                {scopePreviewOpen && (
+                  <div className="ai-scope-preview">
+                    {scopeSel!.text.length > 400
+                      ? `${scopeSel!.text.slice(0, 400)}…`
+                      : scopeSel!.text}
+                  </div>
+                )}
+              </div>
+            )
+          }
           placeholder={t('aiComposerPlaceholder')}
           hintIdle={t('aiHintIdle')}
           hintBusy={t('aiHintBusy')}
@@ -591,48 +1003,27 @@ function IconCollapse(): ReactElement {
   )
 }
 
-/** ReveLith AI brand mark (orbital glyph) */
-export function ReveLithAiMark({ size = 18 }: { size?: number }): React.JSX.Element {
+/** ReveLith brand mark (rounded-square sparkle badge), inline so it renders
+ * crisply at device resolution instead of going through <img> rasterization */
+export function ReveLithMark({ size = 18 }: { size?: number }): React.JSX.Element {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <circle cx="16" cy="16" r="2.2" fill="#38bdf8" />
-      <ellipse
-        cx="16"
-        cy="16"
-        rx="13"
-        ry="5.5"
-        stroke="#38bdf8"
-        strokeWidth="2"
-        transform="rotate(0 16 16)"
-      />
-      <circle cx="28" cy="16" r="2" fill="#67e8f9" />
-      <ellipse
-        cx="16"
-        cy="16"
-        rx="13"
-        ry="5.5"
-        stroke="#60a5fa"
-        strokeWidth="2"
-        transform="rotate(60 16 16)"
-      />
-      <circle cx="10" cy="5.6" r="2" fill="#93c5fd" />
-      <ellipse
-        cx="16"
-        cy="16"
-        rx="13"
-        ry="5.5"
-        stroke="#818cf8"
-        strokeWidth="2"
-        transform="rotate(120 16 16)"
-      />
-      <circle cx="10" cy="26.4" r="2" fill="#c7d2fe" />
+      <g transform="translate(10, 10)">
+        <circle cx="50" cy="50" r="7.5" fill="#38bdf8" />
+        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#38bdf8" strokeWidth="6.5" transform="rotate(0 50 50)" />
+        <circle cx="88" cy="50" r="6.5" fill="#67e8f9" />
+        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#60a5fa" strokeWidth="6.5" transform="rotate(60 50 50)" />
+        <circle cx="31" cy="17" r="6.5" fill="#93c5fd" />
+        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#818cf8" strokeWidth="6.5" transform="rotate(120 50 50)" />
+        <circle cx="31" cy="83" r="6.5" fill="#c7d2fe" />
+      </g>
     </svg>
   )
 }

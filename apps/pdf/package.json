@@ -1,6 +1,6 @@
 {
   "name": "@revelith/pdf",
-  "productName": "Revelith PDF",
+  "productName": "ReveLith PDF",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@embedpdf/pdfium": "^2.15.0",
+    "@embedpdf/pdfium": "^2.15.1",
     "@revelith/agent-core": "*",
     "@revelith/ai-provider": "*",
     "@revelith/ai-search": "*",
@@ -36,7 +36,7 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-static-copy": "^3.0.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
-  "author": "Revelith"
+  "author": "ReveLith"
 }

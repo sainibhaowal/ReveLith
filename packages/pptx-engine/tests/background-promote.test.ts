@@ -1,16 +1,16 @@
 /**
  * promoteSlideBackground: full-page solid shapes at the bottom of z-order become a
  * native <p:bg> (the cloud html→pptx converter misses this when the page container
- * carries a fully transparent border : the shapes land in the deck and swallow
+ * carries a fully transparent border — the shapes land in the deck and swallow
  * every click). Fixtures are real pptxgenjs output, run through the real
  * openPptx → promote → savePptx → openPptx chain.
  */
 import { describe, it, expect } from 'vitest'
-import { openPptx, savePptx, createBlankPptx, addElement } from '../src/index'
+import PptxGenJS from 'pptxgenjs'
+import { openPptx, savePptx } from '../src/index'
 import { promoteSlideBackground, isBackgroundLikeElement } from '../src/background-promote'
 
 const PAGE = { w: 13.333, h: 7.5 }
-const EMU_PER_INCH = 914400
 
 type ShapeSpec = {
   x?: number
@@ -23,50 +23,39 @@ type ShapeSpec = {
   text?: string
 }
 
-async function deckWithShapes(shapes: ShapeSpec[], withContent = false): Promise<Uint8Array> {
-  const opened = await openPptx(await createBlankPptx())
-  const slide = opened.deck.slides[0]!
+async function deckWithShapes(shapes: ShapeSpec[]): Promise<Uint8Array> {
+  const p = new PptxGenJS()
+  p.defineLayout({ name: 'W', width: PAGE.w, height: PAGE.h })
+  p.layout = 'W'
+  const s = p.addSlide()
   for (const spec of shapes) {
-    const x = Math.round((spec.x ?? 0) * EMU_PER_INCH)
-    const y = Math.round((spec.y ?? 0) * EMU_PER_INCH)
-    const cx = Math.round((spec.w ?? PAGE.w) * EMU_PER_INCH)
-    const cy = Math.round((spec.h ?? PAGE.h) * EMU_PER_INCH)
-    if (spec.text) {
-      addElement(slide, {
-        kind: 'textbox',
-        offset: { x, y, cx, cy },
-        fillColor: spec.fill ? (spec.fill.startsWith('#') ? spec.fill : `#${spec.fill}`) : '#0B2545',
-        paragraphs: [{ runs: [{ text: spec.text }] }],
-      })
-    } else {
-      addElement(slide, {
-        kind: 'rect',
-        offset: { x, y, cx, cy },
-        fillColor: spec.fill ? (spec.fill.startsWith('#') ? spec.fill : `#${spec.fill}`) : '#0B2545',
-        stroke: spec.visibleLine ? { color: '#FF0000', widthEmu: 25400 } : undefined,
-      })
+    const opts: Record<string, unknown> = {
+      x: spec.x ?? 0,
+      y: spec.y ?? 0,
+      w: spec.w ?? PAGE.w,
+      h: spec.h ?? PAGE.h,
+      fill: { color: spec.fill ?? '0B2545' },
     }
+    if (spec.lineTransparency != null) {
+      opts.line = { color: 'FFFFFF', width: 1, transparency: spec.lineTransparency }
+    } else if (spec.visibleLine) {
+      opts.line = { color: 'FF0000', width: 2 }
+    }
+    if (spec.text) s.addText(spec.text, opts)
+    else s.addShape('rect', opts)
   }
-  if (withContent) {
-    addElement(slide, {
-      kind: 'textbox',
-      offset: { x: 914400, y: 914400, cx: 7315200, cy: 914400 },
-      paragraphs: [{ runs: [{ text: 'CONTENT' }] }],
-    })
-  }
-  return savePptx(opened)
+  s.addText('CONTENT', { x: 1, y: 1, w: 8, h: 1, fontSize: 32 })
+  const buf = (await p.write({ outputType: 'nodebuffer' })) as Buffer
+  return new Uint8Array(buf)
 }
 
 describe('promoteSlideBackground', () => {
   it('promotes stacked full-page solid rects (transparent 1px border) into <p:bg>', async () => {
     const opened = await openPptx(
-      await deckWithShapes(
-        [
-          { fill: '112233', lineTransparency: 100 },
-          { fill: '0B2545', lineTransparency: 100 },
-        ],
-        true,
-      ),
+      await deckWithShapes([
+        { fill: '112233', lineTransparency: 100 },
+        { fill: '0B2545', lineTransparency: 100 },
+      ]),
     )
     const slide = opened.deck.slides[0]!
     const before = slide.elements.length

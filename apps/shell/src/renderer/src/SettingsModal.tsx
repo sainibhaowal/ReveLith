@@ -1,95 +1,46 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import {
+  AI_CUSTOM_FONT_MAX_PX,
+  AI_CUSTOM_FONT_MIN_PX,
+  DEFAULT_AI_PANEL_PREFS,
+  Dropdown,
+  aiPanelFontPx,
+  clampAiCustomFontSize,
+} from '@revelith/ui'
+import type { AiFontSize, AiPanelPrefs, AiPanelSide } from '@revelith/ui'
+import type { DefaultAppStatus, FileSearchSettings, JevEndpoint } from '../../shared/home-api'
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  MAX_MAX_OUTPUT_TOKENS,
+  MIN_MAX_OUTPUT_TOKENS,
+  clampMaxOutputTokens,
+} from '@revelith/ai-provider/browser'
+import type {
+  AiMediaProviderId,
+  AiMediaProviderMeta,
+  AiMediaSettings,
+  AiProviderId,
+  AiSearchProviderMeta,
+  AiSearchSettings,
+  AiSettings,
+} from '@revelith/ai-provider'
 import { useI18n } from './locale'
-import type { StringKey } from './locale'
-import type { UiTheme } from '../../shared/home-api'
+import type { StringKey, TFunc } from './locale'
+import type { AccountStatus, AiCatalogEntry, UiTheme } from '../../shared/home-api'
+import { ProviderLogo } from './provider-logos'
+import { IntegrationsPane, skillUpdateDue } from './IntegrationsPane'
 import './settings.css'
-
-interface CustomSelectOption<T extends string> {
-  value: T
-  label: string
-}
-
-function CustomSelect<T extends string>({
-  value,
-  options,
-  onChange,
-  id,
-}: {
-  value: T
-  options: readonly CustomSelectOption<T>[]
-  onChange: (val: T) => void
-  id?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
-
-  const selectedOption = options.find((o) => o.value === value)
-
-  return (
-    <div className="custom-select-wrap" ref={wrapRef} id={id}>
-      <button
-        type="button"
-        className={`custom-select-trigger${open ? ' open' : ''}`}
-        onClick={() => setOpen((prev) => !prev)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="custom-select-value">{selectedOption?.label ?? value}</span>
-        <svg className="custom-select-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && (
-        <div className="custom-select-dropdown" role="listbox">
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                className={`custom-select-item${isSelected ? ' selected' : ''}`}
-                role="option"
-                aria-selected={isSelected}
-                onClick={() => {
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-              >
-                <span className="custom-select-item-label">{opt.label}</span>
-                {isSelected && (
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── Settings modal (opened from the account menu) ─────────
 // ReveLith-style two-pane dialog: section nav on the left, fields on the right.
 // All values go through the existing home IPC; nothing is stored locally.
 
-// sorted by ISO 639 language code : native-script labels have no natural
+// sorted by ISO 639 language code — native-script labels have no natural
 // shared alphabet, so the code is the ordering key
 const LANG_OPTIONS = [
   { value: 'ar', label: 'العربية' },
+  { value: 'cs', label: 'Čeština' },
   { value: 'de', label: 'Deutsch' },
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Español' },
@@ -106,37 +57,144 @@ const LANG_OPTIONS = [
   { value: 'pt', label: 'Português' },
   { value: 'ru', label: 'Русский' },
   { value: 'th', label: 'ไทย' },
+  { value: 'vi', label: 'Tiếng Việt' },
   { value: 'zh', label: '简体中文' },
   { value: 'zh-TW', label: '繁體中文' },
 ] as const
 
-// GenMail's option order: follow-system first, then the manual picks
+// ReveMail's option order: follow-system first, then the manual picks
 const THEME_OPTIONS = [
   { value: 'system', labelKey: 'themeSystem' },
   { value: 'light', labelKey: 'themeLight' },
   { value: 'dark', labelKey: 'themeDark' },
 ] as const satisfies readonly { value: UiTheme; labelKey: StringKey }[]
 
+const AI_FONT_SIZE_OPTIONS = [
+  { value: 'default', labelKey: 'aiFontSizeDefault' },
+  { value: 'large', labelKey: 'aiFontSizeLarge' },
+  { value: 'xlarge', labelKey: 'aiFontSizeXLarge' },
+  { value: 'custom', labelKey: 'aiFontSizeCustom' },
+] as const satisfies readonly { value: AiFontSize; labelKey: StringKey }[]
+
 const CHANNEL_OPTIONS = [
   { value: 'stable', labelKey: 'channelStable' },
   { value: 'beta', labelKey: 'channelBeta' },
 ] as const satisfies readonly { value: 'stable' | 'beta'; labelKey: StringKey }[]
 
-type SectionId = 'ai' | 'general' | 'about'
+/** GitHub-style abbreviated stargazer count (2591 → "2.6k") — the number is
+ * social proof, not a metric; the cached/exact value would only look stale */
+function formatStars(n: number): string {
+  if (n < 1000) return String(n)
+  const k = n / 1000
+  return `${k >= 100 ? Math.round(k) : (Math.round(k * 10) / 10).toString().replace(/\.0$/, '')}k`
+}
 
-const SECTIONS: readonly { id: SectionId; label: string }[] = [
-  { id: 'ai', label: 'AI & Models' },
-  { id: 'general', label: 'General' },
-  { id: 'about', label: 'About' },
+/** px stepper for the custom AI panel text size; in-range values apply live,
+ * out-of-range or partial input is clamped on blur */
+function CustomFontSizeInput({
+  value,
+  label,
+  onCommit,
+}: {
+  value: number
+  label: string
+  onCommit: (px: number) => void
+}) {
+  const [draft, setDraft] = useState(String(value))
+  const [editing, setEditing] = useState(false)
+  const shown = editing ? draft : String(value)
+  const commit = (raw: string) => {
+    const px = clampAiCustomFontSize(raw)
+    if (px !== null && px !== value) onCommit(px)
+  }
+  return (
+    <label className="set-num">
+      <input
+        type="number"
+        className="set-input set-num-input"
+        aria-label={label}
+        min={AI_CUSTOM_FONT_MIN_PX}
+        max={AI_CUSTOM_FONT_MAX_PX}
+        step={1}
+        value={shown}
+        onFocus={() => {
+          setDraft(String(value))
+          setEditing(true)
+        }}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          const n = Number(e.target.value)
+          if (Number.isInteger(n) && n >= AI_CUSTOM_FONT_MIN_PX && n <= AI_CUSTOM_FONT_MAX_PX) {
+            onCommit(n)
+          }
+        }}
+        onBlur={() => {
+          commit(draft)
+          setEditing(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+        }}
+      />
+      <span className="set-num-unit">px</span>
+    </label>
+  )
+}
+
+export type SectionId = 'aiModel' | 'aiMedia' | 'general' | 'integrations' | 'about'
+
+const SECTIONS: readonly { id: SectionId; labelKey: StringKey }[] = [
+  { id: 'aiModel', labelKey: 'setSecAiModel' },
+  { id: 'aiMedia', labelKey: 'setSecAiMedia' },
+  { id: 'general', labelKey: 'setSecGeneral' },
+  { id: 'integrations', labelKey: 'setSecIntegrations' },
+  { id: 'about', labelKey: 'setSecAbout' },
 ]
 
 function SectionIcon({ id }: { id: SectionId }) {
-  if (id === 'ai') {
+  if (id === 'aiModel') {
     return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
-        <path d="M12 6a6 6 0 0 0-6 6c0 2.5 1.5 4.5 3.5 5.5"/>
-        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M8 1.8 9.5 6l4.2 1.5L9.5 9 8 13.2 6.5 9 2.3 7.5 6.5 6 8 1.8Z"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12.8 11.2v3M11.3 12.7h3"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+      </svg>
+    )
+  }
+  if (id === 'aiMedia') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+        <path
+          d="M2.5 11.5 6 8l2.5 2.5L10.5 9l3 2.8"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="10.5" cy="6" r="1.1" fill="currentColor" />
+      </svg>
+    )
+  }
+  if (id === 'integrations') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M5.5 2v3M10.5 2v3M4 5h8v2.5a4 4 0 0 1-8 0V5ZM8 11.5V14"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     )
   }
@@ -160,654 +218,6 @@ function SectionIcon({ id }: { id: SectionId }) {
       <path d="M8 7.4v3.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <circle cx="8" cy="5.1" r="0.8" fill="currentColor" />
     </svg>
-  )
-}
-
-function ProviderIcon({ id }: { id: string }) {
-  if (id === 'ollama') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2C8.5 2 7 4.5 7 7v4H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1v1h2v-1h6v1h2v-1h1a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V7c0-2.5-1.5-5-5-5z" fill="#F3F4F6" />
-        <circle cx="9.5" cy="13.5" r="1.5" fill="#111827" />
-        <circle cx="14.5" cy="13.5" r="1.5" fill="#111827" />
-        <path d="M10 6.5h4M10 8.5h4" stroke="#111827" strokeWidth="1.2" strokeLinecap="round" />
-        <circle cx="12" cy="16.5" r="1" fill="#111827" />
-      </svg>
-    )
-  }
-  if (id === 'lmstudio') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <rect width="24" height="24" rx="6" fill="#1E293B" />
-        <path d="M5 6.5C5 5.67 5.67 5 6.5 5h11c.83 0 1.5.67 1.5 1.5v8c0 .83-.67 1.5-1.5 1.5h-11C5.67 16 5 15.33 5 14.5v-8z" fill="#0284C7" />
-        <rect x="7" y="7" width="10" height="7" rx="1" fill="#38BDF8" />
-        <path d="M10 18.5h4M12 16v2.5" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    )
-  }
-  if (id === 'openai') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M22.28 9.37a5.98 5.98 0 0 0-.52-4.95 6.07 6.07 0 0 0-6.52-2.73 6.08 6.08 0 0 0-4.73-2.39 6.07 6.07 0 0 0-5.8 4.3 6.08 6.08 0 0 0-3.9 2.83 6.07 6.07 0 0 0 .74 7.07 6.08 6.08 0 0 0 .52 4.95 6.07 6.07 0 0 0 6.52 2.73 6.08 6.08 0 0 0 4.73 2.39 6.07 6.07 0 0 0 5.8-4.3 6.08 6.08 0 0 0 3.9-2.83 6.07 6.07 0 0 0-.74-7.07zm-8.86 11.45a3.86 3.86 0 0 1-2.28-.73l3.65-2.11a1.1 1.1 0 0 0 .56-.96v-5.14l1.55.9a.1.1 0 0 1 .05.08v4.22a3.88 3.88 0 0 1-3.53 3.74zm-8.15-3.48a3.86 3.86 0 0 1-.5-2.35l3.65 2.1a1.1 1.1 0 0 0 1.11 0l4.45-2.57v1.79a.1.1 0 0 1-.04.09l-3.65 2.11a3.88 3.88 0 0 1-5.02-1.17zm-1.84-8.73a3.86 3.86 0 0 1 1.78-1.62v4.22a1.1 1.1 0 0 0 .55.96l4.45 2.57-1.55.9a.1.1 0 0 1-.1 0l-3.65-2.11a3.88 3.88 0 0 1-1.48-4.92zm14.19 3.02l-4.45-2.57 1.55-.9a.1.1 0 0 1 .1 0l3.65 2.11a3.88 3.88 0 0 1 1.48 4.92 3.86 3.86 0 0 1-1.78 1.62v-4.22a1.1 1.1 0 0 0-.55-.96zm2.35 5.83a3.86 3.86 0 0 1 .5 2.35l-3.65-2.1a1.1 1.1 0 0 0-1.11 0l-4.45 2.57v-1.79a.1.1 0 0 1 .04-.09l3.65-2.11a3.88 3.88 0 0 1 5.02 1.17zM10.57 13.5l-1.55-.9a.1.1 0 0 1-.05-.08V8.3a3.88 3.88 0 0 1 5.81-3.01l-3.65 2.11a1.1 1.1 0 0 0-.56.96v5.14zm1.18-1.92l2.03-1.17 2.03 1.17v2.34l-2.03 1.17-2.03-1.17v-2.34z"
-          fill="#10A37F"
-        />
-      </svg>
-    )
-  }
-  if (id === 'anthropic') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M14.5 3H18L24 21h-3.6l-1.8-4.2h-6.2l-1.8 4.2H7L14.5 3zm2.5 9.8l-1.8-4.3-1.8 4.3H17zM0 21L7.5 3h3.6L3.6 21H0z" fill="#D97706" />
-      </svg>
-    )
-  }
-  if (id === 'gemini') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <defs>
-          <linearGradient id="geminiGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#1BA1E3" />
-            <stop offset="35%" stopColor="#5470FF" />
-            <stop offset="70%" stopColor="#8E55EA" />
-            <stop offset="100%" stopColor="#EA4335" />
-          </linearGradient>
-        </defs>
-        <path d="M12 0C12 6.627 17.373 12 24 12C17.373 12 12 17.373 12 24C12 17.373 6.627 12 0 12C6.627 12 12 6.627 12 0Z" fill="url(#geminiGrad2)" />
-      </svg>
-    )
-  }
-  if (id === 'deepseek') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="11" fill="#1D4ED8" />
-        <path d="M5.5 13.5C7.2 9.5 11 8.5 15.5 10C17.5 10.7 18.5 12.2 18.5 14C18.5 16 16.8 17.5 14.5 17.5C11.5 17.5 9.5 16 8.5 14.5" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" />
-        <circle cx="10" cy="11.5" r="1.3" fill="#FFFFFF" />
-        <circle cx="15.5" cy="12" r="1.3" fill="#FFFFFF" />
-      </svg>
-    )
-  }
-  if (id === 'opencode-zen') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-label="OpenCode Zen">
-        <rect width="24" height="24" fill="#0B0B0B" />
-        <path d="M7 5H17V19H7V5ZM10 8V16H14V8H10Z" fill="#FFFFFF" fillRule="evenodd" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="11" fill="#F59E0B" fillOpacity="0.15" />
-      <polygon points="13 3 4 14 12 14 11 21 20 10 12 10 13 3" fill="#F59E0B" />
-    </svg>
-  )
-}
-
-const PROVIDER_METAS = [
-  {
-    id: 'ollama',
-    label: 'Ollama (Local)',
-    defaultUrl: 'http://localhost:11434/v1',
-    defaultModel: 'llama3.2',
-    desc: '100% Offline Local LLM Runner',
-  },
-  {
-    id: 'lmstudio',
-    label: 'LM Studio (Local)',
-    defaultUrl: 'http://localhost:1234/v1',
-    defaultModel: 'local-model',
-    desc: 'Local Desktop Model Server',
-  },
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    defaultUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o-mini',
-    desc: 'Direct OpenAI API (GPT-4o, Mini)',
-  },
-  {
-    id: 'opencode-zen',
-    label: 'OpenCode Zen',
-    defaultUrl: 'https://opencode.ai/zen/v1',
-    defaultModel: 'deepseek-v4-pro',
-    desc: 'OpenCode curated AI gateway',
-  },
-  {
-    id: 'anthropic',
-    label: 'Claude',
-    defaultUrl: 'https://api.anthropic.com',
-    defaultModel: 'claude-sonnet-4-6',
-    desc: 'Direct Anthropic API (Claude)',
-  },
-  {
-    id: 'gemini',
-    label: 'Google Gemini',
-    defaultUrl: 'https://generativelanguage.googleapis.com',
-    defaultModel: 'gemini-2.5-flash',
-    desc: 'Direct Google Gemini API',
-  },
-  {
-    id: 'deepseek',
-    label: 'DeepSeek',
-    defaultUrl: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
-    desc: 'DeepSeek V3 / R1 Reasoner',
-  },
-  {
-    id: 'custom',
-    label: 'Custom Server',
-    defaultUrl: 'http://localhost:8080/v1',
-    defaultModel: 'custom-model',
-    desc: 'Custom OpenAI-compatible Endpoint',
-  },
-] as const
-
-function AiSettingsSection() {
-  const [settings, setSettings] = useState<any>(null)
-  const [selectedId, setSelectedId] = useState<string>('ollama')
-  const [showKey, setShowKey] = useState(false)
-  const [testStatus, setTestStatus] = useState<{ state: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ state: 'idle' })
-  const [discoveredModels, setDiscoveredModels] = useState<string[]>([])
-  const [fetchingModels, setFetchingModels] = useState(false)
-  const [discoveryError, setDiscoveryError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-
-  const handleSaveAndApply = () => {
-    const next = { ...settings, provider: selectedId }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-    } catch {}
-    void window.aiOffice?.setAiSettings?.(next)
-    window.dispatchEvent(new Event('ai-settings-changed'))
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)
-  }
-
-  useEffect(() => {
-    let alive = true
-    void (async () => {
-      let s = await window.aiOffice?.getAiSettings?.()
-      if (!s) {
-        try {
-          const stored = localStorage.getItem('revelith.aiSettings')
-          if (stored) s = JSON.parse(stored)
-        } catch {}
-      }
-      if (!s) {
-        s = {
-          provider: 'ollama',
-          providers: {
-            ollama: { apiKey: '', model: 'llama3.2', baseUrl: 'http://127.0.0.1:11434/v1' },
-            lmstudio: { apiKey: '', model: 'local-model', baseUrl: 'http://127.0.0.1:1234/v1' },
-            openai: { apiKey: '', model: 'gpt-4o-mini' },
-            anthropic: { apiKey: '', model: 'claude-sonnet-4-6' },
-          },
-        }
-      }
-      if (alive && s) {
-        setSettings(s)
-        const validSelected = PROVIDER_METAS.some((p) => p.id === s.provider) ? s.provider : 'ollama'
-        setSelectedId(validSelected)
-      }
-    })()
-    return () => { alive = false }
-  }, [])
-
-  const activeProvider = PROVIDER_METAS.some((p) => p.id === settings?.provider) ? settings.provider : 'ollama'
-  const currentMeta = PROVIDER_METAS.find((p) => p.id === selectedId) || PROVIDER_METAS[0]
-  const currentConfig = settings?.providers?.[selectedId] || {
-    apiKey: '',
-    model: currentMeta.defaultModel,
-    baseUrl: currentMeta.defaultUrl,
-  }
-
-  useEffect(() => {
-    if (!settings) return
-    if (currentConfig.discoveredModels && currentConfig.discoveredModels.length > 0) {
-      setDiscoveredModels(currentConfig.discoveredModels)
-    } else {
-      setDiscoveredModels([])
-    }
-  }, [selectedId, settings])
-
-  if (!settings) return <div style={{ padding: 20 }}>Loading AI settings...</div>
-
-  const updateConfig = (key: string, val: string) => {
-    const next = {
-      ...settings,
-      providers: {
-        ...settings.providers,
-        [selectedId]: {
-          ...(settings.providers?.[selectedId] || {}),
-          [key]: val,
-        },
-      },
-    }
-    setSettings(next)
-    try { localStorage.setItem('revelith.aiSettings', JSON.stringify(next)) } catch {}
-    void window.aiOffice?.setAiSettings?.(next)
-  }
-
-  const setActiveProvider = (id: string) => {
-    const next = { ...settings, provider: id }
-    setSettings(next)
-    try { localStorage.setItem('revelith.aiSettings', JSON.stringify(next)) } catch {}
-    void window.aiOffice?.setAiSettings?.(next)
-  }
-
-  const handleTestConnection = async () => {
-    setTestStatus({ state: 'testing', message: 'Testing connection to endpoint...' })
-    try {
-      const url = currentConfig.baseUrl || currentMeta.defaultUrl
-      const apiKey = currentConfig.apiKey || ''
-      if (!url) {
-        setTestStatus({ state: 'error', message: 'Missing Base URL' })
-        return
-      }
-
-      if ((selectedId === 'openai' || selectedId === 'opencode-zen' || selectedId === 'anthropic' || selectedId === 'gemini' || selectedId === 'deepseek') && !apiKey) {
-        setTestStatus({ state: 'error', message: 'Please enter your API Key before testing connection.' })
-        return
-      }
-
-      let ok = false
-      let status = 0
-      if (typeof window.aiOffice?.discoverAiModels === 'function') {
-        const models = await window.aiOffice.discoverAiModels(selectedId, url, apiKey)
-        if (models.length > 0) {
-          setTestStatus({ state: 'success', message: `Successfully connected to ${currentMeta.label}` })
-          return
-        }
-        ok = false
-      } else {
-        const proxyUrl = `/api/proxy-models?target=${encodeURIComponent(url)}&apiKey=${encodeURIComponent(apiKey)}&provider=${encodeURIComponent(selectedId)}`
-        const res = await fetch(proxyUrl).catch(() => null)
-        status = res?.status ?? 0
-        ok = !!res?.ok
-        if (ok) {
-          setTestStatus({ state: 'success', message: `Successfully connected to ${currentMeta.label}` })
-          return
-        }
-      }
-      if (status === 401) {
-        setTestStatus({ state: 'error', message: 'Authentication failed: Invalid API Key' })
-      } else if (apiKey) {
-        setTestStatus({ state: 'success', message: `Connected to ${currentMeta.label} endpoint` })
-      } else {
-        setTestStatus({ state: 'error', message: `Endpoint unreachable (${url})` })
-      }
-    } catch (err: any) {
-      setTestStatus({ state: 'error', message: err?.message || 'Connection error' })
-    }
-  }
-
-  const handleDiscoverModels = async () => {
-    if (selectedId === 'revelith') return
-    setFetchingModels(true)
-    setDiscoveryError(null)
-    setDiscoveredModels([])
-    try {
-      const baseUrl = currentConfig.baseUrl || currentMeta.defaultUrl
-      const apiKey = currentConfig.apiKey || ''
-
-      let foundList: string[] = []
-      let discoveryErr: string | null = null
-
-      // 1. Real discovery via the main-process IPC bridge (works in the packaged
-      //    app; maps Anthropic -> api.anthropic.com/v1/models, Gemini ->
-      //    generativelanguage.googleapis.com, OpenAI/DeepSeek/Ollama/LM Studio ->
-      //    their /models or /api/tags endpoints). Falls back to the dev-only
-      //    /api/proxy-models middleware when running in a plain browser.
-      const discoverInMain = window.aiOffice?.discoverAiModels
-      const hasMainProcessDiscovery = typeof discoverInMain === 'function'
-      if (hasMainProcessDiscovery) {
-        try {
-          foundList = await discoverInMain(selectedId, baseUrl || '', apiKey)
-        } catch (err: any) {
-          discoveryErr = err?.message || 'Discovery failed in the main process.'
-        }
-      }
-
-      // This relative route exists only in browser/dev mode. In a packaged
-      // Electron app it resolves against file:// and creates a misleading 404.
-      if (foundList.length === 0 && !discoveryErr && !hasMainProcessDiscovery) {
-        const proxyUrl = `/api/proxy-models?target=${encodeURIComponent(baseUrl || '')}&apiKey=${encodeURIComponent(apiKey)}&provider=${encodeURIComponent(selectedId)}`
-        const res = await fetch(proxyUrl).catch(() => null)
-        if (res && res.ok) {
-          const json = await res.json().catch(() => null)
-          if (json) {
-            if (Array.isArray(json.data)) {
-              foundList = json.data
-                .map((m: any) => {
-                  const id = m.id || m.name || m.model
-                  return typeof id === 'string' ? id.replace(/^models\//, '') : String(m)
-                })
-                .filter(Boolean)
-            } else if (Array.isArray(json.models)) {
-              foundList = json.models
-                .map((m: any) => {
-                  const id = m.name || m.model || m.id
-                  return typeof id === 'string' ? id.replace(/^models\//, '') : String(m)
-                })
-                .filter(Boolean)
-            } else if (Array.isArray(json)) {
-              foundList = json
-                .map((m: any) => {
-                  if (typeof m === 'string') return m
-                  const id = m.id || m.name || m.model
-                  return typeof id === 'string' ? id.replace(/^models\//, '') : String(m)
-                })
-                .filter(Boolean)
-            }
-          }
-        } else if (res && res.status === 401) {
-          discoveryErr = 'Invalid API Key — real model discovery requires a valid key.'
-        } else if (res && res.status === 404) {
-          discoveryErr = 'Endpoint unreachable or no models endpoint found.'
-        }
-      }
-
-      // 2. Fallback: direct browser fetch for local engines (Ollama / LM Studio)
-      if (foundList.length === 0 && (selectedId === 'ollama' || selectedId === 'lmstudio' || selectedId === 'custom')) {
-        const cleanUrl = (baseUrl || '').replace(/\/$/, '')
-        const rootUrl = cleanUrl.replace(/\/v1$/, '')
-        const headers: Record<string, string> = { Accept: 'application/json' }
-        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
-
-        const candidateUrls = [
-          `${cleanUrl}/models`,
-          `${rootUrl}/v1/models`,
-          `${rootUrl}/api/tags`,
-          `${cleanUrl}/tags`,
-          cleanUrl.includes('localhost') ? cleanUrl.replace('localhost', '127.0.0.1') + '/models' : null,
-          cleanUrl.includes('127.0.0.1') ? cleanUrl.replace('127.0.0.1', 'localhost') + '/models' : null,
-        ].filter(Boolean) as string[]
-
-        for (const url of candidateUrls) {
-          try {
-            const resp = await fetch(url, { method: 'GET', headers }).catch(() => null)
-            if (resp && resp.ok) {
-              const json = await resp.json().catch(() => null)
-              if (json) {
-                if (Array.isArray(json.data)) {
-                  foundList = json.data
-                    .map((m: any) => m.id || m.name || String(m))
-                    .filter(Boolean)
-                } else if (Array.isArray(json.models)) {
-                  foundList = json.models
-                    .map((m: any) => m.name || m.model || m.id || String(m))
-                    .filter(Boolean)
-                } else if (Array.isArray(json)) {
-                  foundList = json
-                    .map((m: any) => (typeof m === 'string' ? m : m.id || m.name || String(m)))
-                    .filter(Boolean)
-                }
-                if (foundList.length > 0) break
-              }
-            }
-          } catch {}
-        }
-      }
-
-      // 3. Last-resort curated defaults only when live discovery failed entirely
-      if (foundList.length === 0) {
-        if (selectedId === 'anthropic') {
-          foundList = [
-            'claude-3-7-sonnet-20250219',
-            'claude-3-5-sonnet-20241022',
-            'claude-3-5-haiku-20241022',
-            'claude-3-opus-20240229',
-          ]
-        } else if (selectedId === 'openai') {
-          foundList = ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4-turbo']
-        } else if (selectedId === 'gemini') {
-          foundList = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro']
-        } else if (selectedId === 'deepseek') {
-          foundList = ['deepseek-chat', 'deepseek-reasoner']
-        }
-      }
-
-      if (foundList.length > 0) {
-        const uniqueList = Array.from(new Set(foundList))
-        setDiscoveredModels(uniqueList)
-        const next = {
-          ...settings,
-          providers: {
-            ...settings.providers,
-            [selectedId]: {
-              ...(settings.providers?.[selectedId] || {}),
-              discoveredModels: uniqueList,
-              ...(!currentConfig.model || currentConfig.model === currentMeta.defaultModel ? { model: uniqueList[0] } : {}),
-            },
-          },
-        }
-        setSettings(next)
-        void window.aiOffice.setAiSettings?.(next)
-      } else {
-        setDiscoveryError(discoveryErr || `No live models found at ${baseUrl}. Ensure server is active.`)
-      }
-    } catch (err: any) {
-      setDiscoveryError(err?.message || 'Failed to connect to server endpoint.')
-    } finally {
-      setFetchingModels(false)
-    }
-  }
-
-  return (
-    <div className="ai-settings-container">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 className="set-pane-title" style={{ margin: 0 }}>AI & Provider Settings</h3>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Active Engine: <strong style={{ color: 'var(--color-btn-primary)' }}>{PROVIDER_METAS.find(p => p.id === activeProvider)?.label}</strong>
-        </span>
-      </div>
-
-      <div className="ai-provider-layout">
-        {/* Left Provider Selector List */}
-        <div className="ai-provider-list">
-          {PROVIDER_METAS.map((meta) => {
-            const isCurrentActive = activeProvider === meta.id
-            const isSelected = selectedId === meta.id
-            return (
-              <button
-                key={meta.id}
-                className={`ai-provider-card${isSelected ? ' active' : ''}`}
-                onClick={() => {
-                  setSelectedId(meta.id)
-                  setTestStatus({ state: 'idle' })
-                  setDiscoveredModels([])
-                  setDiscoveryError(null)
-                }}
-              >
-                <span className="ai-provider-card-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ProviderIcon id={meta.id} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {meta.label}
-                </span>
-                {isCurrentActive && <span className="ai-provider-card-badge">Active</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Right Provider Configuration Detail */}
-        <div className="ai-provider-detail">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10 }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ display: 'flex', alignItems: 'center' }}><ProviderIcon id={currentMeta.id} /></span> {currentMeta.label}
-              </h4>
-              <div className="ai-form-desc">{currentMeta.desc}</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {activeProvider === selectedId ? (
-                <span className="ai-provider-card-badge" style={{ padding: '4px 10px', fontSize: 12 }}>
-                  ✓ Current Active Engine
-                </span>
-              ) : (
-                <button className="set-btn primary" onClick={() => setActiveProvider(selectedId)}>
-                  Set as Active Engine
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Base URL Input */}
-          {selectedId !== 'revelith' && (
-            <div className="ai-form-group">
-              <label className="ai-form-label">Base URL (Endpoint)</label>
-              <div className="ai-input-wrap">
-                <input
-                  type="text"
-                  className="ai-input"
-                  value={currentConfig.baseUrl ?? currentMeta.defaultUrl}
-                  placeholder={currentMeta.defaultUrl}
-                  onChange={(e) => updateConfig('baseUrl', e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* API Key Input */}
-          {selectedId !== 'ollama' && selectedId !== 'lmstudio' && selectedId !== 'revelith' && (
-            <div className="ai-form-group">
-              <label className="ai-form-label">API Key / Access Token</label>
-              <div className="ai-input-wrap">
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  className="ai-input"
-                  style={{ paddingRight: 50 }}
-                  value={currentConfig.apiKey || ''}
-                  placeholder="Enter your API Key..."
-                  onChange={(e) => updateConfig('apiKey', e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="ai-input-toggle"
-                  onClick={() => setShowKey(!showKey)}
-                >
-                  {showKey ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Real Model Discovery & Selection */}
-          <div className="ai-form-group">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <label className="ai-form-label">Model Selection</label>
-              {selectedId !== 'revelith' && (
-                <button
-                  type="button"
-                  className="set-btn primary"
-                  style={{ height: 26, fontSize: 12, padding: '0 10px' }}
-                  onClick={handleDiscoverModels}
-                  disabled={fetchingModels}
-                >
-                  {fetchingModels ? '⟳ Querying Server...' : '🔍 Fetch Real Live Models'}
-                </button>
-              )}
-            </div>
-
-            {/* Unified Clean Model Selector */}
-            <div style={{ marginTop: 8 }}>
-              {discoveredModels.length > 0 ? (
-                <div>
-                  <div className="ai-input-wrap" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <select
-                      className="ai-input"
-                      style={{ cursor: 'pointer', flex: 1 }}
-                      value={currentConfig.model || discoveredModels[0]}
-                      onChange={(e) => updateConfig('model', e.target.value)}
-                    >
-                      {discoveredModels.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                      Quick Pick from Live Models ({discoveredModels.length}):
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 110, overflowY: 'auto', padding: 6, background: 'var(--bg-content)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
-                      {discoveredModels.map((m) => {
-                        const isSelected = (currentConfig.model || discoveredModels[0]) === m
-                        return (
-                          <button
-                            key={m}
-                            type="button"
-                            className={`set-btn${isSelected ? ' primary' : ''}`}
-                            style={{ height: 26, fontSize: 12, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 4 }}
-                            onClick={() => updateConfig('model', m)}
-                          >
-                            {isSelected && <span>✓</span>}
-                            <span>{m}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="ai-input-wrap">
-                  <input
-                    type="text"
-                    className="ai-input"
-                    value={currentConfig.model || ''}
-                    placeholder={`e.g. ${currentMeta.defaultModel}`}
-                    onChange={(e) => updateConfig('model', e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-
-            {discoveryError && (
-              <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>
-                ⚠️ {discoveryError}
-              </div>
-            )}
-          </div>
-
-          {/* Test & Save Action Bar */}
-          <div className="ai-test-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="set-btn" onClick={handleTestConnection} disabled={testStatus.state === 'testing'}>
-                {testStatus.state === 'testing' ? 'Testing...' : 'Test Connection'}
-              </button>
-              {testStatus.state === 'success' && (
-                <span className="ai-status-badge success">✓ {testStatus.message}</span>
-              )}
-              {testStatus.state === 'error' && (
-                <span className="ai-status-badge error">✕ {testStatus.message}</span>
-              )}
-              {testStatus.state === 'testing' && (
-                <span className="ai-status-badge checking">⟳ {testStatus.message}</span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {saveSuccess && (
-                <span style={{ color: '#22c55e', fontSize: 13, fontWeight: 500 }}>
-                  ✓ Configuration Updated & Saved!
-                </span>
-              )}
-              <button
-                type="button"
-                className="set-btn primary"
-                style={{ height: 32, padding: '0 16px', fontSize: 13, fontWeight: 600, boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' }}
-                onClick={handleSaveAndApply}
-              >
-                💾 Update & Set Model
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -836,55 +246,1096 @@ function Field({
   )
 }
 
+/**
+ * Long enough that typing an address does not fire a request per keystroke,
+ * short enough that the picker is populated by the time the eye reaches it.
+ */
+const CUSTOM_MODELS_DEBOUNCE_MS = 400
+
+/** replace one catalog entry's model list, leaving every other entry untouched */
+function foldModels(providerId: string, models: string[]) {
+  return (current: AiCatalogEntry[]): AiCatalogEntry[] =>
+    current.map((entry) =>
+      entry.id === providerId ? { ...entry, models, defaultModel: '' } : entry,
+    )
+}
+
+/** AI model pane: provider / model / key / base URL, saved to userData/ai-settings.json */
+function AiModelPane({ t }: { t: TFunc }) {
+  const [catalog, setCatalog] = useState<AiCatalogEntry[]>(
+    () => window.aiOffice.getAiProviders?.() ?? [],
+  )
+  const [settings, setSettings] = useState<AiSettings | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  /** free-typed value of the output-cap field; committed (and clamped) on blur */
+  const [maxTokensDraft, setMaxTokensDraft] = useState<string | null>(null)
+
+  const refreshCodexModels = useCallback(async (cliPath = '', selectedModel = '') => {
+    if (!window.aiOffice.getCodexModels) return
+    const live = await window.aiOffice.getCodexModels(cliPath)
+    setCatalog((current) =>
+      current.map((entry) => {
+        if (entry.id !== 'codex') return entry
+        const models =
+          selectedModel && !live.models.includes(selectedModel)
+            ? [selectedModel, ...live.models]
+            : live.models
+        return { ...entry, models, defaultModel: live.defaultModel }
+      }),
+    )
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    void window.aiOffice.getAiSettings?.().then((s) => {
+      if (!alive || !s) return
+      setSettings(s)
+      const codex = s.providers.codex
+      if (codex) {
+        void refreshCodexModels(codex.cliPath ?? '', codex.model).catch(() => undefined)
+      }
+    })
+    return () => {
+      alive = false
+    }
+  }, [refreshCodexModels])
+
+  // A user-hosted endpoint gets the same live model list as Codex, asked of the
+  // endpoint itself. Keyed on the catalog's `needsBaseUrl` flag rather than on
+  // the literal 'custom' id, so it follows the slot rather than the name, and
+  // stays a no-op while any other provider is selected — a local server saved
+  // months ago is never contacted while ReveLith is in use.
+  const endpointMeta = catalog.find(
+    (entry) =>
+      entry.id === settings?.provider &&
+      (entry.needsBaseUrl || entry.id === 'lmstudio' || entry.id === 'ollama'),
+  )
+  const endpointProvider = endpointMeta?.id
+  const endpointConfig = settings ? settings.providers[settings.provider] : undefined
+  const endpointBaseUrl = (
+    endpointConfig?.baseUrl?.trim() ||
+    endpointMeta?.defaultBaseUrl ||
+    ''
+  ).trim()
+  const endpointApiKey = endpointConfig?.apiKey ?? ''
+  // The stored model decides where the pin goes below, but changing it must not
+  // send another request, so it is read when the reply lands rather than keyed on.
+  const selectedModelRef = useRef('')
+  useEffect(() => {
+    selectedModelRef.current = endpointConfig?.model ?? ''
+  })
+  /** the address that produced the list currently folded in; '' when none is */
+  const listedForRef = useRef('')
+
+  const probeModels = useCallback(
+    async (providerId: AiProviderId, baseUrl: string, apiKey: string) => {
+      if (!baseUrl || !window.aiOffice.getCustomModels) return
+      try {
+        const live = await window.aiOffice.getCustomModels(baseUrl, apiKey)
+        if (!live || live.models.length === 0) return
+        const selected = selectedModelRef.current.trim()
+        const otherModels = live.models.filter((m) => m !== selected)
+        const models = selected ? [selected, ...otherModels] : live.models
+        listedForRef.current = baseUrl
+        setCatalog(foldModels(providerId, models))
+        if (!selected && live.models.length > 0) {
+          setSettings((curr) => {
+            if (!curr) return curr
+            const currentCfg = curr.providers[providerId]
+            if (currentCfg?.model) return curr
+            return {
+              ...curr,
+              providers: {
+                ...curr.providers,
+                [providerId]: {
+                  apiKey: currentCfg?.apiKey ?? '',
+                  model: live.models[0],
+                  baseUrl: currentCfg?.baseUrl,
+                  cliPath: currentCfg?.cliPath,
+                },
+              },
+            }
+          })
+        }
+      } catch {
+        // server probe failed / offline
+      }
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (!endpointProvider) return
+    if (listedForRef.current && listedForRef.current !== endpointBaseUrl) {
+      listedForRef.current = ''
+      setCatalog(foldModels(endpointProvider, []))
+    }
+    if (!endpointBaseUrl || !window.aiOffice.getCustomModels) return
+    let cancelled = false
+    const timer = setTimeout(() => {
+      if (cancelled) return
+      void probeModels(endpointProvider, endpointBaseUrl, endpointApiKey)
+    }, CUSTOM_MODELS_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [endpointProvider, endpointBaseUrl, endpointApiKey, probeModels])
+
+  if (!settings) return null
+  const provider = settings.provider
+  const meta = catalog.find((c) => c.id === provider)
+  const config = settings.providers[provider] ?? {
+    apiKey: '',
+    model: meta?.defaultModel ?? '',
+    baseUrl: meta?.defaultBaseUrl,
+  }
+  const isCodex = provider === 'codex'
+
+  const touch = () => {
+    setDirty(true)
+    setSaved(false)
+    setTestResult(null)
+  }
+  const updateConfig = (patch: Partial<typeof config>) => {
+    setSettings({
+      ...settings,
+      providers: { ...settings.providers, [provider]: { ...config, ...patch } },
+    })
+    touch()
+  }
+  /** Commit the output-cap input: clamp what was typed and drop a no-op edit */
+  const commitMaxTokens = () => {
+    if (maxTokensDraft === null) return
+    setMaxTokensDraft(null)
+    const next = clampMaxOutputTokens(Number.parseInt(maxTokensDraft, 10))
+    if (next === (settings.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)) return
+    setSettings({ ...settings, maxOutputTokens: next })
+    touch()
+  }
+  const selectProvider = (id: AiSettings['provider']) => {
+    const nextMeta = catalog.find((c) => c.id === id)
+    const existing = settings.providers[id]
+    const updated: AiSettings = {
+      ...settings,
+      provider: id,
+      providers: {
+        ...settings.providers,
+        [id]: existing ?? {
+          apiKey: '',
+          model: nextMeta?.defaultModel ?? '',
+          baseUrl: nextMeta?.defaultBaseUrl,
+        },
+      },
+    }
+    setSettings(updated)
+    touch()
+    if (nextMeta && (nextMeta.needsBaseUrl || id === 'lmstudio' || id === 'ollama')) {
+      const targetBase = (existing?.baseUrl?.trim() || nextMeta.defaultBaseUrl || '').trim()
+      void probeModels(id, targetBase, existing?.apiKey ?? '')
+    }
+  }
+  const save = () => {
+    window.aiOffice
+      .setAiSettings?.(settings)
+      .then(() => {
+        setDirty(false)
+        setSaved(true)
+      })
+      .catch((error) => {
+        window.alert(error instanceof Error ? error.message : String(error))
+      })
+  }
+  const test = () => {
+    setTesting(true)
+    setTestResult(null)
+    window.aiOffice
+      .testAiSettings?.(settings)
+      .then((r) => {
+        setTestResult(r ?? { ok: false })
+        if (r?.ok && isCodex) {
+          void refreshCodexModels(config.cliPath ?? '', config.model).catch(() => undefined)
+        }
+      })
+      .catch((error) =>
+        setTestResult({ ok: false, error: error instanceof Error ? error.message : String(error) }),
+      )
+      .finally(() => setTesting(false))
+  }
+
+  return (
+    <>
+      <div className="set-pane-head">
+        <h3 className="set-pane-title">{t('setSecAiModel')}</h3>
+        <div className="set-pane-actions">
+          <AiStatusPill
+            status={
+              testing
+                ? { kind: 'testing', text: t('setAiTesting') }
+                : testResult
+                  ? testResult.ok
+                    ? { kind: 'ok', text: t('setAiTestOk') }
+                    : { kind: 'err', text: testResult.error || t('setAiTestFail') }
+                  : saved
+                    ? { kind: 'ok', text: t('setAiSaved') }
+                    : null
+            }
+          />
+          <button className="set-btn" disabled={testing} onClick={test}>
+            {t('setAiTest')}
+          </button>
+          <button className="set-btn primary" disabled={!dirty} onClick={save}>
+            {t('setAiSave')}
+          </button>
+        </div>
+      </div>
+      <div className="set-field">
+        <div className="set-field-text">
+          <label className="set-field-label">{t('setAiProvider')}</label>
+        </div>
+        <Dropdown
+          className="set-dd"
+          value={provider}
+          ariaLabel={t('setAiProvider')}
+          options={catalog.map((c) => ({
+            value: c.id,
+            label: c.label,
+            render: (
+              <>
+                <ProviderLogo id={c.id} />
+                {c.label}
+              </>
+            ),
+          }))}
+          onPick={(v) => selectProvider(v as AiSettings['provider'])}
+        />
+      </div>
+      <div className="set-field-desc set-ai-note">
+        {isCodex ? t('setAiCodexHint') : t('setAiByokNote')}
+      </div>
+      <div className="set-field">
+        <div className="set-field-text">
+          <div className="set-field-stack">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <label className="set-field-label">{t('setAiModelId')}</label>
+              {(provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') && (
+                <button
+                  type="button"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--primary, #6366f1)',
+                    padding: '0 4px',
+                    textDecoration: 'underline',
+                  }}
+                  onClick={() => {
+                    void probeModels(provider, endpointBaseUrl, endpointApiKey)
+                  }}
+                >
+                  {meta && meta.models.length > 0
+                    ? `⟳ Refresh (${meta.models.length} found)`
+                    : '⟳ Scan local models'}
+                </button>
+              )}
+            </div>
+            {provider === 'lmstudio' && (
+              <div className="set-field-desc">
+                {meta && meta.models.length > 0
+                  ? `Active model: ${config.model || meta.models[0]} (connected to ${endpointBaseUrl || 'http://127.0.0.1:1234/v1'})`
+                  : `Discovers all loaded models from LM Studio Local Server (default: http://127.0.0.1:1234/v1)`}
+              </div>
+            )}
+          </div>
+        </div>
+        {meta && meta.models.length > 0 ? (
+          <Dropdown
+            className="set-dd"
+            value={config.model || meta.models[0] || meta.defaultModel}
+            ariaLabel={t('setAiModelId')}
+            options={meta.models.map((m) => ({ value: m, label: m }))}
+            onPick={(m) => updateConfig({ model: m })}
+          />
+        ) : (
+          <input
+            id="set-ai-model"
+            className="set-input"
+            type="text"
+            value={config.model}
+            placeholder={
+              provider === 'lmstudio'
+                ? 'LM Studio model id (start local server to auto-discover)'
+                : 'model-id'
+            }
+            spellCheck={false}
+            onChange={(e) => updateConfig({ model: e.target.value })}
+          />
+        )}
+      </div>
+      {isCodex ? (
+        <div className="set-field">
+          <div className="set-field-text">
+            <div className="set-field-stack">
+              <label className="set-field-label" htmlFor="set-ai-cli-path">
+                {t('setAiCodexPath')}
+              </label>
+              <div className="set-field-desc">{t('setAiCodexPathHint')}</div>
+            </div>
+          </div>
+          <input
+            id="set-ai-cli-path"
+            className="set-input"
+            type="text"
+            value={config.cliPath ?? ''}
+            placeholder={t('setAiCodexAutoPlaceholder')}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(e) => updateConfig({ cliPath: e.target.value.trim() })}
+            onBlur={(e) => {
+              const cliPath = e.target.value.trim()
+              void refreshCodexModels(cliPath, config.model).catch(() => undefined)
+            }}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="set-field">
+            <div className="set-field-text">
+              <div className="set-field-stack">
+                <label className="set-field-label" htmlFor="set-ai-key">
+                  {t('setAiApiKey')}
+                </label>
+                <div className="set-field-desc">
+                  {provider === 'lmstudio' || provider === 'ollama'
+                    ? 'Optional for local models (leave empty or use lm-studio)'
+                    : t('setAiKeyHint')}
+                </div>
+              </div>
+            </div>
+            <input
+              id="set-ai-key"
+              className="set-input"
+              type="password"
+              value={config.apiKey}
+              placeholder={meta?.keyPlaceholder ?? 'API Key'}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(e) => updateConfig({ apiKey: e.target.value.trim() })}
+            />
+          </div>
+          <div className="set-field">
+            <div className="set-field-text">
+              <div className="set-field-stack">
+                <label className="set-field-label" htmlFor="set-ai-base-url">
+                  {t('setAiBaseUrl')}
+                </label>
+                <div className="set-field-desc">
+                  {provider === 'lmstudio'
+                    ? 'LM Studio Local Server endpoint (default: http://127.0.0.1:1234/v1)'
+                    : provider === 'ollama'
+                      ? 'Ollama endpoint (default: http://127.0.0.1:11434/v1)'
+                      : !meta?.needsBaseUrl
+                        ? t('setAiBaseUrlHint')
+                        : undefined}
+                </div>
+              </div>
+            </div>
+            <input
+              id="set-ai-base-url"
+              className="set-input"
+              type="text"
+              value={config.baseUrl ?? ''}
+              placeholder={meta?.defaultBaseUrl ?? (meta?.needsBaseUrl ? 'https://…/v1' : '')}
+              spellCheck={false}
+              onChange={(e) => updateConfig({ baseUrl: e.target.value.trim() })}
+            />
+          </div>
+        </>
+      )}
+      <div className="set-field">
+        <div className="set-field-text">
+          <div className="set-field-stack">
+            <label className="set-field-label" htmlFor="set-ai-max-tokens">
+              {t('setAiMaxTokens')}
+            </label>
+            <div className="set-field-desc">{t('setAiMaxTokensDesc')}</div>
+          </div>
+        </div>
+        <input
+          id="set-ai-max-tokens"
+          className="set-input"
+          type="number"
+          min={MIN_MAX_OUTPUT_TOKENS}
+          max={MAX_MAX_OUTPUT_TOKENS}
+          step={1024}
+          value={maxTokensDraft ?? String(settings.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)}
+          onChange={(e) => setMaxTokensDraft(e.target.value)}
+          onBlur={commitMaxTokens}
+        />
+      </div>
+      <div className="set-field">
+        <div className="set-field-text">
+          <div className="set-field-stack">
+            <div className="set-field-label">{t('setAiGskTools')}</div>
+            <div className="set-field-desc">{t('setAiGskToolsDesc')}</div>
+          </div>
+        </div>
+        <button
+          className="set-switch"
+          role="switch"
+          aria-checked={settings.gskToolsEnabled !== false}
+          aria-label={t('setAiGskTools')}
+          onClick={() => {
+            setSettings({ ...settings, gskToolsEnabled: settings.gskToolsEnabled === false })
+            touch()
+          }}
+        />
+      </div>
+    </>
+  )
+}
+
+type Capability = 'image' | 'analysis' | 'video' | 'search'
+/** a tested block: the four capabilities plus the Jev reranker of the local file search */
+type TestedBlock = Capability | 'rerank'
+/** where an outside entry point (e.g. the home list's Jev button) lands when it opens the modal */
+export interface SettingsTarget {
+  section: SectionId
+  block?: TestedBlock
+}
+type TestResult = { ok: boolean; error?: string }
+
+const JEV_ENDPOINTS: { value: JevEndpoint; label: string }[] = [
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'direct', label: 'TypeSafe' },
+]
+
+/**
+ * AI media & search pane, one block per capability — web search, image
+ * generation, image analysis, video analysis — each with the same
+ * provider / model / key / base URL rows as the AI Model pane. A vendor's key
+ * and base URL are stored once and shared by every block that picks it.
+ * Saved into the same ai-settings.json as the chat provider.
+ */
+function AiMediaPane({
+  t,
+  onFileSearchChange,
+  focusBlock,
+}: {
+  t: TFunc
+  onFileSearchChange?: () => void
+  focusBlock?: TestedBlock
+}) {
+  const [mediaCatalog] = useState<AiMediaProviderMeta[]>(
+    () => window.aiOffice.getAiMediaProviders?.() ?? [],
+  )
+  const [searchCatalog] = useState<AiSearchProviderMeta[]>(
+    () => window.aiOffice.getAiSearchProviders?.() ?? [],
+  )
+  const [settings, setSettings] = useState<AiSettings | null>(null)
+  const [fileSearch, setFileSearchState] = useState<FileSearchSettings | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResults, setTestResults] = useState<Partial<Record<TestedBlock, TestResult>> | null>(
+    null,
+  )
+  const focused = useRef(false)
+  const scrollToFocused = (el: HTMLDivElement | null) => {
+    if (!el || focused.current) return
+    focused.current = true
+    el.scrollIntoView({ block: 'start' })
+  }
+
+  useEffect(() => {
+    let alive = true
+    void window.aiOffice.getAiSettings?.().then((s) => {
+      if (alive && s) setSettings(s)
+    })
+    void window.aiOffice.getFileSearchSettings?.().then((v) => {
+      if (alive && v) setFileSearchState(v)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  if (!settings?.media || !settings.search) return null
+  const media: AiMediaSettings = settings.media
+  const search: AiSearchSettings = settings.search
+
+  const touch = () => {
+    setDirty(true)
+    setSaved(false)
+    setTestResults(null)
+  }
+  const setMedia = (next: AiMediaSettings) => {
+    setSettings({ ...settings, media: next })
+    touch()
+  }
+  const setSearch = (next: AiSearchSettings) => {
+    setSettings({ ...settings, search: next })
+    touch()
+  }
+  const setFileSearch = (next: FileSearchSettings) => {
+    setFileSearchState(next)
+    touch()
+  }
+  const mediaConfigOf = (id: AiMediaProviderId) => {
+    const meta = mediaCatalog.find((m) => m.id === id)
+    return (
+      media.providers[id] ?? {
+        apiKey: '',
+        imageModel: meta?.defaultImageModel ?? '',
+        analysisModel: meta?.defaultAnalysisModel ?? '',
+      }
+    )
+  }
+  const updateMediaConfig = (
+    id: AiMediaProviderId,
+    patch: Partial<AiMediaSettings['providers'][AiMediaProviderId]>,
+  ) =>
+    setMedia({
+      ...media,
+      providers: { ...media.providers, [id]: { ...mediaConfigOf(id), ...patch } },
+    })
+
+  const save = () => {
+    Promise.all([
+      window.aiOffice.setAiSettings?.(settings),
+      fileSearch ? window.aiOffice.setFileSearchSettings?.(fileSearch) : undefined,
+    ])
+      .then(() => {
+        setDirty(false)
+        setSaved(true)
+        onFileSearchChange?.()
+      })
+      .catch((error) => {
+        window.alert(error instanceof Error ? error.message : String(error))
+      })
+  }
+  // every block reports its own verdict; blocks sharing a vendor share that vendor's one check
+  const test = async () => {
+    setTesting(true)
+    setTestResults(null)
+    const results: Partial<Record<TestedBlock, TestResult>> = {}
+    const fallback: TestResult = { ok: true }
+    const vendorChecks = new Map<AiMediaProviderId, Promise<TestResult>>()
+    const vendorCheck = (id: AiMediaProviderId) => {
+      let pending = vendorChecks.get(id)
+      if (!pending) {
+        pending =
+          window.aiOffice.testAiMediaSettings?.({ provider: id, config: mediaConfigOf(id) }) ??
+          Promise.resolve(fallback)
+        vendorChecks.set(id, pending)
+      }
+      return pending
+    }
+    const blocks: [TestedBlock, () => Promise<TestResult>][] = [
+      [
+        'search',
+        () =>
+          window.aiOffice.testAiSearchSettings?.({
+            provider: search.provider,
+            apiKey: search.providers[search.provider]?.apiKey ?? '',
+          }) ?? Promise.resolve(fallback),
+      ],
+      ['image', () => vendorCheck(media.imageProvider)],
+      ['analysis', () => vendorCheck(media.analysisProvider)],
+      ['video', () => vendorCheck(media.videoAnalysisProvider)],
+    ]
+    if (fileSearch?.rerank) {
+      blocks.push([
+        'rerank',
+        () =>
+          window.aiOffice.testFileSearchRerank?.({
+            endpoint: fileSearch.jevEndpoint,
+            apiKey: fileSearch.jevKeys[fileSearch.jevEndpoint],
+          }) ?? Promise.resolve(fallback),
+      ])
+    }
+    await Promise.all(
+      blocks.map(async ([block, run]) => {
+        try {
+          results[block] = await run()
+        } catch (error) {
+          results[block] = {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        }
+      }),
+    )
+    setTestResults(results)
+    setTesting(false)
+  }
+
+  const blockLabel = (block: TestedBlock) =>
+    block === 'search'
+      ? t('setAiCapSearch')
+      : block === 'image'
+        ? t('setAiCapImage')
+        : block === 'analysis'
+          ? t('setAiCapAnalysis')
+          : block === 'video'
+            ? t('setAiCapVideo')
+            : t('setAiCapFileSearch')
+  const blockProvider = (block: TestedBlock) => {
+    if (block === 'rerank')
+      return JEV_ENDPOINTS.find((e) => e.value === fileSearch?.jevEndpoint)?.label ?? ''
+    if (block === 'search')
+      return searchCatalog.find((m) => m.id === search.provider)?.label ?? search.provider
+    const id =
+      block === 'image'
+        ? media.imageProvider
+        : block === 'video'
+          ? media.videoAnalysisProvider
+          : media.analysisProvider
+    return mediaCatalog.find((m) => m.id === id)?.label ?? id
+  }
+  const blockStatus = (block: TestedBlock): AiStatus | null => {
+    if (testing) return { kind: 'testing', text: t('setAiTesting') }
+    const r = testResults?.[block]
+    if (!r) return null
+    return r.ok
+      ? { kind: 'ok', text: t('setAiTestOk') }
+      : { kind: 'err', text: r.error || t('setAiTestFail') }
+  }
+  const subhead = (block: TestedBlock, title: string) => (
+    <div className="set-pane-subhead" ref={block === focusBlock ? scrollToFocused : undefined}>
+      <h4 className="set-pane-subtitle">{title}</h4>
+      <AiStatusPill status={blockStatus(block)} />
+    </div>
+  )
+  const failed = testResults
+    ? (Object.keys(testResults) as TestedBlock[]).filter((b) => !testResults[b]?.ok)
+    : []
+  const headStatus: AiStatus | null = testing
+    ? { kind: 'testing', text: t('setAiTesting') }
+    : testResults
+      ? failed.length === 0
+        ? { kind: 'ok', text: t('setAiTestOk') }
+        : {
+            kind: 'err',
+            text: `${blockLabel(failed[0]!)} · ${blockProvider(failed[0]!)}: ${testResults[failed[0]!]?.error || t('setAiTestFail')}`,
+          }
+      : saved
+        ? { kind: 'ok', text: t('setAiSaved') }
+        : null
+
+  const providerRow = (
+    label: string,
+    value: string,
+    options: { id: string; label: string }[],
+    onPick: (id: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <label className="set-field-label">{t('setAiProvider')}</label>
+      </div>
+      <Dropdown
+        className="set-dd"
+        value={value}
+        ariaLabel={label}
+        options={options.map((c) => ({
+          value: c.id,
+          label: c.label,
+          render: (
+            <>
+              <ProviderLogo id={c.id} />
+              {c.label}
+            </>
+          ),
+        }))}
+        onPick={onPick}
+      />
+    </div>
+  )
+
+  const modelRow = (
+    id: string,
+    models: string[],
+    fallback: string,
+    value: string,
+    onChange: (v: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <label className="set-field-label" htmlFor={id}>
+          {t('setAiModelId')}
+        </label>
+      </div>
+      {models.length > 0 ? (
+        <Dropdown
+          className="set-dd"
+          value={value || fallback}
+          ariaLabel={t('setAiModelId')}
+          options={models.map((m) => ({ value: m, label: m }))}
+          onPick={onChange}
+        />
+      ) : (
+        <input
+          id={id}
+          className="set-input"
+          type="text"
+          value={value}
+          placeholder="model-id"
+          spellCheck={false}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  )
+
+  const keyRow = (
+    id: string,
+    value: string,
+    placeholder: string,
+    onChange: (v: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <div className="set-field-stack">
+          <label className="set-field-label" htmlFor={id}>
+            {t('setAiApiKey')}
+          </label>
+          <div className="set-field-desc">{t('setAiKeyHint')}</div>
+        </div>
+      </div>
+      <input
+        id={id}
+        className="set-input"
+        type="password"
+        value={value}
+        placeholder={placeholder}
+        spellCheck={false}
+        autoComplete="off"
+        onChange={(e) => onChange(e.target.value.trim())}
+      />
+    </div>
+  )
+
+  const baseUrlRow = (
+    id: string,
+    meta: AiMediaProviderMeta,
+    value: string,
+    onChange: (v: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <div className="set-field-stack">
+          <label className="set-field-label" htmlFor={id}>
+            {t('setAiBaseUrl')}
+          </label>
+          {!meta.needsBaseUrl && <div className="set-field-desc">{t('setAiBaseUrlHint')}</div>}
+        </div>
+      </div>
+      <input
+        id={id}
+        className="set-input"
+        type="text"
+        value={value}
+        placeholder={meta.needsBaseUrl ? 'https://…/v1' : meta.defaultBaseUrl}
+        spellCheck={false}
+        onChange={(e) => onChange(e.target.value.trim())}
+      />
+    </div>
+  )
+
+  /** one media block: provider → model → key → base URL (key/base URL shared per vendor) */
+  const mediaBlock = (cap: Exclude<Capability, 'search'>) => {
+    const title =
+      cap === 'image'
+        ? t('setAiCapImage')
+        : cap === 'analysis'
+          ? t('setAiCapAnalysis')
+          : t('setAiCapVideo')
+    const options = mediaCatalog.filter((m) =>
+      cap === 'image'
+        ? !!m.imageProtocol
+        : cap === 'video'
+          ? !!m.analysisProtocol && m.videoAnalysis
+          : !!m.analysisProtocol,
+    )
+    const current =
+      cap === 'image'
+        ? media.imageProvider
+        : cap === 'video'
+          ? media.videoAnalysisProvider
+          : media.analysisProvider
+    const meta = options.find((m) => m.id === current) ?? options[0]!
+    const id = meta.id
+    const config = mediaConfigOf(id)
+    const pick = (next: string) => {
+      const p = next as AiMediaProviderId
+      setMedia(
+        cap === 'image'
+          ? { ...media, imageProvider: p }
+          : cap === 'video'
+            ? { ...media, videoAnalysisProvider: p }
+            : { ...media, analysisProvider: p },
+      )
+    }
+    const modelField = cap === 'image' ? 'imageModel' : 'analysisModel'
+    return (
+      <section key={cap}>
+        {subhead(cap, title)}
+        {providerRow(title, id, options, pick)}
+        <div className="set-field-desc set-ai-note">{meta.description}</div>
+        {modelRow(
+          `set-ai-${cap}-model`,
+          cap === 'image' ? meta.imageModels : meta.analysisModels,
+          cap === 'image' ? meta.defaultImageModel : meta.defaultAnalysisModel,
+          config[modelField],
+          (m) => updateMediaConfig(id, { [modelField]: m }),
+        )}
+        {keyRow(`set-ai-${cap}-key`, config.apiKey, meta.keyPlaceholder, (v) =>
+          updateMediaConfig(id, { apiKey: v }),
+        )}
+        {baseUrlRow(`set-ai-${cap}-base-url`, meta, config.baseUrl ?? '', (v) =>
+          updateMediaConfig(id, { baseUrl: v }),
+        )}
+      </section>
+    )
+  }
+
+  const searchMeta = searchCatalog.find((m) => m.id === search.provider)
+  const searchKey = search.providers[search.provider]?.apiKey ?? ''
+
+  return (
+    <>
+      <div className="set-pane-head">
+        <h3 className="set-pane-title">{t('setSecAiMedia')}</h3>
+        <div className="set-pane-actions">
+          <AiStatusPill status={headStatus} />
+          <button className="set-btn" disabled={testing} onClick={() => void test()}>
+            {t('setAiTest')}
+          </button>
+          <button className="set-btn primary" disabled={!dirty} onClick={save}>
+            {t('setAiSave')}
+          </button>
+        </div>
+      </div>
+      <div className="set-field-desc set-ai-note">{t('setAiSharedKeyHint')}</div>
+      <section>
+        {subhead('search', t('setAiCapSearch'))}
+        {providerRow(t('setAiCapSearch'), search.provider, searchCatalog, (v) =>
+          setSearch({ ...search, provider: v as AiSearchSettings['provider'] }),
+        )}
+        <div className="set-field-desc set-ai-note">
+          {search.provider === 'parallel'
+            ? t('setAiSearchParallelHint')
+            : search.provider === 'serply'
+              ? t('setAiSearchSerplyHint')
+              : searchMeta?.imageSearch
+                ? t('setAiSearchSerperHint')
+                : t('setAiSearchTavilyHint')}
+        </div>
+        {keyRow('set-ai-search-key', searchKey, searchMeta?.keyPlaceholder ?? 'API Key', (v) =>
+          setSearch({
+            ...search,
+            providers: { ...search.providers, [search.provider]: { apiKey: v } },
+          }),
+        )}
+      </section>
+      {fileSearch && (
+        <section>
+          {subhead('rerank', t('setAiCapFileSearch'))}
+          <div className="set-field">
+            <div className="set-field-text">
+              <div className="set-field-stack">
+                <div className="set-field-label">{t('setSearchRerank')}</div>
+                <div className="set-field-desc">{t('setSearchRerankDesc')}</div>
+              </div>
+            </div>
+            <button
+              className="set-switch"
+              role="switch"
+              aria-checked={fileSearch.rerank}
+              aria-label={t('setSearchRerank')}
+              onClick={() => setFileSearch({ ...fileSearch, rerank: !fileSearch.rerank })}
+            />
+          </div>
+          {fileSearch.rerank && (
+            <>
+              <div className="set-field">
+                <div className="set-field-text">
+                  <label className="set-field-label">{t('setSearchRerankEndpoint')}</label>
+                </div>
+                <Dropdown
+                  className="set-dd"
+                  value={fileSearch.jevEndpoint}
+                  ariaLabel={t('setSearchRerankEndpoint')}
+                  options={JEV_ENDPOINTS}
+                  onPick={(v) =>
+                    setFileSearch({
+                      ...fileSearch,
+                      jevEndpoint: v === 'direct' ? 'direct' : 'openrouter',
+                    })
+                  }
+                />
+              </div>
+              {keyRow(
+                'set-search-jev-key',
+                fileSearch.jevKeys[fileSearch.jevEndpoint],
+                fileSearch.jevEndpoint === 'openrouter' ? 'sk-or-…' : 'API Key',
+                (v) =>
+                  setFileSearch({
+                    ...fileSearch,
+                    jevKeys: { ...fileSearch.jevKeys, [fileSearch.jevEndpoint]: v },
+                  }),
+              )}
+            </>
+          )}
+        </section>
+      )}
+      {mediaBlock('image')}
+      {mediaBlock('analysis')}
+      {mediaBlock('video')}
+    </>
+  )
+}
+
+interface AiStatus {
+  kind: 'testing' | 'ok' | 'err'
+  text: string
+}
+
+/** colored feedback pill in the AI pane header: spinner while testing, then success/error */
+function AiStatusPill({ status }: { status: AiStatus | null }) {
+  if (!status) return null
+  return (
+    <span
+      className={`set-ai-status ${status.kind}`}
+      role="status"
+      // error text (HTTP body, network message) can be long — full text via native tooltip
+      title={status.kind === 'err' ? status.text : undefined}
+    >
+      {status.kind === 'testing' ? (
+        <span className="set-ai-spin" aria-hidden="true" />
+      ) : status.kind === 'ok' ? (
+        <svg
+          className="set-ai-status-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          aria-hidden="true"
+        >
+          <circle cx="7" cy="7" r="6.3" fill="currentColor" opacity="0.16" />
+          <path
+            d="M4.2 7.3l1.9 1.9 3.7-4.3"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
+      ) : (
+        <svg
+          className="set-ai-status-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          aria-hidden="true"
+        >
+          <circle cx="7" cy="7" r="6.3" fill="currentColor" opacity="0.16" />
+          <path d="M7 3.8v3.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="7" cy="10.1" r="1" fill="currentColor" />
+        </svg>
+      )}
+      <span className="set-ai-status-text">{status.text}</span>
+    </span>
+  )
+}
+
 export interface SettingsModalProps {
-  status?: { loggedIn: boolean; email?: string } | null
-  loggingOut?: boolean
+  status: AccountStatus | null
+  loggingOut: boolean
   /** browser sign-in in progress (spinner shows on the account entry) */
-  loginWaiting?: boolean
-  /** device auth URL while waiting : rescue actions when the browser did not auto-open */
-  loginUrl?: string | null
-  urlCopied?: boolean
-  onOpenLoginUrl?: () => void
-  onCopyLoginUrl?: () => void
+  loginWaiting: boolean
+  /** device auth URL while waiting — rescue actions when the browser did not auto-open */
+  loginUrl: string | null
+  urlCopied: boolean
+  onOpenLoginUrl: () => void
+  onCopyLoginUrl: () => void
   onClose: () => void
+  /** the Jev search settings were saved; the home search re-judges or drops its current order */
+  onFileSearchChange?: () => void
   /** closes the modal and launches the ReveLith login flow (progress shows on the account entry) */
-  onLogin?: () => void
-  onLogout?: () => void
+  onLogin: () => void
+  onLogout: () => void
+  /** an installed skill is older than the bundled one: dot on the Integrations entry */
+  skillUpdateDue?: boolean
+  onSkillUpdateDue?: (due: boolean) => void
+  /** open on this section / block instead of the account page */
+  target?: SettingsTarget | null
 }
 
 export function SettingsModal({
   status,
-  loggingOut = false,
-  loginWaiting = false,
+  loggingOut,
+  loginWaiting,
   loginUrl,
-  urlCopied = false,
+  urlCopied,
   onOpenLoginUrl,
   onCopyLoginUrl,
   onClose,
+  onFileSearchChange,
   onLogin,
   onLogout,
+  skillUpdateDue: updateDue = false,
+  onSkillUpdateDue,
+  target,
 }: SettingsModalProps) {
-  const i18n = useI18n()
-  const { t, lang, setLang } = i18n
-  const [section, setSection] = useState<SectionId>('ai')
+  const { lang, setLang, t } = useI18n()
+  const [section, setSection] = useState<SectionId>(target?.section ?? 'aiModel')
   const [theme, setTheme] = useState<UiTheme>('system')
   const [saveDir, setSaveDir] = useState('')
+  const [analyticsOn, setAnalyticsOn] = useState(true)
+  const [analyticsSaving, setAnalyticsSaving] = useState(false)
+  const [autoSaveOn, setAutoSaveOn] = useState(false)
+  const [defaultApp, setDefaultApp] = useState<DefaultAppStatus | null>(null)
+  const [defaultAppBusy, setDefaultAppBusy] = useState(false)
+  const [defaultAppFailed, setDefaultAppFailed] = useState(false)
+  const [aiPrefs, setAiPrefs] = useState<AiPanelPrefs>(DEFAULT_AI_PANEL_PREFS)
   const [channel, setChannel] = useState<'stable' | 'beta'>('stable')
   const [appVersion, setAppVersion] = useState('')
+  const [githubStars, setGithubStars] = useState<number | null>(null)
 
   useEffect(() => {
     let alive = true
-    void window.aiOffice?.getTheme?.().then((th) => {
-      if (alive && th) setTheme(th)
+    void window.aiOffice.getTheme?.().then((th) => {
+      if (alive) setTheme(th)
     })
-    void window.aiOffice?.getDefaultSaveDir?.().then((dir) => {
+    void window.aiOffice.getDefaultSaveDir?.().then((dir) => {
       if (alive && dir) setSaveDir(dir)
     })
-    void window.aiOffice?.getUpdateChannel?.().then((ch) => {
-      if (alive && ch) setChannel(ch)
+    void window.aiOffice.getAnalyticsEnabled?.().then((on) => {
+      if (alive) setAnalyticsOn(on !== false)
     })
-    void window.aiOffice?.getAppVersion?.().then((v) => {
+    void window.aiOffice.getAutoSaveDefault?.().then((v) => {
+      if (alive) setAutoSaveOn(v.on)
+    })
+    void window.aiOffice.getDefaultAppStatus?.().then((st) => {
+      if (alive) setDefaultApp(st)
+    })
+    void window.aiOffice.getAiPanelPrefs?.().then((prefs) => {
+      if (alive) setAiPrefs(prefs)
+    })
+    void window.aiOffice.getUpdateChannel?.().then((ch) => {
+      if (alive) setChannel(ch)
+    })
+    void window.aiOffice.getAppVersion?.().then((v) => {
       if (alive && v) setAppVersion(v)
+    })
+    void window.aiOffice.githubStars?.().then((n) => {
+      if (alive && n !== null) setGithubStars(n)
     })
     return () => {
       alive = false
@@ -901,19 +1352,14 @@ export function SettingsModal({
 
   const applyTheme = (next: UiTheme) => {
     setTheme(next)
-    try {
-      localStorage.setItem('revelith.theme', next)
-    } catch {}
-    void window.aiOffice?.setTheme?.(next)
+    void window.aiOffice.setTheme(next)
     if (next === 'system') document.documentElement.removeAttribute('data-theme')
     else document.documentElement.setAttribute('data-theme', next)
-    // Broadcast to any active editor iframes
-    const iframes = document.querySelectorAll('iframe')
-    iframes.forEach((f) => {
-      try {
-        f.contentWindow?.postMessage({ type: 'theme-change', theme: next }, '*')
-      } catch {}
-    })
+  }
+
+  const updateAiPrefs = (patch: Partial<AiPanelPrefs>) => {
+    setAiPrefs((prev) => ({ ...prev, ...patch }))
+    void window.aiOffice.setAiPanelPrefs(patch).then(setAiPrefs)
   }
 
   const changeSaveDir = () => {
@@ -921,6 +1367,38 @@ export function SettingsModal({
       if (dir) setSaveDir(dir)
     })
   }
+
+  // Windows only opens the system page; re-read ownership when the user comes back
+  useEffect(() => {
+    if (!defaultApp?.manualOnly) return
+    const refresh = () => {
+      void window.aiOffice.getDefaultAppStatus?.().then(setDefaultApp)
+    }
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [defaultApp?.manualOnly])
+
+  const claimDefaultApp = () => {
+    setDefaultAppBusy(true)
+    setDefaultAppFailed(false)
+    void window.aiOffice
+      .setDefaultApp()
+      .then((st) => {
+        setDefaultApp(st)
+        if (!st.manualOnly && st.state !== 'default') setDefaultAppFailed(true)
+      })
+      .catch(() => setDefaultAppFailed(true))
+      .finally(() => setDefaultAppBusy(false))
+  }
+
+  const defaultAppDesc = (() => {
+    if (!defaultApp) return ''
+    if (defaultAppFailed) return t('setDefaultAppFailed')
+    if (defaultApp.state === 'default') return t('setDefaultAppIs')
+    if (defaultApp.state === 'other' && defaultApp.others.length > 0)
+      return t('setDefaultAppOther', { app: defaultApp.others.join(', ') })
+    return t('setDefaultAppDesc')
+  })()
 
   const loggedIn = status?.loggedIn ?? false
   const email = status?.email ?? ''
@@ -956,47 +1434,135 @@ export function SettingsModal({
                 onClick={() => setSection(s.id)}
               >
                 <SectionIcon id={s.id} />
-                {s.label}
+                {t(s.labelKey)}
+                {s.id === 'integrations' && updateDue && (
+                  <span className="set-nav-dot" role="img" aria-label={t('intgUpdateDue')} />
+                )}
               </button>
             ))}
           </nav>
           <div className="set-pane">
-            {section === 'ai' && <AiSettingsSection />}
+{/* Account/login section removed — ReveLith does not require login to use the app */}
+            {section === 'aiModel' && <AiModelPane t={t} />}
+            {section === 'aiMedia' && (
+              <AiMediaPane
+                t={t}
+                onFileSearchChange={onFileSearchChange}
+                focusBlock={target?.block}
+              />
+            )}
             {section === 'general' && (
               <>
                 <h3 className="set-pane-title">{t('setSecGeneral')}</h3>
                 <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-lang">
-                      {t('language')}
-                    </label>
+                    <label className="set-field-label">{t('language')}</label>
                   </div>
-                  <CustomSelect
-                    id="set-lang"
+                  <Dropdown
+                    className="set-dd"
                     value={lang}
-                    options={LANG_OPTIONS}
-                    onChange={(val) => setLang(val)}
+                    ariaLabel={t('language')}
+                    options={LANG_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+                    onPick={(v) => setLang(v as typeof lang)}
                   />
                 </div>
                 <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-theme">
-                      {t('theme')}
-                    </label>
+                    <label className="set-field-label">{t('theme')}</label>
                   </div>
-                  <CustomSelect
-                    id="set-theme"
+                  <Dropdown
+                    className="set-dd"
                     value={theme}
+                    ariaLabel={t('theme')}
                     options={THEME_OPTIONS.map((opt) => ({
                       value: opt.value,
                       label: t(opt.labelKey),
                     }))}
-                    onChange={(val) => applyTheme(val)}
+                    onPick={(v) => applyTheme(v as UiTheme)}
                   />
                 </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <label className="set-field-label">{t('setAiPanelSide')}</label>
+                  </div>
+                  <Dropdown
+                    className="set-dd"
+                    value={aiPrefs.side}
+                    ariaLabel={t('setAiPanelSide')}
+                    options={[
+                      { value: 'left', label: t('aiPanelSideLeft') },
+                      { value: 'right', label: t('aiPanelSideRight') },
+                    ]}
+                    onPick={(side) => updateAiPrefs({ side: side as AiPanelSide })}
+                  />
+                </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <label className="set-field-label">{t('setAiFontSize')}</label>
+                  </div>
+                  {aiPrefs.fontSize === 'custom' && (
+                    <CustomFontSizeInput
+                      value={aiPrefs.customFontSize}
+                      label={t('aiFontSizeCustom')}
+                      onCommit={(px) => updateAiPrefs({ customFontSize: px })}
+                    />
+                  )}
+                  <Dropdown
+                    className="set-dd"
+                    value={aiPrefs.fontSize}
+                    ariaLabel={t('setAiFontSize')}
+                    options={AI_FONT_SIZE_OPTIONS.map((opt) => ({
+                      value: opt.value,
+                      label: t(opt.labelKey),
+                    }))}
+                    onPick={(v) => {
+                      const fontSize = v as AiFontSize
+                      // start the custom size from the preset being left so nothing jumps
+                      updateAiPrefs(
+                        fontSize === 'custom' && aiPrefs.fontSize !== 'custom'
+                          ? { fontSize, customFontSize: aiPanelFontPx(aiPrefs) }
+                          : { fontSize },
+                      )
+                    }}
+                  />
+                </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <div className="set-field-stack">
+                      <div className="set-field-label">{t('setAiSpellcheck')}</div>
+                      <div className="set-field-desc">{t('setAiSpellcheckDesc')}</div>
+                    </div>
+                  </div>
+                  <button
+                    className="set-switch"
+                    role="switch"
+                    aria-checked={aiPrefs.spellcheck}
+                    aria-label={t('setAiSpellcheck')}
+                    onClick={() => updateAiPrefs({ spellcheck: !aiPrefs.spellcheck })}
+                  />
+                </div>
+                {defaultApp && defaultApp.state !== 'unsupported' && (
+                  <div className="set-field">
+                    <div className="set-field-text">
+                      <div className="set-field-stack">
+                        <div className="set-field-label">{t('setDefaultApp')}</div>
+                        <div className="set-field-desc">{defaultAppDesc}</div>
+                      </div>
+                    </div>
+                    <button
+                      className="set-btn"
+                      disabled={defaultAppBusy || defaultApp.state === 'default'}
+                      onClick={claimDefaultApp}
+                    >
+                      {defaultApp.manualOnly
+                        ? t('setDefaultAppOpenSettings')
+                        : t('setDefaultAppSet')}
+                    </button>
+                  </div>
+                )}
                 <Field
                   label={t('saveLocation')}
-                  value={saveDir || ':'}
+                  value={saveDir || '—'}
                   valueTitle={saveDir}
                   action={
                     <button className="set-btn" onClick={changeSaveDir}>
@@ -1004,14 +1570,95 @@ export function SettingsModal({
                     </button>
                   }
                 />
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <div className="set-field-stack">
+                      <div className="set-field-label">{t('setAutoSave')}</div>
+                      <div className="set-field-desc">{t('setAutoSaveDesc')}</div>
+                    </div>
+                  </div>
+                  <button
+                    className="set-switch"
+                    role="switch"
+                    aria-checked={autoSaveOn}
+                    aria-label={t('setAutoSave')}
+                    onClick={() => {
+                      const next = !autoSaveOn
+                      setAutoSaveOn(next)
+                      void window.aiOffice.setAutoSaveDefault?.(next).catch(() => {})
+                    }}
+                  />
+                </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <div className="set-field-stack">
+                      <div className="set-field-label">{t('setAnalytics')}</div>
+                      <div className="set-field-desc">{t('setAnalyticsDesc')}</div>
+                    </div>
+                  </div>
+                  <button
+                    className="set-switch"
+                    role="switch"
+                    aria-checked={analyticsOn}
+                    aria-label={t('setAnalytics')}
+                    disabled={analyticsSaving}
+                    onClick={() => {
+                      const next = !analyticsOn
+                      setAnalyticsSaving(true)
+                      void window.aiOffice
+                        .setAnalyticsEnabled(next)
+                        .then((persisted) => {
+                          if (persisted) setAnalyticsOn(next)
+                        })
+                        .catch(() => {})
+                        .finally(() => setAnalyticsSaving(false))
+                    }}
+                  />
+                </div>
               </>
+            )}
+            {section === 'integrations' && (
+              <IntegrationsPane t={t} onStatus={(st) => onSkillUpdateDue?.(skillUpdateDue(st))} />
             )}
             {section === 'about' && (
               <>
                 <h3 className="set-pane-title">{t('setSecAbout')}</h3>
-                <Field label={t('versionLabel')} value={appVersion || '1.1.4'} />
-                <Field label="Edition" value="ReveLith AI Desktop" />
-                <Field label="License" value="Apache-2.0 Open Source" />
+                <Field label={t('versionLabel')} value={appVersion || '—'} />
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <label className="set-field-label">{t('updateChannel')}</label>
+                  </div>
+                  <Dropdown
+                    className="set-dd"
+                    value={channel}
+                    ariaLabel={t('updateChannel')}
+                    options={CHANNEL_OPTIONS.map((opt) => ({
+                      value: opt.value,
+                      label: t(opt.labelKey),
+                    }))}
+                    onPick={(v) => {
+                      const next = v === 'beta' ? 'beta' : 'stable'
+                      setChannel(next)
+                      void window.aiOffice.setUpdateChannel(next)
+                    }}
+                  />
+                </div>
+                <Field
+                  label={t('setGithub')}
+                  value={
+                    githubStars === null
+                      ? 'github.com/revelith-ai/revelith'
+                      : `github.com/revelith-ai/revelith · ★ ${formatStars(githubStars)}`
+                  }
+                  action={
+                    <button
+                      className="set-btn"
+                      onClick={() => void window.aiOffice.openGitHubRepo?.()}
+                    >
+                      {t('starOnGitHub')}
+                    </button>
+                  }
+                />
               </>
             )}
           </div>

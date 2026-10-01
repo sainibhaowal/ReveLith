@@ -1,6 +1,6 @@
-﻿/**
+/**
  * <a:fld> in-paragraph ordering: a field must stay at its document
- * position relative to plain runs : "fld(2) + r(h)" renders as "2h", not "h2".
+ * position relative to plain runs — "fld(2) + r(h)" renders as "2h", not "h2".
  */
 import { describe, it, expect } from 'vitest'
 import { parseSlide } from '../src/parse'
@@ -63,5 +63,22 @@ describe('a:fld document-order preservation', () => {
     )
     expect(runs.map((r) => r.text)).toEqual(['7'])
     expect(runs[0]!.field).toBe('slidenum')
+  })
+
+  it('a slidenum fld with no cached text is kept as a field run, not an empty paragraph mark', () => {
+    // Layout-authored fields are saved without <a:t>; the value is substituted at render
+    // time, so the endParaRPr mark must not replace the run (that dropped the number)
+    const runs = runsOf(
+      textBox(
+        `<a:p>` +
+          `<a:fld id="{B6D32A31-0000-0000-0000-000000000003}" type="slidenum"><a:rPr lang="zh-CN" sz="2000" b="1"/></a:fld>` +
+          `<a:endParaRPr lang="zh-CN" sz="2000" b="1"/>` +
+          `</a:p>`,
+      ),
+    )
+    expect(runs).toHaveLength(1)
+    expect(runs[0]!.field).toBe('slidenum')
+    expect(runs[0]!.text).toBe('')
+    expect(runs[0]!.paraMark).toBeUndefined()
   })
 })

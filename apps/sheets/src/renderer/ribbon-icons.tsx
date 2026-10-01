@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from 'react'
 /// Ribbon icon set drawn to the shared icon standard: 24×24 canvas with
 /// 1.5-unit strokes, round caps and round joins. The rendered size comes
 /// from CSS, which also pins the PAINTED stroke to ~1.5px (20px+ glyphs) /
-/// ~1.25px (13-16px glyphs) via stroke-width overrides in styles.css :
+/// ~1.25px (13-16px glyphs) via stroke-width overrides in styles.css —
 /// proportional scaling would leave small glyphs hairline and big ones fat.
 function Icon({ children }: { readonly children: ReactNode }): ReactElement {
   return (
@@ -37,20 +37,154 @@ export function CaretIcon(): ReactElement {
   )
 }
 
-/// Quick-access save button (floppy) : design-supplied geometry shared with
-/// the docs and slides ribbons, so the three apps' save buttons read identically.
+/// Border-menu glyphs (16-canvas, docs-ribbon conventions): a faint dashed
+/// frame marks the cell block, solid strokes mark the edges the entry sets.
+function BorderSvg({ children }: { children: ReactNode }): ReactElement {
+  return (
+    <svg
+      className="border-icon"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  )
+}
+
+function BorderDashedFrame(): ReactElement {
+  return (
+    <rect
+      x="3.02"
+      y="3.02"
+      width="9.96"
+      height="9.96"
+      rx="0.42"
+      strokeWidth="1"
+      strokeDasharray="1.5 1.7"
+      opacity="0.55"
+    />
+  )
+}
+
+export function BorderAllIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <rect x="3.02" y="3.02" width="9.96" height="9.96" rx="0.42" />
+      <path d="M 3.02 8 h 9.96 M 8 3.02 v 9.96" />
+    </BorderSvg>
+  )
+}
+
+export function BorderOuterIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <rect x="3.02" y="3.02" width="9.96" height="9.96" rx="0.42" />
+      <path
+        d="M 3.02 8 h 9.96 M 8 3.02 v 9.96"
+        strokeWidth="1"
+        strokeDasharray="1.5 1.7"
+        opacity="0.55"
+      />
+    </BorderSvg>
+  )
+}
+
+export function BorderThickOuterIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <rect x="3.22" y="3.22" width="9.56" height="9.56" rx="0.42" strokeWidth="2.1" />
+      <path
+        d="M 3.02 8 h 9.96 M 8 3.02 v 9.96"
+        strokeWidth="1"
+        strokeDasharray="1.5 1.7"
+        opacity="0.55"
+      />
+    </BorderSvg>
+  )
+}
+
+export function BorderTopIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <BorderDashedFrame />
+      <path d="M 3.02 3.02 h 9.96" />
+    </BorderSvg>
+  )
+}
+
+export function BorderBottomIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <BorderDashedFrame />
+      <path d="M 3.02 12.98 h 9.96" />
+    </BorderSvg>
+  )
+}
+
+export function BorderLeftIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <BorderDashedFrame />
+      <path d="M 3.02 3.02 v 9.96" />
+    </BorderSvg>
+  )
+}
+
+export function BorderRightIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <BorderDashedFrame />
+      <path d="M 12.98 3.02 v 9.96" />
+    </BorderSvg>
+  )
+}
+
+export function BorderNoneIcon(): ReactElement {
+  return (
+    <BorderSvg>
+      <BorderDashedFrame />
+      <path
+        d="M 3.02 8 h 9.96 M 8 3.02 v 9.96"
+        strokeWidth="1"
+        strokeDasharray="1.5 1.7"
+        opacity="0.55"
+      />
+    </BorderSvg>
+  )
+}
+
+/// Quick-access save button — standard floppy glyph shared across all apps.
 export function SaveIcon(): ReactElement {
   return (
     <Icon>
-      <path d="M3 4.5C3 3.67158 3.67158 3 4.5 3H17.1407L21 6.60325V19.5C21 20.3285 20.3285 21 19.5 21H4.5C3.67158 21 3 20.3285 3 19.5V4.5Z" />
-      <path d="M12.0042 3L12 6.6923C12 6.86225 11.7761 7 11.5 7H7.5C7.22385 7 7 6.86225 7 6.6923V3H12.0042Z" />
-      <path d="M7 13H17" />
-      <path d="M7 17H12.0042" />
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <path d="M17 21v-8H7v8" />
+      <path d="M7 3v5h8V3" />
     </Icon>
   )
 }
 
-/// Quick-access undo/redo : design-supplied geometry shared with the docs
+/// Save As keeps the floppy silhouette and adds the familiar pencil overlay.
+export function SaveAsIcon(): ReactElement {
+  return (
+    <Icon>
+      <path d="M12.25 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v1.25" />
+      <path d="M7 21v-8h5" />
+      <path d="M7 3v5h8V3" />
+      <path d="m13.25 19.5.75-3.25 5.75-5.75 2.5 2.5-5.75 5.75-3.25.75Z" />
+      <path d="m18.75 11.5 2.5 2.5" />
+    </Icon>
+  )
+}
+
+/// Quick-access undo/redo — design-supplied geometry shared with the docs
 /// and slides ribbons, so the three apps' tab-row arrows read identically.
 export function UndoIcon(): ReactElement {
   return (
@@ -228,8 +362,10 @@ export const RIBBON_GLYPH_ICONS: Record<string, ReactElement> = {
   ),
   '🖌': (
     <Icon>
-      <path d="M 16.5 4 H 3.97 V 10.71 H 16.5 Z" />
-      <path d="M 16.51 7.13 H 20.53 V 14.33 L 9.79 15.72 V 21" />
+      <rect x="10.65" y="4.05" width="2.7" height="5.1" rx="1.35" />
+      <rect x="4.5" y="9.15" width="15" height="10.8" rx="1.5" />
+      <path d="M 4.5 13.35 H 19.5" />
+      <path d="M 9.3 16.35 V 18.15 M 14.7 16.35 V 18.15" />
     </Icon>
   ),
   // ---- find / filter ----
@@ -698,24 +834,27 @@ export const RIBBON_GLYPH_ICONS: Record<string, ReactElement> = {
   ),
 }
 
-/** ReveLith AI brand mark (orbital glyph) */
-export function ReveLithAiMark({ size = 18 }: { readonly size?: number }): ReactElement {
+/** ReveLith brand mark (rounded-square sparkle badge), inline so it renders
+ * crisply at device resolution instead of going through <img> rasterization */
+export function ReveLithMark({ size = 18 }: { readonly size?: number }): ReactElement {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <circle cx="16" cy="16" r="2.2" fill="#38bdf8" />
-      <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#38bdf8" strokeWidth="2" transform="rotate(0 16 16)" />
-      <circle cx="28" cy="16" r="2" fill="#67e8f9" />
-      <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#60a5fa" strokeWidth="2" transform="rotate(60 16 16)" />
-      <circle cx="10" cy="5.6" r="2" fill="#93c5fd" />
-      <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#818cf8" strokeWidth="2" transform="rotate(120 16 16)" />
-      <circle cx="10" cy="26.4" r="2" fill="#c7d2fe" />
+      <g transform="translate(10, 10)">
+        <circle cx="50" cy="50" r="7.5" fill="#38bdf8" />
+        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#38bdf8" strokeWidth="6.5" transform="rotate(0 50 50)" />
+        <circle cx="88" cy="50" r="6.5" fill="#67e8f9" />
+        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#60a5fa" strokeWidth="6.5" transform="rotate(60 50 50)" />
+        <circle cx="31" cy="17" r="6.5" fill="#93c5fd" />
+        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#818cf8" strokeWidth="6.5" transform="rotate(120 50 50)" />
+        <circle cx="31" cy="83" r="6.5" fill="#c7d2fe" />
+      </g>
     </svg>
   )
 }

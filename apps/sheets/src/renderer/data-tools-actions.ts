@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cell navigation (Name Box / Go To / formula / symbol) and data tools
  * (advanced filter, subtotal, consolidate, outline, format-as-table).
  * Extracted from App.tsx; the App component passes a DataToolsContext built
@@ -6,8 +6,12 @@
  */
 import { ILayoutService } from '@univerjs/preset-sheets-core'
 
-import { columnLabel } from '../domain/cell-address'
-import { decodeCsvBuffer, isNumericCell, parseCsv } from '../gateway/csv-import'
+import { columnLabel } from '@revelith/xlsx-gateway/domain/cell-address'
+import {
+  decodeCsvBuffer,
+  isNumericCell,
+  parseCsv,
+} from '@revelith/xlsx-gateway/gateway/csv-import'
 import type { AdvancedFilterColumn, AdvancedFilterCriteria } from './AdvancedFilterDialog'
 import {
   buildLabelMatrix,
@@ -22,13 +26,17 @@ import { isSheetRemoved, journalSize, recordStructuralOp } from './edit-journal'
 import { resolveGoToRef, type GoToNameEntry } from './goto'
 import { getLang, t } from './i18n/locale'
 import { appendSymbol } from './SymbolDialog'
+import { inferContinuousRegion } from './table-actions'
 import {
+  a1RangeRef,
+  a1RowRangeRef,
   advancedFilterColumnOptions,
   applyFilterCriteria,
   columnLetter,
   loadVisibleRange,
   sheetOutline,
   univerDefinedNames,
+  revealCellBelowFreeze,
 } from './univer-sync'
 import type { LazyWorkbookState, UniverRuntime, UniverWorksheet } from './univer-state'
 import { applyAiTableAdd } from './workbook-ops'
@@ -68,9 +76,12 @@ export function handleImportCsv(ctx: DataToolsContext): void {
       ctx.setMessage(t('appCsvTooLarge'))
       return
     }
-    void file.arrayBuffer().then((buffer) => {
-      importCsvText(ctx, decodeCsvBuffer(new Uint8Array(buffer), CSV_CHARSET_BY_LANG[getLang()]))
-    })
+    void file
+      .arrayBuffer()
+      .then((buffer) => {
+        importCsvText(ctx, decodeCsvBuffer(new Uint8Array(buffer), CSV_CHARSET_BY_LANG[getLang()]))
+      })
+      .catch(() => ctx.setMessage(t('appCsvTooLarge')))
   }
   input.click()
 }
@@ -127,7 +138,7 @@ export function activeCellLabel(ctx: DataToolsContext): string {
 /// defined name) and selects it, switching sheets when the target lives on
 /// another one. Returns null on success or a user-facing error message.
 /// Univer's parser yields NaN rows instead of throwing on garbage, so
-/// validity is decided by resolveGoToRef : the try/catch covers what
+/// validity is decided by resolveGoToRef — the try/catch covers what
 /// getRange itself rejects: unknown sheet names and out-of-bounds ranges.
 export function goToReference(ctx: DataToolsContext, ref: string): string | null {
   const workbook = ctx.univerRef.current?.univerAPI.getActiveWorkbook()
@@ -140,7 +151,7 @@ export function goToReference(ctx: DataToolsContext, ref: string): string | null
     return t('appGoToUnresolved', { ref: trimmed })
   }
   try {
-    // A jump must not leave an editor open on the previous cell : later
+    // A jump must not leave an editor open on the previous cell — later
     // keystrokes would land there. Commit it before moving.
     const editing = workbook as unknown as {
       isCellEditing?(): boolean
@@ -150,7 +161,7 @@ export function goToReference(ctx: DataToolsContext, ref: string): string | null
     const range = worksheet.getRange(resolved)
     const target = workbook.getSheetBySheetId(range.getSheetId()) ?? worksheet
     workbook.setActiveRange(range)
-    target.scrollToCell(range.getRow(), range.getColumn())
+    void revealCellBelowFreeze(target, range.getRow(), range.getColumn())
     // Hand keyboard focus back to the grid (Univer's hidden editor host, the
     // same handoff its own name box does); typing right after a jump then
     // lands in the target cell instead of being dropped on <body>.
@@ -205,6 +216,100 @@ export function handleApplyFormula(ctx: DataToolsContext, formula: string): stri
   }
   ctx.setMessage(t('appFormulaSet', { cell: activeCellLabel(ctx) }))
   return null
+}
+
+/// A label turned into a legal defined name, Excel-style: illegal characters
+/// become underscores, and anything that could read as a cell reference gets
+/// an underscore prefix.
+function definedNameFromLabel(label: string): string | null {
+  const cleaned = label.trim().replace(/[^\p{L}\p{N}_.]/gu, '_')
+  if (!cleaned || /^\.+$/.test(cleaned)) return null
+  const named = /^[\p{L}_]/u.test(cleaned) ? cleaned : `_${cleaned}`
+  const cellLike = /^[A-Za-z]{1,3}\d+$/.test(named) || /^[Rr]\d*([Cc]\d*)?$/.test(named)
+  return cellLike ? `_${named}` : named
+}
+
+/// Formulas → Create from Selection: one defined name per column (labels in
+/// the selection's top row) or per row (labels in its left column). The
+/// defined-name mutation listener journals each insert.
+export function handleCreateNamesFromSelection(ctx: DataToolsContext, mode: 'top' | 'left'): void {
+  const workbook = ctx.univerRef.current?.univerAPI.getActiveWorkbook()
+  const worksheet = workbook?.getActiveSheet()
+  const selection = workbook?.getActiveRange()?.getRange()
+  if (!workbook || !worksheet || !selection) {
+    ctx.setMessage(t('appSelectCellFirst'))
+    return
+  }
+  const { startRow, endRow, startColumn, endColumn } = selection
+  if (mode === 'top' ? endRow <= startRow : endColumn <= startColumn) {
+    ctx.setMessage(t('appCreateNamesNeedsData'))
+    return
+  }
+  const sheetName = worksheet.getSheetName()
+  // Names span the full selection like Excel (empty data rows included),
+  // but labels past the data extent are blank and would be skipped one by
+  // one — stop the label walk there so a whole-column selection doesn't
+  // read a million empty cells. File cells stream into Univer lazily, so
+  // getLastRow/getLastColumn alone can undercount; the file's used range is
+  // the floor.
+  const fileSheet = ctx.lazyWorkbookRef.current?.file.sheets.find(
+    (sheet) => sheet.id === worksheet.getSheetId(),
+  )
+  const labelEndRow = Math.min(
+    endRow,
+    Math.max(worksheet.getLastRow(), (fileSheet?.rowCount ?? 0) - 1),
+  )
+  const labelEndColumn = Math.min(
+    endColumn,
+    Math.max(worksheet.getLastColumn(), (fileSheet?.columnCount ?? 0) - 1),
+  )
+  // Labels come from the formatted display text — a date header must name
+  // like "Jan_2023", not its raw serial.
+  const entries: { label: string; ref: string }[] = []
+  if (mode === 'top') {
+    for (let column = startColumn; column <= labelEndColumn; column += 1) {
+      entries.push({
+        label: worksheet.getRange(startRow, column, 1, 1).getDisplayValue() ?? '',
+        ref: a1RangeRef(sheetName, column, startRow + 1, endRow),
+      })
+    }
+  } else {
+    for (let row = startRow; row <= labelEndRow; row += 1) {
+      entries.push({
+        label: worksheet.getRange(row, startColumn, 1, 1).getDisplayValue() ?? '',
+        ref: a1RowRangeRef(sheetName, row, startColumn + 1, endColumn),
+      })
+    }
+  }
+  // insertDefinedName keys entries by internal id and accepts duplicates
+  // without error; a second entry with the same name fails the next save.
+  // Dedupe here — against existing names and within the batch, both
+  // case-insensitive like Excel.
+  const taken = new Set(
+    univerDefinedNames(ctx.univerRef.current).map((defined) => defined.getName().toLowerCase()),
+  )
+  let created = 0
+  let skipped = 0
+  for (const entry of entries) {
+    const name = definedNameFromLabel(entry.label)
+    if (!name || taken.has(name.toLowerCase())) {
+      skipped += 1
+      continue
+    }
+    try {
+      workbook.insertDefinedName(name, entry.ref)
+      taken.add(name.toLowerCase())
+      created += 1
+    } catch {
+      // Reserved or otherwise rejected name — Excel prompts here; we skip.
+      skipped += 1
+    }
+  }
+  ctx.setMessage(
+    skipped > 0
+      ? t('appNamesCreatedSkipped', { count: created, skipped })
+      : t('appNamesCreated', { count: created }),
+  )
 }
 
 /// The Symbol dialog's click: appends the picked character to the active
@@ -540,10 +645,20 @@ export function handleFormatAsTable(ctx: DataToolsContext, style: string): void 
   }
   const sheetId = worksheet.getSheetId()
   if (isSheetRemoved(state.editJournal, sheetId)) return
-  const startRow = range.getRow()
-  const startColumn = range.getColumn()
-  const endRow = startRow + range.getHeight() - 1
-  const endColumn = startColumn + range.getWidth() - 1
+  let startRow = range.getRow()
+  let startColumn = range.getColumn()
+  let endRow = startRow + range.getHeight() - 1
+  let endColumn = startColumn + range.getWidth() - 1
+  // fixes #298: single-cell selection → infer continuous region (Excel CurrentRegion)
+  if (range.getHeight() === 1 && range.getWidth() === 1) {
+    const inferred = inferContinuousRegion(worksheet, startRow, startColumn)
+    if (inferred) {
+      startRow = inferred.startRow
+      startColumn = inferred.startColumn
+      endRow = inferred.endRow
+      endColumn = inferred.endColumn
+    }
+  }
   try {
     applyAiTableAdd(runtime, state, {
       op: 'add_table',

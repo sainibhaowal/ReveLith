@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Code2, ChevronRight, Layers } from 'lucide-react'
+import { Code2, ChevronRight } from 'lucide-react'
 
 const STAGES = [
   {
@@ -7,7 +7,8 @@ const STAGES = [
     label: '01 — Parse',
     color: '#6c47ff',
     title: 'OOXML Structural Parser',
-    description: 'The document container is opened without touching source bytes. Only the specific modified XML node is delta-patched and cleanly synced back into the zip stream.',
+    description:
+      'The document container is opened without touching source bytes. Only the specific modified XML node is delta-patched and cleanly synced back into the zip stream.',
     code: `// Stage 1: Zero-Copy Ingestion
 const container = await ZipArchive.open("contract.docx");
 const mfrag    = await fragment.readFragment(container);
@@ -19,7 +20,8 @@ const patch    = delta.compute(mfrag.nodes, editBuffer);`,
     label: '02 — Delta Patch',
     color: '#ff6b35',
     title: 'Byte-Fingerprint & Offset Map',
-    description: 'ReveLith maps each document node to exact byte fingerprints. Only the changed fragments are re-serialized. Untouched XML remains pristine.',
+    description:
+      'ReveLith maps each document node to exact byte fingerprints. Only the changed fragments are re-serialized. Untouched XML remains pristine.',
     code: `// Stage 2: Minimal Delta Serialization
 const fingerprint = await hashNode(mfrag);
 if (fingerprint !== cache.get(nodeId)) {
@@ -31,7 +33,8 @@ if (fingerprint !== cache.get(nodeId)) {
     label: '03 — Byte-Safe Save',
     color: '#10b981',
     title: 'Lossless Byte-to-Byte Output',
-    description: 'Outputs source-container intact. The save writes only the delta stream into the original zip, preserving all vendor extensions, macros, and custom XML.',
+    description:
+      'Outputs source-container intact. The save writes only the delta stream into the original zip, preserving all vendor extensions, macros, and custom XML.',
     code: `// Stage 3: Zero-Drift Write-Back
 await container.applyPatch(patch, {
   preserveCustomXml: true,
@@ -56,12 +59,12 @@ export const FidelityArchitecture: React.FC = () => {
             className="text-[32px] sm:text-[44px] md:text-[52px] font-extrabold tracking-[-0.025em] leading-[1.1] mb-4 text-[#1a0a3d]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            Why Traditional Editors{' '}
-            <span className="heading-gradient-warm">Corrupt Files</span>
-            {' '}— And How ReveLith Solves It
+            Why Traditional Editors <span className="heading-gradient-warm">Corrupt Files</span> —
+            And How ReveLith Solves It
           </h2>
           <p className="text-[16px] text-[#4a3d6d] max-w-2xl mx-auto leading-relaxed">
-            Standard web and cloud editors re-serialize entire XML files on save, destroying styles and macros. ReveLith uses a patented zero-drift byte patching engine.
+            Standard web and cloud editors re-serialize entire XML files on save, destroying styles
+            and macros. ReveLith uses a patented zero-drift byte patching engine.
           </p>
         </div>
 
@@ -70,7 +73,9 @@ export const FidelityArchitecture: React.FC = () => {
           {/* Traditional */}
           <div className="card-feature border-[#fecaca]">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-[#fee2e2] flex items-center justify-center text-lg">⚠️</div>
+              <div className="w-10 h-10 rounded-xl bg-[#fee2e2] flex items-center justify-center text-lg">
+                ⚠️
+              </div>
               <div>
                 <div className="font-bold text-[#1a0a3d]">Traditional &amp; Cloud Editors</div>
                 <div className="text-xs text-[#e11d48] font-semibold">Destructive Round-Trips</div>
@@ -78,13 +83,31 @@ export const FidelityArchitecture: React.FC = () => {
             </div>
             <div className="space-y-3">
               {[
-                { icon: '✗', text: 'Re-serializes entire XML on every save', color: 'text-[#e11d48]' },
-                { icon: '✗', text: 'Re-orders attributes, strips custom schemas', color: 'text-[#e11d48]' },
-                { icon: '✗', text: 'Breaks macros, cause formatting drift', color: 'text-[#e11d48]' },
-                { icon: '✗', text: 'Tablet for normal tables not preserved', color: 'text-[#e11d48]' },
+                {
+                  icon: '✗',
+                  text: 'Re-serializes entire XML on every save',
+                  color: 'text-[#e11d48]',
+                },
+                {
+                  icon: '✗',
+                  text: 'Re-orders attributes, strips custom schemas',
+                  color: 'text-[#e11d48]',
+                },
+                {
+                  icon: '✗',
+                  text: 'Breaks macros, cause formatting drift',
+                  color: 'text-[#e11d48]',
+                },
+                {
+                  icon: '✗',
+                  text: 'Tablet for normal tables not preserved',
+                  color: 'text-[#e11d48]',
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span className={`${item.color} font-bold text-sm mt-0.5 w-4 shrink-0`}>{item.icon}</span>
+                  <span className={`${item.color} font-bold text-sm mt-0.5 w-4 shrink-0`}>
+                    {item.icon}
+                  </span>
                   <span className="text-[13px] text-[#4a3d6d]">{item.text}</span>
                 </div>
               ))}
@@ -95,23 +118,48 @@ export const FidelityArchitecture: React.FC = () => {
           </div>
 
           {/* ReveLith */}
-          <div className="card-feature border-[#a7f3d0]" style={{ '--tw-border-opacity': '1' } as React.CSSProperties}>
+          <div
+            className="card-feature border-[#a7f3d0]"
+            style={{ '--tw-border-opacity': '1' } as React.CSSProperties}
+          >
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-[#d1fae5] flex items-center justify-center text-lg">✓</div>
+              <div className="w-10 h-10 rounded-xl bg-[#d1fae5] flex items-center justify-center text-lg">
+                ✓
+              </div>
               <div>
                 <div className="font-bold text-[#1a0a3d]">ReveLith Architecture</div>
-                <div className="text-xs text-[#059669] font-semibold">Zero-Drift Delta Patching</div>
+                <div className="text-xs text-[#059669] font-semibold">
+                  Zero-Drift Delta Patching
+                </div>
               </div>
             </div>
             <div className="space-y-3">
               {[
-                { icon: '✓', text: 'Byte-fingerprints every XML block independently', color: 'text-[#059669]' },
-                { icon: '✓', text: 'Only modified nodes get re-serialized', color: 'text-[#059669]' },
-                { icon: '✓', text: 'Untouched XML returned byte-for-byte identical', color: 'text-[#059669]' },
-                { icon: '✓', text: '100% Byte Preserving Roundtrip — verified', color: 'text-[#059669]' },
+                {
+                  icon: '✓',
+                  text: 'Byte-fingerprints every XML block independently',
+                  color: 'text-[#059669]',
+                },
+                {
+                  icon: '✓',
+                  text: 'Only modified nodes get re-serialized',
+                  color: 'text-[#059669]',
+                },
+                {
+                  icon: '✓',
+                  text: 'Untouched XML returned byte-for-byte identical',
+                  color: 'text-[#059669]',
+                },
+                {
+                  icon: '✓',
+                  text: '100% Byte Preserving Roundtrip — verified',
+                  color: 'text-[#059669]',
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <span className={`${item.color} font-bold text-sm mt-0.5 w-4 shrink-0`}>{item.icon}</span>
+                  <span className={`${item.color} font-bold text-sm mt-0.5 w-4 shrink-0`}>
+                    {item.icon}
+                  </span>
                   <span className="text-[13px] text-[#4a3d6d]">{item.text}</span>
                 </div>
               ))}
@@ -179,7 +227,9 @@ export const FidelityArchitecture: React.FC = () => {
                 <div className="code-block h-full min-h-[200px]">
                   <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/10">
                     <Code2 className="w-3.5 h-3.5 text-[#7c6fa0]" />
-                    <span className="text-[11px] font-mono text-[#7c6fa0]">revelith-engine-pipeline.ts</span>
+                    <span className="text-[11px] font-mono text-[#7c6fa0]">
+                      revelith-engine-pipeline.ts
+                    </span>
                     <span
                       className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{ color: stage.color, background: `${stage.color}20` }}

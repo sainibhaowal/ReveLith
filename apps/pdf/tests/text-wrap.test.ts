@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   joinBlockLines,
@@ -8,7 +8,7 @@ import {
 } from '../src/renderer/text-wrap'
 
 // jsdom has no canvas: stub measureText with a fixed per-char width (0.5×font size
-// for ASCII, 1× for others : the CJK em-square convention)
+// for ASCII, 1× for others — the CJK em-square convention)
 beforeAll(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
     font: '',
@@ -35,7 +35,7 @@ describe('wrapText', () => {
   })
 
   it('never starts a line with closing punctuation (kinsoku)', () => {
-    // Width fits exactly 3 CJK chars; the 。 would land at line start :
+    // Width fits exactly 3 CJK chars; the 。 would land at line start —
     // the preceding char moves down with it
     const lines = wrapText('一二三。四五', 30, 10, FAMILY)
     expect(lines.every((l) => !'，。'.includes(l[0]!))).toBe(true)
@@ -155,7 +155,7 @@ describe('spliceBlockText', () => {
   it('aligns an unfolded radical against an already-folded astral ideograph', () => {
     // U+2E87 folds to U+20628 (supplementary plane, two UTF-16 units): the
     // haystack carries the surrogates as separate units, the needle folds
-    // one radical into both : unit-level entries keep the ranks aligned
+    // one radical into both — unit-level entries keep the ranks aligned
     expect(spliceBlockText('\u{20628}\u5b50', [{ oldText: '\u2e87', newText: 'X' }])).toBe(
       'X\u5b50',
     )
@@ -169,6 +169,37 @@ describe('spliceBlockText', () => {
         { oldText: 'tail  next', newText: 'tail next123' },
       ]),
     ).toBe('headtail next123text rest')
+  })
+
+  it('reports where each newText landed via outRanges (input-edit order)', () => {
+    const out: [number, number][] = []
+    const folded = spliceBlockText(
+      'abcdefghij',
+      [
+        { oldText: 'hi', newText: '8_9' },
+        { oldText: 'bc', newText: '2_3' },
+      ],
+      out,
+    )
+    expect(folded).toBe('a2_3defg8_9j')
+    // outRanges follows the input order even though the splice emits by position
+    expect(out).toEqual([
+      [8, 11],
+      [1, 4],
+    ])
+    expect(folded!.slice(...out[0]!)).toBe('8_9')
+    expect(folded!.slice(...out[1]!)).toBe('2_3')
+  })
+
+  it('outRanges covers the radical-folded newText the splice inserted', () => {
+    const out: [number, number][] = []
+    const folded = spliceBlockText(
+      '\u81ea\u5efa\u5b89',
+      [{ oldText: '\u2f83', newText: '\u2f83X' }],
+      out,
+    )
+    expect(folded).toBe('\u81eaX\u5efa\u5b89')
+    expect(folded!.slice(...out[0]!)).toBe('\u81eaX')
   })
 })
 

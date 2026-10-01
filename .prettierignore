@@ -16,3 +16,7 @@ scripts/drivers/driver.*.mjs
 
 # Vendored third-party sources stay byte-identical to upstream.
 packages/*/src/vendor/
+
+
+# Reference source used only while porting; not our code to format.
+assets/genoffice-0.11.0/

@@ -1,5 +1,5 @@
-﻿/// SSRF gate for main-process fetches whose target is influenced by untrusted
-/// input : most importantly AI tool calls, where a poisoned web-search result
+/// SSRF gate for main-process fetches whose target is influenced by untrusted
+/// input — most importantly AI tool calls, where a poisoned web-search result
 /// can steer the model into requesting an internal address. Every hop of a
 /// redirect chain has to pass, because validating only the initial URL lets a
 /// public host bounce the request to loopback or a cloud metadata endpoint.
@@ -64,8 +64,14 @@ export async function isSafeRemoteUrl(raw: unknown): Promise<boolean> {
     return false
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
-  // URL keeps IPv6 literals bracketed; isIP does not accept the brackets
-  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  // URL keeps IPv6 literals bracketed; isIP does not accept the brackets.
+  // Strip a trailing dot: DNS treats "localhost." as "localhost", so the
+  // hostname gate must too (otherwise the check passes and only the later
+  // DNS lookup catches it, after a needless external resolution).
+  const host = url.hostname
+    .replace(/^\[|\]$/g, '')
+    .toLowerCase()
+    .replace(/\.+$/, '')
   if (host === '') return false
   if (isIP(host)) return !isBlockedAddress(host)
   if (host === 'localhost' || BLOCKED_HOST_SUFFIXES.some((s) => host.endsWith(s))) return false
@@ -95,8 +101,13 @@ export async function fetchWithSsrfGuard(
   options: FetchWithSsrfGuardOptions = {},
 ): Promise<Response | null> {
   const { maxRedirects = 5, headers, fetchImpl = fetch } = options
+  // maxRedirects arrives from callers (CLI flags, IPC-adjacent config): an
+  // Infinity value would follow redirects forever, so normalize to 0..10.
+  const hopBudget = Number.isFinite(maxRedirects)
+    ? Math.min(Math.max(0, Math.floor(maxRedirects)), 10)
+    : 5
   let current = rawUrl
-  for (let hop = 0; hop <= maxRedirects; hop++) {
+  for (let hop = 0; hop <= hopBudget; hop++) {
     if (!(await isSafeRemoteUrl(current))) return null
     // headers stays absent rather than explicitly undefined (exactOptionalPropertyTypes)
     const resp = await fetchImpl(current, {

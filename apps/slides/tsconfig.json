@@ -9,10 +9,21 @@
     "paths": {
       "@revelith/pptx-engine": ["../../packages/pptx-engine/src/index.ts"],
       "@revelith/pptx-engine/table-grid": ["../../packages/pptx-engine/src/table-grid.ts"],
+      "@revelith/pptx-engine/identity": ["../../packages/pptx-engine/src/identity.ts"],
+      "@revelith/pptx-engine/named-action": ["../../packages/pptx-engine/src/named-action.ts"],
       "@revelith/pptx-engine/background-promote": [
         "../../packages/pptx-engine/src/background-promote.ts"
       ],
-      "@revelith/pptx-render": ["../../packages/pptx-render/src/index.ts"]
+      "@revelith/pptx-ops": ["../../packages/pptx-ops/src/index.ts"],
+      "@revelith/pptx-ops/op-docs": ["../../packages/pptx-ops/src/op-docs.ts"],
+      "@revelith/pptx-ops/font-size": ["../../packages/pptx-ops/src/font-size.ts"],
+      "@revelith/pptx-render": ["../../packages/pptx-render/src/index.ts"],
+      "@revelith/pipelines/slides": ["../../packages/pipelines/src/slides/index.ts"],
+      "@revelith/pipelines/slides/layout-audit": [
+        "../../packages/pipelines/src/slides/layout-audit.ts"
+      ],
+      "@revelith/docx-engine/metafile": ["../../packages/docx-engine/src/metafile.ts"],
+      "@revelith/docx-engine/math": ["../../packages/docx-engine/src/math.ts"]
     }
   },
   "include": ["src", "tests", "electron.vite.config.ts", "vitest.config.ts"]

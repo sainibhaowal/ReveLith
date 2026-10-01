@@ -1,8 +1,11 @@
-﻿import JSZip from 'jszip'
+import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
-import type { EntrySource } from '../src/gateway/xlsx-gateway'
-import { createBufferEntrySource, planCellEditsToXlsx } from '../src/gateway/xlsx-gateway'
+import type { EntrySource } from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
+import {
+  createBufferEntrySource,
+  planCellEditsToXlsx,
+} from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
 
 const workbook = `<?xml version="1.0" encoding="UTF-8"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
@@ -37,13 +40,13 @@ function withOversizedSheet2(source: EntrySource): EntrySource {
   return {
     ...source,
     canPatch: async (path) => path !== 'xl/worksheets/sheet2.xml',
-    // The real scanner searches decoded text nodes only : mimic that, or the
+    // The real scanner searches decoded text nodes only — mimic that, or the
     // element name "sheetData" would false-positive on the needle "Data".
     containsText: async (path, needle) =>
       (await source.readText(path)).replace(/<[^>]*>/g, '\u0000').includes(needle),
     readText: async (path) => {
       if (path === 'xl/worksheets/sheet2.xml') {
-        throw new Error('sheet2 must not be read : it is beyond the patch limit')
+        throw new Error('sheet2 must not be read — it is beyond the patch limit')
       }
       return source.readText(path)
     },

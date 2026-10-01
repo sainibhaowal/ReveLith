@@ -1,6 +1,6 @@
 {
   "name": "@revelith/slides",
-  "productName": "Revelith Slides",
+  "productName": "ReveLith Slides",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
@@ -24,6 +24,7 @@
     "@revelith/file-parse": "*",
     "@revelith/i18n": "*",
     "@revelith/pptx-engine": "*",
+    "@revelith/pptx-ops": "*",
     "@revelith/pptx-render": "*",
     "@revelith/project-store": "*",
     "@revelith/ui": "*",
@@ -43,12 +44,12 @@
     "react-konva": "^19.0.10",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.11"
   },
-  "author": "Revelith",
+  "author": "ReveLith",
   "build": {
     "appId": "com.revelith.slides",
-    "productName": "Revelith Slides",
+    "productName": "ReveLith Slides",
     "electronVersion": "43.3.0",
     "directories": {
       "output": "release"

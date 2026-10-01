@@ -1,7 +1,7 @@
-﻿import type { InkInfo, NewInkImage } from '@revelith/docx-engine'
+import type { InkInfo, NewInkImage } from '@revelith/docx-engine'
 
 /**
- * Ink annotations (freehand drawing strokes) : editor-side model.
+ * Ink annotations (freehand drawing strokes) — editor-side model.
  *
  * Strokes live on a transparent overlay above the page. Each stroke is
  * anchored to a body paragraph: its points are stored relative to that

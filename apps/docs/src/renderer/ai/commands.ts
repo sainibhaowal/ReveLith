@@ -284,7 +284,15 @@ export function normalizeCommandObj(cmd: Record<string, unknown>): Record<string
   if (!cmd || typeof cmd !== 'object') return cmd
   const directName = String(cmd.command || cmd.name || cmd.type || cmd.action || '')
   if (directName && COMMAND_NAMES.includes(directName as CommandName)) {
-    const { command, name, type, action, id, index, ...rest } = cmd
+    const {
+      command: _command,
+      name: _name,
+      type: _type,
+      action: _action,
+      id: _id,
+      index: _index,
+      ...rest
+    } = cmd
     return { [directName]: rest }
   }
   const keys = Object.keys(cmd)

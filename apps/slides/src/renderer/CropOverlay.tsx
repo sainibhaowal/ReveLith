@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Picture crop mode overlay.
  *
  * Entry: context menu "Crop picture" → receives the picture node's box + current srcRect.
@@ -13,6 +13,7 @@
  * covers the whole original (crop removed).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useEscOverlay } from './esc-overlay'
 
 export interface CropRect {
   l: number
@@ -29,7 +30,7 @@ export interface NodeBox {
 }
 
 interface Props {
-  /** The picture element's current (cropped) pixel box : the frame's start position */
+  /** The picture element's current (cropped) pixel box — the frame's start position */
   box: NodeBox
   /** Full original-image extent; the frame is clamped to this, not to `box` */
   fullBox: NodeBox
@@ -120,6 +121,7 @@ function srcRectFromRect(full: NodeBox, cx: number, cy: number, cw: number, ch: 
 }
 
 export function CropOverlay({ box, fullBox, imgSrc, onConfirm, onCancel }: Props) {
+  useEscOverlay(true)
   // The frame starts at the current visible region; the ghost of the full original
   // renders behind it, so dragging outward reveals (and restores) cropped content.
   const [cx, setCx] = useState(box.x)
@@ -201,7 +203,7 @@ export function CropOverlay({ box, fullBox, imgSrc, onConfirm, onCancel }: Props
           nw = d.startCw - (nx - d.startCx)
           break
       }
-      // Clamp within the ORIGINAL image bounds : outward drag restores cropped content
+      // Clamp within the ORIGINAL image bounds — outward drag restores cropped content
       nx = Math.max(fullBox.x, nx)
       ny = Math.max(fullBox.y, ny)
       nw = Math.min(nw, fullBox.x + fullBox.w - nx)
@@ -246,7 +248,7 @@ export function CropOverlay({ box, fullBox, imgSrc, onConfirm, onCancel }: Props
   }, [fullBox, cx, cy, cw, ch, onConfirm])
 
   // The overlay only covers the slide canvas; a mousedown anywhere beyond it
-  // (thumbnails, ribbon, the gray backdrop) also confirms : capture phase so the
+  // (thumbnails, ribbon, the gray backdrop) also confirms — capture phase so the
   // crop lands before whatever was clicked reacts to its own event.
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {

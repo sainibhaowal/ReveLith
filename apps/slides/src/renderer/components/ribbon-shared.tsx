@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Shared pieces of the slides ribbon: the Props contract, common constants,
  * small layout components, and the RibbonTabCtx bundle handed to the
  * extracted tab components.
@@ -11,15 +11,19 @@ import type {
   EditChartOp,
   EditTableStyleOp,
   GetLayoutsResult,
+  GradientFillSpec,
   InsertKind,
   TransitionKind,
 } from '../../shared/ipc'
 import type { InkPenSettings, InkTool } from '../ink'
 import type { WordArtPreset } from '@revelith/ui'
 import type { ChartPresetDef, IconDef, SmartArtDef } from '../insert-presets'
+import type { ZoomMode } from '../zoom-actions'
 import type { SlideThemePreset } from '../themes'
 import type { ChartStyleInfo } from '@revelith/pptx-render'
-import { useI18n, type StringKey } from '../i18n/locale'
+import type { ContextTabRequest } from './context-tabs'
+import { useI18n } from '../i18n/locale'
+import { layoutLabel } from '../layout-names'
 
 export type InsertDropKey =
   'shapes' | 'icons' | 'chart' | 'smartart' | 'wordart' | 'zoom' | 'addanim'
@@ -76,10 +80,8 @@ export const FONT_FAMILIES = [
   'PingFang TC',
 ]
 
-/** Font size dropdown candidates (pt, same ladder as PowerPoint) */
-export const FONT_SIZES = [
-  8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96,
-]
+/** Font size dropdown candidates (pt): the same ladder grow/shrink font walks */
+export { FONT_SIZES } from '@revelith/pptx-ops/font-size'
 
 /** Font color palette (applied with onMouseDown while editing, so the native picker doesn't steal focus and commit the edit) */
 export const TEXT_COLORS = [
@@ -93,6 +95,46 @@ export const TEXT_COLORS = [
   '#0F9ED5',
   '#0A50A1',
   '#7030A0',
+]
+
+/** Accent colors for the shape style presets (chromatic TEXT_COLORS subset + neutral) */
+const STYLE_ACCENTS = [
+  '#5A5A5A',
+  '#C43E1C',
+  '#E97132',
+  '#FFC000',
+  '#4EA72E',
+  '#0F9ED5',
+  '#0A50A1',
+  '#7030A0',
+]
+
+/** Blend a hex color toward white (f > 0) or black (f < 0) */
+function shade(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const ch = (v: number) => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f))
+  const rgb = (ch((n >> 16) & 255) << 16) | (ch((n >> 8) & 255) << 8) | ch(n & 255) | (1 << 24)
+  return `#${rgb.toString(16).slice(1).toUpperCase()}`
+}
+
+export interface ShapeStylePreset {
+  fill: string
+  stroke: string
+  /** OOXML prstDash preset; absent = solid */
+  dash?: string
+}
+
+/** WPS/PowerPoint-like shape style presets: outlined / soft fill / solid rows */
+export const SHAPE_STYLE_PRESETS: ShapeStylePreset[] = [
+  ...STYLE_ACCENTS.map((c) => ({ fill: '#FFFFFF', stroke: c })),
+  ...STYLE_ACCENTS.map((c) => ({ fill: shade(c, 0.8), stroke: c })),
+  ...STYLE_ACCENTS.map((c) => ({ fill: c, stroke: shade(c, -0.35) })),
+]
+
+/** Ribbon shape-style gallery: the base presets plus a dashed-outline row */
+export const RIBBON_SHAPE_STYLES: ShapeStylePreset[] = [
+  ...SHAPE_STYLE_PRESETS,
+  ...STYLE_ACCENTS.map((c) => ({ fill: '#FFFFFF', stroke: c, dash: 'dash' })),
 ]
 
 /** Thin dropdown chevron (replaces the ▾ text glyph) */
@@ -117,16 +159,6 @@ export function RbCaret() {
   )
 }
 
-/** PowerPoint's canonical layout names → localized labels (the built-in set; unknown names show as-is) */
-const LAYOUT_NAME_KEYS: Record<string, StringKey> = {
-  'Title Slide': 'ribbonLayoutTitleSlide',
-  'Title and Content': 'ribbonLayoutTitleAndContent',
-  'Section Header': 'ribbonLayoutSectionHeader',
-  'Two Content': 'ribbonLayoutTwoContent',
-  'Title Only': 'ribbonLayoutTitleOnly',
-  Blank: 'ribbonLayoutBlank',
-}
-
 /** Layout candidates with placeholder-sketch previews (new-slide dropdown + layout picker) */
 export function LayoutList({
   layouts,
@@ -146,8 +178,7 @@ export function LayoutList({
   return (
     <div className="rb-layout-list">
       {list.map((lay) => {
-        const key = LAYOUT_NAME_KEYS[lay.name]
-        const name = key ? t(key) : lay.name
+        const name = layoutLabel(lay.name, t)
         return (
           <button
             key={lay.path}
@@ -198,6 +229,9 @@ export type RibbonPanelKey =
   | 'slideSize'
   | 'transparency'
   | 'pictureBorder'
+  | 'changeShape'
+  | 'shapeStyle'
+  | 'shapeFill'
   | 'table'
   | 'layout'
   | 'translate'
@@ -210,7 +244,7 @@ export type RibbonPanelKey =
 
 /** Ribbon popups are mutually exclusive: a trigger closes every sibling popup
  *  on mousedown, before its own click-toggle runs. A trigger rendered inside
- *  another popup (collapse flyout, paragraph panel) keeps its anchor open :
+ *  another popup (collapse flyout, paragraph panel) keeps its anchor open —
  *  closing it would unmount the popup being opened. */
 export function closeSiblingPanels(
   e: ReactMouseEvent<HTMLElement>,
@@ -272,7 +306,7 @@ export function Group({
 
 export interface Props {
   hasDoc: boolean
-  /** True when no slide has real content : the one-click AI actions grey out then */
+  /** True when no slide has real content — the one-click AI actions grey out then */
   deckEmpty: boolean
   /** Undo/redo stack occupancy (pushed from the main process): the QAT buttons grey out when empty */
   canUndo: boolean
@@ -302,14 +336,12 @@ export interface Props {
   /** Push a preset instruction to the AI panel and expand it (autoRun executes immediately) */
   /** slideShot: attach the current slide's rendering so the model sees the page (AI Beautify) */
   onAiPreset: (text: string, opts?: { slideShot?: boolean }) => void
-  /** Insert an element on the current page */
-  onInsert: (kind: InsertKind) => void
-  /** Shape gallery pick: enter canvas draw mode (crosshair; click = default size, drag = custom, Esc cancels) */
+  /** Shape gallery / Text Box pick: enter canvas draw mode (crosshair; click = default size, drag = custom, Esc cancels) */
   onPickShape: (kind: InsertKind) => void
   /** Open the image picker dialog and insert into the current page */
   onInsertImage: () => void
-  /** Set the page background solid color; allSlides=true applies to all pages */
-  onBackground: (color: string, allSlides: boolean) => void
+  /** Open the format-background pane (solid/gradient/picture background, hide background graphics, apply to all, reset) */
+  onFormatBackground: () => void
   /** Apply a built-in theme (colors + font scheme, applied to all pages) */
   onApplyTheme: (preset: SlideThemePreset) => void
   /** New blank slide (inherits the current page's layout background, empty content) */
@@ -350,11 +382,15 @@ export interface Props {
   curBulletChar: string | null
   /** Current paragraph alignment of the selection ('left' when unset; null = mixed/no text, nothing highlighted) */
   curAlign: 'left' | 'center' | 'right' | 'justify' | null
+  /** Effective base direction of the selection's paragraphs (null = mixed/no text, nothing highlighted) */
+  curRtl: boolean | null
   /** Editing: change the selection's font / set size (pt) */
   onFontFamily: (family: string) => void
   onFontSize: (pt: number) => void
   /** Paragraph alignment: execCommand while editing, element-level op when elements are selected */
   onAlign: (align: 'left' | 'center' | 'right' | 'justify') => void
+  /** Paragraph base direction toggle (selection while editing, element-level otherwise) */
+  onDirection: (rtl: boolean) => void
   /** Strikethrough: element-level toggle when selected but not editing (editing goes through onFormat) */
   onStrike: () => void
   /** B/I/U element-level toggle (when selected but not editing) */
@@ -374,8 +410,12 @@ export interface Props {
   slideSizeKey: '16:9' | '4:3' | null
   /** Element-level paragraph format (bullets/numbering/line spacing) */
   onParagraphFormat: (patch: {
-    bullet?: 'char' | 'number' | 'none'
+    bullet?: 'char' | 'number' | 'blip' | 'none'
     bulletChar?: string
+    bulletFont?: string
+    numType?: string
+    startAt?: number
+    bulletImage?: { base64: string; ext: string }
     bulletHangEmu?: number
     bulletSizePct?: number
     bulletColor?: string
@@ -392,6 +432,8 @@ export interface Props {
   // ── Animations tab ─────────────────────────────────────────────────────
   /** Selected shape's current animation effect (gallery highlight; null when no selection/no animation) */
   selectedAnimEffect: AnimEffectKind | null
+  /** Selection is a single video/audio shape (enables the Media effects, PowerPoint shows them only then) */
+  selectionIsMedia: boolean
   /** Animation bound to the timing controls (animation pane selection first, else the selected shape's last one) */
   timingAnim: AnimationItem | null
   /** Apply an animation to the selected shape (replacing its existing ones); 'none' removes all its animations */
@@ -471,13 +513,13 @@ export interface Props {
   onInsertField: (type: 'datetime' | 'slidenum') => void
   /** Open the hyperlink dialog (requires a selected element) */
   onOpenLink: () => void
-  /** Insert a Zoom link (button shape jumping to a given page) */
-  onInsertZoom: (slideIndex: number) => void
-  /** Document page count / current page (for the Zoom dropdown) */
+  /** Open the Summary / Section / Slide Zoom picker */
+  onOpenZoom: (mode: ZoomMode) => void
+  /** Section Zoom is only offered when the deck has sections */
+  hasSections: boolean
+  /** Document page count / current page */
   slideCount: number
   currentSlide: number
-  /** Current slide's solid background color (undefined = gradient/image/none); syncs the Design tab swatch */
-  currentBgColor?: string
   /** Open the header & footer dialog */
   onOpenHeaderFooter: () => void
   /** Open the equation dialog */
@@ -491,7 +533,9 @@ export interface Props {
   onToggleScreenRecord: () => void
   // ── Contextual tabs: table design / chart design / picture format ────────────────
   /** Current selection category used to expose and activate contextual tabs */
-  contextElementType?: 'table' | 'chart' | 'picture' | 'shape' | 'textShape' | null
+  contextElementType?: 'table' | 'chart' | 'picture' | 'shape' | 'textShape' | 'mixed' | null
+  /** Double-click on the canvas asks for the object's tools tab */
+  tabRequest?: ContextTabRequest | null
   /** Currently selected element sourceId (for contextual tab operation callbacks) */
   contextElementId?: string
   /** Current page index (for contextual tab operations) */
@@ -505,20 +549,35 @@ export interface Props {
   contextPictureCanCutout?: boolean
   /** Picture: enter crop mode */
   onPictureCrop?: () => void
-  /** Crop mode is live : the Crop button shows its selected state */
+  /** Crop mode is live — the Crop button shows its selected state */
   cropActive?: boolean
   /** Picture opacity (1 = opaque) */
   onPictureOpacity?: (opacity: number) => void
   /** Picture: enter cutout (background removal) mode */
   onPictureCutout?: () => void
+  /** Picture: pick a file and swap the image in place */
+  onPictureReplace?: () => void
+  /** Picture: quarter turn (±90°) around its centre */
+  onPictureRotate?: (deltaDeg: -90 | 90) => void
   /** Selected picture's current border (null = none) */
   contextPictureStroke?: { color: string; widthPt: number; dashPreset?: string } | null
   /** Picture border (null clears it) */
   onPictureStroke?: (stroke: { color: string; widthPt: number; dash?: string } | null) => void
+  /** Replace the selected shape's preset geometry while preserving its formatting and text */
+  onChangeShape?: (prst: string) => void
+  /** Shape style preset: fill + outline applied together (dash absent = solid) */
+  onShapeStyle?: (style: ShapeStylePreset) => void
+  /** Shape fill: color ('none' clears the fill) or gradient */
+  onShapeFill?: (fill: string | GradientFillSpec) => void
+  /** Shape picture/texture fill: stretch or tile onto the selection; source = bundled
+      texture preset bytes (base64), absent = system picker */
+  onShapeFillImage?: (mode: 'stretch' | 'tile', source?: { base64: string; ext: string }) => void
+  /** Selected shape's current fill (#RRGGBB, 'none' = no fill, null = non-solid): picker highlight + gradient preset base */
+  contextShapeFill?: string | null
   /** Execute a table style operation */
   onEditTableStyle?: (op: Omit<EditTableStyleOp, 'slideIndex' | 'sourceId'>) => void
   /** Selected table's header-row/banded-rows current state (toggle display) */
-  tableStyleFlags?: { firstRow: boolean; bandRow: boolean } | null
+  tableStyleFlags?: { firstRow: boolean; bandRow: boolean; rtl?: boolean } | null
   /** Cell being edited in the selected table; shading applies to just this cell */
   tableActiveCell?: { row: number; col: number } | null
   /** Execute a chart edit operation */
@@ -552,6 +611,7 @@ export interface RibbonTabCtx extends Pick<
   | 'canPaste'
   | 'curBulletChar'
   | 'curAlign'
+  | 'curRtl'
   | 'curFontFamily'
   | 'curFontSizeMixed'
   | 'curFontSizePt'
@@ -570,6 +630,7 @@ export interface RibbonTabCtx extends Pick<
   | 'onAddSlideWithLayout'
   | 'onAiPreset'
   | 'onAlign'
+  | 'onDirection'
   | 'onArrange'
   | 'onFlip'
   | 'onCopy'
@@ -581,7 +642,6 @@ export interface RibbonTabCtx extends Pick<
   | 'onFormat'
   | 'onFormatBrushClick'
   | 'onFormatBrushDoubleClick'
-  | 'onInsert'
   | 'onPickShape'
   | 'onInsertChart'
   | 'onInsertField'
@@ -592,7 +652,8 @@ export interface RibbonTabCtx extends Pick<
   | 'onInsertSmartArt'
   | 'onInsertTable'
   | 'onInsertWordArt'
-  | 'onInsertZoom'
+  | 'onOpenZoom'
+  | 'hasSections'
   | 'onNewComment'
   | 'onOpenEquation'
   | 'onOpenHeaderFooter'
@@ -640,7 +701,6 @@ export interface RibbonTabCtx extends Pick<
   onCustomBulletColor: (value: string) => void
   onCustomTextColor: (value: string) => void
   paraOpen: boolean
-  recentColors: string[]
   setArrangeOpen: Dispatch<SetStateAction<boolean>>
   setCollapseOpen: Dispatch<SetStateAction<string | null>>
   setColorOpen: Dispatch<SetStateAction<boolean>>
@@ -656,7 +716,7 @@ export interface RibbonTabCtx extends Pick<
   setSizeOpen: Dispatch<SetStateAction<boolean>>
   setSlideShowFromStart: Dispatch<SetStateAction<boolean>>
   setSlideShowOpen: Dispatch<SetStateAction<boolean>>
-  setTableCustom: Dispatch<SetStateAction<{ r: number; c: number }>>
+  setTableDialogOpen: Dispatch<SetStateAction<boolean>>
   setTableHover: Dispatch<SetStateAction<{ r: number; c: number }>>
   setTableOpen: Dispatch<SetStateAction<boolean>>
   sizeDraft: string | null
@@ -665,7 +725,7 @@ export interface RibbonTabCtx extends Pick<
   slideShowFromStart: boolean
   slideShowOpen: boolean
   t: ReturnType<typeof useI18n>['t']
-  tableCustom: { r: number; c: number }
+  tableDialogOpen: boolean
   tableHover: { r: number; c: number }
   tableOpen: boolean
 }

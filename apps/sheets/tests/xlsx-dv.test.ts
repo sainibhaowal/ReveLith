@@ -1,6 +1,6 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { applyDvRules, DvEditError } from '../src/gateway/xlsx-dv'
+import { applyDvRules, DvEditError } from '@revelith/xlsx-gateway/gateway/xlsx-dv'
 
 const SHEET =
   '<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>' +
@@ -12,6 +12,61 @@ const SHEET =
 const range = { startRow: 0, endRow: 4, startColumn: 0, endColumn: 0 }
 
 describe('applyDvRules', () => {
+  it('appends into the existing section, replacing the rule on the same range and dropping removed ones', () => {
+    const b1 = { startRow: 0, endRow: 0, startColumn: 1, endColumn: 1 }
+    const added = applyDvRules(
+      SHEET,
+      [
+        {
+          ranges: [range],
+          rule: { type: 'decimal', operator: 'greaterThan', formula1: '3', allowBlank: true },
+        },
+      ],
+      { append: true },
+    )
+    expect(added).toContain('<dataValidations count="2"><dataValidation type="whole"')
+    expect(added).toMatch(
+      /sqref="A1:A5"><formula1>3<\/formula1><\/dataValidation><\/dataValidations><hyperlinks/,
+    )
+    const replaced = applyDvRules(
+      SHEET,
+      [
+        {
+          ranges: [b1],
+          rule: { type: 'decimal', operator: 'greaterThan', formula1: '3', allowBlank: true },
+        },
+      ],
+      { append: true },
+    )
+    expect(replaced).not.toContain('type="whole"')
+    expect(replaced).toContain('<dataValidations count="1"><dataValidation type="decimal"')
+    const selfClosing = SHEET.replace(
+      '<dataValidations count="1">',
+      '<dataValidations count="2"><dataValidation type="list" sqref="C1"/>',
+    )
+    const afterSelfClosing = applyDvRules(
+      selfClosing,
+      [
+        {
+          ranges: [range],
+          rule: { type: 'decimal', operator: 'greaterThan', formula1: '3', allowBlank: true },
+        },
+      ],
+      { append: true },
+    )
+    expect(afterSelfClosing).toContain('<dataValidations count="3">')
+    expect(afterSelfClosing).toContain('sqref="C1"/>')
+    expect(afterSelfClosing).toContain('type="whole"')
+    const multi = SHEET.replace('sqref="B1"', 'sqref="B1:B1 D1:D3"')
+    const trimmed = applyDvRules(multi, [], { append: true, remove: [b1] })
+    expect(trimmed).toContain('<dataValidations count="1">')
+    expect(trimmed).toContain('sqref="D1:D3"')
+    expect(trimmed).not.toContain('B1')
+    const removed = applyDvRules(SHEET, [], { append: true, remove: [b1] })
+    expect(removed).not.toContain('dataValidations')
+    expect(removed).toContain('<hyperlinks>')
+  })
+
   it('replaces the existing section with the snapshot, before hyperlinks', () => {
     const xml = applyDvRules(SHEET, [
       {
@@ -48,7 +103,7 @@ describe('applyDvRules', () => {
     ])
     expect(xml).toContain('<formula1>"Yes,No"</formula1>')
     expect(xml).toContain("<formula1>'My Sheet'!$D$1:$D$9</formula1>")
-    // OOXML showDropDown="1" means "suppress the dropdown" : only the
+    // OOXML showDropDown="1" means "suppress the dropdown" — only the
     // dropdown-off rule carries it.
     expect(xml).toContain('<dataValidation type="list" showDropDown="1" sqref="B1:B5">')
     expect(xml).toContain('<dataValidation type="list" sqref="A1:A5">')

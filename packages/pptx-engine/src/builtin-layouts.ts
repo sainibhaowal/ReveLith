@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Built-in standard slide layouts (PowerPoint's core set).
  *
  * AI-generated decks usually ship a single empty layout, leaving the layout
@@ -10,6 +10,7 @@
  */
 import type { PackageArchive } from './zip'
 import { relsPathFor, resolveTarget } from './zip'
+import { hasContentTypeOverride, maxRelationshipIdNumber } from './xml-utils'
 import type { SlideSize } from './types'
 import {
   LAYOUT_REL_TYPE,
@@ -107,7 +108,7 @@ function scalePh(ph: BuiltinPh, size: SlideSize): LayoutPlaceholder {
 /**
  * Whether the picker should offer the built-in set: true while no foreign
  * (non-built-in-named) layout carries placeholders. Judging by name keeps
- * already-injected built-ins from turning the offer off : otherwise the rest
+ * already-injected built-ins from turning the offer off — otherwise the rest
  * of the standard set would vanish after the first one is used.
  */
 export function shouldOfferBuiltinLayouts(
@@ -198,7 +199,7 @@ export function ensureBuiltinLayout(
 
   const ctPath = '[Content_Types].xml'
   const ct = archive.readText(ctPath)
-  if (ct && !ct.includes(`PartName="/${layoutPath}"`)) {
+  if (ct && !hasContentTypeOverride(ct, layoutPath)) {
     archive.entries.set(
       ctPath,
       Buffer.from(
@@ -211,8 +212,7 @@ export function ensureBuiltinLayout(
     )
   }
 
-  let maxRid = 0
-  for (const m of masterRels.matchAll(/Id="rId(\d+)"/g)) maxRid = Math.max(maxRid, Number(m[1]))
+  const maxRid = maxRelationshipIdNumber(masterRels)
   const rid = `rId${maxRid + 1}`
   archive.entries.set(
     masterRelsPath,
@@ -231,7 +231,7 @@ export function ensureBuiltinLayout(
     maxId = Math.max(maxId, Number(m[1]))
   const idTag = `<p:sldLayoutId id="${maxId + 1}" r:id="${rid}"/>`
   const nextMaster = masterXml.includes('</p:sldLayoutIdLst>')
-    ? masterXml.replace('</p:sldLayoutIdLst>', `${idTag}</p:sldLayoutIdLst>`)
+    ? masterXml.replace('</p:sldLayoutIdLst>', () => `${idTag}</p:sldLayoutIdLst>`)
     : masterXml.replace(/(<p:clrMap\b[^>]*\/>)/, `$1<p:sldLayoutIdLst>${idTag}</p:sldLayoutIdLst>`)
   archive.entries.set(masterPath, Buffer.from(nextMaster, 'utf8'))
   return layoutPath

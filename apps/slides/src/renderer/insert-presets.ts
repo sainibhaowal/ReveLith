@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Preset data for the Insert tab: shape gallery / icon gallery / WordArt / SmartArt / chart samples / equation templates.
  * Display names go through i18n (lazy getters, follow language switches); prst/id/geometry data stay unchanged.
  */
@@ -160,7 +160,7 @@ export function iconSvg(def: IconDef, color: string, size = 512): string {
 
 export const ICON_COLORS = ['#404040', '#4472C4', '#ED7D31', '#70AD47', '#C00000', '#7030A0']
 
-// WordArt presets are shared across apps : see @revelith/ui wordart-presets.ts.
+// WordArt presets are shared across apps — see @revelith/ui wordart-presets.ts.
 
 // ── SmartArt layouts ──────────────────────────────────────────────────
 
@@ -231,12 +231,14 @@ export const SMARTART_GALLERY: SmartArtDef[] = [
 export interface ChartPresetDef {
   kind:
     | 'bar'
+    | 'bar3D'
     | 'barStacked'
     | 'barPercentStacked'
     | 'barH'
     | 'line'
     | 'area'
     | 'pie'
+    | 'pie3D'
     | 'doughnut'
     | 'scatter'
     | 'radar'
@@ -256,9 +258,11 @@ export const CHART_GALLERY: ChartPresetDef[] = [
   chart('barStacked', 'ribbonChartGalleryBarStacked'),
   chart('barPercentStacked', 'ribbonChartKindBarPercentStacked'),
   chart('barH', 'ribbonChartKindBarH'),
+  chart('bar3D', 'ribbonChartKindBar3D'),
   chart('line', 'ribbonChartKindLine'),
   chart('area', 'ribbonChartKindArea'),
   chart('pie', 'ribbonChartKindPie'),
+  chart('pie3D', 'ribbonChartKindPie3D'),
   chart('doughnut', 'ribbonChartGalleryDoughnut'),
   chart('scatter', 'ribbonChartKindScatter'),
   chart('radar', 'ribbonChartKindRadar'),
@@ -270,7 +274,7 @@ export function chartSampleData(kind: ChartPresetDef['kind']): {
   series: Array<{ name: string; values: number[] }>
 } {
   const quarters = ['ribbonSampleQ1', 'ribbonSampleQ2', 'ribbonSampleQ3', 'ribbonSampleQ4'] as const
-  if (kind === 'pie' || kind === 'doughnut') {
+  if (kind === 'pie' || kind === 'pie3D' || kind === 'doughnut') {
     return {
       categories: quarters.map((k) => t(k)),
       series: [{ name: t('ribbonSampleSales'), values: [8.2, 3.2, 1.4, 1.2] }],

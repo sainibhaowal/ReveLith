@@ -16,7 +16,7 @@ import {
   type SaveBlock,
 } from '../src/index'
 import { patchParagraphTexts } from '../src/text-patch'
-import { escapeXmlText } from '../src/xml-utils'
+import { escapeXmlText, textHasComplexScript } from '../src/xml-utils'
 import { buildDocx } from './helpers/build-docx'
 
 const P = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
@@ -87,6 +87,17 @@ describe('escapeXmlText', () => {
   it('strips control characters that are illegal in XML 1.0 but keeps tab/newline', () => {
     expect(escapeXmlText('a\u0000b\u000Bc\td\ne')).toBe('abc\td\ne')
     expect(escapeXmlText('<a & b>')).toBe('&lt;a &amp; b&gt;')
+  })
+})
+
+describe('textHasComplexScript', () => {
+  it('classifies Arabic, Tamil, Devanagari and Thai as cs; Latin/CJK as not', () => {
+    expect(textHasComplexScript('مرحبا')).toBe(true)
+    expect(textHasComplexScript('தமிழ்')).toBe(true)
+    expect(textHasComplexScript('हिन्दी')).toBe(true)
+    expect(textHasComplexScript('ไทย')).toBe(true)
+    expect(textHasComplexScript('hello')).toBe(false)
+    expect(textHasComplexScript('中文한글かな')).toBe(false)
   })
 })
 
@@ -254,9 +265,11 @@ describe('cell-level color needs run consensus (B5)', () => {
     expect(cell.richParas![0].runs[1].color).toBeUndefined()
   })
 
-  it('a uniformly colored cell still gets cell.color', async () => {
+  it('a uniformly colored cell still gets cell.color, but not styleColor', async () => {
     const doc = await parseDocx(await buildDocx({ bodyXml: CELL(RED + RED) }))
-    expect(doc.blocks[0].table!.rows[0][0].color).toBe('FF0000')
+    const cell = doc.blocks[0].table!.rows[0][0]
+    expect(cell.color).toBe('FF0000')
+    expect(cell.styleColor).toBeUndefined()
   })
 })
 
@@ -278,9 +291,12 @@ describe('table style whole-table rPr and firstCol conditionals (B5b)', () => {
     const doc = await parseDocx(await buildDocx({ bodyXml: TBL, extraStylesXml: STYLE }))
     const rows = doc.blocks[0].table!.rows
     for (const row of rows) for (const cell of row) expect(cell.color).toBe('365F91')
+    for (const row of rows) for (const cell of row) expect(cell.styleColor).toBe('365F91')
     expect(rows[0][0].bold).toBe(true)
     expect(rows[1][0].bold).toBe(true)
+    expect(rows[1][0].styleBold).toBe(true)
     expect(rows[1][1].bold).toBeUndefined()
+    expect(rows[1][1].styleBold).toBeUndefined()
   })
 })
 

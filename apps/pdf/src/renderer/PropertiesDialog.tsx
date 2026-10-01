@@ -1,8 +1,9 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import type { MetadataInput } from '../shared/ipc'
 import type { TFunc } from './i18n/locale'
+import { useModalDialog } from './modal-dialog'
 
 interface RawInfo {
   Title?: string
@@ -19,7 +20,7 @@ interface RawInfo {
 /** PDF date string D:YYYYMMDDHHmmSS… → locally readable */
 function fmtPdfDate(raw?: string): string {
   const m = /^D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?/.exec(raw ?? '')
-  if (!m) return raw ?? ':'
+  if (!m) return raw ?? '—'
   const [, y, mo, d, h = '00', mi = '00'] = m
   return `${y}-${mo}-${d} ${h}:${mi}`
 }
@@ -54,6 +55,7 @@ export function PropertiesDialog({
 }): ReactElement {
   const [info, setInfo] = useState<RawInfo | null>(null)
   const [form, setForm] = useState<MetadataInput>({})
+  const dialogRef = useModalDialog(onCancel)
 
   useEffect(() => {
     let cancelled = false
@@ -88,13 +90,20 @@ export function PropertiesDialog({
   const row = (label: string, value: string): ReactElement => (
     <div className="pdf-prop-row">
       <span>{label}</span>
-      <em data-tip={value}>{value || ':'}</em>
+      <em data-tip={value}>{value || '—'}</em>
     </div>
   )
 
   return (
     <div className="pdf-modal-mask" onClick={onCancel}>
-      <div className="pdf-modal pdf-modal-wide" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="pdf-modal pdf-modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('propsTitle')}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="pdf-modal-title">{t('propsTitle')}</div>
         {edit('title', t('propTitle'))}
         {edit('author', t('propAuthor'))}
@@ -104,7 +113,7 @@ export function PropertiesDialog({
           {row(t('propFileName'), fileName)}
           {row(t('propPages'), String(pageCount))}
           {row(t('propSize'), fmtSize(fileSize))}
-          {row(t('propVersion'), info?.PDFFormatVersion ?? ':')}
+          {row(t('propVersion'), info?.PDFFormatVersion ?? '—')}
           {row(t('propProducer'), info?.Producer ?? '')}
           {row(t('propCreated'), fmtPdfDate(info?.CreationDate))}
           {row(t('propModified'), fmtPdfDate(info?.ModDate))}

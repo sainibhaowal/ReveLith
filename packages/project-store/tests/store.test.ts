@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { ProjectStore } from '../src/store.js'
@@ -157,6 +157,25 @@ describe('appendChatMessage + loadChat', () => {
     const msgs = store.loadChat('default', 'chat1')
     expect(msgs[0].text).toBe('')
   })
+
+  it('a runaway reply is truncated instead of stored whole', () => {
+    // A model stuck in a repetition loop; stored whole it would also be replayed
+    // into the model context when the file reopens
+    store.appendChatMessage('default', 'chatHuge', {
+      role: 'assistant',
+      text: 'shame '.repeat(20_000),
+    })
+    const msgs = store.loadChat('default', 'chatHuge')
+    expect(msgs[0].text.length).toBeLessThan(33_000)
+    expect(msgs[0].text.endsWith('[truncated]')).toBe(true)
+  })
+
+  it('text just under the cap is stored verbatim', () => {
+    const text = 'x'.repeat(31_999)
+    store.appendChatMessage('default', 'chatUnder', { role: 'assistant', text })
+    const msgs = store.loadChat('default', 'chatUnder')
+    expect(msgs[0].text).toBe(text)
+  })
 })
 
 // ────────────────────────────────────────────────────────────
@@ -277,6 +296,70 @@ describe('rebindChat', () => {
     store.appendChatMessage('default', newId, { role: 'assistant', text: 'after' })
     expect(store.loadChat('default', newId).map((m) => m.seq)).toEqual([0, 1, 2, 3])
   })
+
+  it('keeps target and source records separate when the target has no final newline', () => {
+    const sourceId = 'unsaved-unterminated'
+    const targetId = 'existing-unterminated'
+    store.appendChatMessage('default', sourceId, { role: 'assistant', text: 'source' })
+    store.appendChatMessage('default', targetId, { role: 'assistant', text: 'target' })
+    const chatsDir = join(tmpDir, 'projects', 'default', 'chats')
+    const sourcePath = join(chatsDir, `${sourceId}.jsonl`)
+    const targetPath = join(chatsDir, `${targetId}.jsonl`)
+    const source = JSON.stringify({
+      seq: 4,
+      ts: new Date(4).toISOString(),
+      role: 'user',
+      text: 'source',
+    })
+    const target = JSON.stringify({
+      seq: 2,
+      ts: new Date(2).toISOString(),
+      role: 'assistant',
+      text: 'target',
+    })
+    writeFileSync(sourcePath, source, 'utf8')
+    writeFileSync(targetPath, target, 'utf8')
+
+    store.rebindChat('default', sourceId, targetId)
+
+    const merged = readFileSync(targetPath, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+    expect(merged.map((message) => message.text)).toEqual(['target', 'source'])
+    expect(merged.map((message) => message.seq)).toEqual([2, 3])
+    expect(existsSync(sourcePath)).toBe(false)
+  })
+
+  it('preserves every source record when merging a chat longer than the display cap', () => {
+    const sourceId = 'unsaved-long'
+    const targetId = 'existing-long'
+    store.appendChatMessage('default', targetId, { role: 'assistant', text: 'target' })
+    store.appendChatMessage('default', sourceId, { role: 'assistant', text: 'seed' })
+    const chatsDir = join(tmpDir, 'projects', 'default', 'chats')
+    const sourcePath = join(chatsDir, `${sourceId}.jsonl`)
+    const targetPath = join(chatsDir, `${targetId}.jsonl`)
+    const source = Array.from({ length: 10_001 }, (_, index) =>
+      JSON.stringify({
+        seq: index,
+        ts: new Date(index).toISOString(),
+        role: index % 2 === 0 ? 'user' : 'assistant',
+        text: `source-${index}`,
+      }),
+    )
+    writeFileSync(sourcePath, `${source.join('\n')}\n`, 'utf8')
+
+    store.rebindChat('default', sourceId, targetId)
+
+    const merged = readFileSync(targetPath, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(merged).toHaveLength(10_002)
+    expect(merged[1]?.text).toBe('source-0')
+    expect(merged.at(-1)?.text).toBe('source-10000')
+    expect(existsSync(sourcePath)).toBe(false)
+  })
 })
 
 // ────────────────────────────────────────────────────────────
@@ -301,7 +384,7 @@ describe('rebindChatToFile', () => {
     store.appendChatMessage('default', 'unsaved-9999', { role: 'user', text: 'generate a deck' })
     store.appendChatMessage('default', 'unsaved-9999', { role: 'assistant', text: 'generated' })
 
-    const draftPath = '/Users/x/Documents/Revelith/AI Strategy.pptx'
+    const draftPath = '/Users/x/Documents/ReveLith/AI Strategy.pptx'
     const ids = store.rebindChatToFile('default', 'unsaved-9999', draftPath)
 
     expect(ids.chatId).toBe(ProjectStore.chatIdForFile(draftPath))
@@ -313,7 +396,7 @@ describe('rebindChatToFile', () => {
 
   it('moves history into the owning project when the file already belongs to another project', () => {
     const proj = store.createProject('Research Project')
-    const filePath = '/Users/x/Documents/Revelith/Beijing Research.pptx'
+    const filePath = '/Users/x/Documents/ReveLith/Beijing Research.pptx'
     store.moveFileToProject(filePath, proj.id)
 
     store.appendChatMessage('default', 'unsaved-7777', { role: 'user', text: 'hi' })
@@ -345,12 +428,12 @@ describe('resolveChatForFile / fileRenamed', () => {
   })
 
   it('chatId stays the same after rename and history follows the file', () => {
-    const oldPath = '/Users/x/Documents/Revelith/old-name.pptx'
+    const oldPath = '/Users/x/Documents/ReveLith/old-name.pptx'
     const ids = store.resolveChatForFile(oldPath)
     store.appendChatMessage(ids.projectId, ids.chatId, { role: 'user', text: 'q' })
     store.appendChatMessage(ids.projectId, ids.chatId, { role: 'assistant', text: 'a' })
 
-    const newPath = '/Users/x/Documents/Revelith/new-name.pptx'
+    const newPath = '/Users/x/Documents/ReveLith/new-name.pptx'
     store.fileRenamed(oldPath, newPath)
 
     const after = store.resolveChatForFile(newPath)
@@ -359,13 +442,13 @@ describe('resolveChatForFile / fileRenamed', () => {
   })
 
   it('legacy data without mapping (path-hash chatId) can still recover history after rename', () => {
-    const oldPath = '/Users/x/Documents/Revelith/legacy.docx'
+    const oldPath = '/Users/x/Documents/ReveLith/legacy.docx'
     const legacyChatId = ProjectStore.chatIdForFile(oldPath)
     store.resolveProjectForFile(oldPath) // registers only fileMap, not chatIdByPath (simulates old data)
     store.appendChatMessage('default', legacyChatId, { role: 'user', text: 'q' })
     store.appendChatMessage('default', legacyChatId, { role: 'assistant', text: 'a' })
 
-    const newPath = '/Users/x/Documents/Revelith/legacy-renamed.docx'
+    const newPath = '/Users/x/Documents/ReveLith/legacy-renamed.docx'
     store.fileRenamed(oldPath, newPath)
 
     const after = store.resolveChatForFile(newPath)
@@ -376,10 +459,10 @@ describe('resolveChatForFile / fileRenamed', () => {
   it('rename after rebindChatToFile still resolves to the same history', () => {
     store.appendChatMessage('default', 'unsaved-1', { role: 'user', text: 'q' })
     store.appendChatMessage('default', 'unsaved-1', { role: 'assistant', text: 'a' })
-    const draft = '/Users/x/Documents/Revelith/draft.pptx'
+    const draft = '/Users/x/Documents/ReveLith/draft.pptx'
     const ids = store.rebindChatToFile('default', 'unsaved-1', draft)
 
-    const renamed = '/Users/x/Documents/Revelith/final-name.pptx'
+    const renamed = '/Users/x/Documents/ReveLith/final-name.pptx'
     store.fileRenamed(draft, renamed)
     const after = store.resolveChatForFile(renamed)
     expect(after.chatId).toBe(ids.chatId)
@@ -436,7 +519,7 @@ describe('appendChatMessage opening buffer', () => {
     const ids = store.rebindChatToFile(
       'default',
       'unsaved-buf3',
-      '/Users/x/Documents/Revelith/interrupted.pptx',
+      '/Users/x/Documents/ReveLith/interrupted.pptx',
     )
     expect(store.loadChat(ids.projectId, ids.chatId).map((m) => m.text)).toEqual([
       'generation interrupted',
@@ -462,6 +545,70 @@ describe('appendChatMessage opening buffer', () => {
     expect(msgs[1].tools?.[0].input).toHaveLength(16_000)
     expect(msgs[1].tools?.[0].output).toHaveLength(16_000)
     expect(msgs[1].tools?.[0].summary).toBe('read page 1')
+  })
+
+  it('caps the tool count and the per-tool name and summary on disk', () => {
+    store.appendChatMessage('default', 'tool-flood', {
+      role: 'assistant',
+      text: 'a',
+      tools: Array.from({ length: 500 }, (_, i) => ({
+        name: `tool_${i}_${'n'.repeat(5_000)}`,
+        summary: 's'.repeat(9_000),
+      })),
+    })
+    const tools = store.loadChat('default', 'tool-flood')[0]!.tools!
+    expect(tools).toHaveLength(64)
+    expect(tools[0]!.name).toHaveLength(200)
+    expect(tools[0]!.summary).toHaveLength(2_000)
+  })
+
+  it('caps the attachment count and the per-attachment name and path on disk', () => {
+    store.appendChatMessage('default', 'attach-flood', {
+      role: 'user',
+      text: 'q',
+      attachments: Array.from({ length: 5_000 }, (_, i) => ({
+        name: `file_${i}_${'a'.repeat(4_000)}`,
+        path: `/${'p'.repeat(4_000)}/${i}.bin`,
+        ext: 'bin',
+        sizeBytes: 1,
+      })),
+    })
+    const attachments = store.loadChat('default', 'attach-flood')[0]!.attachments!
+    expect(attachments).toHaveLength(32)
+    expect(attachments[0]!.name).toHaveLength(1_000)
+    expect(attachments[0]!.path).toHaveLength(1_000)
+    expect(attachments[0]!.ext).toBe('bin')
+  })
+
+  it('keeps a message with well-formed tools and attachments intact', () => {
+    store.appendChatMessage('default', 'meta-ok', {
+      role: 'user',
+      text: 'q',
+      attachments: [{ name: 'asset.pdf', path: '/tmp/asset.pdf', ext: 'pdf', sizeBytes: 123 }],
+    })
+    store.appendChatMessage('default', 'meta-ok', {
+      role: 'assistant',
+      text: 'a',
+      tools: [{ name: 'read_slide', summary: 'read page 1', isError: false }],
+    })
+    const msgs = store.loadChat('default', 'meta-ok')
+    expect(msgs[0]!.attachments).toEqual([
+      { name: 'asset.pdf', path: '/tmp/asset.pdf', ext: 'pdf', sizeBytes: 123 },
+    ])
+    expect(msgs[1]!.tools).toEqual([{ name: 'read_slide', summary: 'read page 1', isError: false }])
+  })
+
+  it('scope survives the round trip; its excerpt is capped at 400 chars', () => {
+    store.appendChatMessage('default', 'scope-chat', {
+      role: 'user',
+      text: 'polish this',
+      scope: { label: 'Selected: 158 words', text: 'y'.repeat(1_000) },
+    })
+    store.appendChatMessage('default', 'scope-chat', { role: 'assistant', text: 'done' })
+    const msgs = store.loadChat('default', 'scope-chat')
+    expect(msgs[0].scope?.label).toBe('Selected: 158 words')
+    expect(msgs[0].scope?.text).toHaveLength(400)
+    expect(msgs[1].scope).toBeUndefined()
   })
 
   it('user messages appended to a chat with an existing file are written directly, not buffered', () => {

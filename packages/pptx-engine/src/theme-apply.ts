@@ -1,5 +1,5 @@
-﻿/**
- * Theme application (Design tab theme gallery) : rewrites <a:clrScheme> and
+/**
+ * Theme application (Design tab theme gallery) — rewrites <a:clrScheme> and
  * <a:fontScheme> of every ppt/theme/theme*.xml in the package, in place.
  *
  * Semantics match PowerPoint: content referencing schemeClr / +mj-lt / +mn-lt
@@ -8,7 +8,7 @@
  * the inheritance chain so elements' resolved colors/fonts refresh.
  *
  * Exception: theme parts are the sole exemption from the "never write back
- * layout/master/theme" rule : the whole point of the theme gallery is to replace
+ * layout/master/theme" rule — the whole point of the theme gallery is to replace
  * the theme; layout/master themselves are still untouched.
  */
 import type { OpenedPptx } from './index'
@@ -92,14 +92,14 @@ export function applyThemeToArchive(opened: OpenedPptx, spec: ThemeSpec): number
 
 // ── Explicit color remapping ──────────────────────────────────────────
 // Real-world decks (especially AI-generated/exported ones) use almost exclusively
-// explicit srgbClr colors that never reference the scheme : swapping only the theme
+// explicit srgbClr colors that never reference the scheme — swapping only the theme
 // parts changes nothing visually. Here the deck's existing explicit colors are
 // remapped wholesale onto the new theme palette:
 //   · neutrals (low saturation / near black-white) map onto the new theme's
 //     dk1↔lt1 axis, bucketed by lightness;
 //   · chromatic colors are clustered by hue, and clusters are assigned to
 //     accent1..6 in order of frequency;
-//   · output replaces only hue/base saturation, keeping the original lightness :
+//   · output replaces only hue/base saturation, keeping the original lightness —
 //     shading levels and contrast structure stay intact.
 
 interface Hsl {

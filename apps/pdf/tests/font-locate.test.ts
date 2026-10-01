@@ -1,4 +1,4 @@
-﻿import { existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { fontCoversText } from '../src/main/font-cmap'
 import { findSystemFont } from '../src/main/font-locate'
@@ -41,7 +41,7 @@ describe('findSystemFont', () => {
   it('counts Oblique faces as hits for an italic want', () => {
     if (!existsSync('/System/Library/Fonts/Helvetica.ttc')) return
     // Keep-original italic toggle appends "italic", but Helvetica names its slanted
-    // face "Oblique" : the tokenizer must fold oblique into italic or the toggle
+    // face "Oblique" — the tokenizer must fold oblique into italic or the toggle
     // silently hands back the upright base face
     const bytes = findSystemFont('Helvetica-italic', 'Helvetica')
     expect(bytes).not.toBeNull()
@@ -51,7 +51,7 @@ describe('findSystemFont', () => {
   it('merges separate bold + italic wants into the BoldItalic face', () => {
     if (!existsSync('/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf')) return
     // Keep-original style toggle: bolding an italic run appends "bold" to the PS name,
-    // so the wants are ['italic', 'bold'] : the Bold Italic face must outrank the
+    // so the wants are ['italic', 'bold'] — the Bold Italic face must outrank the
     // single-style Italic and Bold faces (its subfamily folds to "bolditalic")
     const bytes = findSystemFont('Arial-ItalicMT-bold', 'Arial')
     expect(bytes).not.toBeNull()

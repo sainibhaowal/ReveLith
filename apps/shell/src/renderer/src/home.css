@@ -4,6 +4,8 @@
   /* ReveLith DS v4.1: guide/onboarding accent is the brand blue */
   --accent: #0f7fff;
   --accent-hover: #0e72e5;
+  /* selected-option tint for the shared dropdown (gs-dd) */
+  --accent-soft: #eaf0fd;
   --modal-width-sm: 480px;
   --avatar-bg: #e8ebef;
   --badge-bg: #eaf0fd;
@@ -23,6 +25,7 @@
 [data-theme='dark'] {
   --accent: #3f99ff;
   --accent-hover: #5ba5ff;
+  --accent-soft: #24354d;
   --avatar-bg: #333;
   --badge-bg: #2a3a4a;
   --checkbox-bg: #333;
@@ -37,6 +40,7 @@
   :root:not([data-theme='light']):not([data-theme='dark']) {
     --accent: #3f99ff;
     --accent-hover: #5ba5ff;
+    --accent-soft: #24354d;
     --avatar-bg: #333;
     --badge-bg: #2a3a4a;
     --checkbox-bg: #333;
@@ -45,17 +49,6 @@
     --shadow-pill: 0 1px 2px rgb(0 0 0 / 40%);
     --logo-invert: 1;
   }
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes loadingProgress {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
-  100% { transform: translateX(200%); }
 }
 
 * {
@@ -115,56 +108,35 @@ body.vib .home {
   overflow-y: auto;
 }
 
-.sidebar-logo.brand-header {
+.sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 13px;
-  padding: 6px 8px;
-  margin-bottom: 24px;
+  gap: 9px;
+  padding: 0 8px;
+  margin-bottom: 20px;
+}
+
+.logo-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+.logo-brand-text {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--text-normal, #1e293b);
   user-select: none;
 }
 
-.brand-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  transition: transform 0.15s ease;
+[data-theme='dark'] .logo-brand-text {
+  color: #f8fafc;
 }
 
-.brand-badge svg {
-  width: 34px;
-  height: 34px;
-}
-
-.brand-badge:hover {
-  transform: translateY(-1px);
-}
-
-.brand-info {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  line-height: 1.15;
-}
-
-.brand-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--text);
-  letter-spacing: -0.4px;
-}
-
-.brand-subtitle {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-muted);
-  letter-spacing: 1.4px;
-  text-transform: uppercase;
-  margin-top: 3px;
-  opacity: 0.9;
+.logo-lockup {
+  display: block;
+  height: 28px;
+  width: auto;
 }
 
 .sidebar-nav {
@@ -187,16 +159,10 @@ body.vib .home {
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nav-item:hover {
   background: var(--bg-hover);
-  transform: translateX(3px);
-}
-
-.nav-item:active {
-  transform: translateX(1px) scale(0.98);
 }
 
 .nav-item.active {
@@ -207,11 +173,6 @@ body.vib .home {
 .nav-item svg {
   flex-shrink: 0;
   color: var(--text-primary);
-  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.nav-item:hover svg {
-  transform: scale(1.12);
 }
 
 .nav-label {
@@ -225,11 +186,6 @@ body.vib .home {
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  transition: transform 0.16s ease;
-}
-
-.nav-item:hover .nav-count {
-  transform: scale(1.08);
 }
 
 /* ---- bottom-left account entry (today = ReveLith login, later = signup/account system) ---- */
@@ -255,19 +211,14 @@ body.vib .home {
   font: inherit;
   cursor: pointer;
   text-align: left;
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .account-btn:hover {
-  background: var(--bg-hover);
-  transform: translateY(-1px);
-}
-
-.account-btn:active {
-  transform: translateY(0) scale(0.98);
+  background: var(--surface-subtle);
 }
 
 .account-avatar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,6 +239,17 @@ body.vib .home {
 
 .account-avatar.waiting {
   color: var(--accent);
+}
+
+.account-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--chrome-bg);
+  background: var(--danger);
 }
 
 .account-spinner {
@@ -334,40 +296,66 @@ body.vib .home {
   color: #b3261e;
 }
 
-/* rescue panel while waiting for the browser sign-in (auto-open may have failed) */
+/* one-line rescue hint while waiting for the browser sign-in (auto-open may have failed) */
 .login-hint {
   position: absolute;
   left: -8px;
   bottom: calc(100% + 4px);
   width: calc(100% + 16px);
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 2px;
-  padding: 8px;
-  border-radius: 12px;
+  padding: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
   background: var(--surface);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   z-index: 30;
 }
 
-.login-hint button {
+/* class selectors so the per-button font-size below is not out-specified by a descendant rule */
+.login-hint-open,
+.login-hint-copy {
   border: none;
-  border-radius: 10px;
   background: none;
   font: inherit;
-  font-size: 13px;
-  line-height: 20px;
-  padding: 6px 8px;
-  color: var(--text-primary);
   cursor: pointer;
-  text-align: left;
 }
 
-.login-hint button:hover {
+.login-hint-open:hover,
+.login-hint-copy:hover {
   background: var(--bg-hover);
 }
 
-.login-hint .login-hint-open {
+.login-hint-open {
+  flex: 1;
+  min-width: 0;
+  border-radius: 7px;
+  font-size: 12.5px;
+  line-height: 17px;
+  padding: 4px 6px;
+  color: var(--accent);
+  text-align: start;
+}
+
+.login-hint-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border-radius: 7px;
+  color: var(--text-muted);
+}
+
+.login-hint-copy:hover {
+  color: var(--text-primary);
+}
+
+.login-hint-copy.copied {
   color: var(--accent);
 }
 
@@ -433,62 +421,36 @@ body.vib .home {
   gap: 14px;
   padding: 18px 18px 16px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
 }
 
 .quick-card:hover {
   border-color: var(--border-hover);
-  background: var(--surface-subtle);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  --quick-card-hover-shadow: 0 3px 12px rgb(0 0 0 / 8%);
+  box-shadow: var(--quick-card-hover-shadow);
 }
 
-.quick-card:active {
-  transform: translateY(0);
-}
-
-.quick-icon-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), filter 0.22s ease;
-}
-
-.quick-card:hover .quick-icon-wrapper {
-  transform: scale(1.12) translateY(-1px);
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12));
-}
-
-.quick-icon-wrapper.folder-icon {
-  width: 32px;
-  height: 32px;
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.quick-card:hover .quick-icon-wrapper.folder-icon {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--badge-bg);
-  transform: scale(1.12) translateY(-1px);
+.quick-card svg {
+  flex-shrink: 0;
 }
 
 .quick-text {
   flex: 1;
   min-width: 0;
+  /* cap at the card's content box: long ext lists ellipsize inside the padding
+     instead of stretching the wrapper and getting clipped at the card border */
   max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
+  gap: 2px;
 }
 
 .quick-title-row {
@@ -504,7 +466,6 @@ body.vib .home {
   overflow: hidden;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -515,9 +476,29 @@ body.vib .home {
   overflow: hidden;
   font-size: 12px;
   color: var(--text-muted);
-  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.quick-folder {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.ai-chip {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--badge-bg);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 @media (max-width: 1100px) {
@@ -548,6 +529,8 @@ body.vib .home {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
   padding: 10px 0 14px;
   background: var(--bg-content);
 }
@@ -557,6 +540,8 @@ body.vib .home {
   display: flex;
   align-items: baseline;
   gap: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
   /* optical: geometrically the label is dead level with the tab text (glyph
      boxes coincide), but naked bold text beside the gray pill track reads
      high — compensate down */
@@ -598,27 +583,19 @@ body.vib .home {
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .filter-pill:hover,
 .cloud-seg button:hover {
   color: var(--text);
-  transform: translateY(-1px);
-}
-
-.filter-pill:active,
-.cloud-seg button:active {
-  transform: translateY(0) scale(0.96);
 }
 
 .filter-pill.active,
 .cloud-seg button.active {
   background: var(--surface);
-  color: var(--text-primary);
+  color: var(--text);
   font-weight: 600;
   box-shadow: var(--shadow-pill);
-  transform: none;
 }
 
 .empty {
@@ -790,11 +767,6 @@ body.vib .home {
 .recent-icon {
   display: flex;
   align-items: center;
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.recent-row:hover .recent-icon {
-  transform: scale(1.12);
 }
 
 .recent-name {
@@ -803,6 +775,13 @@ body.vib .home {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* unavailable recents (disconnected drive / moved / deleted) stay listed, dimmed */
+.recent-item.missing .recent-name,
+.recent-item.missing .recent-path,
+.recent-item.missing .recent-icon {
+  opacity: 0.55;
 }
 
 .star-btn {
@@ -869,6 +848,8 @@ body.vib .home {
   position: relative;
   display: flex;
   justify-content: flex-end;
+  anchor-name: --row-actions;
+  anchor-scope: --row-actions;
 }
 
 .more-btn {
@@ -892,17 +873,29 @@ body.vib .home {
 }
 
 .row-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+  position: fixed;
+  position-anchor: --row-actions;
+  top: calc(anchor(bottom) + 6px);
+  right: anchor(right);
+  position-try-fallbacks: flip-block, --row-menu-viewport;
+  position-visibility: anchors-visible;
   z-index: 20;
+  box-sizing: border-box;
   min-width: 160px;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 10px 28px rgb(0 0 0 / 14%);
   animation: menu-in 0.1s ease;
+}
+
+/* If neither side fits, keep the menu inside the viewport and scroll its items. */
+@position-try --row-menu-viewport {
+  top: 8px;
+  bottom: auto;
 }
 
 @keyframes menu-in {
@@ -1049,7 +1042,7 @@ body.vib .home {
   margin-top: 24px;
 }
 
-/* ── Project sidebar (P1) ─────────────────────────────── */
+/* ── Folders sidebar ─────────────────────────────────── */
 
 .sidebar-divider {
   height: 1px;
@@ -1057,28 +1050,29 @@ body.vib .home {
   background: var(--border-subtle);
 }
 
-.proj-panel {
+.folder-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex: 1;
 }
 
-.proj-panel-head {
+.folder-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 10px 6px;
 }
 
-.proj-panel-title {
+.folder-panel-title {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-muted);
 }
 
-.proj-add-btn {
+.folder-add-btn,
+.folder-more-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1094,84 +1088,147 @@ body.vib .home {
     color 0.1s;
 }
 
-.proj-add-btn:hover {
+.folder-add-btn:hover {
   background: var(--surface-subtle);
   color: var(--text);
 }
 
-.proj-new-row {
-  padding: 0 8px 4px;
+.folder-panel.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  border-radius: 8px;
 }
 
-.proj-rename-input {
+.folder-panel-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.tree-row.unavailable .tree-name {
+  color: var(--text-tertiary);
+}
+
+.tree-hint {
+  margin-left: auto;
+  padding-right: 4px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.folder-unusable {
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
+.folder-unusable .btn {
+  margin-top: 8px;
+  font-size: 13px;
+  padding: 5px 10px;
+}
+
+.folder-rename-input {
   width: 100%;
-  padding: 4px 8px;
+  padding: 3px 6px;
   border: 1.5px solid var(--accent);
   border-radius: 6px;
   font: inherit;
   font-size: 14px;
   outline: none;
   background: var(--surface);
+  color: var(--text);
 }
 
-.proj-rename-input.inline {
+.folder-rename-input.inline {
   flex: 1;
   min-width: 0;
   width: auto;
 }
 
-.proj-list {
+.tree,
+.tree-children {
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
 }
 
-.proj-item {
+.tree {
+  overflow-y: auto;
+  padding: 0 2px;
+}
+
+.tree-item {
+  position: relative;
+}
+
+.tree-row {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 8px 4px 8px;
   border-radius: 8px;
-  margin: 0 2px 1px;
+  margin-bottom: 1px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
 }
 
-.proj-item.active {
+.tree-row:hover {
   background: var(--bg-hover);
 }
 
-.proj-item-main {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  flex: 1;
-  min-width: 0;
-  padding: 8px 10px;
-  cursor: pointer;
-  border-radius: 8px;
-  user-select: none;
+.tree-row.active {
+  background: var(--bg-hover);
 }
 
-.proj-item-main:focus-visible {
+.tree-row.active .tree-name {
+  font-weight: 600;
+}
+
+.tree-row:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
-.proj-item:hover .proj-item-main {
-  background: var(--bg-hover);
+/* drag hover: an inset ring in the accent color, same for sidebar and table rows */
+.tree-row.drop-target,
+.recent-item.drop-target {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--accent-soft);
 }
 
-.proj-item.active .proj-item-main {
-  background: none;
-}
-
-.proj-item-icon {
-  flex-shrink: 0;
-  color: var(--text-primary);
+.tree-chevron {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
 }
 
-.proj-item-name {
+.tree-chevron:hover {
+  background: var(--bg-hover-strong);
+  color: var(--text);
+}
+
+.tree-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-primary);
+}
+
+.tree-name {
   flex: 1;
   min-width: 0;
   font-size: 14px;
@@ -1181,75 +1238,32 @@ body.vib .home {
   text-overflow: ellipsis;
 }
 
-.proj-item.active .proj-item-name {
-  font-weight: 600;
-}
-
-.proj-item-meta {
+/* the "..." button only shows on hover / while its menu is open */
+.folder-menu-wrap {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.proj-item-count {
-  min-width: 22px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* the "..." button floats over the count slot so hidden rows stay aligned */
-.proj-menu-wrap {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 8px;
   display: flex;
   align-items: center;
   opacity: 0;
   transition: opacity 0.1s;
 }
 
-.proj-item:hover .proj-menu-wrap,
-.proj-menu-wrap:has([aria-expanded='true']) {
+.tree-row:hover .folder-menu-wrap,
+.folder-menu-wrap:has([aria-expanded='true']) {
   opacity: 1;
 }
 
-.proj-item:hover:has(.proj-menu-wrap) .proj-item-meta,
-.proj-item:has(.proj-more-btn[aria-expanded='true']) .proj-item-meta {
-  opacity: 0;
-}
-
-.proj-more-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition:
-    background 0.1s,
-    color 0.1s;
-}
-
-.proj-more-btn:hover,
-.proj-more-btn[aria-expanded='true'] {
+.folder-more-btn:hover,
+.folder-more-btn[aria-expanded='true'] {
   background: var(--bg-hover-accent);
   color: var(--text);
 }
 
 /* fixed-position popup anchored via inline top/right (set at open time) so it
-   escapes the scrollable project list without the list losing overflow-y */
-.proj-menu {
+   escapes the scrollable tree without the tree losing overflow-y */
+.folder-menu {
   position: fixed;
   z-index: 30;
-  min-width: 140px;
+  min-width: 160px;
   padding: 5px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1258,7 +1272,7 @@ body.vib .home {
   animation: menu-in 0.1s ease;
 }
 
-.proj-menu button {
+.folder-menu button {
   display: block;
   width: 100%;
   padding: 6px 9px;
@@ -1270,93 +1284,156 @@ body.vib .home {
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
+  color: var(--text);
 }
 
-.proj-menu button:hover {
+.folder-menu button:hover {
   background: var(--surface-subtle);
 }
 
-.proj-menu button.danger {
+.folder-menu button.danger {
   color: var(--danger);
 }
 
-.proj-menu button.danger:hover {
+.folder-menu button.danger:hover {
   background: var(--danger-bg);
 }
 
-/* "move to project" submenu on a file row */
-.submenu-trigger {
-  display: flex !important;
-  align-items: center;
+/* ---- folder view: sub-folder rows ---- */
+
+.folder-heading {
+  gap: 10px;
+}
+
+.folder-badge {
+  color: var(--text-secondary);
+}
+
+.recent-item.folder-item .recent-name {
+  font-weight: 500;
+}
+
+/* ---- move-to-folder picker ---- */
+
+.picker-modal {
+  width: 440px;
+  max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-search {
   width: 100%;
-}
-
-.move-menu-wrap {
-  position: relative;
-}
-
-/* opens to the right of the host menu; .submenu-left flips it to the left
-   when the window edge leaves no room (WPS-style edge flip) */
-.submenu {
-  position: absolute;
-  top: 0;
-  left: calc(100% + 4px);
-  z-index: 40;
-  min-width: 140px;
-  padding: 5px;
-  background: var(--surface);
+  margin: 4px 0 10px;
+  padding: 7px 10px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 13%);
-  animation: menu-in 0.1s ease;
-}
-
-.submenu.submenu-left {
-  left: auto;
-  right: calc(100% + 4px);
-}
-
-.submenu button,
-.selection-move-menu button {
-  display: block;
-  width: 100%;
-  padding: 6px 9px;
-  border: none;
-  border-radius: 6px;
-  background: none;
+  border-radius: 8px;
   font: inherit;
   font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.submenu button:hover,
-.selection-move-menu button:hover {
-  background: var(--surface-subtle);
-}
-
-/* bulk move-to-project dropdown in the selection bar (anchored below the button) */
-.selection-move-wrap {
-  position: relative;
-  display: inline-flex;
-}
-
-.selection-move-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 40;
-  min-width: 140px;
-  padding: 5px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 13%);
-  animation: menu-in 0.1s ease;
+  color: var(--text);
+  outline: none;
 }
 
-/* empty-project onboarding copy — centered in the space below the toolbar */
+.picker-search:focus {
+  border-color: var(--accent);
+}
+
+.picker-tree {
+  height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.picker-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.picker-row:hover {
+  background: var(--bg-hover);
+}
+
+.picker-row.active {
+  background: var(--accent-soft);
+}
+
+.picker-row.disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.picker-row.disabled:hover {
+  background: none;
+}
+
+.picker-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-current,
+.picker-rel {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.picker-empty {
+  margin: 0;
+  padding: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.picker-buttons {
+  align-items: center;
+}
+
+.picker-spacer {
+  flex: 1;
+}
+
+.picker-buttons .btn {
+  font-size: 14px;
+  padding: 7px 14px;
+}
+
+.btn-primary {
+  background: var(--color-btn-primary);
+  border: none;
+  color: var(--color-btn-primary-text);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-btn-primary-hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* empty-list copy — centered in the space below the toolbar */
 .content:has(.proj-empty) {
   display: flex;
   flex-direction: column;
@@ -1659,7 +1736,7 @@ body.vib .home {
 /* placeholder color follows the suite convention (AI input boxes):
    tertiary text, not the browser's UA default */
 .cloud-search input::placeholder,
-.proj-rename-input::placeholder {
+.folder-rename-input::placeholder {
   color: var(--text-tertiary);
 }
 
@@ -1841,7 +1918,81 @@ body.vib .home {
     transform: rotate(360deg);
   }
 }
+
+/* Drag-over affordance while OS files hover anywhere over the window (the
+   open itself is handled by the preload drop bridge, not this overlay) */
+.home-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300; /* above modals (100): a drag in progress always leads */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-overlay);
+  /* never intercepts events — the drop must land on the page underneath */
+  pointer-events: none;
+}
+
+.home-drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 56px;
+  background: var(--surface);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-16);
+  box-shadow: var(--shadow-modal-strong);
+  color: var(--accent);
+  animation: menu-in 0.12s ease;
+}
+
+.home-drop-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.home-drop-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Motion accessibility: suppress all animation for users who opt out */
+/* PowerPoint-sized minimum window (720px): the fixed 232px sidebar and the
+   eight-column file grid no longer fit side by side */
+@media (max-width: 900px) {
+  .sidebar {
+    width: 200px;
+  }
+
+  .content {
+    padding: 28px 20px 40px;
+  }
+
+  .recents-toolbar {
+    gap: 8px 12px;
+  }
+
+  .recent-columns,
+  .recent-item {
+    grid-template-columns: 18px 24px minmax(0, 1fr) 110px 24px 28px;
+  }
+
+  .recent-columns .col-path,
+  .recent-columns .col-size,
+  .recent-path,
+  .recent-size {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1850,4 +2001,190 @@ body.vib .home {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── File search (home toolbar) ── */
+.file-search-group {
+  flex: 1;
+  /* field min-width + gap + button, so the group wraps as a unit instead of overflowing */
+  min-width: 214px;
+  max-width: 460px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.file-search {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.file-search:focus-within,
+.file-search.active {
+  border-color: var(--accent);
+}
+.file-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+}
+.file-search input::placeholder {
+  color: var(--text-tertiary);
+}
+.file-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.file-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.file-search-clear:hover {
+  color: var(--text);
+}
+
+.file-search-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+.file-search-settings:hover {
+  color: var(--text);
+  background: var(--bg-hover-strong);
+}
+.file-search-settings:active {
+  transform: scale(0.92);
+}
+
+.search-results {
+  padding-bottom: 24px;
+}
+.search-rerank-badge {
+  align-self: center;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.search-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 12px;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.search-status .load-more-spinner {
+  width: 14px;
+  height: 14px;
+}
+.search-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.search-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 110px;
+  align-items: start;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.search-row:hover,
+.search-row:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.search-row .recent-icon {
+  margin-top: 1px;
+}
+.search-main {
+  min-width: 0;
+}
+.search-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.search-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-path {
+  flex-shrink: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-snippet {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.search-hit {
+  background: var(--search-hit-bg);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.search-time {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  text-align: right;
+  padding-top: 2px;
 }

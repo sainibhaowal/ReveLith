@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import {
   HIGHLIGHTER_ALPHA,
@@ -13,7 +13,7 @@ import {
 
 /**
  * Transparent drawing layer covering the page (pen/highlighter/eraser). Lives inside
- * .page-wrap, which is inside the zoomed .doc-zoom container : pointer
+ * .page-wrap, which is inside the zoomed .doc-zoom container — pointer
  * coordinates are divided by the zoom factor so stroke geometry is stored at
  * 100% zoom, matching the engine's EMU offsets on save.
  *

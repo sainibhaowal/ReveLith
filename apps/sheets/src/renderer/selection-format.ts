@@ -1,6 +1,6 @@
-﻿import { BooleanNumber, type IStyleData, WrapStrategy } from '@univerjs/core'
+import { BooleanNumber, type IStyleData, WrapStrategy } from '@univerjs/core'
 
-/// One OOXML indent step rendered as left cell padding, in px : roughly the
+/// One OOXML indent step rendered as left cell padding, in px — roughly the
 /// width of three spaces at the default 11pt font.
 /// The padding is the only on-screen model for indent, so converting back
 /// (padding / step) must recover the exact step count.
@@ -135,7 +135,7 @@ export function numberFormatLabel(pattern: string): string {
   const currency = /[$¥€£]/.test(bare + quoted) || /\[\$[^\-\]]/.test(pattern)
   if (currency && bare.includes('_(') && bare.includes('*')) return 'Accounting'
   // Currency symbols appear bare ($#,##0), quoted ("$"#,##0), or as a
-  // [$<symbol>-<locale>] prefix : a plain [$-409] locale tag is not one.
+  // [$<symbol>-<locale>] prefix — a plain [$-409] locale tag is not one.
   if (currency) return 'Currency'
   if (/E[+-]/i.test(bare)) return 'Scientific'
   if (/\?\/[?\d]/.test(bare)) return 'Fraction'

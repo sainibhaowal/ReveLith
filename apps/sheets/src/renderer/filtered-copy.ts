@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Copy semantics for filtered sheets: copying a range on a sheet
  * with an active auto-filter copies visible rows only.
  *
@@ -52,7 +52,7 @@ export function installFilteredCopyHook(runtime: UniverRuntime): { dispose(): vo
       return hiddenRowsInFilterRange(
         range,
         filterModel.getRange(),
-        // Raw visibility ignores the filter model : model-filtered rows are
+        // Raw visibility ignores the filter model — model-filtered rows are
         // already excluded by Univer's own default hook.
         (row) => !worksheet.getRowRawVisible(row),
       )

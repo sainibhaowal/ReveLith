@@ -1,4 +1,4 @@
-﻿/** Line grouping over pdf.js text-layer spans. pdf.js splits a visual line into runs
+/** Line grouping over pdf.js text-layer spans. pdf.js splits a visual line into runs
     at font changes and kerning breaks (CJK often one span per glyph), so span-level
     hit-testing selects a few characters out of a sentence. Editing wants the whole
     line: merge the clicked span with its same-baseline neighbors. Works in client-rect
@@ -15,7 +15,7 @@ export interface LineGroup {
   /** Offset of each span's text inside `text` (accounts for synthesized spaces),
       so a DOM selection endpoint maps to a `text` offset */
   starts: number[]
-  /** Width-weighted dominant span height (client px) : the line's effective font size,
+  /** Width-weighted dominant span height (client px) — the line's effective font size,
       so one oversized glyph doesn't inflate the whole rebuilt line */
   fontHeight: number
 }

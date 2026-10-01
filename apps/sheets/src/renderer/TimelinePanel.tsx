@@ -1,5 +1,10 @@
-import { monthKeyParts, type MonthKey, type TimelineMember } from '../domain/pivot-timeline'
+import {
+  monthKeyParts,
+  type MonthKey,
+  type TimelineMember,
+} from '@revelith/xlsx-gateway/domain/pivot-timeline'
 import { useI18n } from './i18n/locale'
+import { useModalDialog } from './modal-dialog'
 
 /// Timeline: a month-granularity date-range filter bound to one pivot date
 /// field. Like slicers it drives the pivot's hidden entries (applyPivotSlicer)
@@ -39,11 +44,13 @@ export function TimelineFieldPicker({
   readonly onClose: () => void
 }): React.JSX.Element {
   const { t } = useI18n()
+  const modal = useModalDialog(onClose)
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
         className="format-cells-dialog slicer-picker"
         role="dialog"
+        {...modal}
         aria-label={t('dlgTimelineInsertTitle')}
         onClick={(event) => event.stopPropagation()}
       >

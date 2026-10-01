@@ -1,4 +1,4 @@
-﻿/** Disk snapshot recorded at the last read/write of a document path. */
+/** Disk snapshot recorded at the last read/write of a document path. */
 export interface DiskFileState {
   mtimeMs: number
   size: number
@@ -8,7 +8,7 @@ export interface DiskFileState {
 /**
  * True when the file on disk no longer matches the recorded state, i.e. another
  * program wrote it since we last read/saved it. No record (path never tracked)
- * or a missing file (deleted externally) is not a conflict : the save proceeds
+ * or a missing file (deleted externally) is not a conflict — the save proceeds
  * and recreates the file. The hash read only runs when mtime+size already
  * disagree, so the common no-conflict save never rereads the file.
  */

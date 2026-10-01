@@ -1,7 +1,7 @@
-﻿/** Greedy line breaking for paragraph (block) text edits: Latin breaks at word
+/** Greedy line breaking for paragraph (block) text edits: Latin breaks at word
     boundaries, CJK after any character, with basic kinsoku (no closing punctuation
     at a line start, no opening bracket at a line end). Measurement goes through
-    canvas measureText in the same CSS family the editor previews with : renderer
+    canvas measureText in the same CSS family the editor previews with — renderer
     metrics are the project's source of truth for text width (hb wasm mismeasures
     AAT faces). */
 
@@ -10,7 +10,7 @@ import { foldRadicals } from '../shared/radicals'
 const CJK = /[⺀-〿぀-ヿㇰ-ㇿ㐀-䶿一-鿿豈-﫿＀-￯가-힯]/
 
 /** Must not start a line: closing brackets/quotes, CJK and Latin sentence punctuation */
-const NO_LINE_START = new Set('，。、；：！？）】」』〉》〕…‥·:～ヽヾゝゞ々ー%％℃,.;:!?)]}"\'’”°')
+const NO_LINE_START = new Set('，。、；：！？）】」』〉》〕…‥·—～ヽヾゝゞ々ー%％℃,.;:!?)]}"\'’”°')
 /** Must not end a line: opening brackets/quotes */
 const NO_LINE_END = new Set('（【「『〈《〔([{“‘')
 
@@ -124,21 +124,21 @@ export function wrapText(
 
 /** pdf.js sometimes extracts CJK through a font cmap that yields radical-block
     codepoints (U+2E80-2FDF, e.g. U+2F83 for U+81EA, U+2EE6 for U+9E1F) where the page
-    really draws unified ideographs : and PDFium extracts those. Fold each radical to
+    really draws unified ideographs — and PDFium extracts those. Fold each radical to
     its unified equivalent (visually identical) so block drafts edit and write back
     real ideographs: retained radical variants between two folded edits would
     otherwise reach the rebuild font as undrawable characters. NFKC alone is not
-    enough : the Radicals Supplement (U+2E80-2EFF) has no decompositions : so this
+    enough — the Radicals Supplement (U+2E80-2EFF) has no decompositions — so this
     goes through the shared RADICAL_EQUIV table first. */
 export function unifyRadicals(s: string): string {
   // Gate covers everything foldRadicals maps (radical blocks AND CJK Strokes
-  // U+31C0-31E3) : the engine folds strokes too, so both sides must agree
+  // U+31C0-31E3) — the engine folds strokes too, so both sides must agree
   return /[\u2e80-\u2fdf\u31c0-\u31e3]/.test(s)
     ? foldRadicals(s).replace(/[\u2e80-\u2fdf]/g, (ch) => ch.normalize('NFKC'))
     : s
 }
 
-/** Non-whitespace code units of `s` (radical-folded) with their original indices :
+/** Non-whitespace code units of `s` (radical-folded) with their original indices —
     splice matching must ignore synthesized/joined spaces and radical variants.
     Folds are pushed unit by unit (an astral fold becomes two surrogate entries
     sharing one original index), so an unfolded needle aligns with an
@@ -171,15 +171,19 @@ const indexOfSub = (hay: string[], needle: string[], from: number): number => {
     spaces) and replaced by its newText as committed. `hint` is the edit's rough
     non-space offset within the block (from the edited line's position), used to
     prefer the right occurrence when a paragraph repeats itself. Returns null when
-    any oldText cannot be found or two edits overlap : the caller then keeps the
-    unfolded behavior. */
+    any oldText cannot be found or two edits overlap — the caller then keeps the
+    unfolded behavior. When `outRanges` is given, it receives the [start,end)
+    range each edit's (radical-folded) newText occupies inside the returned
+    string, in input-edit order — callers use this to carry the edits'
+    selection styles onto the folded paragraph. */
 export function spliceBlockText(
   blockText: string,
   edits: { oldText: string; newText: string; hint?: number }[],
+  outRanges?: [number, number][],
 ): string | null {
   const hay = nonSpaceMap(blockText)
-  const ranges: { start: number; end: number; newText: string }[] = []
-  for (const e of edits) {
+  const ranges: { start: number; end: number; newText: string; editIdx: number }[] = []
+  for (const [editIdx, e] of edits.entries()) {
     const needle = nonSpaceMap(e.oldText).chars
     // From the hinted line start first; a crossing-span oldText that begins on the
     // previous line (or a stale hint) falls back to the first occurrence anywhere
@@ -190,6 +194,7 @@ export function spliceBlockText(
       start: hay.idx[at]!,
       end: hay.idx[at + needle.length - 1]! + 1,
       newText: unifyRadicals(e.newText),
+      editIdx,
     })
   }
   ranges.sort((a, b) => a.start - b.start)
@@ -199,7 +204,9 @@ export function spliceBlockText(
   let out = ''
   let pos = 0
   for (const r of ranges) {
-    out += blockText.slice(pos, r.start) + r.newText
+    out += blockText.slice(pos, r.start)
+    if (outRanges) outRanges[r.editIdx] = [out.length, out.length + r.newText.length]
+    out += r.newText
     pos = r.end
   }
   return out + blockText.slice(pos)

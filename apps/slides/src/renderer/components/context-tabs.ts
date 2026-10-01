@@ -1,7 +1,14 @@
 import type { RenderNode } from '@revelith/pptx-render'
 
-export type ContextElementType = 'table' | 'chart' | 'picture' | 'shape' | 'textShape' | null
-export type ContextTab = 'tableDesign' | 'chartDesign' | 'pictureFormat'
+/** 'mixed' = multi-select spanning pictures/groups: only selection-wide commands (outline) apply */
+export type ContextElementType =
+  'table' | 'chart' | 'picture' | 'shape' | 'textShape' | 'mixed' | null
+export type ContextTab = 'tableDesign' | 'chartDesign' | 'pictureFormat' | 'shapeFormat'
+/** Canvas request to activate a contextual tab (seq distinguishes repeated requests for the same tab) */
+export interface ContextTabRequest {
+  tab: ContextTab
+  seq: number
+}
 
 function nodeHasVisibleText(node: RenderNode): boolean {
   if (node.type === 'text' || node.type === 'shape') {
@@ -22,14 +29,24 @@ export function contextElementTypeForNode(node: RenderNode): ContextElementType 
 export function contextTabForElement(type: ContextElementType): ContextTab | null {
   if (type === 'table') return 'tableDesign'
   if (type === 'chart') return 'chartDesign'
-  if (type === 'picture' || type === 'shape' || type === 'textShape') return 'pictureFormat'
+  // Mixed selections use picture-format: its outline command spans the whole
+  // selection while picture-only tools (crop/transparency) stay disabled
+  if (type === 'picture' || type === 'mixed') return 'pictureFormat'
+  if (type === 'shape' || type === 'textShape') return 'shapeFormat'
   return null
 }
 
 /**
- * Shapes share picture-format commands such as outline and arrange, but selecting a
- * text-bearing shape should not pull the user away from Home's text controls.
+ * Tab the ribbon jumps to on selection. PowerPoint only reveals Shape Format for
+ * shapes and text boxes (Home stays active so text formatting is one click
+ * away); pictures/tables/charts still switch to their dedicated tools.
  */
 export function autoContextTabForElement(type: ContextElementType): ContextTab | null {
-  return type === 'textShape' ? null : contextTabForElement(type)
+  const tab = contextTabForElement(type)
+  return tab === 'shapeFormat' ? null : tab
+}
+
+/** Tab a double-click on a non-text object jumps to (PowerPoint opens the object's tools) */
+export function contextualTabFor(node: RenderNode): ContextTab | null {
+  return contextTabForElement(contextElementTypeForNode(node))
 }

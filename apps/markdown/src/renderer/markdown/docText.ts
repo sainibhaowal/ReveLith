@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Round-trip envelope for a .md file: the TipTap editor only ever sees the
  * markdown body; the YAML frontmatter block, EOL style and EOF-newline state
  * are captured on load and re-applied verbatim on save, so a file written by
@@ -12,7 +12,7 @@ export interface DocEnvelope {
   eol: '\n' | '\r\n'
   /** whether the original file ended with a newline (new documents: true) */
   trailingNewline: boolean
-  /** the original file started with a UTF-8 BOM (Windows Notepad) : re-emitted on save */
+  /** the original file started with a UTF-8 BOM (Windows Notepad) — re-emitted on save */
   bom: boolean
 }
 
@@ -63,7 +63,7 @@ export function buildFrontmatterRaw(inner: string): string {
 /**
  * One-way migration for legacy documents: earlier versions serialized callout
  * and toggle blocks as Pandoc-style fenced divs (`:::callout {type="…"}` /
- * `:::toggle {summary="…"}` / `:::`). Those extensions are gone : without this
+ * `:::toggle {summary="…"}` / `:::`). Those extensions are gone — without this
  * strip the fence lines would show up as literal `:::` text in the editor.
  * The body content is kept; a toggle summary degrades to a bold paragraph.
  */

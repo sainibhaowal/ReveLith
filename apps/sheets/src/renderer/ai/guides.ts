@@ -1,4 +1,4 @@
-﻿import writingGuide from './prompts/guides/writing.md?raw'
+import writingGuide from './prompts/guides/writing.md?raw'
 import formattingGuide from './prompts/guides/formatting.md?raw'
 import layoutGuide from './prompts/guides/layout.md?raw'
 import structureGuide from './prompts/guides/structure.md?raw'
@@ -59,7 +59,7 @@ export const GUIDE_CATALOG: Readonly<Record<string, GuideEntry>> = {
   },
   'data-attribution': {
     description:
-      'Data source attribution: three tracing methods for filling sheets with external data (search/API/scraping) : Source column / footer rows / dedicated Sources sheet : plus the decision table',
+      'Data source attribution: three tracing methods for filling sheets with external data (search/API/scraping) — Source column / footer rows / dedicated Sources sheet — plus the decision table',
     content: dataAttributionGuide,
   },
   table: {
@@ -83,7 +83,7 @@ export const GUIDE_NAMES = Object.keys(GUIDE_CATALOG)
 
 export function guideCatalogSummary(): string {
   return Object.entries(GUIDE_CATALOG)
-    .map(([name, entry]) => `${name} : ${entry.description}`)
+    .map(([name, entry]) => `${name} — ${entry.description}`)
     .join('; ')
 }
 

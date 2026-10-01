@@ -1,7 +1,7 @@
-﻿/**
+/**
  * Shared WordArt gallery presets consumed by the docs and slides ribbons, so the
  * Insert → WordArt gallery is identical across apps (same recipes, same order,
- * same 4-column unlabeled letter grid : style names live in per-cell tooltips).
+ * same 4-column unlabeled letter grid — style names live in per-cell tooltips).
  *
  * 12 presets modeled on the PowerPoint WordArt gallery: solid bold / white text
  * with colored stroke / colored text with dark stroke / black-gold, metallic
