@@ -1,6 +1,5 @@
 export { ProjectStore, canonicalPathKey } from './store.js'
 export type {
-  ChatAttachment,
   ChatMessage,
   ChatMeta,
   ChatScope,

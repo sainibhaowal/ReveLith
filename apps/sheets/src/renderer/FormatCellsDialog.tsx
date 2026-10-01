@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { Dropdown } from '@revelith/ui'
+
+import { ColorDropdown } from './ColorDropdown'
 import { draftFromSelection, formatCellsCommands, type FormatCellsDraft } from './format-cells'
 import { useI18n, type StringKey } from './i18n/locale'
 import {
   clampDecimals,
   CURRENCY_SYMBOLS,
-  DATE_PATTERNS,
+  datePatterns,
   FRACTION_PATTERNS,
   NEGATIVE_STYLES,
   NUMFMT_CATEGORIES,
@@ -21,11 +24,12 @@ import {
 
 import type { SelectionFormat } from './selection-format'
 import { fontFamilyGroups, useSystemFontFamilies } from './system-fonts'
+import { useModalDialog } from './modal-dialog'
 
 /// Excel's Format Cells dialog (⌘1), scoped to what the save pipeline can
 /// persist today: number format, alignment, font, border, fill, and
 /// protection flags. It opens prefilled with the selection's current format
-/// and emits the same command strings the ribbon uses : but only for
+/// and emits the same command strings the ribbon uses — but only for
 /// settings the user actually changed.
 
 const TABS = ['Number', 'Alignment', 'Font', 'Border', 'Fill', 'Protection'] as const
@@ -120,93 +124,6 @@ const BORDER_PRESETS: { readonly labelKey: StringKey; readonly value: string }[]
   { labelKey: 'dlgFcBorderRight', value: 'right' },
 ]
 
-const THEME_BASE_COLORS = [
-  '#ffffff',
-  '#000000',
-  '#eeece1',
-  '#1f497d',
-  '#4f81bd',
-  '#c0504d',
-  '#9bbb59',
-  '#8064a2',
-  '#4bacc6',
-  '#f79646',
-]
-const THEME_TINTS = [
-  [
-    '#f2f2f2',
-    '#7f7f7f',
-    '#ddd9c3',
-    '#c6d9f0',
-    '#dce6f1',
-    '#f2dcdb',
-    '#ebf1dd',
-    '#e5e0ec',
-    '#dbeef3',
-    '#fdeada',
-  ],
-  [
-    '#d8d8d8',
-    '#595959',
-    '#c4bd97',
-    '#8db3e2',
-    '#b8cce4',
-    '#e5b9b7',
-    '#d7e3bc',
-    '#ccc1d9',
-    '#b7dde8',
-    '#fbd5b5',
-  ],
-  [
-    '#bfbfbf',
-    '#3f3f3f',
-    '#948a54',
-    '#548dd4',
-    '#95b3d7',
-    '#d99694',
-    '#c3d69b',
-    '#b2a2c7',
-    '#92cddc',
-    '#fac08f',
-  ],
-  [
-    '#a5a5a5',
-    '#262626',
-    '#494529',
-    '#17365d',
-    '#366092',
-    '#953734',
-    '#76933c',
-    '#5f497a',
-    '#31859b',
-    '#e36c09',
-  ],
-  [
-    '#7f7f7f',
-    '#0c0c0c',
-    '#1d1b10',
-    '#0f243e',
-    '#244062',
-    '#632423',
-    '#4f6128',
-    '#3f3151',
-    '#205867',
-    '#974806',
-  ],
-]
-const STANDARD_COLORS = [
-  '#c00000',
-  '#ff0000',
-  '#ffc000',
-  '#ffff00',
-  '#92d050',
-  '#00b050',
-  '#00b0f0',
-  '#0070c0',
-  '#002060',
-  '#7030a0',
-]
-
 export function FormatCellsDialog({
   selectionFormat,
   anchorValue,
@@ -221,21 +138,6 @@ export function FormatCellsDialog({
 }): React.JSX.Element {
   const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('Number')
-
-  const [fillMode, setFillMode] = useState<'solid' | 'gradient' | 'pattern'>('solid')
-  const [gradType, setGradType] = useState<'horizontal' | 'vertical' | 'diagonal'>('horizontal')
-  const [gradColor1, setGradColor1] = useState('#ffffff')
-  const [gradColor2, setGradColor2] = useState('#2563eb')
-  const [patternStyle, setPatternStyle] = useState('gray50')
-  const [patternFg, setPatternFg] = useState('#475569')
-  const [patternBg, setPatternBg] = useState('#ffffff')
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
   // The selection format at open time is the change baseline; the live echo
   // must not move it while the dialog is up.
   const initialRef = useRef(draftFromSelection(selectionFormat))
@@ -275,11 +177,13 @@ export function FormatCellsDialog({
     onClose()
   }
 
+  const modal = useModalDialog(onClose)
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
         className="format-cells-dialog"
         role="dialog"
+        {...modal}
         aria-label={t('dlgFcTitle')}
         onClick={(event) => event.stopPropagation()}
       >
@@ -338,17 +242,18 @@ export function FormatCellsDialog({
                       numOptions.category === 'accounting') && (
                       <label className="numfmt-field">
                         {t('dlgFcCurrencySymbol')}
-                        <select
+                        <Dropdown
+                          ariaLabel={t('dlgFcCurrencySymbol')}
                           value={numOptions.symbol}
-                          onChange={(e) => updateNumfmt({ symbol: e.target.value })}
-                        >
-                          <option value="">{t('dlgFcSymbolNone')}</option>
-                          {CURRENCY_SYMBOLS.map((symbol) => (
-                            <option key={symbol} value={symbol}>
-                              {symbol}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: t('dlgFcSymbolNone') },
+                            ...CURRENCY_SYMBOLS.map((symbol) => ({
+                              value: symbol,
+                              label: symbol,
+                            })),
+                          ]}
+                          onPick={(v) => updateNumfmt({ symbol: v })}
+                        />
                       </label>
                     )}
                   </div>
@@ -390,7 +295,7 @@ export function FormatCellsDialog({
                   <div className="numfmt-field">
                     {t('dlgFcTypeLabel')}
                     <div className="numfmt-list" role="listbox" aria-label={t('dlgFcTypeLabel')}>
-                      {(numOptions.category === 'date' ? DATE_PATTERNS : TIME_PATTERNS).map(
+                      {(numOptions.category === 'date' ? datePatterns() : TIME_PATTERNS).map(
                         (candidate) => {
                           const key = numOptions.category === 'date' ? 'datePattern' : 'timePattern'
                           return (
@@ -453,47 +358,52 @@ export function FormatCellsDialog({
             <div className="dialog-grid">
               <label>
                 {t('dlgFcHorizontal')}
-                <select value={draft.hAlign} onChange={(e) => set('hAlign', e.target.value)}>
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  {H_ALIGNMENTS.map((h) => (
-                    <option key={h} value={h}>
-                      {t(H_ALIGN_LABELS[h])}
-                    </option>
-                  ))}
-                </select>
+                <Dropdown
+                  ariaLabel={t('dlgFcHorizontal')}
+                  value={draft.hAlign}
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    ...H_ALIGNMENTS.map((h) => ({ value: h, label: t(H_ALIGN_LABELS[h]) })),
+                  ]}
+                  onPick={(v) => set('hAlign', v)}
+                />
               </label>
               <label>
                 {t('dlgFcVertical')}
-                <select value={draft.vAlign} onChange={(e) => set('vAlign', e.target.value)}>
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  {V_ALIGNMENTS.map((v) => (
-                    <option key={v} value={v}>
-                      {t(V_ALIGN_LABELS[v])}
-                    </option>
-                  ))}
-                </select>
+                <Dropdown
+                  ariaLabel={t('dlgFcVertical')}
+                  value={draft.vAlign}
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    ...V_ALIGNMENTS.map((v) => ({ value: v, label: t(V_ALIGN_LABELS[v]) })),
+                  ]}
+                  onPick={(v) => set('vAlign', v)}
+                />
               </label>
               <label>
                 {t('dlgFcWrapText')}
-                <select
+                <Dropdown
+                  ariaLabel={t('dlgFcWrapText')}
                   value={draft.wrapText}
-                  onChange={(e) => set('wrapText', e.target.value as FormatCellsDraft['wrapText'])}
-                >
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  <option value="on">{t('dlgFcOn')}</option>
-                  <option value="off">{t('dlgFcOff')}</option>
-                </select>
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    { value: 'on', label: t('dlgFcOn') },
+                    { value: 'off', label: t('dlgFcOff') },
+                  ]}
+                  onPick={(v) => set('wrapText', v as FormatCellsDraft['wrapText'])}
+                />
               </label>
               <label>
                 {t('dlgFcOrientation')}
-                <select value={draft.rotation} onChange={(e) => set('rotation', e.target.value)}>
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  {ROTATIONS.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {t(r.labelKey)}
-                    </option>
-                  ))}
-                </select>
+                <Dropdown
+                  ariaLabel={t('dlgFcOrientation')}
+                  value={draft.rotation}
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    ...ROTATIONS.map((r) => ({ value: r.value, label: t(r.labelKey) })),
+                  ]}
+                  onPick={(v) => set('rotation', v)}
+                />
               </label>
               <label>
                 {t('dlgFcIndent')}
@@ -512,30 +422,32 @@ export function FormatCellsDialog({
             <div className="dialog-grid">
               <label>
                 {t('dlgFcFont')}
-                <select value={draft.family} onChange={(e) => set('family', e.target.value)}>
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  <optgroup label={t('dlgFcFontsCommon')}>
-                    {fontGroups.common.map((f) => (
-                      <option key={f}>{f}</option>
-                    ))}
-                  </optgroup>
-                  {fontGroups.system.length > 0 && (
-                    <optgroup label={t('dlgFcFontsSystem')}>
-                      {fontGroups.system.map((f) => (
-                        <option key={f}>{f}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                {/* optgroups flattened in order: common families, then system ones
+                    (deduped — the echoed family may appear in both groups) */}
+                <Dropdown
+                  ariaLabel={t('dlgFcFont')}
+                  value={draft.family}
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    ...[
+                      ...fontGroups.common,
+                      ...fontGroups.system.filter((f) => !fontGroups.common.includes(f)),
+                    ].map((f) => ({ value: f, label: f })),
+                  ]}
+                  onPick={(v) => set('family', v)}
+                />
               </label>
               <label>
                 {t('dlgFcSize')}
-                <select value={draft.size} onChange={(e) => set('size', e.target.value)}>
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  {sizeOptions.map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
+                <Dropdown
+                  ariaLabel={t('dlgFcSize')}
+                  value={draft.size}
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    ...sizeOptions.map((s) => ({ value: s, label: s })),
+                  ]}
+                  onPick={(v) => set('size', v)}
+                />
               </label>
               {(
                 [
@@ -547,22 +459,26 @@ export function FormatCellsDialog({
               ).map(([labelKey, key]) => (
                 <label key={key}>
                   {t(labelKey)}
-                  <select
+                  <Dropdown
+                    ariaLabel={t(labelKey)}
                     value={draft[key]}
-                    onChange={(e) => set(key, e.target.value as FormatCellsDraft[typeof key])}
-                  >
-                    <option value="">{t('dlgFcUnchanged')}</option>
-                    <option value="on">{t('dlgFcOn')}</option>
-                    <option value="off">{t('dlgFcOff')}</option>
-                  </select>
+                    options={[
+                      { value: '', label: t('dlgFcUnchanged') },
+                      { value: 'on', label: t('dlgFcOn') },
+                      { value: 'off', label: t('dlgFcOff') },
+                    ]}
+                    onPick={(v) => set(key, v as FormatCellsDraft[typeof key])}
+                  />
                 </label>
               ))}
               <label>
                 {t('dlgFcColor')}
-                <input
-                  type="color"
+                <ColorDropdown
+                  label={t('dlgFcColor')}
                   value={draft.fontColor || '#000000'}
-                  onChange={(e) => set('fontColor', e.target.value)}
+                  onPick={(hex) => {
+                    if (hex) set('fontColor', hex)
+                  }}
                 />
               </label>
             </div>
@@ -571,433 +487,93 @@ export function FormatCellsDialog({
             <div className="dialog-grid">
               <label>
                 {t('dlgFcBorderPresets')}
-                <select value={draft.border} onChange={(e) => set('border', e.target.value)}>
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  {BORDER_PRESETS.map((preset) => (
-                    <option key={preset.value} value={preset.value}>
-                      {t(preset.labelKey)}
-                    </option>
-                  ))}
-                </select>
+                <Dropdown
+                  ariaLabel={t('dlgFcBorderPresets')}
+                  value={draft.border}
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    ...BORDER_PRESETS.map((preset) => ({
+                      value: preset.value,
+                      label: t(preset.labelKey),
+                    })),
+                  ]}
+                  onPick={(v) => set('border', v)}
+                />
               </label>
               <label>
                 {t('dlgFcBorderStyle')}
-                <select
+                <Dropdown
+                  ariaLabel={t('dlgFcBorderStyle')}
                   value={draft.borderStyle}
-                  onChange={(e) => set('borderStyle', e.target.value)}
-                >
-                  {BORDER_LINE_STYLES.map((style) => (
-                    <option key={style.value} value={style.value}>
-                      {t(style.labelKey)}
-                    </option>
-                  ))}
-                </select>
+                  options={BORDER_LINE_STYLES.map((style) => ({
+                    value: style.value,
+                    label: t(style.labelKey),
+                  }))}
+                  onPick={(v) => set('borderStyle', v)}
+                />
               </label>
               <label>
                 {t('dlgFcColor')}
-                <input
-                  type="color"
+                <ColorDropdown
+                  label={t('dlgFcColor')}
                   value={draft.borderColor}
-                  onChange={(e) => set('borderColor', e.target.value)}
+                  onPick={(hex) => {
+                    if (hex) set('borderColor', hex)
+                  }}
                 />
               </label>
             </div>
           )}
           {tab === 'Fill' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Fill Mode Switcher */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 6,
-                  borderBottom: '1px solid var(--border)',
-                  paddingBottom: 6,
-                }}
-              >
-                {(['solid', 'gradient', 'pattern'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: 12,
-                      borderRadius: 4,
-                      border: '1px solid var(--border)',
-                      background:
-                        fillMode === m
-                          ? 'var(--accent-subtle, rgba(59, 130, 246, 0.1))'
-                          : 'transparent',
-                      color: fillMode === m ? 'var(--accent)' : 'inherit',
-                      fontWeight: fillMode === m ? 600 : 400,
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => {
-                      setFillMode(m)
-                      if (m === 'gradient') {
-                        const s =
-                          gradType === 'horizontal'
-                            ? `linear-gradient(90deg, ${gradColor1}, ${gradColor2})`
-                            : gradType === 'vertical'
-                              ? `linear-gradient(180deg, ${gradColor1}, ${gradColor2})`
-                              : `linear-gradient(45deg, ${gradColor1}, ${gradColor2})`
-                        set('fill', s)
-                        set('noFill', false)
-                      } else if (m === 'pattern') {
-                        const p =
-                          patternStyle === 'horiz'
-                            ? `repeating-linear-gradient(0deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
-                            : patternStyle === 'vert'
-                              ? `repeating-linear-gradient(90deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
-                              : patternStyle === 'cross'
-                                ? `repeating-linear-gradient(45deg, ${patternFg} 0, ${patternFg} 1px, ${patternBg} 0, ${patternBg} 6px)`
-                                : `radial-gradient(${patternFg} 1.5px, ${patternBg} 1.5px)`
-                        set('fill', p)
-                        set('noFill', false)
-                      }
-                    }}
-                  >
-                    {m === 'solid'
-                      ? 'Theme & Solid Colors'
-                      : m === 'gradient'
-                        ? 'Gradient Fill'
-                        : 'Pattern Fill'}
-                  </button>
-                ))}
-              </div>
-
-              {fillMode === 'solid' && (
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--text-muted)',
-                      marginBottom: 6,
-                    }}
-                  >
-                    Theme Colors
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(10, 1fr)',
-                      gap: 3,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {THEME_BASE_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        style={{
-                          width: 24,
-                          height: 20,
-                          background: c,
-                          border:
-                            draft.fill === c
-                              ? '2px solid var(--accent)'
-                              : '1px solid rgba(0,0,0,0.15)',
-                          borderRadius: 2,
-                          cursor: 'pointer',
-                          padding: 0,
-                        }}
-                        title={c}
-                        onClick={() => {
-                          set('fill', c)
-                          set('noFill', false)
-                        }}
-                      />
-                    ))}
-                    {THEME_TINTS.map((row, rIdx) =>
-                      row.map((c, cIdx) => (
-                        <button
-                          key={`${rIdx}-${cIdx}`}
-                          type="button"
-                          style={{
-                            width: 24,
-                            height: 16,
-                            background: c,
-                            border:
-                              draft.fill === c
-                                ? '2px solid var(--accent)'
-                                : '1px solid rgba(0,0,0,0.08)',
-                            borderRadius: 2,
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                          title={c}
-                          onClick={() => {
-                            set('fill', c)
-                            set('noFill', false)
-                          }}
-                        />
-                      )),
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--text-muted)',
-                      marginBottom: 6,
-                    }}
-                  >
-                    Standard Colors
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(10, 1fr)',
-                      gap: 3,
-                      marginBottom: 10,
-                    }}
-                  >
-                    {STANDARD_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        style={{
-                          width: 24,
-                          height: 20,
-                          background: c,
-                          border:
-                            draft.fill === c
-                              ? '2px solid var(--accent)'
-                              : '1px solid rgba(0,0,0,0.15)',
-                          borderRadius: 2,
-                          cursor: 'pointer',
-                          padding: 0,
-                        }}
-                        title={c}
-                        onClick={() => {
-                          set('fill', c)
-                          set('noFill', false)
-                        }}
-                      />
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      More Colors:
-                      <input
-                        type="color"
-                        value={draft.fill && draft.fill.startsWith('#') ? draft.fill : '#ffffff'}
-                        disabled={draft.noFill}
-                        onChange={(e) => {
-                          set('fill', e.target.value)
-                          set('noFill', false)
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {fillMode === 'gradient' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ fontSize: 12 }}>Direction:</label>
-                    <select
-                      value={gradType}
-                      style={{ fontSize: 12, padding: '2px 8px' }}
-                      onChange={(e) => {
-                        const next = e.target.value as any
-                        setGradType(next)
-                        const s =
-                          next === 'horizontal'
-                            ? `linear-gradient(90deg, ${gradColor1}, ${gradColor2})`
-                            : next === 'vertical'
-                              ? `linear-gradient(180deg, ${gradColor1}, ${gradColor2})`
-                              : `linear-gradient(45deg, ${gradColor1}, ${gradColor2})`
-                        set('fill', s)
-                        set('noFill', false)
-                      }}
-                    >
-                      <option value="horizontal">Horizontal</option>
-                      <option value="vertical">Vertical</option>
-                      <option value="diagonal">Diagonal (45°)</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      Color 1:
-                      <input
-                        type="color"
-                        value={gradColor1}
-                        onChange={(e) => {
-                          setGradColor1(e.target.value)
-                          const s =
-                            gradType === 'horizontal'
-                              ? `linear-gradient(90deg, ${e.target.value}, ${gradColor2})`
-                              : gradType === 'vertical'
-                                ? `linear-gradient(180deg, ${e.target.value}, ${gradColor2})`
-                                : `linear-gradient(45deg, ${e.target.value}, ${gradColor2})`
-                          set('fill', s)
-                          set('noFill', false)
-                        }}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      Color 2:
-                      <input
-                        type="color"
-                        value={gradColor2}
-                        onChange={(e) => {
-                          setGradColor2(e.target.value)
-                          const s =
-                            gradType === 'horizontal'
-                              ? `linear-gradient(90deg, ${gradColor1}, ${e.target.value})`
-                              : gradType === 'vertical'
-                                ? `linear-gradient(180deg, ${gradColor1}, ${e.target.value})`
-                                : `linear-gradient(45deg, ${gradColor1}, ${e.target.value})`
-                          set('fill', s)
-                          set('noFill', false)
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {fillMode === 'pattern' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ fontSize: 12 }}>Pattern Style:</label>
-                    <select
-                      value={patternStyle}
-                      style={{ fontSize: 12, padding: '2px 8px' }}
-                      onChange={(e) => {
-                        const style = e.target.value
-                        setPatternStyle(style)
-                        const p =
-                          style === 'horiz'
-                            ? `repeating-linear-gradient(0deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
-                            : style === 'vert'
-                              ? `repeating-linear-gradient(90deg, ${patternFg}, ${patternFg} 2px, ${patternBg} 2px, ${patternBg} 6px)`
-                              : style === 'cross'
-                                ? `repeating-linear-gradient(45deg, ${patternFg} 0, ${patternFg} 1px, ${patternBg} 0, ${patternBg} 6px)`
-                                : `radial-gradient(${patternFg} 1.5px, ${patternBg} 1.5px)`
-                        set('fill', p)
-                        set('noFill', false)
-                      }}
-                    >
-                      <option value="gray50">50% Gray</option>
-                      <option value="horiz">Horizontal Stripe</option>
-                      <option value="vert">Vertical Stripe</option>
-                      <option value="cross">Diagonal Crosshatch</option>
-                      <option value="dots">Dots</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      Pattern Color:
-                      <input
-                        type="color"
-                        value={patternFg}
-                        onChange={(e) => {
-                          setPatternFg(e.target.value)
-                          const p =
-                            patternStyle === 'horiz'
-                              ? `repeating-linear-gradient(0deg, ${e.target.value}, ${e.target.value} 2px, ${patternBg} 2px, ${patternBg} 6px)`
-                              : patternStyle === 'vert'
-                                ? `repeating-linear-gradient(90deg, ${e.target.value}, ${e.target.value} 2px, ${patternBg} 2px, ${patternBg} 6px)`
-                                : patternStyle === 'cross'
-                                  ? `repeating-linear-gradient(45deg, ${e.target.value} 0, ${e.target.value} 1px, ${patternBg} 0, ${patternBg} 6px)`
-                                  : `radial-gradient(${e.target.value} 1.5px, ${patternBg} 1.5px)`
-                          set('fill', p)
-                          set('noFill', false)
-                        }}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      Background:
-                      <input
-                        type="color"
-                        value={patternBg}
-                        onChange={(e) => {
-                          setPatternBg(e.target.value)
-                          const p =
-                            patternStyle === 'horiz'
-                              ? `repeating-linear-gradient(0deg, ${patternFg}, ${patternFg} 2px, ${e.target.value} 2px, ${e.target.value} 6px)`
-                              : patternStyle === 'vert'
-                                ? `repeating-linear-gradient(90deg, ${patternFg}, ${patternFg} 2px, ${e.target.value} 2px, ${e.target.value} 6px)`
-                                : patternStyle === 'cross'
-                                  ? `repeating-linear-gradient(45deg, ${patternFg} 0, ${patternFg} 1px, ${e.target.value} 0, ${e.target.value} 6px)`
-                                  : `radial-gradient(${patternFg} 1.5px, ${e.target.value} 1.5px)`
-                          set('fill', p)
-                          set('noFill', false)
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* No Fill toggle & Sample Preview */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderTop: '1px solid var(--border)',
-                  paddingTop: 10,
-                }}
-              >
-                <label className="dialog-check">
-                  <input
-                    type="checkbox"
-                    checked={draft.noFill}
-                    onChange={(e) => set('noFill', e.target.checked)}
-                  />
-                  {t('dlgFcNoFill')}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sample:</span>
-                  <div
-                    style={{
-                      width: 90,
-                      height: 28,
-                      borderRadius: 4,
-                      border: '1px solid var(--border-strong, #ccc)',
-                      background: draft.noFill ? '#ffffff' : draft.fill || '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                      fontWeight: 500,
-                    }}
-                  >
-                    Sample
-                  </div>
-                </div>
-              </div>
+            <div className="dialog-grid">
+              <label>
+                {t('dlgFcBackground')}
+                <ColorDropdown
+                  label={t('dlgFcBackground')}
+                  value={draft.fill || '#ffffff'}
+                  disabled={draft.noFill}
+                  onPick={(hex) => {
+                    if (hex) set('fill', hex)
+                  }}
+                />
+              </label>
+              <label className="dialog-check">
+                <input
+                  type="checkbox"
+                  checked={draft.noFill}
+                  onChange={(e) => set('noFill', e.target.checked)}
+                />
+                {t('dlgFcNoFill')}
+              </label>
             </div>
           )}
           {tab === 'Protection' && (
             <div className="dialog-grid">
               <label>
                 {t('dlgFcLocked')}
-                <select
+                <Dropdown
+                  ariaLabel={t('dlgFcLocked')}
                   value={draft.locked}
-                  onChange={(e) => set('locked', e.target.value as FormatCellsDraft['locked'])}
-                >
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  <option value="on">{t('dlgFcOn')}</option>
-                  <option value="off">{t('dlgFcOff')}</option>
-                </select>
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    { value: 'on', label: t('dlgFcOn') },
+                    { value: 'off', label: t('dlgFcOff') },
+                  ]}
+                  onPick={(v) => set('locked', v as FormatCellsDraft['locked'])}
+                />
               </label>
               <label>
                 {t('dlgFcHidden')}
-                <select
+                <Dropdown
+                  ariaLabel={t('dlgFcHidden')}
                   value={draft.hidden}
-                  onChange={(e) => set('hidden', e.target.value as FormatCellsDraft['hidden'])}
-                >
-                  <option value="">{t('dlgFcUnchanged')}</option>
-                  <option value="on">{t('dlgFcOn')}</option>
-                  <option value="off">{t('dlgFcOff')}</option>
-                </select>
+                  options={[
+                    { value: '', label: t('dlgFcUnchanged') },
+                    { value: 'on', label: t('dlgFcOn') },
+                    { value: 'off', label: t('dlgFcOff') },
+                  ]}
+                  onPick={(v) => set('hidden', v as FormatCellsDraft['hidden'])}
+                />
               </label>
               <p className="dialog-note">{t('dlgFcProtectionNote')}</p>
             </div>

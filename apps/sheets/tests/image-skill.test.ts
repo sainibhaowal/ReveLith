@@ -1,80 +1,96 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { createImageSkill } from '../src/renderer/ai/image-skill'
 
-const api = () =>
-  (globalThis as unknown as { window: { desktopApi: Record<string, ReturnType<typeof vi.fn>> } }).window
-    .desktopApi
+function stubDesktopApi(api: Record<string, unknown>): void {
+  vi.stubGlobal('window', { desktopApi: api })
+}
 
-beforeEach(() => {
-  ;(globalThis as unknown as { window: unknown }).window = {
-    desktopApi: {
-      imageSearch: vi.fn(async () => ({
-        images: [
-          {
-            title: 'A cat',
-            imageUrl: 'https://img.example/cat.jpg',
-            sourceUrl: 'https://example.com',
-            source: 'example',
-            width: 800,
-            height: 600,
-          },
-        ],
-        method: 'account',
-      })),
-      generateImage: vi.fn(async () => ({ url: 'https://img.example/generated.png' })),
-    },
-  }
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
-const call = (name: string, input: Record<string, unknown> = {}) => ({ id: 't1', name, input })
+function call(name: string, input: Record<string, unknown>) {
+  return { id: 'call-1', name, input }
+}
 
-describe('createImageSkill', () => {
-  it('declares image_search and generate_image tools', () => {
-    const skill = createImageSkill()
-    expect(skill.id).toBe('images')
-    expect(skill.tools.map((tool) => tool.name).sort()).toEqual(['generate_image', 'image_search'])
-    expect(skill.systemPrompt).toContain('add_image')
+describe('image skill: image_search', () => {
+  it('rejects an empty query', async () => {
+    stubDesktopApi({})
+    const result = await createImageSkill().executeTool(call('image_search', {}))
+    expect(result.isError).toBe(true)
   })
 
-  it('searches images and reports failures as retryable', async () => {
-    const skill = createImageSkill()
-    const ok = await skill.executeTool(call('image_search', { query: 'cat' }), new AbortController().signal)
-    expect(ok.isError).toBeFalsy()
-    expect(ok.output).toContain('1. A cat [800x600]')
-    expect(ok.output).toContain('https://img.example/cat.jpg')
-    expect(api().imageSearch).toHaveBeenCalledWith('cat', 8)
-
-    api().imageSearch = vi.fn(async () => ({ images: [], method: 'error', error: 'boom' }))
-    const failed = await skill.executeTool(call('image_search', { query: 'cat' }), new AbortController().signal)
-    expect(failed.isError).toBe(true)
-    expect(failed.output).toContain('boom')
-
-    const empty = await skill.executeTool(call('image_search', { query: '  ' }), new AbortController().signal)
-    expect(empty.isError).toBe(true)
+  it('surfaces backend failures as errors, not empty galleries', async () => {
+    stubDesktopApi({
+      imageSearch: vi.fn().mockResolvedValue({ images: [], method: 'error', error: 'quota' }),
+    })
+    const result = await createImageSkill().executeTool(call('image_search', { query: 'cat' }))
+    expect(result.isError).toBe(true)
+    expect(result.output).toContain('quota')
+    expect(result.output).toContain('not an empty result')
   })
 
-  it('generates images and surfaces failures', async () => {
-    const skill = createImageSkill()
-    const ok = await skill.executeTool(
-      call('generate_image', { prompt: 'a diagram', aspectRatio: '16:9' }),
-      new AbortController().signal,
+  it('lists numbered direct URLs with pixel sizes', async () => {
+    const imageSearch = vi.fn().mockResolvedValue({
+      method: 'serper',
+      images: [
+        {
+          title: 'Golden retriever',
+          imageUrl: 'https://img.example.com/dog.jpg',
+          sourceUrl: 'https://example.com',
+          source: 'example',
+          width: 800,
+          height: 600,
+        },
+      ],
+    })
+    stubDesktopApi({ imageSearch })
+    const result = await createImageSkill().executeTool(
+      call('image_search', { query: 'dog', maxResults: 3 }),
     )
-    expect(ok.isError).toBeFalsy()
-    expect(ok.output).toContain('https://img.example/generated.png')
-    expect(api().generateImage).toHaveBeenCalledWith({ prompt: 'a diagram', aspectRatio: '16:9' })
+    expect(imageSearch).toHaveBeenCalledWith('dog', 3)
+    expect(result.isError).toBeUndefined()
+    expect(result.output).toContain('1. Golden retriever [800x600]')
+    expect(result.output).toContain('https://img.example.com/dog.jpg')
+  })
+})
 
-    api().generateImage = vi.fn(async () => ({ error: 'not logged in' }))
-    const failed = await skill.executeTool(
-      call('generate_image', { prompt: 'x' }),
-      new AbortController().signal,
-    )
-    expect(failed.isError).toBe(true)
-    expect(failed.output).toContain('not logged in')
+describe('image skill: generate_image', () => {
+  it('rejects an empty prompt', async () => {
+    stubDesktopApi({})
+    const result = await createImageSkill().executeTool(call('generate_image', {}))
+    expect(result.isError).toBe(true)
   })
 
-  it('rejects unknown tools', async () => {
-    const skill = createImageSkill()
-    const result = await skill.executeTool(call('nope'), new AbortController().signal)
+  it('propagates generation errors (e.g. not logged in)', async () => {
+    stubDesktopApi({
+      generateImage: vi.fn().mockResolvedValue({ error: 'ReveLith account is not logged in' }),
+    })
+    const result = await createImageSkill().executeTool(
+      call('generate_image', { prompt: 'a chart mascot' }),
+    )
+    expect(result.isError).toBe(true)
+    expect(result.output).toContain('not logged in')
+  })
+
+  it('returns the generated URL with insertion guidance', async () => {
+    const generateImage = vi.fn().mockResolvedValue({ url: 'https://cdn.example.com/gen/1.png' })
+    stubDesktopApi({ generateImage })
+    const result = await createImageSkill().executeTool(
+      call('generate_image', { prompt: 'minimal logo', aspectRatio: '1:1' }),
+    )
+    expect(generateImage).toHaveBeenCalledWith({ prompt: 'minimal logo', aspectRatio: '1:1' })
+    expect(result.isError).toBeUndefined()
+    expect(result.output).toContain('https://cdn.example.com/gen/1.png')
+    expect(result.output).toContain('add_image')
+  })
+})
+
+describe('image skill: unknown tool', () => {
+  it('fails closed', async () => {
+    stubDesktopApi({})
+    const result = await createImageSkill().executeTool(call('delete_everything', {}))
     expect(result.isError).toBe(true)
   })
 })

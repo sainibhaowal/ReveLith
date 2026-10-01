@@ -1,19 +1,38 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
+import {
+  AI_MEDIA_PROVIDERS,
+  AI_PROVIDERS,
+  AI_SEARCH_PROVIDERS,
+  getProviderAdapter,
+} from '@revelith/ai-provider/browser'
+import type { AiSettings, CodexModelCatalog } from '@revelith/ai-provider/browser'
+import { installDropOpenBridge } from '@revelith/electron-utils/drop-open'
+import { normalizeAiPanelPrefs } from '@revelith/ui/ai-panel-prefs'
 import type {
+  AccountLoginEvent,
+  AccountStatus,
+  CloudProjectsSnapshot,
+  DefaultAppStatus,
+  FolderListing,
+  FolderRoot,
+  MoveResult,
   HomeApi,
   RecentEntry,
   RecentPage,
   RenameResult,
-  SaveFolderEntry,
-  ProjectHomeApi,
-  ProjectSummaryEntry,
-  SearchPage,
-  SearchStats,
-  TimelineEntryItem,
   UiLanguage,
+  FileSearchPage,
+  FileSearchRerank,
+  FileSearchSettings,
 } from '../shared/home-api'
-import { HOME_CHANNELS, PROJECT_CHANNELS } from '../shared/home-api'
+import { HOME_CHANNELS } from '../shared/home-api'
+import { INTEGRATIONS_CHANNELS } from '../shared/integrations-api'
+import type {
+  IntegrationsApi,
+  IntegrationsStatus,
+  SkillInstallState,
+} from '../shared/integrations-api'
 import type { TabsApi, TabSummary } from '../shared/tabs-api'
 import { TABS_CHANNELS } from '../shared/tabs-api'
 
@@ -32,12 +51,12 @@ const UI_LANGUAGES: readonly UiLanguage[] = [
   'pt',
   'it',
   'pl',
+  'cs',
   'nl',
   'ms',
   'he',
   'hi',
   'zh-TW',
-  'cs',
   'vi',
 ]
 
@@ -54,9 +73,59 @@ function asRecentPage(result: unknown): RecentPage {
   return EMPTY_PAGE
 }
 
+const EMPTY_SEARCH: FileSearchPage = {
+  hits: [],
+  total: 0,
+  index: { indexed: 0, pending: 0, scanning: false },
+}
+
+function asSearchPage(result: unknown): FileSearchPage {
+  if (result && typeof result === 'object' && Array.isArray((result as FileSearchPage).hits)) {
+    return result as FileSearchPage
+  }
+  return EMPTY_SEARCH
+}
+
+function normalizeDefaultAppStatus(result: unknown): DefaultAppStatus {
+  const r = (result ?? {}) as Partial<DefaultAppStatus>
+  const state = r.state
+  return {
+    state: state === 'default' || state === 'other' || state === 'unknown' ? state : 'unsupported',
+    others: Array.isArray(r.others) ? r.others.filter((x) => typeof x === 'string') : [],
+    manualOnly: r.manualOnly === true,
+  }
+}
+
 const homeApi: HomeApi = {
   async recents(query) {
     return asRecentPage(await ipcRenderer.invoke(HOME_CHANNELS.recents, query))
+  },
+  async searchFiles(query) {
+    return asSearchPage(await ipcRenderer.invoke(HOME_CHANNELS.searchFiles, query))
+  },
+  async rerankSearch(query) {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.rerankSearch, query)
+    return result && typeof result === 'object' && Array.isArray((result as FileSearchRerank).order)
+      ? (result as FileSearchRerank)
+      : null
+  },
+  async getFileSearchSettings() {
+    return (await ipcRenderer.invoke(HOME_CHANNELS.getFileSearchSettings)) as FileSearchSettings
+  },
+  async setFileSearchSettings(patch) {
+    return (await ipcRenderer.invoke(
+      HOME_CHANNELS.setFileSearchSettings,
+      patch,
+    )) as FileSearchSettings
+  },
+  async testFileSearchRerank(input) {
+    const raw = ((await ipcRenderer.invoke(HOME_CHANNELS.testFileSearchRerank, input)) ?? {}) as {
+      ok?: unknown
+      error?: unknown
+    }
+    return raw.ok === true
+      ? { ok: true }
+      : { ok: false, error: typeof raw.error === 'string' ? raw.error : 'Connection failed' }
   },
   async starred(query) {
     return asRecentPage(await ipcRenderer.invoke(HOME_CHANNELS.starred, query))
@@ -91,6 +160,9 @@ const homeApi: HomeApi = {
   async newHtml(opts) {
     await ipcRenderer.invoke(HOME_CHANNELS.newHtml, opts)
   },
+  async newPdf(opts) {
+    await ipcRenderer.invoke(HOME_CHANNELS.newPdf, opts)
+  },
   async removeRecent(paths) {
     await ipcRenderer.invoke(HOME_CHANNELS.removeRecent, paths)
   },
@@ -110,6 +182,48 @@ const homeApi: HomeApi = {
   async deleteFiles(paths) {
     await ipcRenderer.invoke(HOME_CHANNELS.deleteFiles, paths)
   },
+  async folderRoots() {
+    return (await ipcRenderer.invoke(HOME_CHANNELS.folderRoots)) as FolderRoot[]
+  },
+  async addFolderRoot() {
+    return (await ipcRenderer.invoke(HOME_CHANNELS.addFolderRoot)) as FolderRoot | null
+  },
+  async dropFolderRoots(paths) {
+    return (await ipcRenderer.invoke(HOME_CHANNELS.dropFolderRoots, paths)) as FolderRoot[]
+  },
+  async removeFolderRoot(path) {
+    await ipcRenderer.invoke(HOME_CHANNELS.removeFolderRoot, path)
+  },
+  pathForFile(file) {
+    return webUtils.getPathForFile(file)
+  },
+  async listFolder(dir) {
+    return (await ipcRenderer.invoke(HOME_CHANNELS.listFolder, dir)) as FolderListing
+  },
+  async createFolder(parent, name) {
+    return (await ipcRenderer.invoke(HOME_CHANNELS.createFolder, parent, name)) as RenameResult
+  },
+  async renameFolder(dir, newName) {
+    return (await ipcRenderer.invoke(HOME_CHANNELS.renameFolder, dir, newName)) as RenameResult
+  },
+  async movePaths(paths, targetDir, onConflict) {
+    return (await ipcRenderer.invoke(
+      HOME_CHANNELS.movePaths,
+      paths,
+      targetDir,
+      onConflict,
+    )) as MoveResult
+  },
+  async deleteFolder(dir) {
+    await ipcRenderer.invoke(HOME_CHANNELS.deleteFolder, dir)
+  },
+  onFolderChanged(handler) {
+    const listener = (_event: IpcRendererEvent, dirs: unknown) => {
+      if (Array.isArray(dirs)) handler(dirs.filter((d): d is string => typeof d === 'string'))
+    }
+    ipcRenderer.on(HOME_CHANNELS.folderChanged, listener)
+    return () => ipcRenderer.removeListener(HOME_CHANNELS.folderChanged, listener)
+  },
   async openTrash() {
     await ipcRenderer.invoke(HOME_CHANNELS.openTrash)
   },
@@ -128,10 +242,29 @@ const homeApi: HomeApi = {
   async setUpdateChannel(channel) {
     // validated inline: a runtime import from ../shared/update-api would be
     // shared with the update.ts preload entry and get split into a chunk,
-    // which sandboxed preload scripts cannot load (window.revelithApp would
+    // which sandboxed preload scripts cannot load (window.aiOffice would
     // silently disappear). Preload entries must stay single-file bundles.
     if (channel !== 'stable' && channel !== 'beta') throw new Error('Invalid update channel.')
     await ipcRenderer.invoke(HOME_CHANNELS.setUpdateChannel, channel)
+  },
+  async accountStatus() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.accountStatus)
+    return (result ?? { loggedIn: false }) as AccountStatus
+  },
+  async accountLogin() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.accountLogin)
+    return result === true
+  },
+  onAccountLogin(handler) {
+    const listener = (_event: IpcRendererEvent, ev: AccountLoginEvent) => handler(ev)
+    ipcRenderer.on(HOME_CHANNELS.accountLoginEvent, listener)
+    return () => ipcRenderer.removeListener(HOME_CHANNELS.accountLoginEvent, listener)
+  },
+  async openLoginUrl() {
+    await ipcRenderer.invoke(HOME_CHANNELS.accountLoginOpenUrl)
+  },
+  async accountLogout() {
+    await ipcRenderer.invoke(HOME_CHANNELS.accountLogout)
   },
   async getAppVersion() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getAppVersion)
@@ -142,7 +275,8 @@ const homeApi: HomeApi = {
     return result === true
   },
   async setOnboardingSeen() {
-    await ipcRenderer.invoke(HOME_CHANNELS.setOnboardingSeen)
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.setOnboardingSeen)
+    return result === true
   },
   async getTheme() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getTheme)
@@ -153,9 +287,107 @@ const homeApi: HomeApi = {
       throw new Error('Invalid theme.')
     await ipcRenderer.invoke(HOME_CHANNELS.setTheme, theme)
   },
+  async getAutoSaveDefault() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getAutoSaveDefault)
+    const r = result as { on?: unknown; updatedAt?: unknown } | null
+    return {
+      on: r?.on === true,
+      updatedAt: typeof r?.updatedAt === 'number' ? r.updatedAt : 0,
+    }
+  },
+  async setAutoSaveDefault(on) {
+    if (typeof on !== 'boolean') throw new Error('Invalid AutoSave default.')
+    await ipcRenderer.invoke(HOME_CHANNELS.setAutoSaveDefault, on)
+  },
+  async getMcpStatus() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getMcpStatus)
+    const r = result as {
+      running?: unknown
+      enabled?: unknown
+      port?: unknown
+      background?: unknown
+      logging?: unknown
+      url?: unknown
+      capabilities?: unknown
+      error?: unknown
+    } | null
+    return {
+      running: r?.running === true,
+      enabled: r?.enabled === true,
+      port: typeof r?.port === 'number' ? r.port : 3093,
+      background: r?.background === true,
+      logging: r?.logging === true,
+      url: typeof r?.url === 'string' ? r.url : null,
+      capabilities: Array.isArray(r?.capabilities)
+        ? r.capabilities.filter((c): c is string => typeof c === 'string')
+        : ['docs'],
+      ...(typeof r?.error === 'string' ? { error: r.error } : {}),
+    }
+  },
+  async setMcpSettings(patch: {
+    enabled?: boolean
+    port?: number
+    background?: boolean
+    logging?: boolean
+  }) {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.setMcpSettings, patch)
+    const r = result as {
+      running?: unknown
+      enabled?: unknown
+      port?: unknown
+      background?: unknown
+      logging?: unknown
+      url?: unknown
+      capabilities?: unknown
+      error?: unknown
+    } | null
+    return {
+      running: r?.running === true,
+      enabled: r?.enabled === true,
+      port: typeof r?.port === 'number' ? r.port : 3093,
+      background: r?.background === true,
+      logging: r?.logging === true,
+      url: typeof r?.url === 'string' ? r.url : null,
+      capabilities: Array.isArray(r?.capabilities)
+        ? r.capabilities.filter((c): c is string => typeof c === 'string')
+        : ['docs'],
+      ...(typeof r?.error === 'string' ? { error: r.error } : {}),
+    }
+  },
+  async getMcpLogs() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getMcpLogs)
+    return Array.isArray(result) ? result.filter((l): l is string => typeof l === 'string') : []
+  },
+  async clearMcpLogs() {
+    await ipcRenderer.invoke(HOME_CHANNELS.clearMcpLogs)
+  },
+  async openMcpLogFile() {
+    await ipcRenderer.invoke(HOME_CHANNELS.openMcpLogFile)
+  },
+  async getAnalyticsEnabled() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getAnalyticsEnabled)
+    return result !== false
+  },
+  async setAnalyticsEnabled(enabled) {
+    if (typeof enabled !== 'boolean') throw new Error('Invalid analytics consent.')
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.setAnalyticsEnabled, enabled)
+    return result === true
+  },
+  async getAiPanelPrefs() {
+    return normalizeAiPanelPrefs(await ipcRenderer.invoke(HOME_CHANNELS.getAiPanelPrefs))
+  },
+  async setAiPanelPrefs(patch) {
+    return normalizeAiPanelPrefs(await ipcRenderer.invoke(HOME_CHANNELS.setAiPanelPrefs, patch))
+  },
   async getDefaultSaveDir() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getDefaultSaveDir)
     return typeof result === 'string' ? result : ''
+  },
+  async getDefaultAppStatus() {
+    return normalizeDefaultAppStatus(await ipcRenderer.invoke(HOME_CHANNELS.getDefaultAppStatus))
+  },
+  async setDefaultApp() {
+    return normalizeDefaultAppStatus(await ipcRenderer.invoke(HOME_CHANNELS.setDefaultApp))
   },
   async pickDefaultSaveDir() {
     const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.pickDefaultSaveDir)
@@ -168,139 +400,154 @@ const homeApi: HomeApi = {
     ipcRenderer.on('app:theme-changed', listener)
     return () => ipcRenderer.removeListener('app:theme-changed', listener)
   },
-  async openCommunity() {
-    await ipcRenderer.invoke(HOME_CHANNELS.openCommunity)
+  async openGenTeam() {
+    await ipcRenderer.invoke(HOME_CHANNELS.openGenTeam)
   },
-  async discoverAiModels(provider, baseUrl, apiKey) {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.discoverAiModels, {
-      provider,
-      baseUrl,
-      apiKey,
-    })
-    return Array.isArray(result) ? result.filter((m): m is string => typeof m === 'string') : []
+  async openCreditUsage() {
+    await ipcRenderer.invoke(HOME_CHANNELS.openCreditUsage)
   },
+  async openGitHubRepo() {
+    await ipcRenderer.invoke(HOME_CHANNELS.openGitHubRepo)
+  },
+  async githubStars() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.githubStars)
+    return typeof result === 'number' && Number.isFinite(result) ? result : null
+  },
+  async starPromptShouldShow() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.starPromptShouldShow)
+    const raw = (result ?? {}) as { show?: unknown; docOpens?: unknown }
+    return {
+      show: raw.show === true,
+      docOpens:
+        typeof raw.docOpens === 'number' && Number.isFinite(raw.docOpens) ? raw.docOpens : 0,
+    }
+  },
+  async starPromptAction(action) {
+    if (action !== 'starred' && action !== 'later') throw new Error('Invalid star prompt action.')
+    await ipcRenderer.invoke(HOME_CHANNELS.starPromptAction, action)
+  },
+  async cloudProjectsCached() {
+    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.cloudProjectsCached)
+    return asCloudProjectsSnapshot(result)
+  },
+  async cloudProjectsSync() {
+    // failures (network / CLI) resolve to null so the renderer keeps whatever it has
+    try {
+      const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.cloudProjects)
+      return asCloudProjectsSnapshot(result)
+    } catch {
+      return null
+    }
+  },
+  async openCloudProject(projectUrl) {
+    if (typeof projectUrl !== 'string' || !projectUrl) throw new Error('Invalid project URL.')
+    await ipcRenderer.invoke(HOME_CHANNELS.openCloudProject, projectUrl)
+  },
+  // AI settings channels are registered once by the shell's aggregated docs handlers
   async getAiSettings() {
-    return ipcRenderer.invoke('ai:get-settings')
+    return (await ipcRenderer.invoke('ai:get-settings')) as AiSettings
   },
   async setAiSettings(settings) {
     await ipcRenderer.invoke('ai:set-settings', settings)
   },
-  async installSkill(agent) {
-    const result: unknown = await ipcRenderer.invoke('skill:install', agent)
-    return Array.isArray(result) ? result : []
-  },
-  async detectSkills() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.detectSkills)
-    return Array.isArray(result) ? result.filter((a): a is string => typeof a === 'string') : []
-  },
-  async getUsageStats() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getUsageStats)
-    return result === true
-  },
-  async setUsageStats(enabled) {
-    await ipcRenderer.invoke(HOME_CHANNELS.setUsageStats, Boolean(enabled))
-  },
-  async getAiPanelPrefs() {
-    return ipcRenderer.invoke('app:get-ai-panel-prefs')
-  },
-  async setAiPanelPrefs(patch) {
-    return ipcRenderer.invoke('app:set-ai-panel-prefs', patch)
-  },
-  async getAutoSaveDefault() {
-    const result = await ipcRenderer.invoke('app:get-auto-save-default')
-    return result && typeof result === 'object' ? result : { on: false, updatedAt: 0 }
-  },
-  async setAutoSaveDefault(patch) {
-    return ipcRenderer.invoke('app:set-auto-save-default', patch)
-  },
-  async getProfile() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getProfile)
-    if (result && typeof result === 'object') {
-      const p = result as { displayName?: unknown; email?: unknown }
-      return {
-        displayName: typeof p.displayName === 'string' ? p.displayName : '',
-        email: typeof p.email === 'string' ? p.email : '',
+  getAiProviders() {
+    return AI_PROVIDERS.map((meta) => {
+      let defaultBaseUrl = ''
+      // revelith routes by model and custom has no default — both stay ''
+      if (meta.id !== 'revelith' && !meta.needsBaseUrl && !meta.needsCliPath) {
+        defaultBaseUrl = getProviderAdapter(meta.id).resolveEndpoint({
+          apiKey: '',
+          model: meta.defaultModel,
+        }).baseUrl
       }
+      return { ...meta, defaultBaseUrl }
+    })
+  },
+  async getCodexModels(cliPath) {
+    return (await ipcRenderer.invoke('ai:codex-models', cliPath)) as CodexModelCatalog
+  },
+  async getCustomModels(baseUrl, apiKey) {
+    return (await ipcRenderer.invoke('ai:custom-models', { baseUrl, apiKey })) as CodexModelCatalog
+  },
+  async testAiSettings(settings) {
+    const result: unknown = await ipcRenderer.invoke('ai:chat', {
+      settings,
+      system: 'You are a connectivity test. Reply with the single word OK.',
+      user: 'ping',
+    })
+    const raw = (result ?? {}) as { ok?: unknown; error?: unknown }
+    return raw.ok === true
+      ? { ok: true }
+      : { ok: false, error: typeof raw.error === 'string' ? raw.error : 'Connection failed' }
+  },
+  getAiMediaProviders() {
+    return AI_MEDIA_PROVIDERS
+  },
+  getAiSearchProviders() {
+    return AI_SEARCH_PROVIDERS
+  },
+  async testAiSearchSettings(input) {
+    const raw = ((await ipcRenderer.invoke('ai:search-test', input)) ?? {}) as {
+      ok?: unknown
+      error?: unknown
     }
-    return { displayName: '', email: '' }
+    return raw.ok === true
+      ? { ok: true }
+      : { ok: false, error: typeof raw.error === 'string' ? raw.error : 'Connection failed' }
   },
-  async setProfile(profile) {
-    await ipcRenderer.invoke(HOME_CHANNELS.setProfile, {
-      displayName: String(profile?.displayName ?? ''),
-      email: String(profile?.email ?? ''),
-    })
-  },
-  async setSettingsOverlay(open) {
-    await ipcRenderer.invoke(HOME_CHANNELS.setSettingsOverlay, Boolean(open))
-  },
-  async searchFiles(query) {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.searchFiles, query)
-    return (
-      result && typeof result === 'object'
-        ? result
-        : { results: [], total: 0, query: query?.query ?? '', tookMs: 0 }
-    ) as SearchPage
-  },
-  async getSearchStats() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.getSearchStats)
-    return (
-      result && typeof result === 'object'
-        ? result
-        : { totalFiles: 0, totalSize: 0, lastIndexed: null, isIndexing: false, progress: null }
-    ) as SearchStats
-  },
-  async reindexFiles(paths) {
-    await ipcRenderer.invoke(HOME_CHANNELS.reindexFiles, paths)
-  },
-  async listSaveFolders() {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.listSaveFolders)
-    return Array.isArray(result) ? (result as SaveFolderEntry[]) : []
-  },
-  async createSaveFolder(name) {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.createSaveFolder, name)
-    return Boolean(result)
-  },
-  async openPathInExplorer(path) {
-    await ipcRenderer.invoke(HOME_CHANNELS.openPathInExplorer, path)
+  async testAiMediaSettings(input) {
+    const raw = ((await ipcRenderer.invoke('ai:media-test', input)) ?? {}) as {
+      ok?: unknown
+      error?: unknown
+    }
+    return raw.ok === true
+      ? { ok: true }
+      : { ok: false, error: typeof raw.error === 'string' ? raw.error : 'Connection failed' }
   },
 }
 
-contextBridge.exposeInMainWorld('revelithApp', homeApi)
-
-const projectApi: ProjectHomeApi = {
-  async listProjects() {
-    const result: unknown = await ipcRenderer.invoke(PROJECT_CHANNELS.list)
-    return Array.isArray(result) ? (result as ProjectSummaryEntry[]) : []
-  },
-  async listFiles(projectId) {
-    const result: unknown = await ipcRenderer.invoke(PROJECT_CHANNELS.files, { projectId })
-    return Array.isArray(result)
-      ? result.filter((path): path is string => typeof path === 'string')
-      : []
-  },
-  async createProject(name) {
-    const result: unknown = await ipcRenderer.invoke(PROJECT_CHANNELS.create, { name })
-    return result as ProjectSummaryEntry
-  },
-  async renameProject(id, name) {
-    await ipcRenderer.invoke(PROJECT_CHANNELS.rename, { id, name })
-  },
-  async deleteProject(id) {
-    await ipcRenderer.invoke(PROJECT_CHANNELS.delete, { id })
-  },
-  async moveFile(filePath, projectId) {
-    await ipcRenderer.invoke(PROJECT_CHANNELS.moveFile, { filePath, projectId })
-  },
-  async getTimeline(projectId, limit) {
-    const result: unknown = await ipcRenderer.invoke(PROJECT_CHANNELS.timeline, {
-      projectId,
-      limit,
-    })
-    return Array.isArray(result) ? (result as TimelineEntryItem[]) : []
-  },
+function asCloudProjectsSnapshot(result: unknown): CloudProjectsSnapshot | null {
+  if (
+    result &&
+    typeof result === 'object' &&
+    Array.isArray((result as CloudProjectsSnapshot).projects)
+  ) {
+    return result as CloudProjectsSnapshot
+  }
+  return null
 }
 
-contextBridge.exposeInMainWorld('revelithAppProject', projectApi)
+contextBridge.exposeInMainWorld('aiOffice', homeApi)
+
+const integrationsApi: IntegrationsApi = {
+  async status() {
+    return (await ipcRenderer.invoke(INTEGRATIONS_CHANNELS.status)) as IntegrationsStatus
+  },
+  async installSkill(target) {
+    return (await ipcRenderer.invoke(
+      INTEGRATIONS_CHANNELS.installSkill,
+      target,
+    )) as SkillInstallState
+  },
+  async uninstallSkill(agentId) {
+    return (await ipcRenderer.invoke(
+      INTEGRATIONS_CHANNELS.uninstallSkill,
+      agentId,
+    )) as SkillInstallState
+  },
+  async pickSkillDir(title) {
+    const r: unknown = await ipcRenderer.invoke(INTEGRATIONS_CHANNELS.pickSkillDir, title)
+    return typeof r === 'string' ? r : null
+  },
+  async saveSkillZip(title) {
+    const r: unknown = await ipcRenderer.invoke(INTEGRATIONS_CHANNELS.saveSkillZip, title)
+    return typeof r === 'string' ? r : null
+  },
+  async copyText(text) {
+    await ipcRenderer.invoke(INTEGRATIONS_CHANNELS.copyText, text)
+  },
+}
+contextBridge.exposeInMainWorld('aiOfficeIntegrations', integrationsApi)
 
 const tabsApi: TabsApi = {
   async list() {
@@ -319,6 +566,15 @@ const tabsApi: TabsApi = {
   async showNewMenu(x, y) {
     await ipcRenderer.invoke(TABS_CHANNELS.showNewMenu, x, y)
   },
+  async showTabMenu(id, x, y) {
+    await ipcRenderer.invoke(TABS_CHANNELS.showTabMenu, id, x, y)
+  },
+  async detach(id) {
+    await ipcRenderer.invoke(TABS_CHANNELS.detach, id)
+  },
+  async showAppMenu(x, y) {
+    await ipcRenderer.invoke(TABS_CHANNELS.showAppMenu, x, y)
+  },
   async reorder(id, toIndex) {
     await ipcRenderer.invoke(TABS_CHANNELS.reorder, id, toIndex)
   },
@@ -330,6 +586,14 @@ const tabsApi: TabsApi = {
   notifyChromePressed() {
     ipcRenderer.send(TABS_CHANNELS.chromePressed)
   },
+  onChromePressed(handler) {
+    const listener = () => handler()
+    ipcRenderer.on('app:chrome-pressed', listener)
+    return () => ipcRenderer.removeListener('app:chrome-pressed', listener)
+  },
 }
 
-contextBridge.exposeInMainWorld('revelithAppTabs', tabsApi)
+contextBridge.exposeInMainWorld('aiOfficeTabs', tabsApi)
+
+// open documents dragged from the OS anywhere over Home or the tab strip
+installDropOpenBridge()

@@ -1,7 +1,7 @@
 import type { UpdateUiState, UpdateWindowApi } from '../../shared/update-api'
 
 // exposed by src/preload/update.ts
-const api = (window as unknown as { revelithAppUpdate: UpdateWindowApi }).revelithAppUpdate
+const api = (window as unknown as { aiOfficeUpdate: UpdateWindowApi }).aiOfficeUpdate
 
 const el = (id: string): HTMLElement => document.getElementById(id) as HTMLElement
 const headline = el('headline')
@@ -14,7 +14,6 @@ const progressText = el('progress-text')
 const percentText = el('percent')
 const action = el('action') as HTMLButtonElement
 const later = el('later') as HTMLButtonElement
-const verArrow = el('ver-arrow')
 
 let phase: UpdateUiState['phase'] = 'available'
 
@@ -27,12 +26,7 @@ function render(state: UpdateUiState): void {
   headline.textContent = s.headline
   verCurrent.textContent = `v${state.currentVersion}`
   verNew.textContent = `v${state.version}`
-  // the up-to-date card confirms a single version : no "old → new" pair
-  const sameVersion = state.version === state.currentVersion
-  verNew.style.display = sameVersion ? 'none' : ''
-  verArrow.style.display = sameVersion ? 'none' : ''
   later.textContent = s.later
-  later.style.display = ''
 
   desc.classList.toggle('error', state.phase === 'error' || state.phase === 'manual')
 
@@ -71,22 +65,12 @@ function render(state: UpdateUiState): void {
       action.style.display = ''
       action.textContent = s.openDownload
       break
-    case 'up-to-date':
-      headline.textContent = s.upToDateHeadline
-      desc.textContent = s.upToDateDesc
-      progress.style.display = 'none'
-      action.style.display = ''
-      action.textContent = s.close
-      // the primary button already dismisses : no separate "later" link
-      later.style.display = 'none'
-      break
   }
 }
 
 action.addEventListener('click', () => {
   if (phase === 'downloaded') api.install()
   else if (phase === 'manual') api.openDownload()
-  else if (phase === 'up-to-date') api.later()
   else api.download()
 })
 later.addEventListener('click', () => api.later())

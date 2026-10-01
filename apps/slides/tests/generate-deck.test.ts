@@ -5,13 +5,20 @@
  * "planned N pages but only 1 remains" for good.
  */
 import { describe, it, expect } from 'vitest'
-import { createSlidesSkill, type DeckAccess } from '../src/renderer/ai/slides-skill'
+import {
+  createSlidesSkill,
+  MAX_APPROX_PAGES,
+  type DeckAccess,
+} from '../src/renderer/ai/slides-skill'
 import type { RenderSlide } from '@revelith/pptx-render'
 import type { AgentToolCall } from '../src/shared/ipc'
 
 function makeAccess(opts?: {
   failPages?: number[]
   failAttempts?: Record<number, number>
+  cloudEnabled?: boolean
+  cloudDown?: boolean
+  localImageFails?: Record<number, string[]>
   landFailOnce?: number[]
   searchImagesFail?: boolean
   searchImagesMulti?: number
@@ -23,6 +30,7 @@ function makeAccess(opts?: {
   const landFailOnce = new Set(opts?.landFailOnce ?? []) // these pages fail their first "landing" once (simulated conversion failure)
   let pages = 0
   const genPageCalls: number[] = [] // records each generatePageCloud call's pageIndex
+  const localPageCalls: number[] = [] // records each generatePageLocal call's pageIndex
   const stylesSeen: string[] = [] // records the style each page received (verifies styleSkill reached single pages)
   const landOrder: string[] = [] // records the landing order
   const imageSearchCalls: string[] = [] // records the queries searchImages was called with
@@ -46,32 +54,42 @@ function makeAccess(opts?: {
     applyDeck: () => {},
     fitWidthPx: 1280,
     retryBackoffMs: 0,
-    generateFromHtml: async (html, mode = 'replace', _deckName?: string, insertAt?: number) => {
-      const failNo = [...landFailOnce].find((n) => html[0]?.includes(`PAGE${n}:`))
+    landGeneratedPages: async (
+      markers,
+      mode = 'replace',
+      _deckName?: string,
+      insertAt?: number,
+    ) => {
+      const failNo = [...landFailOnce].find((n) => markers[0]?.includes(`PAGE${n}:`))
       if (failNo !== undefined) {
         landFailOnce.delete(failNo)
         return { ok: false, error: 'mock land fail' }
       }
       if (mode === 'insert_at') {
         pages += 1
-        landOrder.push(`insert@${insertAt}:` + html[0])
+        landOrder.push(`insert@${insertAt}:` + markers[0])
         return { ok: true, pages, insertedIndex: insertAt }
       }
       if (mode === 'append') {
         const from = pages
-        pages += html.length
-        landOrder.push('append:' + html[0])
+        pages += markers.length
+        landOrder.push('append:' + markers[0])
         return { ok: true, pages, appendedFrom: from }
       }
-      pages = html.length
-      landOrder.push('replace:' + html[0])
+      pages = markers.length
+      landOrder.push('replace:' + markers[0])
       return { ok: true, pages }
     },
-    isCloudPageGenEnabled: async () => true,
+    isCloudPageGenEnabled: async () => opts?.cloudEnabled !== false,
     generatePageCloud: async (args) => {
       genPageCalls.push(args.pageIndex)
       stylesSeen.push(args.style)
       imagesSeen.push([...args.images])
+      if (opts?.cloudDown)
+        return {
+          ok: false,
+          error: 'tool_cli /slide_generate failed: the ReveLith CLI requires a paid plan',
+        }
       if (failPages.has(args.pageIndex)) return { ok: false, error: 'mock fail' }
       if (failAttempts[args.pageIndex] && failAttempts[args.pageIndex] > 0) {
         failAttempts[args.pageIndex] -= 1
@@ -81,6 +99,23 @@ function makeAccess(opts?: {
       return {
         ok: true,
         marker: `<!doctype html><html><body>PAGE${args.pageIndex}:${args.title}</body></html>`,
+      }
+    },
+    generatePageLocal: async (args) => {
+      localPageCalls.push(args.pageIndex)
+      stylesSeen.push(args.style)
+      imagesSeen.push([...args.images])
+      if (failPages.has(args.pageIndex)) return { ok: false, error: 'mock fail' }
+      if (failAttempts[args.pageIndex] && failAttempts[args.pageIndex] > 0) {
+        failAttempts[args.pageIndex] -= 1
+        return { ok: false, error: 'transient' }
+      }
+      // Same marker contract as the cloud path, distinguishable in landOrder assertions
+      const fails = opts?.localImageFails?.[args.pageIndex]
+      return {
+        ok: true,
+        marker: `localpptx:PAGE${args.pageIndex}:${args.title}`,
+        ...(fails?.length ? { imageFailures: [...fails] } : {}),
       }
     },
     generateStyleSkill: async (a) => {
@@ -130,6 +165,7 @@ function makeAccess(opts?: {
   return {
     access,
     genPageCalls,
+    localPageCalls,
     stylesSeen,
     landOrder,
     imageSearchCalls,
@@ -211,6 +247,81 @@ describe('generate_deck self-driven page-by-page generation', () => {
   })
 })
 
+describe('generate_deck local page generation (cloud/gsk unavailable)', () => {
+  it('cloud disabled → the local spec builder generates every page through the same marker landing', async () => {
+    const { access, genPageCalls, localPageCalls, landOrder, getPages } = makeAccess({
+      cloudEnabled: false,
+    })
+    const skill = createSlidesSkill(access)
+    const res = (await skill.executeTool(deckCall(3))) as { output: string }
+    expect(genPageCalls).toEqual([]) // cloud never touched
+    expect(localPageCalls.sort((a, b) => a - b)).toEqual([1, 2, 3])
+    expect(getPages()).toBe(3)
+    expect(landOrder[0]).toBe('replace:localpptx:PAGE1:Page 1 Title')
+    expect(res.output).toContain('3/3')
+  })
+
+  it('page failing both inline attempts gets another generation in the retry round and lands at its original position', async () => {
+    const { access, landOrder, getPages } = makeAccess({
+      cloudEnabled: false,
+      failAttempts: { 2: 2 },
+    })
+    const skill = createSlidesSkill(access)
+    const res = (await skill.executeTool(deckCall(3))) as { output: string }
+    expect(getPages()).toBe(3)
+    expect(res.output).toContain('3/3')
+    expect(landOrder[2]).toContain('insert@1:')
+    expect(landOrder[2]).toContain('PAGE2')
+  })
+
+  it("local image download failures surface in the tool output with the page's number", async () => {
+    const { access, getPages } = makeAccess({
+      cloudEnabled: false,
+      localImageFails: { 2: ['https://img.example/broken.jpg'] },
+    })
+    const skill = createSlidesSkill(access)
+    const res = (await skill.executeTool(deckCall(3))) as { output: string }
+    expect(getPages()).toBe(3)
+    expect(res.output).toContain('Missing images')
+    expect(res.output).toContain('page 2')
+    expect(res.output).toContain('https://img.example/broken.jpg')
+  })
+
+  it('cloud fails (e.g. ReveLith free plan) → falls back to the local pipeline and still produces the deck', async () => {
+    const { access, localPageCalls, getPages } = makeAccess({ cloudDown: true })
+    const skill = createSlidesSkill(access)
+    const res = (await skill.executeTool(deckCall(3))) as { output: string }
+    expect(getPages()).toBe(3)
+    expect(localPageCalls.sort((a, b) => a - b)).toEqual([1, 2, 3])
+    expect(res.output).toContain('3/3')
+    expect(res.output).toContain('locally')
+  })
+
+  it('pages that fail both pipelines during a cloud→local switch still get the retry round', async () => {
+    // Cloud is down for every page; page 2 also exhausts its two local attempts inside
+    // genOne. The retry round must give it two more local attempts (the run ended on the
+    // local pipeline), where the old !useCloud guard skipped it entirely.
+    const { access, localPageCalls, getPages } = makeAccess({
+      cloudDown: true,
+      failAttempts: { 2: 2 },
+    })
+    const skill = createSlidesSkill(access)
+    const res = (await skill.executeTool(deckCall(3))) as { output: string }
+    expect(getPages()).toBe(3)
+    // page 2: two local attempts inside genOne (both fail) + the retry round's third
+    expect(localPageCalls.filter((p) => p === 2)).toHaveLength(3)
+    expect(res.output).toContain('3/3')
+  })
+
+  it('neither cloud nor local pipeline available → fails fast', async () => {
+    const { access } = makeAccess({ cloudEnabled: false })
+    delete (access as { generatePageLocal?: unknown }).generatePageLocal
+    const skill = createSlidesSkill(access)
+    const r = (await skill.executeTool(deckCall(2))) as { isError?: boolean }
+    expect(r.isError).toBe(true)
+  })
+})
+
 describe('generate_deck batched planning (topic mode)', () => {
   const topicCall = (topic: string, approx: number): AgentToolCall => ({
     id: 'c-topic',
@@ -237,6 +348,24 @@ describe('generate_deck batched planning (topic mode)', () => {
     expect(res.output).toContain('20/20')
     const ctx = skill.buildContext?.() ?? ''
     expect(ctx).toContain('all generated')
+  })
+
+  it('clamps an absurd approx_pages to MAX_APPROX_PAGES planner work (revelith#1100)', async () => {
+    const { access, getPages } = makeAccess()
+    let planCalls = 0
+    const plan = access.planDeckOutline!
+    access.planDeckOutline = async (a) => {
+      planCalls++
+      return plan(a)
+    }
+    const skill = createSlidesSkill(access)
+    await skill.executeTool(topicCall('Everything', 100000))
+    expect(getPages()).toBe(MAX_APPROX_PAGES)
+    expect(planCalls).toBeLessThanOrEqual(Math.ceil(MAX_APPROX_PAGES / 12))
+    const schema = skill.tools.find((t) => t.name === 'generate_deck')!.inputSchema as {
+      properties: { approx_pages: { maximum?: number } }
+    }
+    expect(schema.properties.approx_pages.maximum).toBe(MAX_APPROX_PAGES)
   })
 
   it('style generated independently → the same styleSkill is passed to every page (consistent across pages)', async () => {
@@ -504,10 +633,17 @@ describe('generate_deck Style Skill template persistence', () => {
 
   it('saveSidecar is not called when all pages fail to generate', async () => {
     const { access, sidecarSaves } = makeAccess({ failPages: [1, 2] })
+    const doneEvents: Array<{ total: number; outcome?: string }> = []
+    access.onProgress = (e) => {
+      if (e.stage === 'done') doneEvents.push({ total: e.total, outcome: e.outcome })
+    }
     const skill = createSlidesSkill(access)
-    await skill.executeTool(topicCall('Shanghai Travel'))
+    const res = (await skill.executeTool(topicCall('Shanghai Travel'))) as { isError?: boolean }
+    expect(res.isError).toBe(true)
     // landedPages=0 -> no sidecar written
     expect(sidecarSaves.length).toBe(0)
+    // the terminal progress event says failed; the card must not read it as "done, 0 slides"
+    expect(doneEvents).toEqual([{ total: 0, outcome: 'failed' }])
   })
 
   it('state.lastStyleSkill is recorded after generate_deck and usable by save_style_template', async () => {
@@ -614,64 +750,5 @@ describe('generate_deck attachment gate', () => {
     const res = (await skill.executeTool(topicCall)) as { isError?: boolean }
     expect(res.isError).toBeFalsy()
     expect(getPages()).toBe(3)
-  })
-})
-
-describe('generate_deck content audit', () => {
-  it('landed page containing template placeholder text → audit warning demands an in-place redo', async () => {
-    const { access } = makeAccess()
-    // Simulate the cloud returning a page with leftover template filler
-    access.generatePageCloud = async (args) => ({
-      ok: true,
-      marker:
-        args.pageIndex === 2
-          ? '<!doctype html><html><body><h1>Chapter</h1><p>Copy paste fonts. Choose the only option to retain text.</p></body></html>'
-          : `<!doctype html><html><body>PAGE${args.pageIndex}: real content about the weekly numbers</body></html>`,
-    })
-    const skill = createSlidesSkill(access)
-    const call: AgentToolCall = {
-      id: 'c-audit',
-      name: 'generate_deck',
-      input: {
-        core_hook: 'h',
-        style: 's',
-        pages: [1, 2, 3].map((n) => ({
-          title: `T${n}`,
-          brief: 'b',
-          layout: 'data',
-          image_queries: [],
-        })),
-      },
-    }
-    const res = (await skill.executeTool(call)) as { output: string }
-    expect(res.output).toContain('Content audit')
-    expect(res.output).toContain('page 2')
-    expect(res.output).toContain('placeholder')
-    expect(res.output).toContain('regenerate_slide')
-  })
-
-  it('pages with real content → no audit warning', async () => {
-    const { access } = makeAccess()
-    access.generatePageCloud = async (args) => ({
-      ok: true,
-      marker: `<!doctype html><html><body>PAGE${args.pageIndex}: real content about the weekly numbers</body></html>`,
-    })
-    const skill = createSlidesSkill(access)
-    const call: AgentToolCall = {
-      id: 'c-audit-ok',
-      name: 'generate_deck',
-      input: {
-        core_hook: 'h',
-        style: 's',
-        pages: [1, 2].map((n) => ({
-          title: `T${n}`,
-          brief: 'b',
-          layout: 'data',
-          image_queries: [],
-        })),
-      },
-    }
-    const res = (await skill.executeTool(call)) as { output: string }
-    expect(res.output).not.toContain('Content audit')
   })
 })

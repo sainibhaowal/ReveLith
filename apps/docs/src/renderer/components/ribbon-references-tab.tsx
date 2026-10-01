@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Editor } from '@tiptap/core'
+import type { ZoteroCommand } from '../../shared/ipc'
 import {
   bibliographyLine,
   citationText,
@@ -10,6 +11,7 @@ import {
   type SourceInfo,
   type TocEntry,
 } from '@revelith/docx-engine'
+import { Dropdown } from '@revelith/ui'
 import { PromptModal } from './PromptModal'
 import { collectHeadings } from '../editor/headings'
 import { t, useI18n, type StringKey } from '../i18n/locale'
@@ -29,7 +31,9 @@ import {
 import { BIG, TabProps, toggleDropdown } from './ribbon-tabs'
 
 function collectTocEntries(editor: Editor): TocEntry[] {
-  return collectHeadings(editor.state.doc).map(({ level, text }) => ({ level, text }))
+  return collectHeadings(editor.state.doc, editor.storage.listNumbering?.styles).map(
+    ({ level, text }) => ({ level, text }),
+  )
 }
 
 /** Heading entries + real page numbers (headingPages and collectTocEntries share document order) */
@@ -200,13 +204,12 @@ function CaptionModal({
         <h2>{t('ribbonCaptionInsertTitle')}</h2>
         <label>
           {t('ribbonCaptionLabel')}
-          <select value={label} onChange={(e) => setLabel(e.target.value)}>
-            {CAPTION_LABELS.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
+          <Dropdown
+            value={label}
+            ariaLabel={t('ribbonCaptionLabel')}
+            options={CAPTION_LABELS.map((l) => ({ value: l, label: l }))}
+            onPick={setLabel}
+          />
         </label>
         <label>
           {t('ribbonCaption')}
@@ -281,13 +284,12 @@ function SourceModal({
         <h2>{t('ribbonSourceCreateTitle')}</h2>
         <label>
           {t('ribbonSourceType')}
-          <select value={type} onChange={(e) => setType(e.target.value)}>
-            {SOURCE_TYPES.map((s) => (
-              <option key={s.key} value={s.key}>
-                {t(s.nameKey)}
-              </option>
-            ))}
-          </select>
+          <Dropdown
+            value={type}
+            ariaLabel={t('ribbonSourceType')}
+            options={SOURCE_TYPES.map((s) => ({ value: s.key, label: t(s.nameKey) }))}
+            onPick={setType}
+          />
         </label>
         <label>
           {t('ribbonSourceAuthor')}
@@ -340,6 +342,8 @@ interface ReferencesTabProps extends TabProps {
   blocks: Block[]
   onInsertNote: (kind: 'footnote' | 'endnote') => void
   sources: SourceInfo[]
+  /** footnotes/endnotes hold Zotero citation fields the bridge cannot see yet */
+  zoteroNoteFields?: boolean
   onAddSource: (source: SourceInfo) => void
   /** TOC page-number backfill: docHeadings in document order → real page numbers */
   headingPages?: () => number[] | null
@@ -353,12 +357,44 @@ export function ReferencesTab({
   setDropdown,
   onInsertNote,
   sources,
+  zoteroNoteFields,
   onAddSource,
   headingPages,
 }: ReferencesTabProps) {
   const { t } = useI18n()
   const [captionOpen, setCaptionOpen] = useState(false)
   const [sourceOpen, setSourceOpen] = useState(false)
+  const [zoteroBusy, setZoteroBusy] = useState<ZoteroCommand | null>(null)
+
+  const runZotero = async (command: ZoteroCommand) => {
+    if (zoteroBusy) return
+    setDropdown(() => null)
+    // every command lets Zotero rebuild the bibliography from the fields it can see;
+    // note citations are not among them yet, so their works would silently drop out
+    if (zoteroNoteFields) {
+      window.alert(t('zoteroNoteFieldsUnsupported'))
+      return
+    }
+    setZoteroBusy(command)
+    try {
+      const result = await window.desktop.zoteroCommand(command)
+      if (!result.ok) {
+        console.error('Zotero integration failed', result.error)
+        window.alert(
+          t(
+            result.errorCode === 'connection-refused'
+              ? 'zoteroConnectionError'
+              : 'zoteroOperationError',
+          ),
+        )
+      }
+    } catch (error) {
+      console.error('Zotero integration failed', error)
+      window.alert(t('zoteroOperationError'))
+    } finally {
+      setZoteroBusy(null)
+    }
+  }
 
   const insertToc = () => {
     const entries = collectTocEntriesWithPages(editor, headingPages)
@@ -461,8 +497,73 @@ export function ReferencesTab({
         <div className="ribbon-group-items">
           <button
             className="rb-big"
+            disabled={!hasDoc || zoteroBusy !== null}
+            data-tip={t('zoteroCitationTip')}
+            onClick={() => void runZotero('addEditCitation')}
+          >
+            <span className="rb-big-icon">
+              <IconCitation size={BIG} />
+            </span>
+            <span>{t('zoteroCitation')}</span>
+          </button>
+          <button
+            className="rb-big"
+            disabled={!hasDoc || zoteroBusy !== null}
+            data-tip={t('zoteroBibliographyTip')}
+            onClick={() => void runZotero('addEditBibliography')}
+          >
+            <span className="rb-big-icon">
+              <IconBook size={BIG} />
+            </span>
+            <span>{t('zoteroBibliography')}</span>
+          </button>
+          <button
+            className="rb-big"
+            disabled={!hasDoc || zoteroBusy !== null}
+            data-tip={t('zoteroRefreshTip')}
+            onClick={() => void runZotero('refresh')}
+          >
+            <span className="rb-big-icon">
+              <IconRefresh size={BIG} />
+            </span>
+            <span>{t('zoteroRefresh')}</span>
+          </button>
+          <div className="rb-split-wrap">
+            <button
+              className="rb-big"
+              disabled={!hasDoc || zoteroBusy !== null}
+              data-tip={t('zoteroDocumentSettingsTip')}
+              onClick={() => toggleDropdown(setDropdown, 'zotero-settings')}
+            >
+              <span className="rb-big-icon">
+                <IconCitation size={BIG} />
+                <IconCaret />
+              </span>
+              <span>{t('zoteroDocumentSettings')}</span>
+            </button>
+            {dropdown === 'zotero-settings' && (
+              <div data-rb-panel="" className="layout-menu">
+                <button onClick={() => void runZotero('setDocPrefs')}>
+                  {t('zoteroDocumentPreferences')}
+                </button>
+                <button onClick={() => void runZotero('removeCodes')}>
+                  {t('zoteroRemoveCodes')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="ribbon-group-label">{t('zoteroGroup')}</div>
+      </div>
+
+      <div className="ribbon-sep" />
+
+      <div className="ribbon-group">
+        <div className="ribbon-group-items">
+          <button
+            className="rb-big"
             disabled={!hasDoc}
-            title={t('ribbonTocTip')}
+            data-tip={t('ribbonTocTip')}
             onClick={insertToc}
           >
             <span className="rb-big-icon">
@@ -473,7 +574,7 @@ export function ReferencesTab({
           <button
             className="rb-big"
             disabled={!hasDoc}
-            title={t('ribbonTocUpdateTip')}
+            data-tip={t('ribbonTocUpdateTip')}
             onClick={() => updateTocField(editor, blocks, headingPages)}
           >
             <span className="rb-big-icon">
@@ -492,7 +593,7 @@ export function ReferencesTab({
           <button
             className="rb-big"
             disabled={!hasDoc}
-            title={t('ribbonFootnoteTip')}
+            data-tip={t('ribbonFootnoteTip')}
             onClick={() => onInsertNote('footnote')}
           >
             <span className="rb-big-icon">
@@ -503,7 +604,7 @@ export function ReferencesTab({
           <button
             className="rb-big"
             disabled={!hasDoc}
-            title={t('ribbonEndnoteTip')}
+            data-tip={t('ribbonEndnoteTip')}
             onClick={() => onInsertNote('endnote')}
           >
             <span className="rb-big-icon">
@@ -523,7 +624,7 @@ export function ReferencesTab({
             <button
               className="rb-big"
               disabled={!hasDoc}
-              title={t('ribbonCitationTip')}
+              data-tip={t('ribbonCitationTip')}
               onClick={() => toggleDropdown(setDropdown, 'citation')}
             >
               <span className="rb-big-icon">
@@ -533,9 +634,9 @@ export function ReferencesTab({
               <span>{t('ribbonCitation')}</span>
             </button>
             {dropdown === 'citation' && (
-              <div className="layout-menu">
+              <div data-rb-panel="" className="layout-menu">
                 {sources.map((s) => (
-                  <button key={s.tag} title={s.title} onClick={() => insertCitation(s)}>
+                  <button key={s.tag} data-tip={s.title} onClick={() => insertCitation(s)}>
                     {citationText(s)} {s.title.slice(0, 12)}
                   </button>
                 ))}
@@ -547,33 +648,13 @@ export function ReferencesTab({
                 >
                   {t('ribbonAddNewSource')}
                 </button>
-                <label style={{ display: 'block', padding: '4px 8px', cursor: 'pointer' }}>
-                  Import RIS/BibTeX…
-                  <input
-                    type="file"
-                    accept=".ris,.bib,.bibtex"
-                    style={{ display: 'none' }}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      void file.text().then(async (text) => {
-                        const { parseRis, parseBibtex } = await import('./zotero-import')
-                        const name = file.name.toLowerCase()
-                        const parsed = name.endsWith('.ris') ? parseRis(text) : parseBibtex(text)
-                        parsed.forEach((s) => onAddSource(s))
-                        setDropdown(() => null)
-                      })
-                      e.target.value = ''
-                    }}
-                  />
-                </label>
               </div>
             )}
           </div>
           <button
             className="rb-big"
             disabled={!hasDoc}
-            title={t('ribbonBibliographyTip')}
+            data-tip={t('ribbonBibliographyTip')}
             onClick={insertBibliography}
           >
             <span className="rb-big-icon">
@@ -584,7 +665,7 @@ export function ReferencesTab({
           <button
             className="rb-big"
             disabled={!hasDoc}
-            title={t('ribbonCaptionTip')}
+            data-tip={t('ribbonCaptionTip')}
             onClick={() => setCaptionOpen(true)}
           >
             <span className="rb-big-icon">
@@ -596,7 +677,7 @@ export function ReferencesTab({
             <button
               className="rb-big"
               disabled={!hasDoc}
-              title={t('ribbonIndexTip')}
+              data-tip={t('ribbonIndexTip')}
               onClick={() => toggleDropdown(setDropdown, 'index')}
             >
               <span className="rb-big-icon">
@@ -606,7 +687,7 @@ export function ReferencesTab({
               <span>{t('ribbonIndex')}</span>
             </button>
             {dropdown === 'index' && (
-              <div className="layout-menu">
+              <div data-rb-panel="" className="layout-menu">
                 <button
                   onClick={() => {
                     markIndexEntry()

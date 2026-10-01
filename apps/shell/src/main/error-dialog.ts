@@ -1,11 +1,11 @@
-﻿import { dialog } from 'electron'
+import { dialog } from 'electron'
 import type { BrowserWindow } from 'electron'
 
 let showing = false
 
 /**
  * Never dialog.showErrorBox here: on Windows it blocks main-process JS in a
- * nested native pump and, parentless, can hide behind the window : a wedged
+ * nested native pump and, parentless, can hide behind the window — a wedged
  * UI with no "(Not Responding)". Async + parented avoids both.
  */
 export function showErrorDialog(win: BrowserWindow | null, message: string, err: unknown): void {

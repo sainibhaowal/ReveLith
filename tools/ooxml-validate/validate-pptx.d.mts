@@ -1,7 +1,5 @@
 export interface SchemaProblem {
-  /** ZIP part path the problem was found in */
   part: string
-  /** xmllint's message for that part */
   message: string
 }
 export function xmllintAvailable(): boolean

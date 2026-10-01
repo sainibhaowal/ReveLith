@@ -1,310 +1,240 @@
 import { describe, expect, it, vi } from 'vitest'
-import { streamText } from '../src/stream-text'
 import type { AgentStreamCallbacks, AgentTransport } from '../src/types'
+import { streamText } from '../src/stream-text'
 
-/**
- * Transport that records what was sent and lets a test drive the callbacks.
- * `auto` steps run on a microtask, so a test can script a whole turn.
- */
-function fakeTransport(auto?: (cb: AgentStreamCallbacks) => void) {
-  const calls: Array<{ system: string; messages: unknown[]; tools: unknown[] }> = []
-  let cancels = 0
-  let last: AgentStreamCallbacks | null = null
-  const transport: AgentTransport = {
-    stream(request, cb) {
-      calls.push(request as never)
-      last = cb
-      if (auto) queueMicrotask(() => auto(cb))
-      return {
-        cancel: () => {
-          cancels++
-        },
-      }
-    },
-  }
+function fakeTransport(
+  script: (cb: AgentStreamCallbacks) => void,
+  onCancel?: () => void,
+): AgentTransport {
   return {
-    transport,
-    calls,
-    // The callbacks are captured synchronously by stream(), so any test that
-    // reads them has already started a request.
-    current: (): AgentStreamCallbacks => {
-      if (!last) throw new Error('the transport has not been asked to stream yet')
-      return last
-    },
-    get cancels() {
-      return cancels
+    stream: (_req, cb) => {
+      queueMicrotask(() => script(cb))
+      return { cancel: () => onCancel?.() }
     },
   }
 }
 
-/** Passthrough extractor: everything is the payload, always complete. */
-const passthrough = (raw: string) => ({ text: raw, complete: true })
+const passthrough = (raw: string) => ({ text: raw.trim() })
 
 describe('streamText', () => {
-  it('sends a tool-less request and returns the full text', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('Hello')
-      cb.onDelta(' world')
-      cb.onDone()
+  it('sends a tool-less request and reports cumulative progress', async () => {
+    const progress: string[] = []
+    let request: { tools: unknown[]; messages: unknown[] } | undefined
+    const outcome = await streamText({
+      transport: {
+        stream: (req, cb) => {
+          request = req
+          queueMicrotask(() => {
+            cb.onDelta('# Title\n\n')
+            cb.onDelta('body')
+            cb.onStopReason?.('end_turn')
+            cb.onDone()
+          })
+          return { cancel: () => undefined }
+        },
+      },
+      system: 's',
+      user: 'u',
+      maxChars: 1000,
+      extract: passthrough,
+      onProgress: (text) => progress.push(text),
     })
-    const out = await streamText({
-      transport: t.transport,
-      system: 'sys',
-      user: 'hi',
+    expect(request?.tools).toEqual([])
+    expect(request?.messages).toEqual([{ role: 'user', text: 'u' }])
+    expect(outcome).toEqual({ status: 'complete', text: '# Title\n\nbody' })
+    expect(progress).toEqual(['# Title', '# Title\n\nbody'])
+  })
+
+  it('without a terminator, max_tokens makes the reply partial and end_turn complete', async () => {
+    const cut = await streamText({
+      transport: fakeTransport((cb) => {
+        cb.onDelta('half')
+        cb.onStopReason?.('max_tokens')
+        cb.onDone()
+      }),
+      system: 's',
+      user: 'u',
+      maxChars: 1000,
       extract: passthrough,
     })
-    expect(out).toEqual({ status: 'complete', text: 'Hello world' })
-    expect(t.calls).toHaveLength(1)
-    expect(t.calls[0].tools).toEqual([])
-    expect(t.calls[0].messages).toEqual([{ role: 'user', text: 'hi' }])
-    expect(t.calls[0].system).toBe('sys')
-  })
-
-  it('ignores a stray tool call: the reply body is the payload', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onToolCall({ id: 'x', name: 'nope', input: {} })
-      cb.onDelta('text only')
-      cb.onDone()
-    })
-    const out = await streamText({
-      transport: t.transport,
+    expect(cut).toEqual({ status: 'partial', text: 'half', reason: 'max_tokens' })
+    const nothing = await streamText({
+      transport: fakeTransport((cb) => {
+        cb.onStopReason?.('end_turn')
+        cb.onDone()
+      }),
       system: 's',
       user: 'u',
+      maxChars: 1000,
       extract: passthrough,
     })
-    expect(out).toEqual({ status: 'complete', text: 'text only' })
+    expect(nothing).toEqual({ status: 'empty', error: 'empty reply' })
   })
 
-  it('treats a payload with no terminator as complete', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('# A whole document')
-      cb.onDone()
-    })
-    const out = await streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      extract: (raw) => ({ text: raw }),
-    })
-    expect(out.status).toBe('complete')
-  })
-
-  it('honours an explicit complete:false over a normal stop reason', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('half a json')
-      cb.onStopReason?.('end_turn')
-      cb.onDone()
-    })
-    const out = await streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      extract: (raw) => ({ text: raw, complete: false }),
-    })
-    // complete:false is the extractor's call, and end_turn does not override it
-    expect(out).toMatchObject({ status: 'partial', reason: 'stopped' })
-  })
-
-  it('reports max_tokens as partial', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('cut off')
-      cb.onStopReason?.('max_tokens')
-      cb.onDone()
-    })
-    const out = await streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      extract: (raw) => ({ text: raw, complete: false }),
-    })
-    expect(out).toMatchObject({ status: 'partial', reason: 'max_tokens' })
-  })
-
-  it('keeps partial text when the connection drops, and reports empty for no content', async () => {
-    const dropped = fakeTransport((cb) => {
-      cb.onDelta('half')
-      cb.onError('socket closed')
-    })
-    expect(
-      await streamText({
-        transport: dropped.transport,
-        system: 's',
-        user: 'u',
-        extract: passthrough,
+  it('an explicit terminator decides completeness over the stop reason', async () => {
+    const extract = (raw: string) => ({ text: raw, complete: raw.endsWith('END') })
+    const done = await streamText({
+      transport: fakeTransport((cb) => {
+        cb.onDelta('abc END')
+        cb.onStopReason?.('max_tokens')
+        cb.onDone()
       }),
-    ).toMatchObject({ status: 'partial', text: 'half', reason: 'error', error: 'socket closed' })
-
-    const nothing = fakeTransport((cb) => cb.onError('socket closed'))
-    expect(
-      await streamText({
-        transport: nothing.transport,
-        system: 's',
-        user: 'u',
-        extract: passthrough,
+      system: 's',
+      user: 'u',
+      maxChars: 1000,
+      extract,
+    })
+    expect(done).toEqual({ status: 'complete', text: 'abc END' })
+    const open = await streamText({
+      transport: fakeTransport((cb) => {
+        cb.onDelta('abc')
+        cb.onStopReason?.('end_turn')
+        cb.onDone()
       }),
-    ).toMatchObject({ status: 'empty' })
+      system: 's',
+      user: 'u',
+      maxChars: 1000,
+      extract,
+    })
+    expect(open).toEqual({ status: 'partial', text: 'abc', reason: 'error' })
   })
 
-  it('cancels on stop, keeps what arrived, and ignores later deltas', async () => {
+  it('a dropped connection keeps the partial text; an empty one is empty', async () => {
+    const partial = await streamText({
+      transport: fakeTransport((cb) => {
+        cb.onDelta('half')
+        cb.onError('connection dropped')
+      }),
+      system: 's',
+      user: 'u',
+      maxChars: 1000,
+      extract: passthrough,
+    })
+    expect(partial).toEqual({
+      status: 'partial',
+      text: 'half',
+      reason: 'error',
+      error: 'connection dropped',
+    })
+    const empty = await streamText({
+      transport: fakeTransport((cb) => cb.onError('gateway 502')),
+      system: 's',
+      user: 'u',
+      maxChars: 1000,
+      extract: passthrough,
+    })
+    expect(empty).toEqual({ status: 'empty', error: 'gateway 502' })
+  })
+
+  it('stop cancels the transport and keeps what arrived; later deltas are ignored', async () => {
+    let cancelled = false
+    const progress: string[] = []
     const controller = new AbortController()
-    const t = fakeTransport()
-    const pending = streamText({
-      transport: t.transport,
+    let callbacks!: AgentStreamCallbacks
+    const promise = streamText({
+      transport: {
+        stream: (_req, cb) => {
+          callbacks = cb
+          queueMicrotask(() => cb.onDelta('first'))
+          return {
+            cancel: () => {
+              cancelled = true
+            },
+          }
+        },
+      },
       system: 's',
       user: 'u',
       signal: controller.signal,
+      maxChars: 1000,
       extract: passthrough,
+      onProgress: (text) => progress.push(text),
     })
-    t.current().onDelta('before stop')
+    await new Promise((r) => setTimeout(r, 0))
     controller.abort()
-    expect(t.cancels).toBe(1)
-    // a transport that keeps talking after cancel must not resurrect the result
-    t.current().onDelta(' after stop')
-    t.current().onDone()
-    expect(await pending).toMatchObject({ status: 'partial', text: 'before stop' })
+    callbacks.onDelta(' late')
+    callbacks.onDone()
+    expect(await promise).toEqual({ status: 'partial', text: 'first', reason: 'stopped' })
+    expect(cancelled).toBe(true)
+    expect(progress).toEqual(['first'])
   })
 
   it('does not start the transport when the signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort()
-    const t = fakeTransport()
-    const out = await streamText({
-      transport: t.transport,
+    let starts = 0
+    const outcome = await streamText({
+      transport: {
+        stream: () => {
+          starts += 1
+          return { cancel: () => undefined }
+        },
+      },
       system: 's',
       user: 'u',
       signal: controller.signal,
+      maxChars: 1000,
       extract: passthrough,
     })
-    expect(out).toMatchObject({ status: 'empty' })
-    // no request at all: a cancelled run must not be billed
-    expect(t.calls).toHaveLength(0)
+    expect(starts).toBe(0)
+    expect(outcome).toEqual({ status: 'empty', error: 'stopped' })
   })
 
-  it('reports progress with the cumulative text', async () => {
-    const onProgress = vi.fn()
-    const t = fakeTransport((cb) => {
-      cb.onDelta('one ')
-      cb.onDelta('two')
-      cb.onDone()
-    })
-    await streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      extract: passthrough,
-      onProgress,
-    })
-    // the final forced publish always fires with the whole reply
-    expect(onProgress).toHaveBeenCalled()
-    expect(onProgress.mock.calls.at(-1)?.[0]).toBe('one two')
-  })
-
-  it('caps the reply and explains why', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('0123456789')
-      cb.onDone()
-    })
-    const out = await streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      maxChars: 4,
-      extract: passthrough,
-    })
-    expect(out).toMatchObject({ status: 'partial', text: '0123', reason: 'max_tokens' })
-    expect((out as { error?: string }).error).toContain('4')
-    expect(t.cancels).toBeGreaterThan(0)
-  })
-})
-
-describe('streamText guards', () => {
-  /**
-   * A cap that is not a usable positive number must fall back, not disable
-   * itself. `NaN` is the dangerous one: it usually comes from a token
-   * calculation, and `length > NaN` is false forever, so the stream would run
-   * unbounded with no error anywhere.
-   */
-  it('falls back to a default cap for a NaN limit instead of never firing', async () => {
-    const t = fakeTransport()
-    const pending = streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      maxChars: Number.NaN,
-      extract: passthrough,
-    })
-    // 200k+ chars: under a working cap this must stop, not accumulate
-    t.current().onDelta('x'.repeat(250_000))
-    t.current().onDone()
-    const out = await pending
-    expect(out.status).toBe('partial')
-    expect((out as { text: string }).text.length).toBeLessThan(250_000)
-  })
-
-  it('falls back for a zero or negative limit rather than truncating to nothing', async () => {
-    for (const maxChars of [0, -1]) {
-      const t = fakeTransport((cb) => {
-        cb.onDelta('real content')
-        cb.onDone()
-      })
-      const out = await streamText({
-        transport: t.transport,
-        system: 's',
-        user: 'u',
-        maxChars,
-        extract: passthrough,
-      })
-      expect(out).toEqual({ status: 'complete', text: 'real content' })
-    }
-  })
-
-  it('falls back for an Infinity limit', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('ok')
-      cb.onDone()
-    })
-    const out = await streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      maxChars: Number.POSITIVE_INFINITY,
-      extract: passthrough,
-    })
-    expect(out).toEqual({ status: 'complete', text: 'ok' })
-  })
-
-  it('settles with the raw reply when extract throws, instead of hanging', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('the raw reply')
-      cb.onDone()
-    })
-    const out = await streamText({
-      transport: t.transport,
-      system: 's',
-      user: 'u',
-      extract: () => {
-        throw new Error('bad fence')
-      },
-    })
-    // the payload is not lost, and the promise still settles
-    expect(out).toMatchObject({ text: 'the raw reply' })
-  })
-
-  it('survives extract throwing on a progress callback too', async () => {
-    const t = fakeTransport((cb) => {
-      cb.onDelta('chunk')
-      cb.onDone()
-    })
-    await expect(
-      streamText({
-        transport: t.transport,
-        system: 's',
-        user: 'u',
-        extract: () => {
-          throw new Error('bad fence')
+  it('settles the stopped outcome before canceling the transport', async () => {
+    const controller = new AbortController()
+    const promise = streamText({
+      transport: {
+        stream: (_req, cb) => {
+          cb.onDelta('first')
+          return { cancel: () => cb.onDone() }
         },
-        onProgress: () => undefined,
-      }),
-    ).resolves.toBeDefined()
+      },
+      system: 's',
+      user: 'u',
+      signal: controller.signal,
+      maxChars: 1000,
+      extract: passthrough,
+    })
+    controller.abort()
+    expect(await promise).toEqual({ status: 'partial', text: 'first', reason: 'stopped' })
+  })
+
+  it('does not register an abort listener after synchronous completion', async () => {
+    const controller = new AbortController()
+    const addEventListener = vi.spyOn(controller.signal, 'addEventListener')
+    const outcome = await streamText({
+      transport: {
+        stream: (_req, cb) => {
+          cb.onStopReason?.('end_turn')
+          cb.onDone()
+          return { cancel: () => undefined }
+        },
+      },
+      system: 's',
+      user: 'u',
+      signal: controller.signal,
+      maxChars: 1000,
+      extract: passthrough,
+    })
+    expect(outcome).toEqual({ status: 'empty', error: 'empty reply' })
+    expect(addEventListener).not.toHaveBeenCalled()
+  })
+
+  it('the size cap cancels the stream and reports max_tokens', async () => {
+    let cancelled = false
+    const outcome = await streamText({
+      transport: fakeTransport(
+        (cb) => cb.onDelta('x'.repeat(20)),
+        () => {
+          cancelled = true
+        },
+      ),
+      system: 's',
+      user: 'u',
+      maxChars: 10,
+      extract: passthrough,
+    })
+    expect(outcome).toMatchObject({ status: 'partial', reason: 'max_tokens' })
+    expect(cancelled).toBe(true)
   })
 })

@@ -80,9 +80,6 @@ const SEGMENTER: Intl.Segmenter | null =
  * to a line start and measure an emoji sequence as N character widths.
  */
 export function graphemes(text: string): string[] {
-  // An empty string has no clusters, and Intl.Segmenter costs ~60µs per call:
-  // a chart with 100k+ blank categories would otherwise spend seconds proving it
-  if (text === '') return []
   if (!SEGMENTER) return [...text]
   const out: string[] = []
   for (const s of SEGMENTER.segment(text)) out.push(s.segment)
@@ -163,14 +160,6 @@ function clusterAdvanceEm(g: string): number {
 }
 
 export class HeuristicMetrics implements FontMetricsProvider {
-  /**
-   * Measure memo. Chart labels repeat heavily (every gridline tick, every
-   * category, every legend entry of a 100k-point series), and segmenting the
-   * same string again is pure waste. Bounded so a deck with many distinct
-   * strings cannot grow it without limit.
-   */
-  private readonly widthCache = new Map<string, number>()
-
   metrics(style: RunStyle): FontMetrics {
     const s = style.fontSizePx
     // Typical sans-serif ratios: ascent≈0.8em, descent≈0.2em, lineHeight≈1.2em
@@ -182,19 +171,12 @@ export class HeuristicMetrics implements FontMetricsProvider {
   }
 
   measure(text: string, style: RunStyle): number {
-    const key = `${style.bold ? 1 : 0}|${style.fontSizePx}|${text}`
-    const hit = this.widthCache.get(key)
-    if (hit !== undefined) return hit
     let em = 0
     for (const g of graphemes(text)) {
       em += clusterAdvanceEm(g)
     }
     const boldFactor = style.bold ? 1.04 : 1
-    const w = em * style.fontSizePx * boldFactor
-    // simple bound: stop caching once it stops paying (clear, then keep filling)
-    if (this.widthCache.size >= 8192) this.widthCache.clear()
-    this.widthCache.set(key, w)
-    return w
+    return em * style.fontSizePx * boldFactor
   }
 }
 

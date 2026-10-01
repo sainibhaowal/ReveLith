@@ -21,6 +21,7 @@ export {
   IconUndo,
   IconRedo,
   IconCopy,
+  IconSearch,
   IconSpellcheck,
 } from '../../../../docs/src/renderer/components/icons'
 
@@ -32,16 +33,6 @@ interface IconProps {
 function pinnedStroke(size: number): number {
   const painted = size >= 20 ? 1.5 : size >= 13 ? 1.25 : 1.1
   return (painted * 16) / size
-}
-
-/** find: a magnifier on the 16-grid */
-export function IconSearch(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <circle cx="7" cy="7" r="4.2" />
-      <path d="m10.2 10.2 3.3 3.3" />
-    </Svg>
-  )
 }
 
 function Svg({ size = 20, children }: IconProps & { children: ReactNode }) {

@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
-"""Build the ReveLith KR Gothic subset's half-width Latin companion.
+"""Build ReveLith Che Latin KR: half-width Latin for -Che fixed-pitch faces.
 
-A document that declares a fixed-pitch Korean face (BatangChe, GulimChe,
-DotumChe, GungsuhChe) gets Latin at a fixed 0.5em pitch. Our Korean chains laid
-those runs out with proportional Latin instead, so every line break after such a
-run drifted. This builds a small ASCII-only face out of the Korean sans subset's
-own outlines: advances forced to 0.5em, and each glyph reshaped to the fixed-
-pitch face's per-glyph ink box so the letterforms fill their cell the way the
-original does.
+Word renders BatangChe/GulimChe/DotumChe/GungsuhChe declares with the real
+Office faces, whose Latin is fixed-pitch at exactly 0.5 em (probe 2026-08-24);
+our KR chains laid those runs with proportional Latin instead, drifting line
+breaks (prod100r3/50 uses DotumChe on 3.7k runs). This builds a tiny
+ASCII-only face from the ReveLith Sans KR outlines (Noto-derived, OFL),
+advances forced to 0.5 em and each glyph reshaped to DotumChe's per-glyph ink
+box measured from the local Office font at build time. Only the transformed
+Noto outlines ship.
 
-Only the transformed outlines ship. The reference face is read at build time
-from a local Microsoft Office install, so the path is an argument rather than a
-constant.
-
-Usage:
-    python3 tools/build-kr-che-latin-font.py [out.woff2] [reference-font]
-    python3 tools/build-kr-che-latin-font.py out.woff2 gulim.ttc
+Usage: python3 tools/build-kr-che-latin-font.py [out.woff2]
 """
 
 import sys
@@ -29,19 +24,17 @@ from fontTools.subset import Options, Subsetter
 from fontTools.ttLib import TTFont
 
 SOURCE = "apps/docs/src/renderer/fonts/RevelithSansKR-Regular-subset.woff2"
-DEFAULT_OUT = "apps/docs/src/renderer/fonts/ReveLithCheLatinKR.woff2"
-# macOS Office font bundle; override with the second argument on any platform.
-DOTUMCHE = "/Applications/Microsoft Word.app/Contents/Resources/DFonts/gulim.ttc"
+DEFAULT_OUT = "apps/docs/src/renderer/fonts/RevelithCheLatinKR.woff2"
+DOTUMCHE = ("/Applications/Microsoft Word.app/Contents/Resources/DFonts/gulim.ttc", 3)
 FAMILY = "ReveLith Che Latin KR"
-PS_NAME = "ReveLithCheLatinKR"
+PS_NAME = "RevelithCheLatinKR"
 
 
 def main() -> None:
     root = Path(__file__).resolve().parent.parent
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else root / DEFAULT_OUT
-    reference = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(DOTUMCHE)
 
-    target = TTFont(str(reference), fontNumber=3)
+    target = TTFont(DOTUMCHE[0], fontNumber=DOTUMCHE[1])
     t_upm = target["head"].unitsPerEm
     t_cmap = target.getBestCmap()
     t_glyf = target["glyf"]
@@ -70,10 +63,8 @@ def main() -> None:
         bp = BoundsPen(glyph_set)
         glyph_set[name].draw(bp)
         if not getattr(t_glyph, "numberOfContours", 0) or bp.bounds is None:
-            # no target ink (space): the advance alone carries the pitch
             hmtx[name] = (half, hmtx[name][1])
             continue
-        # both faces are measured in their own upm, so rescale the target box
         target_ink = (t_glyph.xMax - t_glyph.xMin) * upm / t_upm
         target_lsb = t_hmtx[t_name][1] * upm / t_upm
         x_min, _, x_max, _ = bp.bounds
@@ -89,10 +80,13 @@ def main() -> None:
         hmtx[name] = (half, round(target_lsb))
 
     for rec in list(font["name"].names):
-        if rec.nameID in (1, 4, 16):
-            font["name"].setName(FAMILY, rec.nameID, rec.platformID, rec.platEncID, rec.langID)
-        elif rec.nameID in (3, 6):
-            font["name"].setName(PS_NAME, rec.nameID, rec.platformID, rec.platEncID, rec.langID)
+        if rec.nameID in (1, 3, 4, 16):
+            value = FAMILY if rec.nameID in (1, 16) else (
+                PS_NAME if rec.nameID == 3 else FAMILY
+            )
+            font["name"].setName(value, rec.nameID, rec.platformID, rec.platEncID, rec.langID)
+        elif rec.nameID == 6:
+            font["name"].setName(PS_NAME, 6, rec.platformID, rec.platEncID, rec.langID)
 
     font.flavor = "woff2"
     font.save(str(out))

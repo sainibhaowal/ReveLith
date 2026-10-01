@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Build the bundled PUA-Blank face: every BMP Private Use codepoint maps to one
+"""Build ReveLith PUA Blank: every BMP Private Use codepoint maps to one
 blank 1em glyph.
 
-A document that has picked up Private Use Area codepoints (an unreleased icon
-font, a token from a tool that mapped glyphs to PUA) renders as tofu in some
-font chains and as nothing in others, because a chain headed by a real installed
-face falls back to that face's .notdef. Giving those chains an explicit blank
-glyph makes PUA invisible everywhere, at the same 1em advance the other bundled
-subsets have.
+Chromium never system-falls-back for PUA characters: an unmapped PUA
+codepoint renders the chain's primary font's .notdef. Chains headed by a
+real installed face (Calibri, Carlito GO...) therefore draw tofu boxes for
+AI-residue PUA tokens, while Word and chains headed by the bundled CJK
+subsets (whose subsetted .notdef is blank) show nothing. This font gives
+those chains an explicit blank glyph so PUA stays invisible everywhere,
+with the same 1em advance the subset .notdef had.
 
 Usage: python3 tools/build-pua-blank-font.py [out.woff2]
 """
@@ -18,7 +19,7 @@ from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib.woff2 import WOFF2FlavorData
 
-DEFAULT_OUT = "apps/docs/src/renderer/fonts/ReveLithPUABlank.woff2"
+DEFAULT_OUT = "apps/docs/src/renderer/fonts/RevelithPUABlank.woff2"
 FAMILY = "ReveLith PUA Blank"
 UPM = 1000
 
@@ -29,7 +30,6 @@ def main() -> None:
     fb.setupGlyphOrder([".notdef", "blank"])
     empty = TTGlyphPen(None).glyph()
     fb.setupGlyf({".notdef": empty, "blank": empty})
-    # the BMP PUA plane: E000..F8FF
     fb.setupCharacterMap({cp: "blank" for cp in range(0xE000, 0xF900)})
     fb.setupHorizontalMetrics({".notdef": (UPM, 0), "blank": (UPM, 0)})
     fb.setupHorizontalHeader(ascent=800, descent=-200)
@@ -37,7 +37,7 @@ def main() -> None:
     fb.setupNameTable({"familyName": FAMILY, "styleName": "Regular"})
     fb.setupPost()
     fb.font.flavor = "woff2"
-    # untransformed glyf, like the other bundled subsets
+    # untransformed glyf, like the other bundled subsets (test helper contract)
     fb.font.flavorData = WOFF2FlavorData(transformedTables=())
     fb.save(out)
     print(f"wrote {out}")

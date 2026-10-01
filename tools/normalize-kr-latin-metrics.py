@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""Normalize the bundled Korean serif subset's Latin metrics to Batang.
+"""Normalize ReveLith Serif KR Latin metrics to Batang.
 
-A document declaring Batang lays its Latin out with Batang's real metrics, but
-the bundled subset kept the upstream Noto advances, which are wider — so line
-breaks drift from the reference on exactly those documents. The Korean sans
-subset already had the same treatment against Malgun; the Gothic subset is out of
-scope because it ships a real downloadable face's unmodified metrics and must
-stay that way.
+Word renders Batang-class names with the real Office face (probe 2026-08-24:
+Batang/바탕 declares lay Latin with real Batang, M 0.895em); the bundled
+subset kept Noto's Latin advances above it (M 0.975), so line breaks drift
+from Word on those documents. ReveLith Sans KR already went through the
+same treatment for Malgun (normalize-kr-sans-hmtx.py +
+scale-kr-sans-latin-ink.py). ReveLith Gothic KR is out of scope: it models
+the NanumGothic downloadable asset with its real metrics unmodified
+(build-gothic-kr-font.py) and must stay untouched.
 
-For every printable Basic Latin glyph (U+0020-007E and U+00A0) this rewrites the
-advance to the target face's value and reshapes the outline horizontally to the
-target's per-glyph ink width and left side bearing, both measured from the local
-reference font at build time. Only the transformed outlines ship.
+For every printable Basic Latin glyph (U+0020-007E, U+00A0) this rewrites the
+advance to the target face's value and reshapes the outline horizontally to
+the target's per-glyph ink width and left side bearing, measured from the
+local Office fonts at build time; only the transformed Noto outlines ship.
 
-Idempotent: a glyph already at the target advance, ink width (within 2%) and side
-bearing (within 5/1000 em) is skipped.
+Idempotent: glyphs already at the target advance, ink width (2%), and side
+bearing (3/1000 em) are skipped.
 
-Usage: python3 tools/normalize-kr-latin-metrics.py [fonts-dir] [reference-dir]
+Usage: python3 tools/normalize-kr-latin-metrics.py [fonts-dir]
 """
 
 import sys
@@ -30,9 +32,8 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.woff2 import WOFF2FlavorData
 
-# Reference face location; override with the second argument on any platform.
 DFONTS = Path("/Applications/Microsoft Word.app/Contents/Resources/DFonts")
-# subset filename -> (reference collection, face index)
+# subset filename -> (target collection, font number)
 TARGETS = {
     "RevelithSerifKR-Regular-subset.woff2": ("batang.ttc", 0),  # Batang
 }
@@ -67,14 +68,14 @@ def normalize(path: Path, target: TTFont) -> None:
             font["glyf"][name] = pen.glyph()
 
     changed = skipped = 0
-    # Hangul advances are out of scope: they differ between the two faces by a
-    # layout-wide amount that would need its own pass. Pin them untouched.
+    # hangul advances are out of scope (Gothic KR ships 0.94em vs Gulim's
+    # 1.0em — a layout-wide change needing its own wave); pin them untouched
     hangul = cmap.get(0xAC00)
     hangul_before = hmtx[hangul][0] if hangul else None
     seen: set[str] = set()
     for cp in [*range(0x20, 0x7F), 0xA0]:
         name = cmap.get(cp)
-        # nbsp shares the space glyph; the first (space-width) mapping wins
+        # nbsp shares the space glyph; first (space-width) mapping wins
         t_name = t_cmap.get(cp if cp != 0xA0 else 0x20)
         if name is None or t_name is None or name in seen:
             continue
@@ -84,7 +85,7 @@ def normalize(path: Path, target: TTFont) -> None:
 
         t_glyph = t_glyf[t_name]
         if not getattr(t_glyph, "numberOfContours", 0):
-            # no target ink (space/nbsp): the advance alone carries the width
+            # no target ink (space/nbsp): advance only
             if not adv_ok:
                 hmtx[name] = (target_adv, hmtx[name][1])
                 changed += 1
@@ -120,8 +121,8 @@ def normalize(path: Path, target: TTFont) -> None:
     assert hangul and hmtx[hangul][0] == hangul_before, "hangul must stay untouched"
     print(f"{path.name}: {changed} glyphs normalized, {skipped} already at target")
     if changed:
-        # keep glyf untransformed in the woff2 so a test helper can read the
-        # tables straight out of the file
+        # keep glyf untransformed in the woff2: tests/helpers/woff2-metrics.ts
+        # cannot read the transformed form
         if not is_cff:
             font.flavorData = WOFF2FlavorData(transformedTables=())
         font.save(str(path))
@@ -130,9 +131,8 @@ def normalize(path: Path, target: TTFont) -> None:
 def main() -> None:
     root = Path(__file__).resolve().parent.parent
     fonts_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "apps/docs/src/renderer/fonts"
-    dfonts = Path(sys.argv[2]) if len(sys.argv) > 2 else DFONTS
     for fname, (coll, num) in TARGETS.items():
-        normalize(fonts_dir / fname, TTFont(str(dfonts / coll), fontNumber=num))
+        normalize(fonts_dir / fname, TTFont(str(DFONTS / coll), fontNumber=num))
 
 
 if __name__ == "__main__":

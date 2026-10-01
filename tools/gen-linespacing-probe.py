@@ -1,24 +1,16 @@
 #!/usr/bin/env python3
-"""Generate a synthetic line-spacing probe deck.
+"""Generate a synthetic line-spacing probe deck (M2 calibration).
 
-One slide per font; per slide a row of text boxes, one per lnSpc variant
-(absent / 70% / 105% / 120% / 150% / 200% / 24pt / 36pt / 48pt exact). Each box
-holds a single paragraph of identical lines separated by <a:br/>, so the measured
-pitch is pure line advance with no paragraph spacing folded in. Box tops sit on
-a known EMU grid, which makes the first-baseline offset measurable too.
-
-This is the calibration fixture for line spacing: render the deck in the target
-engine and in the reference application, and compare the two pitches per font
-and per variant.
+One slide per font; per slide a row of textboxes, one per lnSpc variant
+(absent / 70% / 100% / 120% / 150% / 24pt exact). Each box holds one paragraph
+with 6 identical lines separated by <a:br/> so measured pitch is pure line
+advance (no spcBef/spcAft). Box tops are at a known EMU grid so first-baseline
+offsets are measurable too.
 
 Usage: python3 tools/gen-linespacing-probe.py /path/probe.pptx
 """
-import sys
-import tempfile
-import zipfile
-from pathlib import Path
+import sys, zipfile
 
-# (font, sample text) — the sample carries the glyphs the metric matters for
 FONTS = [
     ("Arial", "HIKE"),
     ("Calibri", "HIKE"),
@@ -31,7 +23,7 @@ FONTS = [
     ("ＭＳ Ｐゴシック", "国線測"),
     ("Malgun Gothic", "한글측"),
 ]
-# (label, lnSpc XML or '' for "inherit from the layout")
+# (label, lnSpc XML or '')
 VARIANTS = [
     ("none", ""),
     ("70", '<a:lnSpc><a:spcPct val="70000"/></a:lnSpc>'),
@@ -43,7 +35,7 @@ VARIANTS = [
     ("pts48", '<a:lnSpc><a:spcPts val="4800"/></a:lnSpc>'),
     ("pts80", '<a:lnSpc><a:spcPts val="8000"/></a:lnSpc>'),
 ]
-SZ = 4800  # 48pt: 1 reference pixel is then ~0.016em, well under the quantisation floor
+SZ = 4800  # 48pt (quantization: 1 ref px ~ 0.016em)
 LINES = 5
 CX, CY = 12192000, 6858000
 BOX_W, BOX_H = 1150000, 5600000
@@ -70,7 +62,7 @@ def slide_xml(font, sample):
             )
         shapes.append(
             f'<p:sp><p:nvSpPr><p:cNvPr id="{i + 2}" name="probe-{label}"/>'
-            f'<p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>'
+            f"<p:cNvSpPr txBox=\"1\"/><p:nvPr/></p:nvSpPr>"
             f'<p:spPr><a:xfrm><a:off x="{x}" y="{BOX_Y}"/><a:ext cx="{BOX_W}" cy="{BOX_H}"/></a:xfrm>'
             f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>'
             f'<p:txBody><a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0"/><a:lstStyle/>'
@@ -129,7 +121,8 @@ THEME = (
     '<a:fmtScheme name="p"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
     '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
     '<a:lnStyleLst><a:ln><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
-    '<a:ln><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:ln></a:lnStyleLst>'
+    '<a:ln><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
+    '<a:ln><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'
     '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle>'
     '<a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'
     '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
@@ -165,7 +158,9 @@ def main(out):
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>'
         "</Relationships>",
     )
-    slide_ids = "".join(f'<p:sldId id="{256 + i}" r:id="rId{i + 2}"/>' for i in range(n))
+    slide_ids = "".join(
+        f'<p:sldId id="{256 + i}" r:id="rId{i + 2}"/>' for i in range(n)
+    )
     z.writestr(
         "ppt/presentation.xml",
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -220,6 +215,4 @@ def main(out):
 
 
 if __name__ == "__main__":
-    # tempfile.gettempdir() rather than a literal /tmp: this runs on Windows too,
-    # where /tmp does not exist and zipfile would fail with FileNotFoundError.
-    main(sys.argv[1] if len(sys.argv) > 1 else str(Path(tempfile.gettempdir()) / "linespacing-probe.pptx"))
+    main(sys.argv[1] if len(sys.argv) > 1 else "/tmp/linespacing-probe.pptx")

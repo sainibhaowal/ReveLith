@@ -26,6 +26,7 @@ export {
   IconRotateLeft,
   IconRotateRight,
   IconSave,
+  IconSearch,
   IconSparkle,
   IconTable,
   IconTrash,
@@ -135,16 +136,6 @@ export function IconPreview(props: IconProps) {
     <Svg {...props}>
       <rect x="2.2" y="3" width="11.6" height="10" rx="1.4" />
       <path d="M2.2 6h11.6" />
-    </Svg>
-  )
-}
-
-/** find: a magnifier on the 16-grid */
-export function IconSearch(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <circle cx="7" cy="7" r="4.2" />
-      <path d="m10.2 10.2 3.3 3.3" />
     </Svg>
   )
 }

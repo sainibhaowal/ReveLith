@@ -1,12 +1,11 @@
 import type { AgentToolCall, AgentToolDef, ToolExecution } from './types'
 
-/**
- * One tool call actually executed during a run, as seen by verifyResponse.
- * Canonical definition lives in ./types (re-exported here for callers that
- * import it alongside AgentSkill); both names resolve to one type.
- */
-export type { ExecutedToolCall } from './types'
-import type { ExecutedToolCall } from './types'
+/** One tool call actually executed during a run, as seen by verifyResponse. */
+export interface ExecutedToolCall {
+  name: string
+  /** false when the execution returned an error result */
+  ok: boolean
+}
 
 /**
  * A skill packages one capability domain for the agent loop: its system
@@ -30,11 +29,12 @@ export interface AgentSkill {
    */
   executeTool(call: AgentToolCall, signal?: AbortSignal): ToolExecution | Promise<ToolExecution>
   /**
-   * Post-run guard against claimed-action hallucination: inspects the final
-   * assistant text against the tools that actually ran and returns a
-   * corrective instruction when the reply narrates an action that never
-   * happened (the loop then runs one extra turn); null when the reply is
-   * fine. Prompt rules alone are soft — this is the mechanical backstop.
+   * Claimed-action guard: inspect the run's final assistant text against the
+   * tools that actually executed during the run. Return a corrective
+   * instruction to force one more model turn (e.g. the text claims "I
+   * selected/located ..." but no matching tool call succeeded), or null to
+   * accept the reply. The loop applies the correction at most once per run,
+   * so a detector false-positive costs one extra turn and cannot loop.
    */
   verifyResponse?(finalText: string, executed: readonly ExecutedToolCall[]): string | null
 }
@@ -45,8 +45,8 @@ export interface AgentSkill {
  */
 export function composeSkills(id: string, intro: string, skills: AgentSkill[]): AgentSkill {
   // Recomputed per access: a sub-skill may expose `tools` through a getter
-  // keyed on runtime capability, and the loop reads the composed skill's tools
-  // before every model request.
+  // keyed on runtime capability (e.g. gsk login/toggle), and the loop reads
+  // the composed skill's tools before every model request.
   const ownerOf = (name: string): AgentSkill | undefined =>
     skills.find((skill) => skill.tools.some((tool) => tool.name === name))
   return {

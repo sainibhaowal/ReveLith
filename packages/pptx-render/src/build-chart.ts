@@ -62,19 +62,6 @@ function chartPalette(model: ChartModel): string[] {
   return model.themePalette?.length ? model.themePalette : PALETTE
 }
 
-/**
- * Series indexes the legend lists, in PowerPoint's display order, with
- * c:legendEntry deletions already applied. hiddenLegendEntries holds display
- * *positions* (not series indexes), which is why it filters by position.
- */
-function legendSeriesIndexes(model: ChartModel): number[] {
-  const order = model.legendOrder ?? model.series.map((_, i) => i)
-  const hidden = model.hiddenLegendEntries
-  if (!hidden?.length) return order
-  const skip = new Set(hidden)
-  return order.filter((_, pos) => !skip.has(pos))
-}
-
 /** Chart body text size (pt): chartSpace-level c:txPr default, else 10pt. */
 function chartTextPt(model: ChartModel): number {
   return model.defaultTextPt ?? 10
@@ -1095,10 +1082,6 @@ function buildChartNodeInner(
     const step = barW * (1 - ov)
     const groupW = barW + step * (sCount - 1)
     const base = Math.max(min, 0) // autoZero baseline; when axis min>0, bars start from the axis bottom
-    // c:varyColors on a single-series plot gives every category its own palette
-    // entry (PowerPoint's "Vary colors by point"); with several series the
-    // series colors already differ, so the flag is ignored there
-    const varyPerPoint = model.varyColors === true && barSeriesIdx.length === 1
     barSeriesIdx.forEach((si, slot) => {
       const ser = model.series[si]!
       const color = seriesColor(si)
@@ -1113,7 +1096,7 @@ function buildChartNodeInner(
           y: yTop,
           w: barW,
           h: Math.max(yBot - yTop, 0.5),
-          color: ser.pointColors?.[i] ?? (varyPerPoint ? palette[i % palette.length]! : color),
+          color: ser.pointColors?.[i] ?? color,
           ...pointFill(ser.pointFills?.[i]),
         })
         // 3D bars: the label clears the box's top face (its back edge rises depth3d above
@@ -1266,7 +1249,7 @@ function buildChartNodeInner(
       italic: false,
     }
     const legendMeasure = (t: string) => metrics.measure(t, legendTextStyle)
-    const items = legendSeriesIndexes(model).map((i) => ({
+    const items = (model.legendOrder ?? model.series.map((_, i) => i)).map((i) => ({
       label: model.series[i]?.name ?? '',
       color: seriesColor(i),
     }))
@@ -1591,12 +1574,10 @@ function buildPieNode(
 
   // Legend space (without a legend, the whole box goes to the pie)
   const legendPos = model.legendPos
-  // A pie legend lists one entry per category, so c:legendEntry deletions
-  // (display positions) filter the category list, not the series list
-  const pieHidden = new Set(model.hiddenLegendEntries ?? [])
-  const legendItems = model.categories
-    .map((cat, i) => ({ label: cat, color: swatchColor(i) }))
-    .filter((_, i) => !pieHidden.has(i))
+  const legendItems = model.categories.map((cat, i) => ({
+    label: cat,
+    color: swatchColor(i),
+  }))
   const legendRowH = labelSizePx * 1.5
   let plotW = box.w - pad * 2
   let plotH = box.h - pad * 2
@@ -1785,9 +1766,7 @@ function buildPieNode(
   if (legendPos) {
     const sw = labelSizePx * 0.5
     const lay = model.legendLayout
-    // A deck may state the direction explicitly (c:pPr rtl="1" in the legend
-    // txPr); otherwise Hebrew/Arabic category text implies it
-    const rtl = model.legendRtl ?? legendIsRtl(legendItems.map((it) => it.label))
+    const rtl = !!model.legendRtl
     const entry = (
       x: number,
       y: number,
@@ -1831,26 +1810,20 @@ function buildPieNode(
           entry(x, rect.y + i * rowH, it, w, textWs[i]!)
         })
       } else {
-        // The row is centered (or pinned to the authored rect) either way; RTL
-        // only flips the fill direction, so entry 0 lands in the rightmost slot
-        // and stays first in the emitted swatch/label list.
-        const rowLeft = rect ? rect.x : Math.max((box.w - totalW) / 2, pad)
-        const rowW = rect ? rect.w : totalW
+        let x = rect
+          ? rtl
+            ? rect.x + rect.w - totalW
+            : rect.x
+          : Math.max((box.w - totalW) / 2, pad)
         const y = rect
           ? rect.y
           : legendPos === 't'
             ? pad * 0.5
             : box.h - pad * 0.5 - labelSizePx * 1.2
-        let x = rtl ? rowLeft + rowW : rowLeft
-        for (const i of legendItems.keys()) {
-          const w = itemWs[i]!
-          if (rtl) {
-            x -= w
-            entry(x, y, legendItems[i]!, w, textWs[i]!)
-          } else {
-            entry(x, y, legendItems[i]!, w, textWs[i]!)
-            x += w
-          }
+        const ordered = rtl ? [...legendItems.keys()].reverse() : [...legendItems.keys()]
+        for (const i of ordered) {
+          entry(x, y, legendItems[i]!, itemWs[i]!, textWs[i]!)
+          x += itemWs[i]!
         }
       }
     } else {
@@ -3278,19 +3251,9 @@ function buildRadarNode(
       : 0
   const plotW = box.w - pad * 2 - sideLegendW - maxCatW * 2
   const plotH = box.h - pad * 2 - legendH - labelSizePx * 2.4
-  let R = Math.max(Math.min(plotW, plotH) / 2, 5)
-  let cx = pad + maxCatW + plotW / 2 + (legendPos === 'l' ? sideLegendW : 0)
-  let cy = pad + labelSizePx * 1.2 + (legendPos === 't' ? legendH : 0) + plotH / 2
-  // A deck-authored inner plot rect recenters and rescales the radar, matching
-  // the bar/line/pie builders
-  const rl = model.plotLayout
-  if (rl) {
-    const w = Math.max(rl.w * box.w, 10)
-    const h = Math.max(rl.h * box.h, 10)
-    R = Math.max(Math.min(w, h) / 2, 5)
-    cx = rl.x * box.w + w / 2
-    cy = rl.y * box.h + h / 2
-  }
+  const R = Math.max(Math.min(plotW, plotH) / 2, 5)
+  const cx = pad + maxCatW + plotW / 2 + (legendPos === 'l' ? sideLegendW : 0)
+  const cy = pad + labelSizePx * 1.2 + (legendPos === 't' ? legendH : 0) + plotH / 2
   const plot = { x: cx - R, y: cy - R, w: R * 2, h: R * 2 }
 
   // Vertex directions: from 12 o'clock, clockwise
@@ -3409,7 +3372,7 @@ function addSeriesLegend(
   const legendPos = model.legendPos
   if (!legendPos || !model.series.some((s) => s.name)) return
   const sw = labelSizePx * 0.5
-  const items = legendSeriesIndexes(model).map((i) => ({
+  const items = (model.legendOrder ?? model.series.map((_, i) => i)).map((i) => ({
     label: model.series[i]?.name ?? '',
     color: seriesColor(i),
   }))
@@ -3643,112 +3606,4 @@ function fmtNum(v: number): string {
   if (v === 0) return '0' // -0 from float tick accumulation would print "-0"
   if (Number.isInteger(v)) return v.toLocaleString('en-US')
   return String(v)
-}
-
-// ReveLith-only exports for pptx-render (appended to build-chart.ts)
-
-const LEGEND_RTL_RE = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/
-
-/** True when any legend label carries strong RTL script: the whole legend row/column mirrors. */
-export function legendIsRtl(labels: string[]): boolean {
-  return labels.some((l) => LEGEND_RTL_RE.test(l))
-}
-
-export interface LegendPlacedItem {
-  swX: number
-  labelX: number
-}
-
-/**
- * Lay out one legend flow (a t/b row or a side column): LTR places swatch
- * left of each label flowing left-to-right; RTL mirrors the flow so items run
- * right-to-left with each swatch right of its label. widths[i] is the full
- * item advance (swatch + gap + label + trailing pad).
- */
-export function layoutLegendFlow(
-  widths: number[],
-  labelWs: number[],
-  originX: number,
-  sw: number,
-  rtl: boolean,
-): LegendPlacedItem[] {
-  if (!rtl) {
-    let x = originX
-    return widths.map((w) => {
-      const placed = { swX: x, labelX: x + sw + 4 }
-      x += w
-      return placed
-    })
-  }
-  const total = widths.reduce((a, b) => a + b, 0)
-  let x = originX + total
-  return widths.map((w, i) => {
-    x -= w
-    return { swX: x + (labelWs[i] ?? 0) + 4, labelX: x }
-  })
-}
-
-/**
- * Manual legend origin override (c:legend/c:layout/c:manualLayout): 'edge'
- * takes normalized fractions of the chart box, 'factor' scales the auto origin.
- */
-export function legendOrigin(
-  layout:
-    | {
-        x?: number
-        y?: number
-        w?: number
-        h?: number
-        xMode?: 'edge' | 'factor'
-        yMode?: 'edge' | 'factor'
-      }
-    | undefined,
-  autoX: number,
-  autoY: number,
-  box: { w: number; h: number },
-): { x: number; y: number } {
-  if (!layout) return { x: autoX, y: autoY }
-  return {
-    x: layout.xMode === 'edge' ? (layout.x ?? 0) * box.w : autoX * (layout.x ?? 1),
-    y: layout.yMode === 'edge' ? (layout.y ?? 0) * box.h : autoY * (layout.y ?? 1),
-  }
-}
-
-/**
- * Apply a manual plot layout override to the auto-computed plot frame.
- * Both 'edge' (normalized 0..1 of the chart box) and 'factor' (multiplier of
- * the auto frame) modes are supported per axis. Absent = auto.
- */
-export function applyManualPlot(
-  layout:
-    | {
-        x?: number
-        y?: number
-        w?: number
-        h?: number
-        xMode?: 'edge' | 'factor'
-        yMode?: 'edge' | 'factor'
-      }
-    | undefined,
-  auto: { x: number; y: number; w: number; h: number },
-  box: { w: number; h: number },
-): { x: number; y: number; w: number; h: number } {
-  if (!layout) return auto
-  const pick = (
-    v: number | undefined,
-    mode: 'edge' | 'factor' | undefined,
-    autoV: number,
-    boxV: number,
-    min: number,
-  ): number => {
-    if (v === undefined || mode === undefined) return autoV
-    const raw = mode === 'edge' ? v * boxV : autoV * v
-    return Math.max(Math.min(raw, boxV), min)
-  }
-  return {
-    x: pick(layout.x, layout.xMode, auto.x, box.w, 0),
-    y: pick(layout.y, layout.yMode, auto.y, box.h, 0),
-    w: pick(layout.w, layout.xMode, auto.w, box.w, 10),
-    h: pick(layout.h, layout.yMode, auto.h, box.h, 10),
-  }
 }

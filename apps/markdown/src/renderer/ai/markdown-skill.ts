@@ -65,12 +65,12 @@ const AGENT_SYSTEM_PROMPT = [
 ].join('\n')
 
 const IMAGE_GEN_OFF_NOTE =
-  '\n\nNote: generate_image is currently unavailable (no image provider configured: set one under Settings → AI Media & Search, or add a media API key). Do not call or promise it; use image_search for imagery.'
+  '\n\nNote: generate_image is currently unavailable (no image provider: signed out of ReveLith or cloud tools off, and no media API key in Settings). Do not call or promise it; use image_search for imagery.'
 
 export function createMarkdownSkill(
   getEditor: () => Editor | null,
   fm?: FrontmatterAccess,
-  /** live predicate (dedicated Media & Search backend or provider key); false hides generate_image */
+  /** live predicate (gsk login && cloud-tools toggle, or a BYOK media key); false hides generate_image */
   imageGenAvailable?: () => boolean,
   /** streaming long-form writer behind write_document (panel-owned: progress chip, partial keep/discard) */
   getWriter?: () => AiDocWriter | undefined,

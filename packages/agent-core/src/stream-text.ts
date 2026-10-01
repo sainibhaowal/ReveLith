@@ -1,204 +1,128 @@
-import type { AgentStreamHandle, AgentStreamRequest, AgentTransport } from './types'
+import type { AgentStreamHandle, AgentTransport } from './types'
 
 /**
- * One tool-less streaming request whose reply body IS the payload (a JSON
- * brief, a whole HTML page, a long document). Tool-less on purpose: tool
- * arguments are buffered provider-side until the JSON is complete, so a
- * document-sized argument can sit silent long enough for a gateway to cut the
- * connection, while text deltas stream continuously.
+ * One tool-less streaming request whose reply body IS the artifact (a page, a
+ * document fragment). Text deltas arrive immediately, so the caller can mirror
+ * the draft as it grows and no gateway sees a silent connection — tool
+ * arguments are buffered server-side until the JSON is complete, and an
+ * artifact-sized argument exceeds gateway idle cutoffs.
  */
-
-/** What the caller wants back after a completed turn. */
-export interface StreamTextExtractResult {
-  /** cleaned payload (fences/chatter stripped) */
-  text: string
-  /**
-   * true when the payload looks finished, not truncated mid-way. A payload
-   * with no recognizable terminator (a plain document, say) is taken as
-   * complete unless the extractor says otherwise, so callers that do not track
-   * structure can omit it.
-   */
-  complete?: boolean | undefined
-}
-
 export interface StreamTextOptions {
   transport: AgentTransport
   system: string
   user: string
   signal?: AbortSignal
-  /** hard cap on accumulated characters; the stream is cancelled past it */
-  maxChars?: number
-  /** strip fences / chatter from the raw stream (called on every delta batch) */
-  extract: (raw: string) => StreamTextExtractResult
-  /** throttled progress: receives the cumulative extracted text */
+  /** the stream is cancelled and reported as partial once the raw reply exceeds this */
+  maxChars: number
+  /**
+   * Maps the raw reply so far to the artifact. `complete` says the format's own
+   * terminator arrived (e.g. `</html>`); omit it for formats without one, and
+   * the stop reason decides (a natural end is complete, `max_tokens` is not).
+   */
+  extract(raw: string): { text: string; complete?: boolean }
+  /** cumulative extracted text; throttle on the caller's side */
   onProgress?(text: string): void
 }
 
 export type StreamTextOutcome =
   | { status: 'complete'; text: string }
-  | {
-      status: 'partial'
-      text: string
-      /** why the stream ended early */
-      reason: 'error' | 'stopped' | 'max_tokens'
-      error?: string
-    }
+  | { status: 'partial'; text: string; reason: 'error' | 'stopped' | 'max_tokens'; error?: string }
   | { status: 'empty'; error: string }
 
-/** Progress callbacks fire at most this often while deltas stream in. */
-const PROGRESS_THROTTLE_MS = 120
-
-/**
- * Cap used when the caller supplies no usable limit.
- *
- * A limit is a safety net, so an unusable one must not silently disable it.
- * `NaN` is the dangerous case rather than an obvious one: a caller that
- * derives the cap from a token estimate gets `NaN` from a divide-by-zero or a
- * missing model price, and `raw.length > NaN` is false for every string, so the
- * comparison never trips and the stream runs unbounded. Zero and negative
- * limits are the mirror failure: they trip on the first delta and truncate the
- * reply to nothing. All of them fall back here instead.
- */
-const FALLBACK_MAX_CHARS = 200_000
-
-/**
- * Stream one tool-less turn and resolve with the extracted payload.
- * Never throws: transport errors, aborts and the output cap all come back as a
- * discriminated result so callers can show partial work instead of a dead end.
- */
+/** Resolves with what arrived, never throws. */
 export function streamText(opts: StreamTextOptions): Promise<StreamTextOutcome> {
-  const { transport, system, user, signal, extract, onProgress } = opts
-  const maxChars =
-    opts.maxChars !== undefined && Number.isFinite(opts.maxChars) && opts.maxChars > 0
-      ? opts.maxChars
-      : FALLBACK_MAX_CHARS
-  // An extract() that throws must settle the promise rather than strand the
-  // caller on a stream that will never report anything again. The raw reply is
-  // kept (marked incomplete) so a formatting bug degrades to raw output instead
-  // of losing the model's reply.
-  const safeExtract = (text: string): StreamTextExtractResult => {
-    try {
-      return extract(text)
-    } catch (err) {
-      return { text, complete: false }
-    }
-  }
-  return new Promise<StreamTextOutcome>((resolve) => {
+  return new Promise((resolve) => {
     let raw = ''
+    let stopReason: string | undefined
     let settled = false
-    let sawStopReason: string | undefined
-    let lastError: string | undefined
-    let aborted = signal?.aborted ?? false
-    let capped = false
-    let lastProgress = 0
-
+    let handle: AgentStreamHandle | null = null
+    let onAbort: () => void = () => undefined
+    let cancelRequested = false
+    // Fallback cap when the caller passes NaN, Infinity, zero, or a negative limit.
+    const FALLBACK_MAX_CHARS = 200000
+    const maxChars =
+      Number.isFinite(opts.maxChars) && opts.maxChars > 0 ? opts.maxChars : FALLBACK_MAX_CHARS
+    // Extract never throws; on failure the raw reply is kept so the promise settles.
+    const safeExtract = (input: string): { text: string; complete?: boolean; error?: string } => {
+      try {
+        return opts.extract(input)
+      } catch (err) {
+        return { text: input, error: err instanceof Error ? err.message : String(err) }
+      }
+    }
     const finish = (outcome: StreamTextOutcome) => {
       if (settled) return
       settled = true
-      signal?.removeEventListener('abort', onAbort)
+      opts.signal?.removeEventListener('abort', onAbort)
       resolve(outcome)
     }
-
-    const publish = (force = false) => {
-      if (!onProgress) return
-      const now = Date.now()
-      if (!force && now - lastProgress < PROGRESS_THROTTLE_MS) return
-      lastProgress = now
-      onProgress(safeExtract(raw).text)
+    const partialOrEmpty = (
+      reason: 'error' | 'stopped' | 'max_tokens',
+      error?: string,
+    ): StreamTextOutcome => {
+      const extracted = safeExtract(raw)
+      const resolvedError = error ?? extracted.error
+      if (!extracted.text.trim()) return { status: 'empty', error: resolvedError ?? reason }
+      return resolvedError === undefined
+        ? { status: 'partial', text: extracted.text, reason }
+        : { status: 'partial', text: extracted.text, reason, error: resolvedError }
     }
-
-    /** Runs the shared end-of-stream bookkeeping once the transport settles. */
-    const settle = (status: 'done' | 'error') => {
-      const { text, complete = true } = safeExtract(raw)
-      if (!text) {
-        finish(
-          status === 'error'
-            ? { status: 'empty', error: lastError ?? 'the model returned no content' }
-            : { status: 'empty', error: 'the model returned no content' },
-        )
-        return
-      }
-      // A cancelled or capped run did not finish cleanly, so it is partial even
-      // when the extractor is perfectly happy with the text. Without this the
-      // happy `complete` below short-circuits first and the caller is told the
-      // reply is whole after the user pressed stop, or after we cut it off.
-      const interrupted = aborted || capped
-      if (status === 'done' && complete && !interrupted) {
-        finish({ status: 'complete', text })
-        return
-      }
-      const truncatedByLimit = sawStopReason === 'max_tokens' || capped
-      const reason: 'error' | 'stopped' | 'max_tokens' =
-        status === 'error' ? 'error' : truncatedByLimit ? 'max_tokens' : 'stopped'
-      finish({ status: 'partial', text, reason, ...(lastError ? { error: lastError } : {}) })
+    const cancelTransport = () => {
+      cancelRequested = true
+      handle?.cancel()
     }
-
-    // A transport that emits deltas synchronously (an already-replayed buffer)
-    // can reach the cancel paths before `stream()` returns, so the handle lives
-    // in a holder that is initialized before the call rather than in a `const`
-    // whose binding would still be in the temporal dead zone.
-    const live: { handle?: AgentStreamHandle } = {}
-
-    // Already cancelled: settle without opening a request. Sending anyway would
-    // bill a completion the user just refused.
-    if (aborted) {
-      finish({ status: 'empty', error: 'the request was cancelled before it started' })
+    onAbort = () => {
+      if (settled) return
+      finish(partialOrEmpty('stopped'))
+      cancelTransport()
+    }
+    if (opts.signal?.aborted) {
+      onAbort()
       return
     }
-
-    live.handle = transport.stream(
-      { system, messages: [{ role: 'user', text: user }], tools: [] } satisfies AgentStreamRequest,
+    handle = opts.transport.stream(
+      { system: opts.system, messages: [{ role: 'user', text: opts.user }], tools: [] },
       {
         onDelta: (delta) => {
-          if (settled || aborted) return
+          if (settled) return
           raw += delta
-          if (maxChars !== undefined && raw.length > maxChars) {
-            raw = raw.slice(0, maxChars)
-            capped = true
-            lastError = `output exceeded ${maxChars} chars`
-            // a synchronous transport that already finished has no live handle; the
-            // transport must still emit onDone, which settle() below consumes
-            live.handle?.cancel()
-            publish(true)
-            settle('done')
+          if (raw.length > maxChars) {
+            finish(partialOrEmpty('max_tokens', `output exceeded ${maxChars} chars`))
+            cancelTransport()
             return
           }
-          publish()
+          try {
+            opts.onProgress?.(safeExtract(raw).text)
+          } catch {
+            // Ignore progress listener failures so the stream can still settle.
+          }
         },
-        onToolCall: () => {
-          // tool-less request: a stray call is ignored, the model only owes text
-        },
+        onToolCall: () => undefined,
         onStopReason: (reason) => {
-          sawStopReason = reason
+          stopReason = reason
         },
         onDone: () => {
           if (settled) return
-          if (capped || aborted) {
-            settle('done')
-            return
-          }
-          publish(true)
-          settle('done')
+          const { text, complete, error: extractError } = safeExtract(raw)
+          const finished =
+            extractError === undefined &&
+            (complete ?? (stopReason !== 'max_tokens' && text.trim() !== ''))
+          if (finished) finish({ status: 'complete', text })
+          else if (stopReason === 'max_tokens') finish(partialOrEmpty('max_tokens', extractError))
+          else
+            finish(
+              partialOrEmpty(
+                'error',
+                extractError ?? (complete === undefined ? 'empty reply' : undefined),
+              ),
+            )
         },
-        onError: (error) => {
-          if (settled) return
-          lastError = error
-          if (aborted) {
-            settle('done')
-            return
-          }
-          publish(true)
-          settle('error')
-        },
+        onError: (error) => finish(partialOrEmpty('error', error)),
       },
     )
-
-    function onAbort() {
-      if (settled) return
-      aborted = true
-      live.handle?.cancel()
-    }
-    signal?.addEventListener('abort', onAbort, { once: true })
-    if (aborted) onAbort()
+    if (settled) {
+      if (cancelRequested) handle.cancel()
+    } else if (opts.signal?.aborted) onAbort()
+    else opts.signal?.addEventListener('abort', onAbort, { once: true })
   })
 }

@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""Scale the bundled Korean sans subset's Latin outlines to Malgun Gothic's ink boxes.
+"""Scale ReveLith Sans KR Latin outlines to Malgun Gothic's ink boxes.
 
-normalize-kr-sans-hmtx.py rewrote the Basic Latin advances to the reference
-face's values but left the narrower upstream outlines alone, so wide-advance
-letters (M, W, &) show a visible gap after the glyph — the difference between
-"SAM IN" and "S AM IN". This pass reshapes each printable Latin glyph
-horizontally to the reference face's per-glyph ink width and left side bearing,
-both measured from the local reference font at build time. Only the transformed
-outlines ship.
+normalize-kr-sans-hmtx.py rewrote the Basic Latin advances to Malgun's values
+but left Noto's narrower outlines untouched, so wide-advance letters (M, W, &)
+show a visible gap after the glyph ("SAM IN", "M onitoring" — prod100r3
+samples 70/85). This pass reshapes each printable Latin glyph horizontally to
+Malgun's per-glyph ink width and left side bearing (measured from the local
+malgun.ttf at build time; only the transformed Noto outlines ship).
 
-Idempotent: a glyph already within 2% of the target ink width AND within
-3/1000 em of the target side bearing is skipped; a matching width with a drifted
-side bearing still gets translated into place.
+Idempotent: glyphs already within 2% of the target ink width AND within
+3/1000 em of the target left side bearing are skipped; a matching width with
+a drifted side bearing still gets translated into place.
 
-Usage:
-    python3 tools/scale-kr-sans-latin-ink.py [woff2-path] [reference-font]
-    python3 tools/scale-kr-sans-latin-ink.py in.woff2 malgun.ttf
+Usage: python3 tools/scale-kr-sans-latin-ink.py [woff2-path] [malgun-path]
 """
 
 import sys
@@ -28,7 +25,6 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
 DEFAULT = "apps/docs/src/renderer/fonts/RevelithSansKR-Regular-subset.woff2"
-# macOS Office font bundle; override with the second argument on any platform.
 MALGUN = "/Applications/Microsoft Word.app/Contents/Resources/DFonts/malgun.ttf"
 
 
@@ -53,7 +49,7 @@ def main() -> None:
     glyph_set = font.getGlyphSet()
 
     scaled = skipped = 0
-    for cp in range(0x21, 0x7F):  # space has no ink to align
+    for cp in range(0x21, 0x7F):
         name = cmap.get(cp)
         m_name = m_cmap.get(cp)
         if name is None or m_name is None:
@@ -81,11 +77,11 @@ def main() -> None:
         adv = hmtx[name][0]
         t2_pen = T2CharStringPen(adv, glyph_set)
         glyph_set[name].draw(TransformPen(t2_pen, transform))
-        # CID-keyed CFF keeps a Private dict per FDArray entry, so each glyph has
-        # to be handed back its own rather than a shared default
-        charstrings[name] = t2_pen.getCharString(
+        # CID-keyed CFF keeps Private dicts per FDArray entry; reuse the glyph's own
+        new_cs = t2_pen.getCharString(
             private=charstrings[name].private, globalSubrs=cff.GlobalSubrs
         )
+        charstrings[name] = new_cs
         hmtx[name] = (adv, round(target_lsb))
         scaled += 1
 

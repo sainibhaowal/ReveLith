@@ -1,191 +1,215 @@
 /**
- * Select-style dropdown: a trigger that shows the current value, and a floating
- * list to pick a new one. Used wherever a native <select> would look wrong in
- * the ribbon (device presets, font pickers, form fields inside a page).
+ * Shared select replacement: a framed trigger (current option + caret) opening
+ * a themed, anchored popover of options — native <select> popups are OS-drawn
+ * and ignore the app theme. Options render arbitrary content (line previews,
+ * text) and stay keyboard-operable (arrows / Enter / Escape / Home / End while
+ * the trigger keeps focus). The popover is position: fixed + CSS-anchored to
+ * the trigger so scroll-container overflow never clips it, with a flip-block
+ * fallback near the viewport bottom.
  *
- * The class names are prefixed `rv-dd` (ReveLith dropdown) and are styled by
- * each app's own stylesheet, so a control can adopt the surrounding chrome
- * (a PDF form field, a compact status-bar pill) just by adding a class.
+ * Styling comes from dropdown.css (gs-dd* classes, token colors only); apps
+ * size the control via `className` on the wrapper.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
+import { useDismissablePopover } from './popover-dismiss'
 
-export interface DropdownOption<T extends string = string> {
-  value: T
-  label: string
-  disabled?: boolean
+export interface DropdownOption<K extends string = string> {
+  readonly value: K
+  /** Accessible name (aria-label/title); also the visible text when `render` is omitted. */
+  readonly label: string
+  readonly render?: React.ReactNode
+  /** Shown but not pickable (placeholder rows like "Auto", unavailable modes). */
+  readonly disabled?: boolean
 }
 
-export interface DropdownProps<T extends string = string> {
-  /** currently selected value; must be one of `options` */
-  value: T
-  options: readonly DropdownOption<T>[]
-  onPick: (value: T) => void
-  /** extra classes on the wrapper (the app supplies the control's look) */
-  className?: string
-  /** accessible name; also the tooltip when `tip` is absent */
-  ariaLabel?: string
-  /** form semantics, for a dropdown that stands in for a required field */
-  ariaRequired?: boolean
-  ariaInvalid?: boolean
-  /** tooltip override for the trigger */
-  tip?: string
-  disabled?: boolean
+export function nextEnabledIndex(
+  options: ReadonlyArray<{ readonly disabled?: boolean }>,
+  start: number,
+  step: 1 | -1,
+): number {
+  for (let i = start; i >= 0 && i < options.length; i += step) {
+    if (!options[i]!.disabled) return i
+  }
+  return -1
 }
 
-export function Dropdown<T extends string = string>({
+export function reconcileActiveIndex(
+  options: ReadonlyArray<{ readonly value?: string; readonly disabled?: boolean }>,
+  active: number,
+  value?: string,
+): number {
+  if (active >= 0 && active < options.length && !options[active]!.disabled) return active
+  if (value !== undefined) {
+    const selected = options.findIndex((option) => option.value === value)
+    if (selected >= 0 && !options[selected]!.disabled) return selected
+  }
+  const start = active >= 0 && active < options.length ? active : 0
+  const forward = nextEnabledIndex(options, start, 1)
+  return forward >= 0 ? forward : nextEnabledIndex(options, Math.min(start, options.length - 1), -1)
+}
+
+export function Dropdown<K extends string>({
   value,
   options,
   onPick,
   className,
   ariaLabel,
+  disabled,
+  tip,
   ariaRequired,
   ariaInvalid,
-  tip,
-  disabled = false,
-}: DropdownProps<T>): ReactElement {
+}: {
+  readonly value: K
+  readonly options: ReadonlyArray<DropdownOption<K>>
+  readonly onPick: (value: K) => void
+  /** Extra class on the wrapper (apps set width there). */
+  readonly className?: string
+  /** Control name for screen readers; defaults to the current option's label. */
+  readonly ariaLabel?: string
+  readonly disabled?: boolean
+  /** ScreenTip text (data-tip on the trigger). */
+  readonly tip?: string
+  /** Form semantics passthrough (AcroForm widgets etc.). */
+  readonly ariaRequired?: boolean
+  readonly ariaInvalid?: boolean
+}): React.JSX.Element {
   const [open, setOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
-  const wrapRef = useRef<HTMLDivElement | null>(null)
-  const listRef = useRef<HTMLDivElement | null>(null)
-
-  const selected = options.find((option) => option.value === value) ?? options[0]
-  const enabledIndexes = options.map((o, i) => (o.disabled ? -1 : i)).filter((i) => i >= 0)
-
-  const close = useCallback(() => {
-    setOpen(false)
-  }, [])
-
-  // outside press / focus loss closes: a menu must never trap the user
+  const [active, setActive] = useState(0)
+  const popRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLSpanElement>(null)
+  // Focus stays on the trigger (menu-button pattern), so the open listbox and
+  // the option the arrows are on are referenced by id instead of by focus.
+  const listId = useId()
+  const optionId = (index: number): string => `${listId}-option-${index}`
+  // guarded (capture-phase) dismissal: a press on another dropdown's trigger
+  // must close this one even though that trigger stops mousedown propagation
+  useDismissablePopover(open, () => setOpen(false), { inside: () => [wrapRef.current] })
   useEffect(() => {
     if (!open) return
-    const onDown = (event: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) close()
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        close()
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open, close])
-
-  // keep the highlighted row inside the visible part of a long list
+    // optional chaining on the call: jsdom elements have no scrollIntoView
+    popRef.current?.querySelectorAll('.gs-dd-item')[active]?.scrollIntoView?.({ block: 'nearest' })
+  }, [open, active])
   useEffect(() => {
-    if (!open || !listRef.current) return
-    const row = listRef.current.children[activeIndex] as HTMLElement | undefined
-    row?.scrollIntoView({ block: 'nearest' })
-  }, [open, activeIndex])
-
-  const openList = (startIndex: number) => {
-    const first = enabledIndexes.includes(startIndex) ? startIndex : (enabledIndexes[0] ?? 0)
-    setActiveIndex(first)
+    setActive((current) => reconcileActiveIndex(options, current, value))
+  }, [options, value])
+  // No fallback to options[0]: an off-list value (e.g. a document-only font)
+  // must read as itself, not masquerade as the first option
+  const current = options.find((o) => o.value === value)
+  // mirrors the .active class: a disabled row is never the active option
+  const activeOption = open && options[active] && !options[active]!.disabled ? active : null
+  const openList = () => {
+    const i = options.findIndex((o) => o.value === value)
+    setActive(reconcileActiveIndex(options, i, value))
     setOpen(true)
   }
-
-  const move = (delta: number) => {
-    if (enabledIndexes.length === 0) return
-    const pos = enabledIndexes.indexOf(activeIndex)
-    const nextPos = (pos + delta + enabledIndexes.length) % enabledIndexes.length
-    setActiveIndex(enabledIndexes[nextPos] ?? activeIndex)
+  const pick = (o: DropdownOption<K>) => {
+    if (o.disabled) return
+    setOpen(false)
+    onPick(o.value)
   }
-
-  const pick = (option: DropdownOption<T> | undefined) => {
-    if (!option || option.disabled) return
-    onPick(option.value)
-    close()
+  const move = (step: 1 | -1) => {
+    setActive((i) => {
+      const current = i >= 0 && i < options.length ? i : -1
+      const start = current < 0 ? (step === 1 ? 0 : options.length - 1) : current + step
+      const next = nextEnabledIndex(options, start, step)
+      return next < 0 ? reconcileActiveIndex(options, current, value) : next
+    })
   }
-
-  const title = tip ?? ariaLabel
-
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        openList()
+      }
+      return
+    }
+    if (e.key === 'Escape') setOpen(false)
+    else if (e.key === 'ArrowDown') move(1)
+    else if (e.key === 'ArrowUp') move(-1)
+    else if (e.key === 'Home') setActive(nextEnabledIndex(options, 0, 1))
+    else if (e.key === 'End') setActive(nextEnabledIndex(options, options.length - 1, -1))
+    else if (e.key === 'Enter' || e.key === ' ') {
+      const o = options[active]
+      if (o && !o.disabled) pick(o)
+      else {
+        const next = reconcileActiveIndex(options, active, value)
+        setActive(next)
+        const nextOption = options[next]
+        if (nextOption) pick(nextOption)
+      }
+    } else return
+    e.preventDefault()
+    // handled keys stay ours while the list is open: a bubbling Escape would
+    // close the hosting modal, bubbling arrows would nudge canvas elements
+    e.stopPropagation()
+  }
   return (
-    <div className={`rv-dd${className ? ` ${className}` : ''}`} ref={wrapRef}>
+    <span ref={wrapRef} className={`gs-dd${className ? ` ${className}` : ''}`}>
       <button
         type="button"
-        className="rv-dd-btn"
-        data-open={open ? 'true' : 'false'}
+        className="gs-dd-btn"
         disabled={disabled}
-        title={title}
-        aria-label={ariaLabel ?? title}
+        data-value={value}
+        data-tip={tip}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={activeOption === null ? undefined : optionId(activeOption)}
+        aria-label={ariaLabel ?? current?.label ?? value}
         aria-required={ariaRequired}
         aria-invalid={ariaInvalid}
-        onClick={() => (open ? close() : openList(options.findIndex((o) => o.value === value)))}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            if (open) move(1)
-            else openList(options.findIndex((o) => o.value === value))
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            if (open) move(-1)
-            else openList(options.findIndex((o) => o.value === value))
-          } else if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            if (open) pick(options[activeIndex])
-            else openList(options.findIndex((o) => o.value === value))
-          }
+        onClick={() => (open ? setOpen(false) : openList())}
+        onKeyDown={onKeyDown}
+        onBlur={(e) => {
+          // native selects close on focus loss (Tab); staying inside the wrapper
+          // (clicking an option focuses it) must not dismiss
+          if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false)
         }}
       >
-        <span className="rv-dd-label">{selected?.label ?? ''}</span>
-        <span className="rv-dd-caret" aria-hidden="true">
-          ▾
+        <span className="gs-dd-value">{current ? (current.render ?? current.label) : value}</span>
+        <span className="gs-dd-caret" aria-hidden="true">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M5.5 9.25 12 15.75l6.5-6.5"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
       </button>
-
       {open && (
-        <div
-          className="rv-dd-list"
-          role="listbox"
-          ref={listRef}
-          tabIndex={-1}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              move(1)
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              move(-1)
-            } else if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              pick(options[activeIndex])
-            } else if (e.key === 'Home') {
-              e.preventDefault()
-              setActiveIndex(enabledIndexes[0] ?? 0)
-            } else if (e.key === 'End') {
-              e.preventDefault()
-              setActiveIndex(enabledIndexes[enabledIndexes.length - 1] ?? 0)
-            }
-          }}
-        >
-          {options.map((option, index) => (
-            <div
-              key={option.value}
+        <div ref={popRef} className="gs-dd-pop" role="listbox" id={listId}>
+          {options.map((o, i) => (
+            <button
+              key={o.value}
+              id={optionId(i)}
+              type="button"
               role="option"
-              aria-selected={option.value === value}
-              className="rv-dd-item"
-              data-active={index === activeIndex ? 'true' : 'false'}
-              data-selected={option.value === value ? 'true' : 'false'}
-              data-disabled={option.disabled ? 'true' : undefined}
-              onMouseEnter={() => !option.disabled && setActiveIndex(index)}
-              onMouseDown={(e) => {
-                // mousedown, so the list does not lose focus before the pick
-                e.preventDefault()
-                pick(option)
+              // menu-button pattern: options never join the tab order (focus
+              // lives on the trigger; Tab away closes via its onBlur)
+              tabIndex={-1}
+              disabled={o.disabled}
+              aria-selected={o.value === value}
+              aria-label={o.label}
+              data-value={o.value}
+              title={o.label}
+              className={`gs-dd-item${o.value === value ? ' selected' : ''}${i === active && !o.disabled ? ' active' : ''}`}
+              onMouseEnter={() => {
+                if (!o.disabled) setActive(i)
               }}
+              // menu-button pattern: options never take focus, so picking one
+              // can't blur focus-scoped hosts (the PDF text editor commits its
+              // draft on focus leaving the edit bar)
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(o)}
             >
-              {option.label}
-            </div>
+              {o.render ?? o.label}
+            </button>
           ))}
         </div>
       )}
-    </div>
+    </span>
   )
 }

@@ -1,3 +1,4 @@
+import { aiPanelWidthAtPointer, AiPanelSideButton } from '@revelith/ui'
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import {
   AgentLoop,
@@ -7,6 +8,11 @@ import {
   type ToolDisplay,
 } from '@revelith/agent-core'
 import type { RenderSlide } from '@revelith/pptx-render'
+import {
+  cloudToolsEnabled,
+  imageGenerationAvailable,
+  mediaAnalysisAvailable,
+} from '@revelith/ai-provider/browser'
 import type { AiSettings, AttachmentAddResult, AttachmentMeta } from '../../shared/ipc'
 import { ATTACHMENT_IMAGE_EXTS } from '../../shared/ipc'
 import {
@@ -14,16 +20,31 @@ import {
   type DeckAccess,
   type ClarifyQuestion,
   type DeckProgressEvent,
-  type PageProgressItem,
 } from './slides-skill'
 import { extractJsonObject, parseOutlineJson } from './outline-json'
+import { EditQueueCard } from './EditQueueCard'
+import { deriveDeckProgressView, type DeckProgressSnapshot } from './deck-progress-view'
+import {
+  buildPageInstruction,
+  groupByPage,
+  resolveQueue,
+  type EditQueueItem,
+  type ResolveFailure,
+} from './edit-queue'
 import { createFilesSkill } from './files-skill'
 import { createElectronTransport } from './transport'
 import { renderSlidesToPngBase64 } from '../export-render'
-import { isQcEnabled, mergeQcPages, qcSlidePage, QC_MAX_PAGES } from './slide-qc'
+import {
+  isQcEnabled,
+  isUnsupportedImageInputError,
+  mergeQcPages,
+  qcSlidePage,
+  QC_MAX_PAGES,
+  settingsSupportVision,
+} from './slide-qc'
 import { useI18n, t as tGlobal, aiLangDirective, type TFunc } from '../i18n/locale'
-import { Markdown } from '@revelith/ui'
-import { ReveLithAiMark } from '../components/icons'
+import { AiScopeQuote, Markdown, useAiPanelPrefs, type AiScopeQuoteData } from '@revelith/ui'
+import { ReveLithMark } from '../components/icons'
 import sendEnterOn from '../assets/send-enter-on.png'
 import sendEnterOff from '../assets/send-enter-off.png'
 import sendStop from '../assets/send-stop.png'
@@ -69,7 +90,7 @@ const PASTE_MIME_EXT: Record<string, string> = {
  *  attachment allowlist doesn't accept yet are mapped ahead so they light up when added */
 const ATTACHMENT_CARD_ICON_GROUPS: [icon: string, exts: string[]][] = [
   [fileWordIcon, ['doc', 'docx']],
-  [fileExcelIcon, ['xls', 'xlsx', 'csv', 'tsv']],
+  [fileExcelIcon, ['xls', 'xlsx', 'xlsm', 'csv', 'tsv']],
   [filePptIcon, ['ppt', 'pptx']],
   [filePdfIcon, ['pdf']],
   [fileImageIcon, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'heic']],
@@ -196,51 +217,22 @@ function safeJsonInput(input: unknown): string | undefined {
   }
 }
 
-/** Generation progress snapshot in the chat stream (same card updated in real time) */
-interface DeckProgressSnapshot {
-  style?: { label: string; status: 'running' | 'done' | 'error'; summary: string }
-  plan?: {
-    label: string
-    done: number
-    total: number
-    status: 'running' | 'done' | 'error'
-    summary: string
-  }
-  images?: {
-    label: string
-    done: number
-    total: number
-    status: 'running' | 'done' | 'error'
-    summary: string
-  }
-  pages?: {
-    label: string
-    done: number
-    total: number
-    status: 'running' | 'done' | 'error'
-    summary: string
-    items: PageProgressItem[]
-  }
-  finalTotal?: number // Total page count from the done event
-  isDone?: boolean
-}
-
 interface ChatEntry {
   role: 'user' | 'assistant'
   text: string
   error?: string
   streaming?: boolean
-  /** the run failed and this user message was rolled back out of the model context */
-  undelivered?: boolean
-  /** the run failed because ReveLith is signed out : render an inline sign-in button */
+  /** the run failed because ReveLith is signed out — render an inline sign-in button */
   loginRequired?: boolean
   tools?: ToolActivity[]
   /** Generation progress card (only one per turn, replaced in real time) */
   deckProgress?: DeckProgressSnapshot
-  /** Main-process rollback point for this turn's deck edits : rendered as an inline roll-back action */
+  /** Main-process rollback point for this turn's deck edits — rendered as an inline roll-back action */
   snapshotId?: number
   /** attachments consumed from the composer by this user message (read-only echo chips) */
   attachments?: AttachmentMeta[]
+  /** the selection this user message targeted, frozen at send */
+  scope?: AiScopeQuoteData
 }
 
 /** Empty deck → generation starters; deck with content → polish starters */
@@ -253,9 +245,9 @@ interface AiPanelProps {
   slides: RenderSlide[]
   current: number
   selectedIds: string[]
-  /** no slide carries real content yet : the empty-state copy offers generation instead of polish */
+  /** no slide carries real content yet — the empty-state copy offers generation instead of polish */
   deckEmpty?: boolean
-  /** Decoded image cache from App (SlideThumb needs it) : powers AI-vision slide screenshots */
+  /** Decoded image cache from App (SlideThumb needs it) — powers AI-vision slide screenshots */
   images: Map<string, HTMLImageElement>
   applySlide: (slideIndex: number, updated: RenderSlide) => void
   applyDeck: (slides: RenderSlide[], goTo?: number) => void
@@ -271,6 +263,7 @@ interface AiPanelProps {
     displayText?: string
     attachments?: AttachmentMeta[]
     slideShot?: boolean
+    scope?: AiScopeQuoteData
   } | null
   /** false shows only the collapsed rail; the component stays mounted so panel state survives */
   open?: boolean
@@ -281,19 +274,30 @@ interface AiPanelProps {
   onUndo?: () => void
   /** Callback to update the path after AI generation lands on disk (title bar sync) */
   onPathChange?: (path: string) => void
+  /** Flush pending editor state (e.g. the speaker-notes draft) right before an AI run edits the deck, so a stale draft cannot overwrite what the run writes */
+  onBeforeRun?: () => Promise<void> | void
   /** Generation progress callback (for the canvas top progress bar) */
   onDeckProgress?: (event: DeckProgressEvent | null) => void
   /** Absolute path of the currently open file (for chat history persistence) */
   currentFilePath?: string | null
+  /** Pending element-scoped edits; owned by App, which also holds selection/navigation */
+  editQueue?: EditQueueItem[]
+  onQueueEditInstruction?: (key: string, instruction: string) => void
+  onQueueRemove?: (key: string) => void
+  onQueueClear?: () => void
+  /** Jump to the item's page and select its elements */
+  onQueueFocus?: (key: string) => void
+  /** Drop the items a submission finished with (successful and unrunnable alike) */
+  onQueueConsume?: (keys: string[]) => void
 }
 
-/** Some locales already end the label with an ellipsis : normalize to exactly one. */
+/** Some locales already end the label with an ellipsis — normalize to exactly one. */
 function withEllipsis(label: string): string {
   return `${label.replace(/(?:…|\.{3})+$/u, '')}…`
 }
 
 /** Two-phase waiting→thinking indicator (mirrors AiTypingIndicator in packages/ui):
- *  grow/shrink blue dots first, then after ~1.2s only the shimmering "Thinking…" text : never both at once. */
+ *  grow/shrink blue dots first, then after ~1.2s only the shimmering "Thinking…" text — never both at once. */
 function AiTypingIndicator({ label }: { readonly label: string }) {
   const [elapsed, setElapsed] = useState(0)
   const [showLabel, setShowLabel] = useState(false)
@@ -361,11 +365,23 @@ export function AiPanel({
   onExpand,
   onCollapse,
   onPathChange,
+  onBeforeRun,
   onDeckProgress,
   currentFilePath,
+  editQueue,
+  onQueueEditInstruction,
+  onQueueRemove,
+  onQueueClear,
+  onQueueFocus,
+  onQueueConsume,
 }: AiPanelProps) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  // Panel chrome follows the UI language; message text follows its own content (dir=auto below)
+  const isRtl = lang === 'ar' || lang === 'he'
   const [input, setInput] = useState('')
+  // Shared AI panel pref (Settings → General): the bespoke slides composer
+  // must honor it like the shared AiComposer does.
+  const { spellcheck } = useAiPanelPrefs()
   const [busy, setBusy] = useState(false)
   const [chat, setChat] = useState<ChatEntry[]>([])
   /** Past conversation restored from JSONL (read-only transcript, not fed to the model) */
@@ -375,7 +391,7 @@ export function AiPanel({
   const [attachNotice, setAttachNotice] = useState<string | null>(null)
   /** data-URL previews for image attachments, keyed by path (ReveLith composer thumbnails) */
   const [attachmentPreviews, setAttachmentPreviews] = useState<Record<string, string>>({})
-  /** image paths with a read already issued : one readAttachmentImage per attach, even while pending */
+  /** image paths with a read already issued — one readAttachmentImage per attach, even while pending */
   const previewRequestedRef = useRef(new Set<string>())
   /** Attachments consumed by earlier sends this session: sending clears the composer, but the
       files skill must keep reading them mid-run and in follow-up turns. Deduped by path
@@ -404,15 +420,23 @@ export function AiPanel({
     for (const a of wanted) {
       if (!ATTACHMENT_IMAGE_EXTS.has(a.ext) || previewRequestedRef.current.has(a.path)) continue
       previewRequestedRef.current.add(a.path)
-      void window.desktop.readAttachmentImage(a.path).then((r) => {
-        if (!previewRequestedRef.current.has(a.path)) return // removed while the read was in flight
-        if (r.ok && r.base64 && r.mime) {
-          setAttachmentPreviews((prev) => ({
-            ...prev,
-            [a.path]: `data:${r.mime};base64,${r.base64}`,
-          }))
-        }
-      })
+      void window.desktop
+        .readAttachmentImage(a.path)
+        .then((r) => {
+          if (!previewRequestedRef.current.has(a.path)) return // removed while the read was in flight
+          if (r.ok && r.base64 && r.mime) {
+            setAttachmentPreviews((prev) => ({
+              ...prev,
+              [a.path]: `data:${r.mime};base64,${r.base64}`,
+            }))
+          }
+        })
+        .catch(() => {
+          // A rejected read (bridge error, teardown race) must not leave the
+          // path marked requested forever — that would permanently skip the
+          // thumbnail with no retry. Clear it so the next effect run retries.
+          previewRequestedRef.current.delete(a.path)
+        })
     }
   }, [attachments, chat, historicChat])
   /** paints the strip's scrollbar thumb while the user scrolls it (cleared 800ms after the last event) */
@@ -469,18 +493,42 @@ export function AiPanel({
   applySlideRef.current = applySlide
   const applyDeckRef = useRef(applyDeck)
   applyDeckRef.current = applyDeck
+  const onBeforeRunRef = useRef(onBeforeRun)
+  onBeforeRunRef.current = onBeforeRun
   const onPathChangeRef = useRef(onPathChange)
   onPathChangeRef.current = onPathChange
   const onDeckProgressRef = useRef(onDeckProgress)
   onDeckProgressRef.current = onDeckProgress
   const settingsRef = useRef(settings)
   settingsRef.current = settings
+
+  /** gsk login state for the cloud-tools gate (refreshed on mount and window focus) */
+  const gskLoggedInRef = useRef(false)
+  useEffect(() => {
+    let alive = true
+    const refresh = () => {
+      void window.slidesApi
+        ?.aiGskStatus()
+        .then((s) => {
+          if (alive) gskLoggedInRef.current = !!s?.loggedIn
+        })
+        .catch(() => {})
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    return () => {
+      alive = false
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
   const imagesRef = useRef(images)
   imagesRef.current = images
   const attachmentsRef = useRef(attachments)
   attachmentsRef.current = attachments
-  /** attachments consumed by the most recent send : retry resends the same set */
+  /** attachments consumed by the most recent send — retry resends the same set */
   const lastAttachmentsRef = useRef<AttachmentMeta[]>([])
+  /** the scope quote of the last send, so a retry reuses it instead of re-reading the live selection */
+  const lastScopeRef = useRef<AiScopeQuoteData | undefined>(undefined)
   /** composer attachments plus everything already sent this session (deduped by path) */
   const availableAttachments = (): AttachmentMeta[] => {
     const seen = new Set<string>()
@@ -488,7 +536,7 @@ export function AiPanel({
       seen.has(a.path) ? false : (seen.add(a.path), true),
     )
   }
-  // Paths of text attachments already read via read_attachment : generate_deck refuses to run
+  // Paths of text attachments already read via read_attachment — generate_deck refuses to run
   // while any current text attachment is still unread
   const readAttachmentPathsRef = useRef<Set<string>>(new Set())
 
@@ -496,13 +544,15 @@ export function AiPanel({
   const lastInstructionRef = useRef('')
   /** Paired with lastInstructionRef: keeps the bubble showing only the user's request on retries */
   const lastDisplayTextRef = useRef<string | undefined>(undefined)
-  /** Mirror of the last turn's (the final reply's turn) tool activity : used when persisting the assistant message,
+  /** Mirror of the last turn's (the final reply's turn) tool activity — used when persisting the assistant message,
       avoiding side effects inside the setState updater (StrictMode double-invokes updaters, duplicating history writes) */
   const lastTurnToolsRef = useRef<ToolActivity[]>([])
-  /** Tool activity of the whole run (with args/output, accumulated across turns) : for full transcript persistence */
+  /** Tool activity of the whole run (with args/output, accumulated across turns) — for full transcript persistence */
   const runToolsRef = useRef<
     Array<{ name: string; summary: string; isError?: boolean; input?: string; output?: string }>
   >([])
+  /** Last streamed text of the current turn: the only copy left when a run dies before onDone */
+  const streamedTextRef = useRef('')
 
   // ── Chat history persistence ──────────────────────────────────────────────
   /** Resolve chatId and load history on first mount (AiPanel resets by key; no need to watch currentFilePath changes) */
@@ -537,6 +587,7 @@ export function AiPanel({
                 ext: a.ext ?? '',
                 sizeBytes: a.sizeBytes ?? 0,
               })),
+            ...(m.scope ? { scope: m.scope } : {}),
           })),
         )
         // Restore model context: follow-ups after reopening a file continue the earlier conversation (only when the loop is idle with no history)
@@ -579,6 +630,7 @@ export function AiPanel({
       output?: string
     }>,
     attachments?: AttachmentMeta[],
+    scope?: AiScopeQuoteData,
   ) => {
     const ids = chatRefIds.current
     const api = (window as Window & { projectApi?: typeof window.projectApi }).projectApi
@@ -600,9 +652,34 @@ export function AiPanel({
               })),
             }
           : {}),
+        ...(scope ? { scope } : {}),
       })
       .catch(() => {
         /* Silent */
+      })
+  }
+
+  /**
+   * Record a run that ended without a usable reply. Deliberately not the chat
+   * history: agent-core rolls a failed turn out of the model context, so storing
+   * it there would feed it straight back on the next reopen.
+   */
+  const logRunFailure = (kind: 'error' | 'stopped', error?: string) => {
+    void window.slidesApi
+      .aiLogRunFailure({
+        kind,
+        instruction: instructionRef.current,
+        streamed: streamedTextRef.current,
+        ...(error ? { error } : {}),
+        ...(runToolsRef.current.length > 0
+          ? { tools: runToolsRef.current.map((tl) => tl.name) }
+          : {}),
+        ...(runStartedAtRef.current > 0
+          ? { durationMs: Date.now() - runStartedAtRef.current }
+          : {}),
+      })
+      .catch(() => {
+        /* Diagnostics are best-effort */
       })
   }
 
@@ -614,6 +691,11 @@ export function AiPanel({
 
   /** Synchronous re-entry guard between runWith trigger and loop.run (see the comment inside runWith) */
   const runStartingRef = useRef(false)
+  /**
+   * Resolves the in-flight queue page run: AgentLoop reports completion through
+   * events rather than a promise, so onDone/onError hand the outcome back here.
+   */
+  const queueRunResolverRef = useRef<((ok: boolean) => void) | null>(null)
   /** Pages landed by this run's generation calls, pending the post-generation layout QC pass */
   const qcPagesRef = useRef<number[]>([])
   const qcAbortRef = useRef<AbortController | null>(null)
@@ -626,7 +708,7 @@ export function AiPanel({
   const runStartedAtRef = useRef(0)
   const historyBatchActiveRef = useRef(false)
   const inputEditedSinceRunRef = useRef(false)
-  /** This run's rollback batch : carried onto the QC entry when a QC pass
+  /** This run's rollback batch — carried onto the QC entry when a QC pass
       follows (mid-turn segments never show the action toolbar) */
   const runSnapshotIdRef = useRef<number | null>(null)
 
@@ -667,7 +749,7 @@ export function AiPanel({
   const rollback = async (snapshotId: number) => {
     const restored = await window.slidesApi.aiSnapshotRestore(snapshotId)
     if (!restored) {
-      // Evicted from the main-process snapshot ring : retire the dead action
+      // Evicted from the main-process snapshot ring — retire the dead action
       setChat((prev) =>
         prev.map((e) => (e.snapshotId === snapshotId ? { ...e, snapshotId: undefined } : e)),
       )
@@ -824,18 +906,20 @@ export function AiPanel({
     const access: DeckAccess = {
       getSlides: () => slidesRef.current,
       getCurrent: () => currentRef.current,
-      getSelectedIds: () => selectedRef.current,
+      // A queue run names its targets explicitly; whatever is selected on the
+      // canvas right now is unrelated and would only compete with them
+      getSelectedIds: () => (queueRunResolverRef.current ? [] : selectedRef.current),
       applySlide: (i, updated) => applySlideRef.current(i, updated),
       applyDeck: (all, goTo) => applyDeckRef.current(all, goTo),
-      generateFromHtml: async (
-        pagesHtml: string[],
+      landGeneratedPages: async (
+        pageMarkers: string[],
         mode?: 'replace' | 'append' | 'insert_at',
         deckName?: string,
         insertAt?: number,
       ) => {
         try {
-          const res = await window.slidesApi.htmlToPptx(
-            pagesHtml,
+          const res = await window.slidesApi.landGeneratedPages(
+            pageMarkers,
             fitWidthPx,
             mode,
             insertAt,
@@ -884,10 +968,10 @@ export function AiPanel({
           return { ok: false, error: e instanceof Error ? e.message : String(e) }
         }
       },
-      regenerateSlide: async (slideIndex: number, html: string) => {
+      regenerateSlide: async (slideIndex: number, marker: string) => {
         try {
-          const res = await window.slidesApi.htmlToPptx(
-            [html],
+          const res = await window.slidesApi.landGeneratedPages(
+            [marker],
             fitWidthPx,
             'replace_at',
             slideIndex,
@@ -925,13 +1009,96 @@ export function AiPanel({
         })
       },
       isCloudPageGenEnabled: async () => {
+        // Cloud page generation runs on ReveLith's own slide model and spends
+        // ReveLith credits, so it is gated by the "ReveLith cloud tools" toggle
+        // plus the main-process account status only — the chat provider does not
+        // gate it (search/media gate per capability, not per chat provider). A
+        // free-plan or credits-exhausted account is covered by the mid-run
+        // fallback to the local pipeline instead of disabling cloud up front.
+        const cur = settingsRef.current
+        if (!cloudToolsEnabled(cur)) return false
         try {
           return !!(await window.slidesApi.cloudGenStatus())?.enabled
         } catch {
           return false
         }
       },
-      // Cloud single-page generation (account slide_generate): the cloud service owns HTML writing +
+      // Local single-page generation (no gsk needed, e.g. BYOK): one LLM request through the
+      // app's own AI transport writes a structured JSON slide spec, and the main process builds
+      // it directly into a one-slide pptx with pptx-engine primitives — no HTML intermediate.
+      generatePageLocal: async (args) => {
+        const W = args.canvasW
+        const H = args.canvasH
+        const sys =
+          'You are a professional slide visual designer. Output exactly ONE JSON object describing one slide; no explanations/markdown/code fences.\n' +
+          '\n' +
+          '## Canvas\n' +
+          `${W}x${H} px, origin top-left. All x/y/w/h are integers in px. Nothing may cross the canvas edges; negative coordinates forbidden. Elements paint in array order: background/decor shapes first, then images, text last (text must never end up underneath a shape).\n` +
+          '\n' +
+          '## Format\n' +
+          '{"background":"#RRGGBB","elements":[...]}\n' +
+          'Element types:\n' +
+          '- Shape: {"type":"shape","shape":"roundRect","x":80,"y":120,"w":360,"h":200,"fill":"#RRGGBB or #RRGGBBAA (AA=alpha, 00 transparent)","stroke":{"color":"#RRGGBB","widthPt":1},"paragraphs":[...optional label text, vertically centered...]}\n' +
+          '  Allowed shape values: rect, roundRect, ellipse, triangle, rightArrow, leftArrow, upArrow, downArrow, chevron, diamond, parallelogram, trapezoid, hexagon, pentagon, pie, donut, star5, heart, cloud, line, lineArrow. line/lineArrow draw the diagonal of their box from top-left to bottom-right and need a stroke (a horizontal rule = a box with h:1).\n' +
+          '- Text: {"type":"text","x":80,"y":60,"w":800,"h":90,"valign":"top","paragraphs":[{"align":"left","lineSpacingPct":110,"spaceAfterPt":6,"bullet":false,"runs":[{"text":"...","sizePt":18,"bold":true,"italic":false,"color":"#RRGGBB","font":"Font Name"}]}]}\n' +
+          '  A paragraph may mix runs of different weight/color/size (e.g. a big number run + a small unit run in one line).\n' +
+          '- Image: {"type":"image","url":"https://...","x":660,"y":80,"w":540,"h":560} — center-cropped to fill its box (object-fit: cover).\n' +
+          '\n' +
+          '## Hard layout rules\n' +
+          '- Text boxes have ZERO inner padding: the box top-left is exactly where the first glyph starts. Size every box from its content: one line is about sizePt*1.8 px tall at lineSpacingPct 110; a CJK character is about sizePt*1.35 px wide, a Latin character about sizePt*0.7 px. Text wraps at the box width — count the wrapped lines and make the box tall enough, plus one spare line.\n' +
+          '- Text must never overflow its box or overlap other text. Keep >=8px between text and card edges, >=20px between a big title and its subtitle, >=5px between stacked text blocks in the same column — self-check every pair before output.\n' +
+          '- Font sizes in pt: big titles 32-48, subtitles 18-24, body 12-15, hero KPI numbers up to 80.\n' +
+          '- Spread content across the whole page; do not cram it into the top half leaving large blank areas; make text and images as large as the layout allows.\n' +
+          '\n' +
+          '## Visuals and assets\n' +
+          '- Photos may only use URLs from the "available images" list, at most as many image elements as URLs. With no available images, fill with typography/color blocks/shapes — never fake photos.\n' +
+          '- Icon-like decoration uses the allowed shapes only (at most 4-5 per page, strongly content-related). **Never use emoji**.\n' +
+          '- Data visuals: compose bars/rings/timelines from rect/donut/line shapes with sizes proportional to the real values from the brief.\n' +
+          '- Solid colors only (alpha allowed) — no gradients. **No placeholders of any kind**: all copy comes from the brief’s real content.\n' +
+          '\n' +
+          '## Anti-AI design rules (violation = unacceptable)\n' +
+          '- No thin vertical accent bar on the left of cards, no colored bar on top of cards, no small bar left of titles — express hierarchy with background color/font weight/size contrast.\n' +
+          '- One primary + one secondary accent color for the whole page; even when comparing multiple entities, do not give each a different color (no rainbow cards).\n' +
+          '- No decorative corner blocks/short lines; decorative elements must be consistent in position and style across the deck.\n' +
+          '- Do not turn every page into a "shape + bold subtitle + description" list; the cover must not be a flat one-line title + subtitle layout — it needs a visual anchor (large color block/geometric composition/huge number/hero image).'
+        const imgBlock = args.images.length
+          ? `\nAvailable image URLs (put them into image elements; do not invent placeholder blocks):\n${args.images.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+          : ''
+        const ctxBlock = args.context
+          ? `\n\nReference material (all real names/figures/facts come from here; do not invent):\n${args.context.slice(0, 4000)}`
+          : ''
+        const userMsg =
+          `This is the deck's unified style (this page must follow it strictly to stay consistent across pages):\n${args.style}\n\n` +
+          (args.topic ? `Deck topic: ${args.topic}\n` : '') +
+          `Deck-wide narrative Core Hook: ${args.coreHook}\n\n` +
+          `Now design page ${args.pageIndex}/${args.totalPages}.\n` +
+          `Title: ${args.title}\nLayout: ${args.layout}\nContent brief (use real data/facts): ${args.brief}${imgBlock}${ctxBlock}\n\n` +
+          "Return only this page's spec JSON."
+        // One repair round: feed the exact validation error back so the model can fix its JSON
+        let lastErr = ''
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (args.signal?.aborted) break
+          const msg =
+            attempt === 0
+              ? userMsg
+              : `${userMsg}\n\nYour previous output was rejected: ${lastErr}. Output the corrected JSON object only.`
+          // Text-heavy spec JSON can exceed the default 8192 tokens; single-page requests get a higher cap
+          const r = await runLlmOnce(sys, msg, 120000, true, args.signal, 16384)
+          if (!r.ok || !r.text) {
+            lastErr = r.error ?? tGlobal('aiErrEmptyOutput')
+            continue
+          }
+          try {
+            const res = await window.slidesApi.localGeneratePage({ specJson: r.text })
+            if (res?.ok && res.marker) return res
+            lastErr = res?.error ?? tGlobal('aiErrUnknown')
+          } catch (e) {
+            lastErr = e instanceof Error ? e.message : String(e)
+          }
+        }
+        return { ok: false, error: lastErr || tGlobal('aiErrUnknown') }
+      },
+      // Cloud single-page generation (gsk slide_generate): the cloud service owns HTML writing +
       // pptx conversion; the deck-level style/outline stay local.
       generatePageCloud: async (args) => {
         try {
@@ -970,12 +1137,12 @@ export function AiPanel({
           '  Main background: #hex\n' +
           '  Per-page-type backgrounds:\n    cover: #hex\n    content: #hex\n    data: #hex\n    closing: #hex\n' +
           '  (Background selection principles, highest priority first):\n' +
-          '   1) Style preference first: when a tone is explicit (dark theme, a brand color family, a certain texture), the background must honor it : do not fall back to a safe light color.\n' +
+          '   1) Style preference first: when a tone is explicit (dark theme, a brand color family, a certain texture), the background must honor it — do not fall back to a safe light color.\n' +
           "   2) Then topic mood: serve the content's emotion and tone (serious/playful/artistic/tech/traditional); different topics should have clearly different backgrounds. Dark colors, brand colors, and saturated light colors are all legitimate choices.\n" +
           '   3) Light neutral backgrounds are only a fallback: use only when the topic is neutral and the style expresses no clear preference.\n' +
           '   Constraints: content pages share one background within a deck; the main background and main text color must have sufficient contrast (light text on dark, dark text on light).\n' +
           '  Main text color: #hex\n  Primary accent: #hex\n  Secondary accent: #hex\n' +
-          '  (Iron rule: one accent color system across the whole deck : even when comparing multiple companies/products/options, do not assign each entity a different color; distinguish entities by name and typography. Never exceed the primary + secondary accents)\n' +
+          '  (Iron rule: one accent color system across the whole deck — even when comparing multiple companies/products/options, do not assign each entity a different color; distinguish entities by name and typography. Never exceed the primary + secondary accents)\n' +
           '  Card background: #hex\n  Border color: #hex\n\n' +
           'Fonts\n  CJK title font: [font name]\n  Latin title font: [font name]\n  Body font: [font name]\n  Title size: [range]px\n  Body size: [range]px\n\n' +
           'Layout variants per page type (list at least 2 variants each, format: variant name: description)\n' +
@@ -1012,7 +1179,7 @@ export function AiPanel({
           'Describe in detail what goes in each region of the layout; prefer real data/facts from the reference material, no "XX%" placeholders; cover gives main/sub titles and mood; data gives metric names + concrete values + changes.\n' +
           '\n' +
           '## image_queries\n' +
-          'Array: one entry per photo slot on the page. If the reference material contains ready image URLs (starting with http), use them directly; otherwise put English image-search keywords (describing a concrete scene, e.g. "summer palace kunming lake", not generic words like "park") : the system auto-searches and fills real URLs back. Travel/product/people/brand pages get images by default; give [] only when the page truly needs no photos (fill with typography/icons; never count on CSS-drawn fake images).'
+          'Array: one entry per photo slot on the page. If the reference material contains ready image URLs (starting with http), use them directly; otherwise put English image-search keywords (describing a concrete scene, e.g. "summer palace kunming lake", not generic words like "park") — the system auto-searches and fills real URLs back. Travel/product/people/brand pages get images by default; give [] only when the page truly needs no photos (fill with typography/icons; never count on CSS-drawn fake images).'
         const styleBlock = a.styleSkill
           ? `\n[Confirmed design style Style Skill; choose layout accordingly while planning]:\n${a.styleSkill}`
           : ''
@@ -1100,7 +1267,13 @@ export function AiPanel({
             }
           }
           if (event.stage === 'done') {
-            return { ...prev, finalTotal: event.total, isDone: true }
+            return {
+              ...prev,
+              finalTotal: event.total,
+              isDone: true,
+              doneSummary: event.summary,
+              ...(event.outcome ? { doneOutcome: event.outcome } : {}),
+            }
           }
           return prev
         })
@@ -1141,12 +1314,42 @@ export function AiPanel({
           return { ok: false, error: String('') }
         }
       },
+      imageGenAvailable: () =>
+        imageGenerationAvailable(settingsRef.current, gskLoggedInRef.current),
+      mediaAnalysisAvailable: () =>
+        mediaAnalysisAvailable(settingsRef.current, gskLoggedInRef.current),
       unreadTextAttachments: () =>
         availableAttachments()
           .filter(
             (a) => !ATTACHMENT_IMAGE_EXTS.has(a.ext) && !readAttachmentPathsRef.current.has(a.path),
           )
           .map((a) => a.name),
+      resolveAttachmentImage: async (name) => {
+        const images = availableAttachments().filter((a) => ATTACHMENT_IMAGE_EXTS.has(a.ext))
+        const match =
+          images.find((a) => a.name === name) ??
+          images.find((a) => a.name.toLowerCase() === name.toLowerCase())
+        if (!match) {
+          const names = images.map((a) => a.name)
+          return {
+            ok: false as const,
+            error: names.length
+              ? `No image attachment named "${name}". Available image attachments: ${names.join(', ')}`
+              : 'This conversation has no image attachments.',
+          }
+        }
+        try {
+          const r = await window.desktop.readAttachmentImage(match.path)
+          if (!r.ok || !r.base64)
+            return {
+              ok: false as const,
+              error: `Failed to read attachment "${match.name}"${r.error ? `: ${r.error}` : ''}`,
+            }
+          return { ok: true as const, base64: r.base64, ext: match.ext }
+        } catch {
+          return { ok: false as const, error: `Failed to read attachment "${match.name}"` }
+        }
+      },
     }
     accessRef.current = access
     loopRef.current = new AgentLoop({
@@ -1156,10 +1359,11 @@ export function AiPanel({
         createSlidesSkill(access),
         createFilesSkill(availableAttachments, (path) => readAttachmentPathsRef.current.add(path)),
       ]),
-      // Page-by-page deck generation needs more tool rounds
-      maxTurns: 24,
       events: {
-        onText: (text) => patchLastAssistant({ text }),
+        onText: (text) => {
+          streamedTextRef.current = text
+          patchLastAssistant({ text })
+        },
         onToolStart: (call) => {
           // Live "running" chip: replaced in place by onToolExecuted
           const activity: ToolActivity = {
@@ -1202,17 +1406,20 @@ export function AiPanel({
           patchLastAssistant({ streaming: false })
           setChat((prev) => [...prev, { role: 'assistant', text: '', streaming: true }])
         },
-        onDone: ({ text, cancelled, turnLimit }) => {
-          const finalText = turnLimit
+        onDone: ({ text, cancelled, turnLimit, truncated }) => {
+          const baseText = turnLimit
             ? [text, tGlobal('aiTurnLimit')].filter(Boolean).join('\n\n')
             : text || (cancelled ? tGlobal('aiStoppedNote') : '')
+          const finalText = truncated
+            ? [baseText, tGlobal('aiTruncatedNote')].filter(Boolean).join('\n\n')
+            : baseText
           const ranTools = runToolsRef.current.length > 0
           setChat((prev) => {
             const next = [...prev]
             const last = next.at(-1)
             if (!last || last.role !== 'assistant') return prev
             // Tool-heavy runs often end with an empty closing turn. Earlier
-            // bubbles already show the executed work : drop the empty trailing
+            // bubbles already show the executed work — drop the empty trailing
             // bubble instead of mislabeling the whole run as "no content".
             if (!finalText && !last.text && !last.tools?.length && ranTools) {
               next.pop()
@@ -1222,7 +1429,7 @@ export function AiPanel({
               ...last,
               streaming: false,
               text: finalText || (last.tools?.length ? last.text : tGlobal('aiNoResponse')),
-              // A stop mid-tool can leave a running placeholder behind : drop it
+              // A stop mid-tool can leave a running placeholder behind — drop it
               tools: last.tools?.filter((tl) => !tl.running),
             }
             return next
@@ -1232,25 +1439,25 @@ export function AiPanel({
             // Post-generation layout QC: only after a completed run that landed generated pages
             if (cancelled) qcPagesRef.current = []
             else if (qcPagesRef.current.length > 0) void runQcPassRef.current()
+            // After the batch closes, so the next queued page opens a fresh one
+            const resolveQueueRun = queueRunResolverRef.current
+            queueRunResolverRef.current = null
+            resolveQueueRun?.(!cancelled)
           })
-          // Persist the assistant message (deckProgress not stored; tools store the whole run's full activity) :
+          // Persist the assistant message (deckProgress not stored; tools store the whole run's full activity) —
           // side effects outside the updater (StrictMode double-invokes updaters, duplicating history writes)
-          if (finalText && !cancelled) {
+          if (!cancelled && (finalText || runToolsRef.current.length > 0)) {
             persistMessage('assistant', finalText, runToolsRef.current)
           }
+          // A stop with nothing streamed is just the user changing their mind; a stop
+          // over half-written output is the case worth keeping (runaway repetition)
+          if (cancelled && streamedTextRef.current) logRunFailure('stopped')
         },
         onError: (error) => {
+          logRunFailure('error', error)
           qcPagesRef.current = []
           setChat((prev) => {
             const next = [...prev]
-            // the loop rolled this run's user message out of the model context : surface that
-            for (let i = next.length - 1; i >= 0; i--) {
-              const entry = next[i]!
-              if (entry.role === 'user') {
-                next[i] = { ...entry, undelivered: true }
-                break
-              }
-            }
             const last = next.at(-1)
             if (last?.role === 'assistant') {
               next[next.length - 1] = {
@@ -1262,7 +1469,28 @@ export function AiPanel({
             }
             return next
           })
-          void finishHistoryBatch().finally(() => setBusy(false))
+          // Signed-out failures get an inline sign-in button; detected via
+          // gsk status rather than matching the localized error text
+          void window.slidesApi
+            .aiGskStatus()
+            .then((status) => {
+              if (status.loggedIn) return
+              setChat((prev) => {
+                const next = [...prev]
+                const last = next.at(-1)
+                if (last?.role === 'assistant' && last.error) {
+                  next[next.length - 1] = { ...last, loginRequired: true }
+                }
+                return next
+              })
+            })
+            .catch(() => {})
+          void finishHistoryBatch().finally(() => {
+            setBusy(false)
+            const resolveQueueRun = queueRunResolverRef.current
+            queueRunResolverRef.current = null
+            resolveQueueRun?.(false)
+          })
         },
       },
     })
@@ -1282,7 +1510,10 @@ export function AiPanel({
       setAttachments(merged)
     }
     if (preset.autoRun)
-      runWith(preset.text, preset.displayText, { slideShot: preset.slideShot ?? false })
+      runWith(preset.text, preset.displayText, {
+        slideShot: preset.slideShot ?? false,
+        ...(preset.scope ? { scope: preset.scope } : {}),
+      })
     else {
       setInput(preset.text)
       inputRef.current?.focus()
@@ -1327,11 +1558,15 @@ export function AiPanel({
     const images: AgentImage[] = []
     const failures: string[] = []
     for (const att of imageAtts.slice(0, MAX_IMAGES_PER_MESSAGE)) {
-      const result = await window.desktop.readAttachmentImage(att.path)
-      if (result.ok && result.base64 && result.mime) {
-        images.push({ base64: result.base64, mime: result.mime })
-      } else {
-        failures.push(result.error ?? t('aiReadFailed', { name: att.name }))
+      try {
+        const result = await window.desktop.readAttachmentImage(att.path)
+        if (result.ok && result.base64 && result.mime) {
+          images.push({ base64: result.base64, mime: result.mime })
+        } else {
+          failures.push(result.error ?? t('aiReadFailed', { name: att.name }))
+        }
+      } catch {
+        failures.push(t('aiReadFailed', { name: att.name }))
       }
     }
     if (imageAtts.length > MAX_IMAGES_PER_MESSAGE) {
@@ -1359,13 +1594,19 @@ export function AiPanel({
   const runWith = (
     instruction: string,
     displayText?: string,
-    opts?: { slideShot?: boolean; attachments?: AttachmentMeta[] },
+    opts?: {
+      slideShot?: boolean
+      attachments?: AttachmentMeta[]
+      scope?: AiScopeQuoteData
+      /** resend of the last message: quote what it quoted */
+      retry?: boolean
+    },
   ) => {
     const loop = loopRef.current
     // runStartingRef: loop.run is called only after attachments are read asynchronously, during which loop.busy is still false,
     // so duplicate triggers must be blocked synchronously (e.g. StrictMode double-running the preset autoRun effect),
     // otherwise two sets of bubbles get pushed and the earlier assistant placeholder stays at "thinking" forever.
-    // qcRunningRef: the post-generation QC pass edits the deck outside the main loop : no concurrent runs
+    // qcRunningRef: the post-generation QC pass edits the deck outside the main loop — no concurrent runs
     if (!instruction || !loop || loop.busy || runStartingRef.current || qcRunningRef.current) return
     runStartingRef.current = true
     setInput('')
@@ -1388,26 +1629,42 @@ export function AiPanel({
     lastDisplayTextRef.current = displayText
     lastTurnToolsRef.current = []
     runToolsRef.current = []
+    streamedTextRef.current = ''
     runSnapshotIdRef.current = null
     stickToBottomRef.current = true
     // Internal orchestration prompts (like generate_deck step notes) skip the chat bubble and go only to the model
     const shown = displayText ?? instruction
+    // a composer send with elements selected is scoped to them; Send now hands its frozen targets over explicitly
+    const scope = opts?.retry
+      ? lastScopeRef.current
+      : (opts?.scope ??
+        (displayText === undefined && selectedRef.current.length > 0
+          ? {
+              label: `${t('aiScopeSlide', { n: current + 1 })} · ${t('aiScopeSelection', { count: selectedRef.current.length })}`,
+            }
+          : undefined))
+    lastScopeRef.current = scope
     setChat((prev) => [
       // Fallback: clear leftover streaming flags on history entries, avoiding orphan "thinking" placeholders
       ...prev.map((e) => (e.role === 'assistant' && e.streaming ? { ...e, streaming: false } : e)),
-      { role: 'user', text: shown, ...(sentAtts.length > 0 ? { attachments: sentAtts } : {}) },
+      {
+        role: 'user',
+        text: shown,
+        ...(sentAtts.length > 0 ? { attachments: sentAtts } : {}),
+        ...(scope ? { scope } : {}),
+      },
       { role: 'assistant', text: '', streaming: true },
     ])
     runStartedAtRef.current = Date.now()
     setBusy(true)
     // Persist the user message (store display text + attachment metadata; loop.restore rebuilds model context on file reopen)
-    persistMessage('user', shown, undefined, sentAtts)
+    persistMessage('user', shown, undefined, sentAtts, scope)
     void collectImageAttachments(sentAtts)
       .then(async (images) => {
         // AI Beautify sends the current slide's rendering along, so the model sees what it edits;
-        // the note rides on the model instruction only : the chat bubble stays the localized preset text
+        // the note rides on the model instruction only — the chat bubble stays the localized preset text
         let modelInstruction = instruction
-        if (opts?.slideShot) {
+        if (opts?.slideShot && settingsSupportVision(settingsRef.current)) {
           const shot = await captureSlideShot(currentRef.current)
           if (shot) {
             images.push(shot)
@@ -1416,6 +1673,7 @@ export function AiPanel({
         }
         // Clear the flag before run: loop.run sets running synchronously, leaving no re-entry window
         runStartingRef.current = false
+        await onBeforeRunRef.current?.()
         if (await window.slidesApi.beginHistoryBatch()) historyBatchActiveRef.current = true
         loop.run(modelInstruction, images)
       })
@@ -1425,11 +1683,111 @@ export function AiPanel({
       })
   }
 
+  /** One page of a queue submission — runWith's bookkeeping minus the composer and the user bubble */
+  const runQueuePage = (instruction: string) =>
+    new Promise<boolean>((resolve) => {
+      const loop = loopRef.current
+      if (!loop || loop.busy || runStartingRef.current || qcRunningRef.current) {
+        resolve(false)
+        return
+      }
+      runStartingRef.current = true
+      instructionRef.current = instruction
+      lastInstructionRef.current = instruction
+      lastDisplayTextRef.current = undefined
+      lastTurnToolsRef.current = []
+      runToolsRef.current = []
+      streamedTextRef.current = ''
+      runSnapshotIdRef.current = null
+      stickToBottomRef.current = true
+      setChat((prev) => [
+        ...prev.map((e) =>
+          e.role === 'assistant' && e.streaming ? { ...e, streaming: false } : e,
+        ),
+        { role: 'assistant', text: '', streaming: true },
+      ])
+      runStartedAtRef.current = Date.now()
+      setBusy(true)
+      queueRunResolverRef.current = resolve
+      void Promise.resolve(onBeforeRunRef.current?.())
+        .then(() => window.slidesApi.beginHistoryBatch())
+        .then((ok) => {
+          if (ok) historyBatchActiveRef.current = true
+          runStartingRef.current = false
+          loop.run(instruction)
+        })
+        .catch(() => {
+          runStartingRef.current = false
+          queueRunResolverRef.current = null
+          void finishHistoryBatch().finally(() => setBusy(false))
+          resolve(false)
+        })
+    })
+
+  const SKIP_REASON_KEY: Record<
+    ResolveFailure,
+    'aiQueueSkipDeleted' | 'aiQueueSkipAmbiguous' | 'aiQueueSkipNested'
+  > = {
+    deleted: 'aiQueueSkipDeleted',
+    ambiguous: 'aiQueueSkipAmbiguous',
+    nested: 'aiQueueSkipNested',
+  }
+
   /**
-   * Post-generation layout QC: each page landed by this run gets one focused vision pass in a
-   * fresh AgentLoop (screenshot + inventory → constrained fixes via execute_slide_script).
-   * Each page's edits sit in their own history batch; if the deterministic audit says the page
-   * got worse, that batch is rolled back. Progress streams into one assistant chat entry.
+   * Submit the whole queue. Anchors are resolved now, not when they were
+   * queued, so deletions and page moves in between are absorbed here. Each page
+   * is its own run (and its own undo batch): the agent keeps a workable turn
+   * budget per page, and a failure leaves the untouched pages queued.
+   */
+  const sendEditQueue = async () => {
+    const items = editQueue ?? []
+    const loop = loopRef.current
+    if (items.length === 0 || !loop || loop.busy || runStartingRef.current || qcRunningRef.current)
+      return
+    const resolved = resolveQueue(slidesRef.current, items)
+    const groups = groupByPage(resolved)
+    const skipped = resolved.filter((r) => !r.ok)
+    const runnableCount = resolved.length - skipped.length
+
+    const lines = [
+      t('aiQueueSubmitted', { count: runnableCount }),
+      ...groups.flatMap((g) =>
+        g.entries.map(
+          (e) => `${t('aiScopeSlide', { n: g.slideIndex + 1 })} · ${e.item.instruction}`,
+        ),
+      ),
+      ...skipped.map(
+        (r) =>
+          `${t('aiScopeSlide', { n: r.item.slideIndex + 1 })} · ${r.item.instruction} — ${t(
+            SKIP_REASON_KEY[r.reason],
+          )}`,
+      ),
+    ]
+    const shown = lines.join('\n')
+    stickToBottomRef.current = true
+    setChat((prev) => [
+      ...prev.map((e) => (e.role === 'assistant' && e.streaming ? { ...e, streaming: false } : e)),
+      { role: 'user', text: shown },
+    ])
+    persistMessage('user', shown)
+
+    // Unrunnable entries leave the queue right away: re-resolving them would fail
+    // the same way, and the transcript already explains why
+    if (skipped.length > 0) onQueueConsume?.(skipped.map((r) => r.item.key))
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i]!
+      const ok = await runQueuePage(buildPageInstruction(group, groups.length, i + 1))
+      if (!ok) break // stopped or failed: the remaining pages stay queued for a retry
+      onQueueConsume?.(group.entries.map((e) => e.item.key))
+    }
+  }
+
+  /**
+   * Post-generation layout QC: each page landed by this run gets one focused pass in a fresh
+   * AgentLoop. Vision models receive screenshot + inventory; text-only models receive only
+   * deterministic geometry evidence. Each page's edits sit in their own history batch; if the
+   * deterministic audit says the page got worse, that batch is rolled back. Progress streams
+   * into one assistant chat entry.
    */
   const runQcPass = async () => {
     const pages = qcPagesRef.current
@@ -1447,7 +1805,7 @@ export function AiPanel({
     setBusy(true)
     stickToBottomRef.current = true
     // The QC entry demotes the run's reply to a mid-turn segment, whose action
-    // toolbar never shows : carry its rollback point onto this entry instead
+    // toolbar never shows — carry its rollback point onto this entry instead
     // (settled in the finally below; runSnapshotIdRef keeps the id meanwhile)
     setChat((prev) => [
       ...prev.map((e, i) =>
@@ -1455,19 +1813,23 @@ export function AiPanel({
       ),
       { role: 'assistant', text: header, streaming: true },
     ])
-    // First kept QC batch : the run's own batch takes precedence (it is earlier,
+    // First kept QC batch — the run's own batch takes precedence (it is earlier,
     // so restoring it rewinds past the QC edits too)
     let qcSnapshotId: number | null = null
+    // A custom endpoint may claim generic OpenAI-compatible vision support but reject the
+    // first image. Fall back for that page and keep the rest of this pass geometry-only.
+    let forceGeometryOnly = false
     try {
       for (const page of capped) {
         if (controller.signal.aborted) break
-        const shot = await captureSlideShot(page)
-        if (!shot) {
+        const useScreenshot = !forceGeometryOnly && settingsSupportVision(settingsRef.current)
+        const shot = useScreenshot ? await captureSlideShot(page) : null
+        if (useScreenshot && !shot) {
           if (slidesRef.current[page]) lines.push(tGlobal('aiQcPageSkipped', { n: page + 1 }))
           continue
         }
         const batchOpened = await window.slidesApi.beginHistoryBatch()
-        const result = await qcSlidePage({
+        let result = await qcSlidePage({
           access,
           transport,
           pageIndex: page,
@@ -1475,12 +1837,26 @@ export function AiPanel({
           systemSuffix: aiLangDirective,
           signal: controller.signal,
         })
+        if (shot && result.error && isUnsupportedImageInputError(result.error)) {
+          forceGeometryOnly = true
+          result = await qcSlidePage({
+            access,
+            transport,
+            pageIndex: page,
+            screenshot: null,
+            systemSuffix: aiLangDirective,
+            signal: controller.signal,
+          })
+        }
         const batchId = batchOpened ? await window.slidesApi.endHistoryBatch() : null
         if (controller.signal.aborted) break
         if (result.error) {
-          lines.push(tGlobal('aiQcPageFailed', { n: page + 1, error: result.error }))
+          // QC is optional polish. Keep provider/network details in diagnostics instead of
+          // exposing a noisy raw API error in the completed generation transcript.
+          console.warn(`[slides-qc] page ${page + 1} skipped:`, result.error)
+          lines.push(tGlobal('aiQcPageSkipped', { n: page + 1 }))
         } else if (result.edited && result.postIssues > result.preIssues) {
-          // The fix made the deterministic audit worse : undo this page's batch
+          // The fix made the deterministic audit worse — undo this page's batch
           if (typeof batchId === 'number') {
             const restored = await window.slidesApi.aiSnapshotRestore(batchId)
             if (restored)
@@ -1537,6 +1913,7 @@ export function AiPanel({
   const retry = () =>
     runWith(lastInstructionRef.current, lastDisplayTextRef.current, {
       attachments: lastAttachmentsRef.current,
+      retry: true,
     })
 
   const newChat = () => {
@@ -1545,6 +1922,17 @@ export function AiPanel({
     loopRef.current?.reset()
     setBusy(false)
     setChat([])
+    // Same as docs (#195): the restored transcript is painted above the live
+    // turn, so it must clear too — otherwise the old conversation survives.
+    setHistoricChat([])
+    // Answered clarifications are transcript too: they render under their
+    // original message index, so stale entries would re-attach to unrelated
+    // new messages after an index collision.
+    setClarifyAnswers([])
+    // Unsent composer attachments would otherwise ride into the next chat's
+    // file context (availableAttachments merges sent + live), mirroring docs.
+    setAttachments([])
+    setAttachNotice(null)
     sentAttachmentsRef.current = []
     readAttachmentPathsRef.current.clear()
     inputRef.current?.focus()
@@ -1603,7 +1991,7 @@ export function AiPanel({
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   useEffect(() => () => resizeCleanupRef.current?.(), [])
 
-  /** Drag the right edge to resize: the panel is flush with the window's left edge, so width = clientX */
+  /** Drag the inner panel edge to resize from the selected window side. */
   const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     const resizer = e.currentTarget
@@ -1611,7 +1999,7 @@ export function AiPanel({
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
     const onMove = (ev: PointerEvent) => {
-      const w = clampPanelWidth(ev.clientX)
+      const w = clampPanelWidth(aiPanelWidthAtPointer(ev.clientX))
       preferredWidthRef.current = w
       setPanelWidth(w)
     }
@@ -1637,7 +2025,7 @@ export function AiPanel({
     resizer.setPointerCapture(e.pointerId)
   }
 
-  // collapsed: rail only : after all hooks, so the instance and its state survive
+  // collapsed: rail only — after all hooks, so the instance and its state survive
   if (!open) {
     return (
       <button
@@ -1646,7 +2034,7 @@ export function AiPanel({
         aria-label={t('appAiRailExpand')}
         onClick={onExpand}
       >
-        <ReveLithAiMark size={22} />
+        <ReveLithMark size={22} />
       </button>
     )
   }
@@ -1656,6 +2044,7 @@ export function AiPanel({
       ref={asideRef}
       style={{ width: '100%' }}
       className={`ai-panel${dragOver ? ' ai-panel-dragover' : ''}${resizing ? ' ai-panel-resizing' : ''}`}
+      dir={isRtl ? 'rtl' : undefined}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('Files')) {
           e.preventDefault()
@@ -1673,16 +2062,19 @@ export function AiPanel({
         onPointerDown={startResize}
         role="separator"
         aria-orientation="vertical"
-        aria-label="ReveLith AI"
+        aria-label={t('aiPanelTitle')}
       />
       <div className="ai-panel-header">
-        <span className="ai-panel-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <ReveLithAiMark size={20} />
-          <span style={{ fontWeight: 600 }}>ReveLith AI</span>
+        <span className="ai-panel-title">
+          <ReveLithMark size={22} />
+          {t('aiPanelTitle')}
         </span>
         <div className="ai-panel-header-actions">
-          <ModelSelectorDropdown />
-          {chat.length > 0 && (
+          <AiPanelSideButton
+            lang={lang}
+            onMove={(side) => window.slidesApi.setAiPanelPrefs({ side })}
+          />
+          {(chat.length > 0 || historicChat.length > 0) && (
             <button
               className="ai-header-btn"
               onClick={newChat}
@@ -1694,7 +2086,7 @@ export function AiPanel({
           )}
           {onCollapse && (
             <button
-              className="ai-header-btn"
+              className="ai-header-btn ai-panel-collapse"
               onClick={onCollapse}
               data-tip={t('aiCollapsePanel')}
               aria-label={t('aiCollapsePanel')}
@@ -1711,11 +2103,16 @@ export function AiPanel({
           <>
             {historicChat.map((entry, i) => (
               <div key={`h${i}`} className={`ai-msg ai-msg-${entry.role} ai-msg-historic`}>
+                {entry.role === 'user' && entry.scope && <AiScopeQuote scope={entry.scope} />}
                 {entry.role === 'user' && entry.attachments && entry.attachments.length > 0 && (
                   <SentAttachments atts={entry.attachments} previews={attachmentPreviews} />
                 )}
                 {entry.tools && entry.tools.length > 0 && <ToolChipList tools={entry.tools} />}
-                {entry.text && <Markdown text={entry.text} />}
+                {entry.text && (
+                  <div dir="auto">
+                    <Markdown text={entry.text} />
+                  </div>
+                )}
               </div>
             ))}
             <div className="ai-history-sep">{t('aiHistorySep')}</div>
@@ -1773,6 +2170,7 @@ export function AiPanel({
               key={i}
               className={`ai-msg ai-msg-${entry.role}${entry.role === 'assistant' && entry.streaming ? ' ai-msg-streaming' : ''}`}
             >
+              {entry.role === 'user' && entry.scope && <AiScopeQuote scope={entry.scope} />}
               {entry.role === 'user' && entry.attachments && entry.attachments.length > 0 && (
                 <SentAttachments atts={entry.attachments} previews={attachmentPreviews} />
               )}
@@ -1783,16 +2181,20 @@ export function AiPanel({
                   />
                 </span>
               ) : entry.role === 'assistant' ? (
-                <Markdown text={entry.text} />
+                <div dir="auto">
+                  <Markdown text={entry.text} />
+                </div>
               ) : (
-                entry.text
-              )}
-              {entry.role === 'user' && entry.undelivered && (
-                <div className="ai-msg-undelivered">{t('aiUndelivered')}</div>
+                <span dir="auto">{entry.text}</span>
               )}
               {entry.tools && entry.tools.length > 0 && <ToolChipList tools={entry.tools} />}
               {entry.error && (
                 <div className="ai-msg-error">{t('aiMsgError', { error: entry.error })}</div>
+              )}
+              {entry.loginRequired && (
+                <button className="ai-login-btn" onClick={() => void window.slidesApi.aiGskLogin()}>
+                  {t('aiGskLoginBtn')}
+                </button>
               )}
               {entry.deckProgress && <DeckProgressCard progress={entry.deckProgress} />}
               {showToolbar && (
@@ -1911,6 +2313,18 @@ export function AiPanel({
         </div>
       ) : (
         <div className="ai-composer">
+          {editQueue && editQueue.length > 0 && (
+            <EditQueueCard
+              items={editQueue}
+              slides={slides}
+              busy={busy}
+              onEditInstruction={(key, instruction) => onQueueEditInstruction?.(key, instruction)}
+              onRemove={(key) => onQueueRemove?.(key)}
+              onDiscardAll={() => onQueueClear?.()}
+              onFocus={(key) => onQueueFocus?.(key)}
+              onSend={() => void sendEditQueue()}
+            />
+          )}
           {attachNotice && <div className="ai-attach-notice">{attachNotice}</div>}
           <div className="ai-input-box">
             {attachments.length > 0 && (
@@ -1975,6 +2389,8 @@ export function AiPanel({
             <textarea
               ref={inputRef}
               value={input}
+              dir="auto"
+              spellCheck={spellcheck}
               data-slides-ai-input="true"
               data-deck-undo-ready={!busy && !inputEditedSinceRunRef.current ? 'true' : 'false'}
               placeholder={t(deckEmpty ? 'aiInputPlaceholderGen' : 'aiInputPlaceholder')}
@@ -2000,7 +2416,6 @@ export function AiPanel({
               rows={1}
             />
             <div className="ai-input-footer">
-              <ModelSelectorDropdown />
               <button
                 className="ai-attach-btn"
                 onClick={pickAttachments}
@@ -2348,49 +2763,8 @@ function DeckProgressCard({ progress }: { progress: DeckProgressSnapshot }) {
   // Collapsed by default: while generating only the one-line head shows (fewer concurrent loaders);
   // expanding is a view-only toggle
   const [open, setOpen] = useState(false)
-  const { style, plan, images, pages, isDone, finalTotal } = progress
-
-  type StepStatus = 'done' | 'error' | 'running'
-
-  // Fix the step display order (only steps that have appeared are shown).
-  // Labels come from skill-layer events (backend-defined steps pattern);
-  // in progress shows a live summary (e.g. "planned 5/10 page outlines…"), frozen to the label when done.
-  const steps: Array<{ key: string; label: string; stepStatus: StepStatus }> = []
-
-  const stepView = (
-    status: 'running' | 'done' | 'error',
-    label: string,
-    summary: string,
-  ): { label: string; stepStatus: StepStatus } => ({
-    // In progress/failed read summary; success freezes to the label
-    label: status === 'done' ? label : summary,
-    stepStatus: status === 'done' ? 'done' : status === 'error' ? 'error' : 'running',
-  })
-
-  if (style) {
-    steps.push({ key: 'style', ...stepView(style.status, style.label, style.summary) })
-  }
-  if (plan) {
-    steps.push({ key: 'plan', ...stepView(plan.status, plan.label, plan.summary) })
-  }
-  if (images) {
-    steps.push({ key: 'images', ...stepView(images.status, images.label, images.summary) })
-  }
-  if (pages) {
-    const allDone = isDone || pages.status === 'done'
-    const hasError = pages.items.some((p) => p.status === 'error')
-    steps.push({
-      key: 'pages',
-      label: allDone
-        ? `${pages.label}${pages.total > 0 ? t('aiPagesSuffix', { n: pages.total }) : ''}`
-        : pages.summary || pages.label,
-      stepStatus: allDone ? (hasError ? 'error' : 'done') : 'running',
-    })
-  }
-
-  // Show the summary when done; if any step errored, change the title to failed (avoiding perpetual "generating…" + spinner)
-  const doneSummary = isDone && finalTotal != null ? t('aiProgressDone', { n: finalTotal }) : null
-  const hasStepError = steps.some((s) => s.stepStatus === 'error')
+  const { head, steps } = deriveDeckProgressView(progress, t)
+  const pages = progress.pages
 
   if (steps.length === 0) return null
 
@@ -2402,12 +2776,12 @@ function DeckProgressCard({ progress }: { progress: DeckProgressSnapshot }) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {!doneSummary && !hasStepError && <span className="deck-progress-spinner" aria-hidden />}
-        {doneSummary ? (
-          <span className="deck-progress-done">{doneSummary}</span>
+        {head.tone === 'running' && <span className="deck-progress-spinner" aria-hidden />}
+        {head.tone === 'done' ? (
+          <span className="deck-progress-done">{head.text}</span>
         ) : (
-          <span className={`deck-progress-title${hasStepError ? ' is-error' : ''}`}>
-            {hasStepError ? t('aiProgressFailed') : t('aiProgressTitle')}
+          <span className={`deck-progress-title${head.tone === 'error' ? ' is-error' : ''}`}>
+            {head.text}
           </span>
         )}
         <span className={`ai-tool-chip-caret${open ? ' open' : ''}`} aria-hidden>
@@ -2488,6 +2862,7 @@ function ClarifyCard({
   onSkip: () => void
 }) {
   const { t } = useI18n()
+  const decideAnswer = t('aiClarifyDecideAnswer')
   // Per question: set of selected options + the "Other" free text
   const [picked, setPicked] = useState<Record<string, Set<string>>>({})
   const [other, setOther] = useState<Record<string, string>>({})
@@ -2533,12 +2908,18 @@ function ClarifyCard({
 
   useEffect(() => cancelAdvance, [])
 
-  const toggle = (qid: string, opt: string, multi?: boolean) => {
+  const toggle = (qid: string, opt: string, multi?: boolean, exclusive?: boolean) => {
     setPicked((prev) => {
       const cur = new Set(prev[qid] ?? [])
       if (multi) {
-        if (cur.has(opt)) cur.delete(opt)
-        else cur.add(opt)
+        if (exclusive) {
+          cur.clear()
+          cur.add(opt)
+        } else {
+          cur.delete(decideAnswer)
+          if (cur.has(opt)) cur.delete(opt)
+          else cur.add(opt)
+        }
       } else {
         cur.clear()
         cur.add(opt)
@@ -2561,7 +2942,7 @@ function ClarifyCard({
   const q = questions[qIdx]
   const isLast = qIdx === questions.length - 1
   const selCount = picked[q.id]?.size ?? 0
-  const decideAnswer = t('aiClarifyDecideAnswer')
+  const hasAnswer = selCount > 0 || !!other[q.id]?.trim()
 
   const renderOpt = (opt: string, label: string) => (
     <button
@@ -2570,8 +2951,16 @@ function ClarifyCard({
       role={q.multi ? 'checkbox' : 'radio'}
       aria-checked={picked[q.id]?.has(opt) ?? false}
       onClick={() => {
-        toggle(q.id, opt, q.multi)
-        if (!q.multi) scheduleAdvance(qIdx)
+        const isDecide = opt === decideAnswer
+        toggle(q.id, opt, q.multi, isDecide)
+        if (isDecide) {
+          setOther((prev) => ({ ...prev, [q.id]: '' }))
+          scheduleAdvance(qIdx)
+        } else if (q.multi) {
+          cancelAdvance()
+        } else {
+          scheduleAdvance(qIdx)
+        }
       }}
     >
       <span className="ai-clarify-opt-box" aria-hidden />
@@ -2597,23 +2986,26 @@ function ClarifyCard({
             className="ai-clarify-head-arrow"
             disabled={qIdx === 0}
             onClick={() => goTo(qIdx - 1)}
-            aria-label="‹"
+            aria-label={t('aiClarifyPrev')}
           >
             ‹
           </button>
           <button
             type="button"
             className="ai-clarify-head-arrow"
-            disabled={qIdx >= furthest}
+            disabled={qIdx >= furthest || !hasAnswer}
             onClick={() => goTo(qIdx + 1)}
-            aria-label="›"
+            aria-label={t('aiClarifyNext')}
           >
             ›
           </button>
         </span>
       </div>
       <div key={q.id} className={`ai-clarify-q slide-${slideDir}`}>
-        <div className="ai-clarify-label">{q.label}</div>
+        <div className="ai-clarify-question-head">
+          <div className="ai-clarify-label">{q.label}</div>
+          {q.multi && <span className="ai-clarify-multi-badge">{t('aiClarifyMulti')}</span>}
+        </div>
         {q.description && <div className="ai-clarify-desc">{q.description}</div>}
         <div className="ai-clarify-opts">
           {q.options.map((opt) => renderOpt(opt, opt))}
@@ -2625,7 +3017,15 @@ function ClarifyCard({
           value={other[q.id] ?? ''}
           onChange={(e) => {
             cancelAdvance()
-            setOther((p) => ({ ...p, [q.id]: e.target.value }))
+            const value = e.target.value
+            setOther((p) => ({ ...p, [q.id]: value }))
+            if (value.trim()) {
+              setPicked((prev) => {
+                const cur = new Set(prev[q.id] ?? [])
+                cur.delete(decideAnswer)
+                return { ...prev, [q.id]: cur }
+              })
+            }
           }}
         />
       </div>
@@ -2638,270 +3038,28 @@ function ClarifyCard({
             {t('aiClarifySkip')}
           </button>
           {isLast ? (
-            <button className="ai-clarify-submit" onClick={submit}>
+            <button className="ai-clarify-submit" onClick={submit} disabled={!hasAnswer}>
               {t('aiClarifySubmit')}
             </button>
           ) : (
-            /* Only multi-select advances via the filled foot arrow; single-select advances by picking */
+            /* Multi-select waits for an explicit Next; single-select advances by picking. */
             q.multi && (
               <button
                 type="button"
                 className="ai-clarify-next"
                 onClick={() => goTo(qIdx + 1)}
-                aria-label="›"
+                disabled={!hasAnswer}
+                aria-label={t('aiClarifyNext')}
               >
-                ›
+                <span>{t('aiClarifyNext')}</span>
+                <span className="ai-clarify-next-arrow" aria-hidden>
+                  →
+                </span>
               </button>
             )
           )}
         </span>
       </div>
-    </div>
-  )
-}
-
-function ModelSelectorDropdown() {
-  const [open, setOpen] = useState(false)
-  const [settings, setSettings] = useState<any>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const reloadSettings = () => {
-    try {
-      const stored =
-        localStorage.getItem('revelith.aiSettings') ||
-        window.parent?.localStorage?.getItem?.('revelith.aiSettings')
-      if (stored) setSettings(JSON.parse(stored))
-    } catch {}
-  }
-
-  useEffect(() => {
-    reloadSettings()
-    const handleStorage = () => reloadSettings()
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener('ai-settings-changed', handleStorage)
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener('ai-settings-changed', handleStorage)
-    }
-  }, [])
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    if (open) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
-
-  if (!settings) return null
-
-  const provider = settings.provider || 'lmstudio'
-  const config = settings.providers?.[provider] || {}
-  const currentModel = config.model || 'default-model'
-  const discoveredModels: string[] = config.discoveredModels || []
-
-  const handleSelectModel = (modelName: string) => {
-    const next = {
-      ...settings,
-      providers: {
-        ...settings.providers,
-        [provider]: {
-          ...(settings.providers?.[provider] || {}),
-          model: modelName,
-        },
-      },
-    }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-      if (window.parent?.localStorage) {
-        window.parent.localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-      }
-      void window.slidesApi?.setAiSettings?.(next)
-    } catch {}
-    window.dispatchEvent(new Event('ai-settings-changed'))
-    setOpen(false)
-  }
-
-  const handleSelectProvider = (pId: string) => {
-    const next = { ...settings, provider: pId }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-      if (window.parent?.localStorage) {
-        window.parent.localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-      }
-      void window.slidesApi?.setAiSettings?.(next)
-    } catch {}
-    window.dispatchEvent(new Event('ai-settings-changed'))
-    setOpen(false)
-  }
-
-  const providerLabels: Record<string, { label: string; icon: string }> = {
-    lmstudio: { label: 'LM Studio', icon: '💻' },
-    ollama: { label: 'Ollama', icon: '🦙' },
-    openai: { label: 'OpenAI', icon: '🟢' },
-    'opencode-zen': { label: 'OpenCode Zen', icon: '⚡' },
-    anthropic: { label: 'Claude', icon: '🟣' },
-    gemini: { label: 'Google Gemini', icon: '🔵' },
-    deepseek: { label: 'DeepSeek', icon: '🔴' },
-    custom: { label: 'Custom Server', icon: '⚡' },
-  }
-
-  const currentProviderMeta = providerLabels[provider] || { label: provider, icon: '🤖' }
-
-  return (
-    <div style={{ position: 'relative', display: 'inline-block' }} ref={menuRef}>
-      <button
-        type="button"
-        className="ai-track-btn"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: '2px 8px',
-          borderRadius: 12,
-          fontSize: 11,
-          fontWeight: 500,
-          background: 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          color: '#e1e1e6',
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          maxWidth: 160,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-        onClick={() => {
-          reloadSettings()
-          setOpen((v) => !v)
-        }}
-        title={`Active Engine: ${currentProviderMeta.label} | Model: ${currentModel}`}
-      >
-        <span>{currentProviderMeta.icon}</span>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentModel}</span>
-        <span style={{ fontSize: 8, opacity: 0.7 }}>▼</span>
-      </button>
-
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '100%',
-            left: 0,
-            marginBottom: 6,
-            width: 250,
-            maxHeight: 320,
-            overflowY: 'auto',
-            background: '#1e1e24',
-            border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: 10,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-            padding: 8,
-            zIndex: 99999,
-          }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>
-            ENGINE: {currentProviderMeta.icon} {currentProviderMeta.label}
-          </div>
-
-          {discoveredModels.length > 0 ? (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: '#aaa', marginBottom: 4 }}>
-                Discovered Models ({discoveredModels.length}):
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {discoveredModels.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '5px 8px',
-                      borderRadius: 5,
-                      border: 'none',
-                      background: m === currentModel ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
-                      color: m === currentModel ? '#60a5fa' : '#ddd',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                    onClick={() => handleSelectModel(m)}
-                  >
-                    <span style={{ wordBreak: 'break-all' }}>{m}</span>
-                    {m === currentModel && <span>✓</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 10, color: '#888', padding: '4px 0', marginBottom: 6 }}>
-              No discovered list stored yet. Fetch models in settings.
-            </div>
-          )}
-
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6 }}>
-            <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Switch AI Engine:</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-              {Object.entries(providerLabels).map(([pId, meta]) => (
-                <button
-                  key={pId}
-                  type="button"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '4px 6px',
-                    borderRadius: 5,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    background: pId === provider ? 'rgba(255,255,255,0.12)' : 'transparent',
-                    color: pId === provider ? '#fff' : '#aaa',
-                    fontSize: 10,
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => handleSelectProvider(pId)}
-                >
-                  <span>{meta.icon}</span>
-                  <span
-                    style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    {meta.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              style={{
-                width: '100%',
-                padding: '5px 8px',
-                marginTop: 6,
-                borderRadius: 5,
-                border: '1px solid rgba(255,255,255,0.15)',
-                background: 'rgba(255,255,255,0.08)',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 500,
-                cursor: 'pointer',
-                textAlign: 'center',
-              }}
-              onClick={() => {
-                setOpen(false)
-                window.dispatchEvent(new CustomEvent('open-ai-settings'))
-                try {
-                  window.parent?.postMessage({ type: 'open-ai-settings' }, '*')
-                } catch {}
-              }}
-            >
-              ⚙️ Open Full Settings Modal
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

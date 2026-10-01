@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -15,7 +14,7 @@ import {
 import { XlsxSidecarClient } from '../src/main/xlsx-sidecar-client'
 import { buildEditFixture } from './fixture-builder'
 
-describe.skipIf(!existsSync(sidecarBinaryPath()))('saveWorkbookViaSidecar', () => {
+describe('saveWorkbookViaSidecar', () => {
   let directory: string
   let client: XlsxSidecarClient
 
@@ -97,9 +96,91 @@ describe.skipIf(!existsSync(sidecarBinaryPath()))('saveWorkbookViaSidecar', () =
     expect(sheet).toContain('<c r="A5"><v>41</v></c>')
     expect(sheet).toContain('<c r="A6"><v>42</v></c>')
   })
+
+  it('saves a large constant fill without a per-cell edit payload', async () => {
+    const sourcePath = join(directory, 'bulk-source.xlsx')
+    const targetPath = join(directory, 'bulk-saved.xlsx')
+    await writeFile(sourcePath, await buildEditFixture())
+
+    await saveWorkbookViaSidecar({
+      client,
+      sourcePath,
+      targetPath,
+      edits: [],
+      bulkConstantFills: [
+        {
+          sheetName: 'Data',
+          startRow: 1,
+          endRow: 9_999,
+          startColumn: 1,
+          endColumn: 1,
+          value: 'merrick',
+        },
+      ],
+    })
+
+    const savedZip = await JSZip.loadAsync(await readFile(targetPath))
+    const sheet = await savedZip.file('xl/worksheets/sheet1.xml')?.async('text')
+    expect(sheet).toContain(
+      '<c r="B2" t="inlineStr"><is><t xml:space="preserve">merrick</t></is></c>',
+    )
+    expect(sheet).toContain(
+      '<c r="B10000" t="inlineStr"><is><t xml:space="preserve">merrick</t></is></c>',
+    )
+  })
+
+  it('combines a column insertion, explicit header, and constant fill in final coordinates', async () => {
+    const sourcePath = join(directory, 'insert-fill-source.xlsx')
+    const targetPath = join(directory, 'insert-fill-saved.xlsx')
+    await writeFile(sourcePath, await buildEditFixture())
+
+    await saveWorkbookViaSidecar({
+      client,
+      sourcePath,
+      targetPath,
+      edits: [
+        {
+          sheetName: 'Data',
+          row: 0,
+          column: 1,
+          writeValue: true,
+          cell: { value: 'Owner' },
+        },
+      ],
+      structuralOps: [
+        {
+          sheetName: 'Data',
+          ops: [{ kind: 'insert-cols', index: 1, count: 1 }],
+        },
+      ],
+      bulkConstantFills: [
+        {
+          sheetName: 'Data',
+          startRow: 1,
+          endRow: 9,
+          startColumn: 1,
+          endColumn: 1,
+          value: 'merrick',
+        },
+      ],
+    })
+
+    const savedZip = await JSZip.loadAsync(await readFile(targetPath))
+    const sheet = await savedZip.file('xl/worksheets/sheet1.xml')?.async('text')
+    expect(sheet).toContain(
+      '<c r="B1" t="inlineStr"><is><t xml:space="preserve">Owner</t></is></c>',
+    )
+    expect(sheet).toContain(
+      '<c r="B2" t="inlineStr"><is><t xml:space="preserve">merrick</t></is></c>',
+    )
+    expect(sheet).toContain(
+      '<c r="B10" t="inlineStr"><is><t xml:space="preserve">merrick</t></is></c>',
+    )
+    expect(sheet).toContain('<dimension ref="A1:D10"/>')
+  })
 })
 
-describe.skipIf(!existsSync(sidecarBinaryPath()))('assertManifestPreserved', () => {
+describe('assertManifestPreserved', () => {
   const entry = (name: string, crc32 = 1, size = 10): ArchiveEntry => ({
     name,
     crc32,

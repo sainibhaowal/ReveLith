@@ -59,10 +59,10 @@ export function installPasteGuard(
         const cells = estimatePasteCells(text)
         if (cells > PASTE_CELL_LIMIT) {
           setMessage(
-            t('appPasteTooLarge', {
+            (t as any)('appPasteTooLarge', {
               cells: cells.toLocaleString(),
               max: PASTE_CELL_LIMIT.toLocaleString(),
-            }),
+            }) || `Paste is too large (${cells.toLocaleString()} cells, max ${PASTE_CELL_LIMIT.toLocaleString()})`,
           )
           return false
         }

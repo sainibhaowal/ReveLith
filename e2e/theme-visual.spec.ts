@@ -9,20 +9,19 @@ async function findShellPage(app: ElectronApplication, timeoutMs = 15_000): Prom
   for (;;) {
     for (const candidate of app.windows()) {
       const has = await candidate
-        .evaluate(() => Boolean((window as unknown as { revelithApp?: unknown }).revelithApp))
+        .evaluate(() => Boolean((window as unknown as { aiOffice?: unknown }).aiOffice))
         .catch(() => false)
       if (has) return candidate
     }
     const remaining = deadline - Date.now()
-    if (remaining <= 0) throw new Error('No window exposing window.revelithApp')
+    if (remaining <= 0) throw new Error('No window exposing window.aiOffice')
     await app.waitForEvent('window', { timeout: Math.min(remaining, 1_000) }).catch(() => {})
   }
 }
 
 function setTheme(page: Page, theme: 'light' | 'dark' | 'system'): Promise<void> {
   return page.evaluate((t) => {
-    const api = (window as unknown as { revelithApp: { setTheme(v: string): Promise<void> } })
-      .revelithApp
+    const api = (window as unknown as { aiOffice: { setTheme(v: string): Promise<void> } }).aiOffice
     return api.setTheme(t)
   }, theme)
 }
@@ -59,6 +58,38 @@ function minimalPdf(): Buffer {
 }
 
 test.describe('theme visual adoption', () => {
+  test('html editor surface follows dark theme', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'revelith-theme-html-'))
+    const htmlPath = join(dir, 'doc.html')
+    await writeFile(htmlPath, '<html><body><p>Body.</p></body></html>\n')
+
+    const launched = await launchShell({
+      onboardingSeen: true,
+      videoDir: 'theme-visual-html',
+      openFile: htmlPath,
+    })
+    try {
+      const shellPage = await findShellPage(launched.app)
+      const editorPage = await waitForPageWithUrl(launched.app, '://html/')
+      // preview is the default view; the source pane is what this test measures
+      await editorPage.locator('.rb-view', { hasText: /Source/ }).click()
+      await expect(editorPage.locator('.source-editor .cm-content')).toBeVisible()
+
+      const lightBg = await bodyBg(editorPage)
+      expect(luminance(lightBg)).toBeGreaterThan(180)
+
+      await setTheme(shellPage, 'dark')
+      await expect.poll(async () => luminance(await bodyBg(editorPage))).toBeLessThan(80)
+      const textColor = await editorPage
+        .locator('.source-editor .cm-content')
+        .evaluate((el) => getComputedStyle(el).color)
+      expect(luminance(textColor)).toBeGreaterThan(180)
+      await editorPage.screenshot({ path: screenshotPath('theme-html-dark') })
+    } finally {
+      await closeAndSaveVideo(launched, 'theme-visual-html')
+    }
+  })
+
   test('markdown editor surface follows dark theme', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'revelith-theme-md-'))
     const mdPath = join(dir, 'doc.md')
@@ -71,7 +102,7 @@ test.describe('theme visual adoption', () => {
     })
     try {
       const shellPage = await findShellPage(launched.app)
-      const editorPage = await waitForPageWithUrl(launched.app, 'markdown/out')
+      const editorPage = await waitForPageWithUrl(launched.app, '://markdown/')
       await expect(editorPage.locator('.doc-editor')).toBeVisible()
 
       const lightBg = await bodyBg(editorPage)
@@ -90,13 +121,20 @@ test.describe('theme visual adoption', () => {
     }
   })
 
-  test('docs chrome darkens while the page stays paper-white', async () => {
+  test('docs renders a dark page in dark theme; View ▸ Dark Mode switches back to white paper', async () => {
     const launched = await launchShell({ onboardingSeen: true, videoDir: 'theme-visual-docs' })
     try {
       const shellPage = await findShellPage(launched.app)
       await shellPage.locator('.quick-card', { hasText: 'AI Docs' }).click()
-      const editorPage = await waitForPageWithUrl(launched.app, 'docs/out')
-      await expect(editorPage.locator('.doc-page').first()).toBeVisible()
+      const editorPage = await waitForPageWithUrl(launched.app, '://docs/')
+      const page = editorPage.locator('.doc-page').first()
+      await expect(page).toBeVisible()
+      const pageBg = () => page.evaluate((el) => getComputedStyle(el).backgroundColor)
+      const pageInk = () => page.evaluate((el) => getComputedStyle(el).color)
+
+      // light theme: white paper, dark ink
+      expect(luminance(await pageBg())).toBeGreaterThan(180)
+      expect(luminance(await pageInk())).toBeLessThan(60)
 
       await setTheme(shellPage, 'dark')
       // ribbon and the canvas gutter around pages darken
@@ -118,13 +156,17 @@ test.describe('theme visual adoption', () => {
             .evaluate((el) => getComputedStyle(el).backgroundColor),
         ),
       ).toBeLessThan(90)
-      // the paper and its ink stay untouched
-      const page = editorPage.locator('.doc-page').first()
-      expect(
-        luminance(await page.evaluate((el) => getComputedStyle(el).backgroundColor)),
-      ).toBeGreaterThan(180)
-      expect(luminance(await page.evaluate((el) => getComputedStyle(el).color))).toBeLessThan(60)
+      // Word-style dark page: the paper goes dark and the ink is remapped light
+      await expect.poll(async () => luminance(await pageBg())).toBeLessThan(60)
+      expect(luminance(await pageInk())).toBeGreaterThan(180)
       await editorPage.screenshot({ path: screenshotPath('theme-docs-dark') })
+
+      // View ▸ Dark Mode is Word's Switch Modes: back to white paper under the dark chrome
+      await editorPage.getByRole('button', { name: 'View', exact: true }).click()
+      await editorPage.getByRole('button', { name: 'Dark Mode', exact: true }).click()
+      await expect.poll(async () => luminance(await pageBg())).toBeGreaterThan(180)
+      expect(luminance(await pageInk())).toBeLessThan(60)
+      await editorPage.screenshot({ path: screenshotPath('theme-docs-dark-white-page') })
     } finally {
       await closeAndSaveVideo(launched, 'theme-visual-docs')
     }
@@ -135,7 +177,7 @@ test.describe('theme visual adoption', () => {
     try {
       const shellPage = await findShellPage(launched.app)
       await shellPage.locator('.quick-card', { hasText: 'AI Sheets' }).click()
-      const editorPage = await waitForPageWithUrl(launched.app, 'sheets/out')
+      const editorPage = await waitForPageWithUrl(launched.app, '://sheets/')
       await editorPage.waitForSelector('canvas', { timeout: 20_000 })
 
       // Univer flags its dark repaint with a class on <html> (ThemeService.darkMode$)
@@ -175,7 +217,7 @@ test.describe('theme visual adoption', () => {
     })
     try {
       const shellPage = await findShellPage(launched.app)
-      const editorPage = await waitForPageWithUrl(launched.app, 'pdf/out')
+      const editorPage = await waitForPageWithUrl(launched.app, '://pdf/')
       await expect(editorPage.locator('.pdf-page').first()).toBeVisible()
 
       await setTheme(shellPage, 'dark')

@@ -1,28 +1,21 @@
-/* Shared Find-in-document panel: two rows (query + counter/prev/next/close, then
- * the replace row) over an options strip. It floats over the editor, so it must
- * not sit in a window drag region (see the -webkit-app-region note).
- *
- * The class family (.find-panel / .find-row / .find-input / .find-count /
- * .find-btn / .find-action) is the one the docs editor already styles, so the
- * find box looks the same in every app. */
+/* Find / replace popover shared by the markdown and html editors. The host
+ * container must be position: relative; colors come from tokens.css and the
+ * app's --accent. */
 
 .find-panel {
   position: absolute;
   top: 8px;
   right: 20px;
   z-index: 60;
-  /* the panel overlaps the ribbon-tabs row, which is a window drag region;
-   * drag regions hit-test by rectangle regardless of z-order and would
-   * swallow every click (notably the × close button) */
   -webkit-app-region: no-drag;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-menu);
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--surface);
-  box-shadow: var(--shadow-dropdown);
 }
 
 .find-row {
@@ -34,39 +27,53 @@
 .find-input {
   width: 200px;
   height: 28px;
-  padding: 0 8px;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
+  padding: 0 8px;
   font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
   outline: none;
 }
 
 .find-input:focus {
-  border-color: var(--color-border-brand);
+  border-color: var(--accent);
+}
+
+.find-opt {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.find-opt.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
 }
 
 .find-count {
-  min-width: 52px;
-  color: var(--text-dim);
+  min-width: 44px;
   font-size: 11px;
+  color: var(--text-dim);
   text-align: center;
 }
 
 .find-btn {
   width: 24px;
   height: 24px;
-  padding: 0;
   border: none;
-  border-radius: 4px;
   background: none;
-  color: var(--text);
-  font: inherit;
+  border-radius: 4px;
+  cursor: pointer;
   font-size: 15px;
   line-height: 1;
-  cursor: pointer;
+  color: var(--text);
 }
 
 .find-btn:hover:not(:disabled) {
@@ -89,9 +96,7 @@
   border-radius: 4px;
   background: var(--surface);
   color: var(--text);
-  font: inherit;
   font-size: 12px;
-  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -100,22 +105,16 @@
 }
 
 .find-action:disabled {
-  color: var(--border-strong);
+  color: var(--text-muted);
   cursor: default;
 }
 
-.find-options {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text-dim);
-  font-size: 11px;
+.search-hit {
+  background: var(--search-hit-bg);
+  border-radius: 2px;
 }
 
-.find-options label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: pointer;
+.search-hit-active {
+  background: var(--search-hit-active-bg);
+  color: var(--search-hit-active-ink);
 }

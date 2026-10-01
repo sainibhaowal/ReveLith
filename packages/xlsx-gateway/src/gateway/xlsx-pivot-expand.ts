@@ -374,8 +374,8 @@ const MODELLED_ELEMENTS: Readonly<Record<string, { attrs: string; children: stri
   customFilter: { attrs: 'operator val', children: '' },
   top10: { attrs: 'val', children: '' },
   extLst: { attrs: '', children: 'ext' },
-  ext: { attrs: 'uri', children: 'rvl:revelithPivotGroupings' },
-  'rvl:revelithPivotGroupings': { attrs: 'v', children: '' },
+  ext: { attrs: 'uri', children: 'aio:aioPivotGroupings' },
+  'aio:aioPivotGroupings': { attrs: 'v', children: '' },
   // refreshOnLoad: set by setPivotRefreshOnLoad on every recompute/relayout
   // save, so a pivot ReveLith itself relaid out carries it on reopen.
   pivotCacheDefinition: {

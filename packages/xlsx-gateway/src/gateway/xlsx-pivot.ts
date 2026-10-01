@@ -218,7 +218,7 @@ export function parsePivotDefinition(
   // Our own grouped-field metadata: stored in a private pivotTable extLst
   // extension (fieldIndex → grouping rule). Corrupt/invalid metadata fails closed.
   const groupingByField = new Map<number, PivotFieldGrouping>()
-  const groupingExt = /<(?:\w+:)?revelithPivotGroupings\b[^>]*\bv="([^"]*)"/.exec(pivotTableXml)
+  const groupingExt = /<(?:\w+:)?aioPivotGroupings\b[^>]*\bv="([^"]*)"/.exec(pivotTableXml)
   if (groupingExt) {
     try {
       const entries = JSON.parse(decodeEntities(groupingExt[1] ?? '')) as unknown

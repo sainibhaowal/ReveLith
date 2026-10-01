@@ -13,12 +13,12 @@ export type Lang =
   | 'pt'
   | 'it'
   | 'pl'
+  | 'cs'
   | 'nl'
   | 'ms'
   | 'he'
   | 'hi'
   | 'zh-TW'
-  | 'cs'
   | 'vi'
 
 export const LANGS: readonly Lang[] = [
@@ -36,12 +36,12 @@ export const LANGS: readonly Lang[] = [
   'pt',
   'it',
   'pl',
+  'cs',
   'nl',
   'ms',
   'he',
   'hi',
   'zh-TW',
-  'cs',
   'vi',
 ]
 
@@ -56,10 +56,9 @@ export function normalizeLang(raw: string | null | undefined): Lang {
   // traditional-script Chinese variants must win over the generic 'zh' prefix
   if (/^zh[-_](tw|hk|mo|hant)/.test(value)) return 'zh-TW'
   for (const lang of LANGS) {
-    if (lang !== 'en' && lang !== 'zh-TW' && value.startsWith(lang)) return lang
+    if (lang === 'en' || lang === 'zh-TW') continue
+    if (value === lang || value.startsWith(`${lang}-`) || value.startsWith(`${lang}_`)) return lang
   }
-  // 'cz' is sometimes informally used for Czech
-  if (/^cz\b/.test(value) || /^cz[-_]/.test(value)) return 'cs'
   // 'in' is the legacy ISO code for Indonesian still reported by some systems
   if (/^in\b/.test(value) || /^in[-_]/.test(value)) return 'id'
   // 'iw' is the legacy ISO code for Hebrew
@@ -82,12 +81,12 @@ const HTML_LANGS: Record<Lang, string> = {
   pt: 'pt-BR',
   it: 'it-IT',
   pl: 'pl-PL',
+  cs: 'cs-CZ',
   nl: 'nl-NL',
   ms: 'ms-MY',
   he: 'he-IL',
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
-  cs: 'cs-CZ',
   vi: 'vi-VN',
 }
 
@@ -151,20 +150,13 @@ export type Params = Record<string, string | number>
 export function format(template: string, params?: Params): string {
   if (!params) return template
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
-    name in params ? String(params[name]) : match,
+    Object.hasOwn(params, name) ? String(params[name]) : match,
   )
 }
 
-/**
- * Per-language dictionaries; zh defines the key set, en must match it exactly.
- * Every other language may be partial: missing keys fall back to en, then zh.
- * cs and vi are optional for that reason (added later than the rest).
- */
-export type LangDicts<D extends Record<string, string>> = { zh: D; en: Record<keyof D, string> } & {
-  [L in Exclude<Lang, 'zh' | 'en' | 'cs' | 'vi'>]: Record<keyof D, string>
-} & {
-  cs?: Partial<Record<keyof D, string>>
-  vi?: Partial<Record<keyof D, string>>
+/** per-language dictionaries; zh defines the key set, all others must match it */
+export type LangDicts<D extends Record<string, string>> = { zh: D } & {
+  [L in Exclude<Lang, 'zh'>]: Record<keyof D, string>
 }
 
 /**
@@ -199,13 +191,11 @@ export function onUiLangChange(listener: (lang: Lang) => void): () => void {
 
 /**
  * Build a translator over per-language dictionaries. The zh dictionary defines
- * the key set and en must cover it exactly (compile-time checked). Partial
- * languages (cs, vi) fall back to en, then zh, for any key they omit.
+ * the key set; every other language must cover exactly the same keys
+ * (compile-time checked), so a missing translation is a type error, not a
+ * runtime fallback.
  */
 export function createI18n<D extends Record<string, string>>(dicts: LangDicts<D>) {
-  return (lang: Lang, key: keyof D, params?: Params): string => {
-    const dict = dicts[lang]
-    const template = (dict && dict[key]) || dicts.en[key] || dicts.zh[key] || ''
-    return platformShortcuts(format(template, params))
-  }
+  return (lang: Lang, key: keyof D, params?: Params): string =>
+    format(platformShortcuts(dicts[lang][key]), params)
 }

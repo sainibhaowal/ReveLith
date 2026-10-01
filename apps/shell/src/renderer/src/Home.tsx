@@ -1,28 +1,41 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type { DragEvent as ReactDragEvent, ReactElement } from 'react'
+import logoLockup from './assets/revelith-logo.svg'
 import iconDocx from './assets/file-docx.svg'
 import iconXlsx from './assets/file-xlsx.svg'
 import iconPptx from './assets/file-pptx.svg'
 import iconPdf from './assets/file-pdf.svg'
 import iconMd from './assets/file-md.svg'
+import iconHtml from './assets/file-html.svg'
 import type {
+  AccountStatus,
+  CloudProjectKind,
+  CloudProjectsSnapshot,
+  FolderEntry,
+  FolderListing,
+  FolderRoot,
   HomeApi,
-  ProjectHomeApi,
-  ProjectSummaryEntry,
+  MoveConflictPolicy,
   RecentEntry,
-  SearchQuery,
-  SearchResult,
-  SearchPage,
-  SaveFolderEntry,
+  FileSearchHit,
+  FileSearchPage,
+  FileSearchRerank,
 } from '../../shared/home-api'
-import { fileCountKey, visiblePageCount } from './counts'
-import { useI18n, type StringKey, type I18n } from './locale'
-import './home-search.css'
+import type { IntegrationsApi } from '../../shared/integrations-api'
+import { markText } from '../../shared/text-marks'
+import { useDismissablePopover } from '@revelith/ui'
+import { fileCountLabel, visiblePageCount } from './counts'
+import { useI18n } from './locale'
+import type { I18n, StringKey } from './locale'
+import { SettingsModal } from './SettingsModal'
+import type { SettingsTarget } from './SettingsModal'
+import { skillUpdateDue } from './IntegrationsPane'
+import { onFilesChanged } from './file-events'
 
 declare global {
   interface Window {
-    revelithApp: HomeApi
-    revelithAppProject?: ProjectHomeApi
+    aiOffice: HomeApi
+    aiOfficeIntegrations?: IntegrationsApi
   }
 }
 
@@ -42,11 +55,27 @@ const GREET_ASK_KEYS = [
 const FILE_ICONS: Record<string, string> = {
   docx: iconDocx,
   xlsx: iconXlsx,
+  xlsm: iconXlsx,
   pptx: iconPptx,
   pdf: iconPdf,
   md: iconMd,
   markdown: iconMd,
+  html: iconHtml,
+  htm: iconHtml,
 }
+
+/* Formats the open-local card advertises. Too long for the card at any window
+   width, so it ellipsizes and a hover ScreenTip carries the full list. Keep in
+   sync with the main-process open-dialog filter (OPEN_DIALOG_EXTENSIONS). */
+const OPEN_LOCAL_EXTENSIONS =
+  '.docx / .xlsx / .xlsm / .xls / .csv / .tsv / .pptx / .pdf / .md / .html'
+
+/** drag payload of home file/folder rows (JSON array of absolute paths) */
+const DRAG_PATHS_MIME = 'application/x-revelith-paths'
+/** hovering a collapsed folder this long while dragging expands it */
+const DRAG_EXPAND_DELAY_MS = 600
+/** expanded folders survive a home reload; the selection is per session */
+const TREE_STATE_KEY = 'home.folderTree'
 
 function FileBadge({ ext, size }: { ext: string; size: number }) {
   const icon = FILE_ICONS[ext]
@@ -73,13 +102,58 @@ function FileBadge({ ext, size }: { ext: string; size: number }) {
   )
 }
 
+function FolderIcon({ size = 16, open = false }: { size?: number; open?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3.1c.44 0 .85.19 1.13.52L8.4 4.4H13A1.5 1.5 0 0 1 14.5 5.9v5.6A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5V4z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+        fill={open ? 'currentColor' : 'none'}
+        fillOpacity={open ? 0.12 : 0}
+      />
+    </svg>
+  )
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+      style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform 0.12s' }}
+    >
+      <path
+        d="M4.5 2.5l4 3.5-4 3.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
+function MoreDots() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="3.2" cy="8" r="1.35" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.35" fill="currentColor" />
+      <circle cx="12.8" cy="8" r="1.35" fill="currentColor" />
+    </svg>
+  )
+}
+
 function formatModified(mtimeMs: number, i18n: I18n): string {
   const date = new Date(mtimeMs)
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const days = Math.round((startOfDay(now) - startOfDay(date)) / 86400000)
   if (days <= 0) {
-    return `${i18n.t('today')} Â· ${date.toLocaleTimeString(i18n.dateLocale, { hour: '2-digit', minute: '2-digit' })}`
+    return `${i18n.t('today')} · ${date.toLocaleTimeString(i18n.dateLocale, { hour: '2-digit', minute: '2-digit' })}`
   }
   if (days === 1) return i18n.t('yesterday')
   return date.toLocaleDateString(i18n.dateLocale, { month: 'short', day: 'numeric' })
@@ -90,9 +164,28 @@ function formatSize(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
+function splitPath(path: string): string[] {
+  return path.split(/[\\/]/).filter(Boolean)
+}
+
 function parentDir(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean)
+  const parts = splitPath(path)
   return parts[parts.length - 2] ?? ''
+}
+
+function dirOf(path: string): string {
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  if (cut < 0) return path
+  // keep the separator on a filesystem root ("/" or "C:\") instead of an empty or bare-drive string
+  const dir = path.slice(0, cut)
+  return dir === '' || /^[A-Za-z]:$/.test(dir) ? path.slice(0, cut + 1) : dir
+}
+
+function isUnder(root: string, path: string): boolean {
+  if (path === root) return true
+  // a root that already ends with a separator ("/" or "C:\") must not get a second one
+  if (/[\\/]$/.test(root)) return path.startsWith(root)
+  return path.startsWith(root + '/') || path.startsWith(root + '\\')
 }
 
 function fileName(path: string): string {
@@ -103,11 +196,37 @@ function baseName(entry: RecentEntry): string {
   return entry.ext ? entry.name.slice(0, -(entry.ext.length + 1)) : entry.name
 }
 
-// â”€â”€ Project hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/** the root that holds `path`; the deepest one when roots nest */
+function rootOf(path: string, roots: readonly FolderRoot[]): FolderRoot | null {
+  let best: FolderRoot | null = null
+  for (const root of roots) {
+    if (isUnder(root.path, path) && (!best || root.path.length > best.path.length)) best = root
+  }
+  return best
+}
 
-/** whether we are inside the shell (revelithAppProject API available) */
-function hasProjectApi(): boolean {
-  return typeof window.revelithAppProject !== 'undefined'
+/** "Clients / Contracts" for a file under a root; the parent folder name elsewhere */
+function locationLabel(path: string, roots: readonly FolderRoot[]): string {
+  const dir = dirOf(path)
+  const root = rootOf(dir, roots)
+  if (root) {
+    if (dir === root.path) return root.name
+    return splitPath(dir.slice(root.path.length)).join(' / ')
+  }
+  return parentDir(path)
+}
+
+/** the folders between root and `dir` (inclusive) */
+function crumbsOf(root: FolderRoot, dir: string): Array<{ path: string; name: string }> {
+  const crumbs = [{ path: root.path, name: root.name }]
+  if (dir === root.path) return crumbs
+  const sep = dir.includes('\\') && !dir.includes('/') ? '\\' : '/'
+  let acc = root.path
+  for (const part of splitPath(dir.slice(root.path.length))) {
+    acc = `${acc}${sep}${part}`
+    crumbs.push({ path: acc, name: part })
+  }
+  return crumbs
 }
 
 const FILTERS: { key: string; label: StringKey }[] = [
@@ -117,7 +236,37 @@ const FILTERS: { key: string; label: StringKey }[] = [
   { key: 'pptx', label: 'filterSlides' },
   { key: 'pdf', label: 'filterPdf' },
   { key: 'md', label: 'filterMd' },
+  { key: 'html', label: 'filterHtml' },
 ]
+
+/** sidebar filter keys that stand for a family of extensions (mirrors recent-files.ts) */
+const FILTER_FAMILY: Record<string, readonly string[]> = {
+  docx: ['docx', 'doc'],
+  xlsx: ['xlsx', 'xlsm', 'xls', 'csv', 'tsv'],
+  pptx: ['pptx', 'ppt'],
+  md: ['md', 'markdown'],
+  html: ['html', 'htm'],
+}
+
+function matchesFilter(entry: RecentEntry, filter: string): boolean {
+  if (filter === 'all') return true
+  return (FILTER_FAMILY[filter] ?? [filter]).includes(entry.ext)
+}
+
+/** wrap every matched fragment of a name or folder label in the shared search-hit mark */
+function highlightText(text: string, needles: readonly string[]): ReactElement[] | string {
+  const marks = markText(text, needles)
+  if (!marks.some((m) => m.hit)) return text
+  return marks.map((m, i) =>
+    m.hit ? (
+      <mark key={i} className="search-hit">
+        {m.text}
+      </mark>
+    ) : (
+      <span key={i}>{m.text}</span>
+    ),
+  )
+}
 
 /** Check glyph marking the selected sort option; invisible on the others so labels stay aligned */
 function SortCheck({ visible }: { visible: boolean }): ReactElement {
@@ -142,426 +291,1112 @@ function SortCheck({ visible }: { visible: boolean }): ReactElement {
   )
 }
 
-// â”€â”€ Project sidebar component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Folder tree state (shared by the sidebar and the move picker) ──
 
-interface FoldersPanelProps {
-  saveDir: string
-  folders: SaveFolderEntry[]
-  selectedFolder: string | null
-  onSelect: (folderPath: string | null) => void
-  onRefresh: () => void
+interface TreeState {
+  expanded: string[]
+  /** the root the layout was saved for; a layout for another root is not applied */
+  root: string | null
 }
 
-function FoldersPanel({
-  saveDir,
-  folders,
-  selectedFolder,
-  onSelect,
-  onRefresh,
-}: FoldersPanelProps) {
-  const [creating, setCreating] = useState(false)
-  const [newName, setNewName] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (creating && inputRef.current) inputRef.current.focus()
-  }, [creating])
-
-  const commitCreate = async () => {
-    const name = newName.trim()
-    setCreating(false)
-    setNewName('')
-    if (!name) return
-    await window.revelithApp?.createSaveFolder?.(name)
-    onRefresh()
+function readTreeState(): TreeState {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TREE_STATE_KEY) ?? 'null') as TreeState | null
+    if (raw && Array.isArray(raw.expanded)) {
+      return {
+        expanded: raw.expanded.filter((p): p is string => typeof p === 'string'),
+        root: typeof raw.root === 'string' ? raw.root : null,
+      }
+    }
+  } catch {
+    // corrupt or absent: start collapsed
   }
+  return { expanded: [], root: null }
+}
 
-  const saveDirName = saveDir ? saveDir.split(/[\\/]/).pop() || saveDir : 'Save Folder'
+function writeTreeState(state: TreeState): void {
+  try {
+    localStorage.setItem(TREE_STATE_KEY, JSON.stringify(state))
+  } catch {
+    // quota / private mode: the tree just forgets its layout
+  }
+}
 
-  return (
-    <div className="proj-panel folders-panel">
-      <div className="proj-panel-head">
-        <span className="proj-panel-title" title={saveDir}>
-          Folders
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {saveDir && (
-            <button
-              className="proj-add-btn"
-              title="Reveal in Explorer"
-              onClick={() => void window.revelithApp?.openPathInExplorer?.(saveDir)}
-              aria-label="Reveal in Explorer"
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M1.5 3.5A1.5 1.5 0 013 2h3.586a1.5 1.5 0 011.06.44l1.415 1.414A1.5 1.5 0 0010.12 4.5H13A1.5 1.5 0 0114.5 6v6.5A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-9z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                />
-              </svg>
-            </button>
-          )}
-          <button
-            className="proj-add-btn"
-            title="New Folder"
-            onClick={() => setCreating(true)}
-            aria-label="New Folder"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path
-                d="M7 1v12M1 7h12"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
+/**
+ * Lazily loaded folder listings keyed by directory. Listing a folder that is
+ * already cached is a no-op; `invalidate` drops entries so the next render
+ * refetches them (the main process reports changed directories via watch).
+ */
+function useFolderListings() {
+  const [listings, setListings] = useState<ReadonlyMap<string, FolderListing>>(new Map())
+  // dir → whether a reload was requested while its request was in flight (the
+  // in-flight answer may predate the change, so it is fetched once more)
+  const inflight = useRef(new Map<string, boolean>())
 
-      {creating && (
-        <div className="proj-new-row">
-          <input
-            ref={inputRef}
-            className="proj-rename-input"
-            placeholder="Folder name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onBlur={() => void commitCreate()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void commitCreate()
-              if (e.key === 'Escape') {
-                setCreating(false)
-                setNewName('')
-              }
-            }}
-          />
-        </div>
-      )}
+  const load = useCallback((dir: string, force = false) => {
+    if (inflight.current.has(dir)) {
+      if (force) inflight.current.set(dir, true)
+      return
+    }
+    inflight.current.set(dir, false)
+    void window.aiOffice
+      .listFolder(dir)
+      .then((listing) => {
+        setListings((prev) => {
+          const next = new Map(prev)
+          next.set(dir, listing)
+          return next
+        })
+      })
+      .finally(() => {
+        const again = inflight.current.get(dir)
+        inflight.current.delete(dir)
+        if (again) load(dir, true)
+      })
+  }, [])
 
-      <ul className="proj-list">
-        <li className={`proj-item${selectedFolder === null ? ' active' : ''}`}>
-          <div className="proj-item-main" onClick={() => onSelect(null)}>
-            <span
-              className="proj-item-dot"
-              style={{
-                backgroundColor: selectedFolder === null ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            />
-            <span className="proj-item-name">{saveDirName} (All)</span>
-          </div>
-        </li>
-        {folders.map((f) => {
-          const isActive = selectedFolder === f.path
-          return (
-            <li key={f.path} className={`proj-item${isActive ? ' active' : ''}`}>
-              <div className="proj-item-main" onClick={() => onSelect(f.path)} title={f.path}>
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  style={{ marginRight: 6, flexShrink: 0, color: 'var(--text-muted)' }}
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M1.5 3.5A1.5 1.5 0 013 2h3.586a1.5 1.5 0 011.06.44l1.415 1.414A1.5 1.5 0 0010.12 4.5H13A1.5 1.5 0 0114.5 6v6.5A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-9z"
-                    stroke="currentColor"
-                    strokeWidth="1.3"
-                  />
-                </svg>
-                <span className="proj-item-name">{f.name}</span>
-                {f.fileCount > 0 && (
-                  <span className="nav-count" style={{ marginLeft: 'auto', fontSize: 11 }}>
-                    {f.fileCount}
-                  </span>
-                )}
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
+  const invalidate = useCallback(
+    (dirs: readonly string[]) => {
+      setListings((prev) => {
+        let changed = false
+        const next = new Map(prev)
+        for (const dir of dirs) {
+          if (next.delete(dir)) changed = true
+        }
+        return changed ? next : prev
+      })
+      for (const dir of dirs) load(dir, true)
+    },
+    [load],
   )
+
+  const reset = useCallback(() => setListings(new Map()), [])
+
+  /** shown or currently loading: the folders a watch event should refresh */
+  const tracked = useCallback(
+    (dir: string) => listings.has(dir) || inflight.current.has(dir),
+    [listings],
+  )
+
+  return { listings, load, invalidate, reset, tracked }
 }
 
-interface ProjectPanelProps {
-  projects: ProjectSummaryEntry[]
-  selectedId: string | null
-  onSelect: (id: string | null) => void
-  onRefresh: () => void
+// ── Move-to-folder picker ────────────────────────────────
+
+interface FolderPickerProps {
+  roots: readonly FolderRoot[]
+  /** folders the moved items already live in (greyed, not selectable) */
+  currentDirs: ReadonlySet<string>
+  /** folders being moved: they and their descendants cannot be targets */
+  movingDirs: readonly string[]
+  count: number
+  onCancel: () => void
+  onPick: (dir: string) => void
 }
 
-function ProjectPanel({ projects, selectedId, onSelect, onRefresh }: ProjectPanelProps) {
+function FolderPicker({
+  roots,
+  currentDirs,
+  movingDirs,
+  count,
+  onCancel,
+  onPick,
+}: FolderPickerProps) {
   const { t } = useI18n()
-  const [creating, setCreating] = useState(false)
+  const { listings, load } = useFolderListings()
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(roots.map((r) => r.path)),
+  )
+  const [picked, setPicked] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [creatingIn, setCreatingIn] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
-  // open menu id + fixed-position anchor (viewport coords), so the popup can
-  // escape the scrollable project list without the list losing overflow-y
-  const [projMenu, setProjMenu] = useState<{ id: string; top: number; right: number } | null>(null)
-  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null)
-  const newInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (creating && newInputRef.current) newInputRef.current.focus()
-  }, [creating])
-
-  // close the menu on outside click or any scroll (the fixed-position popup
-  // would otherwise detach from its row while the list scrolls)
-  useEffect(() => {
-    if (!projMenu) return
-    const handler = (e: PointerEvent) => {
-      const target = e.target as Element | null
-      if (!target?.closest?.('.proj-menu-wrap')) setProjMenu(null)
-    }
-    const close = () => setProjMenu(null)
-    window.addEventListener('pointerdown', handler)
-    window.addEventListener('scroll', close, true)
-    return () => {
-      window.removeEventListener('pointerdown', handler)
-      window.removeEventListener('scroll', close, true)
-    }
-  }, [projMenu])
-
-  const commitCreate = async () => {
-    const name = newName.trim()
-    setCreating(false)
-    setNewName('')
-    if (!name) return
-    await window.revelithAppProject?.createProject(name)
-    onRefresh()
-  }
-
-  const commitRename = async () => {
-    if (!renaming) return
-    const name = renaming.value.trim()
-    const id = renaming.id
-    setRenaming(null)
-    if (!name) return
-    await window.revelithAppProject?.renameProject(id, name)
-    onRefresh()
-  }
-
-  // in-app confirm dialog (same style as the delete-files modal), not window.confirm
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-
-  const doDelete = (id: string) => {
-    setProjMenu(null)
-    setConfirmDeleteId(id)
-  }
-
-  const confirmDeleteNow = async () => {
-    const id = confirmDeleteId
-    setConfirmDeleteId(null)
-    if (!id) return
-    await window.revelithAppProject?.deleteProject(id)
-    if (selectedId === id) onSelect(null)
-    onRefresh()
-  }
+    for (const dir of expanded) load(dir)
+  }, [expanded, load])
 
   useEffect(() => {
-    if (!confirmDeleteId) return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setConfirmDeleteId(null)
+      if (e.key === 'Escape') onCancel()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [confirmDeleteId])
+  }, [onCancel])
 
-  return (
-    <div className="proj-panel">
-      <div className="proj-panel-head">
-        <span className="proj-panel-title">{t('projects')}</span>
-        <button
-          className="proj-add-btn"
-          data-tip={t('newProject')}
-          onClick={() => setCreating(true)}
-          aria-label={t('newProject')}
+  const disabledDir = (dir: string) =>
+    currentDirs.has(dir) ||
+    movingDirs.some((m) => isUnder(m, dir)) ||
+    rootOf(dir, roots)?.usable === false
+
+  // Enter or blur commits, Escape cancels; the blur an unmount may fire reads
+  // the edit from a ref mirrored during render, so a finished edit is a no-op
+  const creatingRef = useRef<{ parent: string; name: string } | null>(null)
+  creatingRef.current = creatingIn ? { parent: creatingIn, name: newName } : null
+  const commitCreate = async () => {
+    const pending = creatingRef.current
+    creatingRef.current = null
+    setCreatingIn(null)
+    setNewName('')
+    const parent = pending?.parent
+    const name = pending?.name.trim()
+    if (!parent || !name) return
+    const result = await window.aiOffice.createFolder(parent, name)
+    if (!result.ok) {
+      window.alert(result.error ?? t('renameFailed'))
+      return
+    }
+    load(parent, true)
+    setExpanded((prev) => new Set([...prev, parent]))
+    if (result.path) setPicked(result.path)
+  }
+
+  // name search flattens the tree to every loaded folder whose name matches;
+  // folders not yet expanded are loaded on the fly one level at a time
+  const needle = query.trim().toLowerCase()
+  const renderNode = (entry: { path: string; name: string }, depth: number): ReactElement => {
+    const listing = listings.get(entry.path)
+    const isOpen = expanded.has(entry.path)
+    const children = listing?.folders ?? []
+    const disabled = disabledDir(entry.path)
+    const isCurrent = currentDirs.has(entry.path)
+    return (
+      <li key={entry.path}>
+        <div
+          className={`picker-row${picked === entry.path ? ' active' : ''}${disabled ? ' disabled' : ''}`}
+          style={{ paddingLeft: 8 + depth * 16 }}
+          role="treeitem"
+          aria-selected={picked === entry.path}
+          aria-expanded={children.length > 0 ? isOpen : undefined}
+          onClick={() => {
+            if (!disabled) setPicked(entry.path)
+          }}
+          onDoubleClick={() => {
+            if (!disabled) onPick(entry.path)
+          }}
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path
-              d="M7 1v12M1 7h12"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      </div>
-
-      {creating && (
-        <div className="proj-new-row">
-          <input
-            ref={newInputRef}
-            className="proj-rename-input"
-            placeholder={t('projectName')}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onBlur={() => void commitCreate()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void commitCreate()
-              if (e.key === 'Escape') {
-                setCreating(false)
-                setNewName('')
-              }
+          <button
+            className="tree-chevron"
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ visibility: listing && children.length === 0 ? 'hidden' : undefined }}
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpanded((prev) => {
+                const next = new Set(prev)
+                if (next.has(entry.path)) next.delete(entry.path)
+                else next.add(entry.path)
+                return next
+              })
             }}
-          />
+          >
+            <Chevron open={isOpen} />
+          </button>
+          <FolderIcon open={isOpen} />
+          <span className="picker-name">{entry.name}</span>
+          {isCurrent && <span className="picker-current">{t('currentFolder')}</span>}
         </div>
-      )}
-
-      <ul className="proj-list">
-        {projects.map((proj) => {
-          const isActive = selectedId === proj.id
-          const isRenaming = renaming?.id === proj.id
-          return (
-            <li key={proj.id} className={`proj-item${isActive ? ' active' : ''}`}>
-              <div
-                className="proj-item-main"
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelect(isActive ? null : proj.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onSelect(isActive ? null : proj.id)
-                }}
-              >
-                <span className="proj-item-icon" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path
-                      d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3.1c.44 0 .85.19 1.13.52L8.4 4.4H13A1.5 1.5 0 0 1 14.5 5.9v5.6A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5V4z"
-                      stroke="currentColor"
-                      strokeWidth="1.2"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                {isRenaming ? (
+        {isOpen && (
+          <ul role="group">
+            {children.map((child) => renderNode(child, depth + 1))}
+            {creatingIn === entry.path && (
+              <li>
+                <div className="picker-row" style={{ paddingLeft: 8 + (depth + 1) * 16 }}>
+                  <span className="tree-chevron" aria-hidden="true" />
+                  <FolderIcon />
                   <input
-                    className="proj-rename-input inline"
-                    value={renaming.value}
+                    className="folder-rename-input inline"
                     autoFocus
-                    onFocus={(e) => e.target.select()}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => setRenaming({ id: proj.id, value: e.target.value })}
-                    onBlur={() => void commitRename()}
+                    placeholder={t('untitledFolder')}
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onBlur={() => void commitCreate()}
                     onKeyDown={(e) => {
                       e.stopPropagation()
-                      if (e.key === 'Enter') void commitRename()
-                      if (e.key === 'Escape') setRenaming(null)
+                      if (e.nativeEvent.isComposing) return
+                      if (e.key === 'Enter') void commitCreate()
+                      if (e.key === 'Escape') {
+                        setCreatingIn(null)
+                        setNewName('')
+                      }
                     }}
                   />
-                ) : (
-                  <span className="proj-item-name">
-                    {proj.isDefault ? t('defaultProject') : proj.name}
-                  </span>
-                )}
-                <span className="proj-item-meta">
-                  <span className="proj-item-count">{proj.fileCount}</span>
-                </span>
-              </div>
-
-              {!proj.isDefault && (
-                <div className="proj-menu-wrap">
-                  <button
-                    className="proj-more-btn"
-                    aria-label={t('projMoreActions', { name: proj.name })}
-                    aria-expanded={projMenu?.id === proj.id}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (projMenu?.id === proj.id) {
-                        setProjMenu(null)
-                        return
-                      }
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      setProjMenu({
-                        id: proj.id,
-                        top: rect.bottom + 4,
-                        right: window.innerWidth - rect.right,
-                      })
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-                      <circle cx="3.2" cy="8" r="1.35" fill="currentColor" />
-                      <circle cx="8" cy="8" r="1.35" fill="currentColor" />
-                      <circle cx="12.8" cy="8" r="1.35" fill="currentColor" />
-                    </svg>
-                  </button>
-                  {projMenu?.id === proj.id && (
-                    <div
-                      className="proj-menu"
-                      role="menu"
-                      style={{ top: projMenu.top, right: projMenu.right }}
-                    >
-                      <button
-                        role="menuitem"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setProjMenu(null)
-                          setRenaming({ id: proj.id, value: proj.name })
-                        }}
-                      >
-                        {t('rename')}
-                      </button>
-                      <div className="row-menu-divider" />
-                      <button
-                        role="menuitem"
-                        className="danger"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          doDelete(proj.id)
-                        }}
-                      >
-                        {t('deleteProject')}
-                      </button>
-                    </div>
-                  )}
                 </div>
-              )}
+              </li>
+            )}
+          </ul>
+        )}
+      </li>
+    )
+  }
+
+  const renderSearch = (): ReactElement => {
+    const hits: Array<{ path: string; name: string; rel: string }> = []
+    for (const listing of listings.values()) {
+      for (const f of listing.folders) {
+        if (f.name.toLowerCase().includes(needle)) {
+          hits.push({ path: f.path, name: f.name, rel: locationLabel(f.path + '/x', roots) })
+        }
+        if (!listings.has(f.path)) load(f.path)
+      }
+    }
+    hits.sort((a, b) => a.name.localeCompare(b.name))
+    if (hits.length === 0) return <p className="picker-empty">{t('noMatchingFolders')}</p>
+    return (
+      <ul role="tree">
+        {hits.map((h) => {
+          const disabled = disabledDir(h.path)
+          return (
+            <li key={h.path}>
+              <div
+                className={`picker-row${picked === h.path ? ' active' : ''}${disabled ? ' disabled' : ''}`}
+                role="treeitem"
+                aria-selected={picked === h.path}
+                onClick={() => {
+                  if (!disabled) setPicked(h.path)
+                }}
+                onDoubleClick={() => {
+                  if (!disabled) onPick(h.path)
+                }}
+              >
+                <span className="tree-chevron" aria-hidden="true" />
+                <FolderIcon />
+                <span className="picker-name">{h.name}</span>
+                <span className="picker-rel">{h.rel}</span>
+              </div>
             </li>
           )
         })}
       </ul>
+    )
+  }
 
-      {confirmDeleteId &&
-        (() => {
-          // locale string is "title?\nbody" : split it across the dialog
-          const [confirmTitle, ...confirmBody] = t('deleteProjectConfirm').split('\n')
-          return (
-            <div className="modal-overlay" onClick={() => setConfirmDeleteId(null)}>
-              <div
-                className="modal"
-                role="dialog"
-                aria-modal="true"
-                aria-label={confirmTitle}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <h3>{confirmTitle}</h3>
-                <p>{confirmBody.join('\n')}</p>
-                <div className="modal-buttons">
-                  <button
-                    className="btn btn-secondary"
-                    autoFocus
-                    onClick={() => setConfirmDeleteId(null)}
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button className="btn btn-danger" onClick={() => void confirmDeleteNow()}>
-                    {t('delete')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div
+        className="modal picker-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('moveToFolderTitle')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>{t('moveToFolderTitle')}</h3>
+        <input
+          className="picker-search"
+          type="search"
+          placeholder={t('searchFolders')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="picker-tree">
+          {needle ? (
+            renderSearch()
+          ) : (
+            <ul role="tree">{roots.map((root) => renderNode(root, 0))}</ul>
+          )}
+        </div>
+        <div className="modal-buttons picker-buttons">
+          <button
+            className="btn btn-secondary picker-new"
+            onClick={() => {
+              const parent = picked ?? roots.find((r) => r.usable)?.path
+              if (!parent) return
+              setExpanded((prev) => new Set([...prev, parent]))
+              setCreatingIn(parent)
+              setNewName('')
+            }}
+          >
+            {t('newFolder')}
+          </button>
+          <span className="picker-spacer" />
+          <button className="btn btn-secondary" onClick={onCancel}>
+            {t('cancel')}
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={!picked || disabledDir(picked)}
+            onClick={() => {
+              if (picked) onPick(picked)
+            }}
+          >
+            {t('moveCount', { n: count })}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
-// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Same-name conflict prompt ───────────────────────────
+
+interface ConflictPromptProps {
+  names: string[]
+  onChoose: (policy: MoveConflictPolicy) => void
+}
+
+function ConflictPrompt({ names, onChoose }: ConflictPromptProps) {
+  const { t } = useI18n()
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onChoose('skip')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onChoose])
+  return (
+    <div className="modal-overlay" onClick={() => onChoose('skip')}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('conflictTitle')}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>{t('conflictTitle')}</h3>
+        <p>
+          {names.length === 1
+            ? t('conflictBodyOne', { name: names[0] })
+            : t('conflictBodyMany', { n: names.length })}
+        </p>
+        {names.length > 1 && (
+          <ul className="modal-file-list">
+            {names.slice(0, 6).map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+            {names.length > 6 && <li>{t('deleteMoreCount', { n: names.length })}</li>}
+          </ul>
+        )}
+        <div className="modal-buttons">
+          <button className="btn btn-secondary" autoFocus onClick={() => onChoose('skip')}>
+            {t('cancel')}
+          </button>
+          <button className="btn btn-secondary" onClick={() => onChoose('keepBoth')}>
+            {t('conflictKeepBoth')}
+          </button>
+          <button className="btn btn-danger" onClick={() => onChoose('replace')}>
+            {t('conflictReplace')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Account entry (bottom-left) ──────────────────────────
+// Currently the ReveLith (gsk) login entry; to be upgraded to a signup/account system later.
+// Clicking it opens the settings modal directly (SettingsModal.tsx), which hosts
+// login/logout plus preferences (language, theme, save location, update channel).
+
+const LOGIN_POLL_MS = 2500
+/** fallback deadline when the CLI does not report expires_in (device codes live ~300s) */
+const LOGIN_MAX_WAIT_MS = 300_000
+
+function AccountEntry({
+  onStatusChange,
+  onFileSearchSettingsChange,
+  openRequest,
+}: {
+  onStatusChange?: (status: AccountStatus | null) => void
+  onFileSearchSettingsChange?: () => void
+  /** a fresh object per request: the home list asks to open the modal on a given block */
+  openRequest?: SettingsTarget | null
+}) {
+  const { t } = useI18n()
+  const [status, setStatus] = useState<AccountStatus | null>(null)
+
+  useEffect(() => {
+    onStatusChange?.(status)
+  }, [status, onStatusChange])
+  const [waiting, setWaiting] = useState(false)
+  // incremented on login retry, resetting the polling timer
+  const [loginNonce, setLoginNonce] = useState(0)
+  const [loginError, setLoginError] = useState<
+    'timeout' | 'launch' | 'network' | 'expired' | 'failed' | null
+  >(null)
+  // auth URL reported by the login CLI — rescue entry when the browser did not open
+  const [authUrl, setAuthUrl] = useState<string | null>(null)
+  const [urlCopied, setUrlCopied] = useState(false)
+  const loginDeadline = useRef(0)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [skillUpdate, setSkillUpdate] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  // bumped on logout so an in-flight status refresh (which can still
+  // report logged-in) is discarded instead of resurrecting the UI
+  const statusSeq = useRef(0)
+
+  // query login state once on mount
+  useEffect(() => {
+    let alive = true
+    void window.aiOffice.accountStatus?.().then((s) => {
+      if (alive) setStatus(s)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // the skill state is a few file reads; re-probe after the modal closes so an
+  // update done inside it clears the dot
+  useEffect(() => {
+    if (settingsOpen) return
+    let alive = true
+    void window.aiOfficeIntegrations?.status().then((st) => {
+      if (alive) setSkillUpdate(skillUpdateDue(st))
+    })
+    return () => {
+      alive = false
+    }
+  }, [settingsOpen])
+
+  // login progress pushed from main (gsk login CLI output)
+  useEffect(() => {
+    const off = window.aiOffice.onAccountLogin?.((ev) => {
+      if (ev.phase === 'url') {
+        if (ev.url) setAuthUrl(ev.url)
+        if (ev.expiresInSec) loginDeadline.current = Date.now() + ev.expiresInSec * 1000
+      } else if (ev.phase === 'success') {
+        void window.aiOffice.accountStatus().then((s) => {
+          if (s.loggedIn) {
+            setStatus(s)
+            setWaiting(false)
+            setAuthUrl(null)
+          }
+        })
+      } else if (ev.phase === 'error') {
+        setWaiting(false)
+        setAuthUrl(null)
+        setLoginError(
+          ev.error === 'network' ? 'network' : ev.error === 'expired' ? 'expired' : 'failed',
+        )
+      }
+    })
+    return off
+  }, [])
+
+  // config-file polling stays as the fallback success path (works even if progress events are lost)
+  useEffect(() => {
+    if (!waiting) return
+    const timer = setInterval(() => {
+      void window.aiOffice.accountStatus().then((s) => {
+        if (s.loggedIn) {
+          setStatus(s)
+          setWaiting(false)
+          setAuthUrl(null)
+        } else if (Date.now() > loginDeadline.current) {
+          setWaiting(false)
+          setAuthUrl(null)
+          setLoginError('timeout')
+        }
+      })
+    }, LOGIN_POLL_MS)
+    return () => clearInterval(timer)
+  }, [waiting, loginNonce])
+
+  const loggedIn = status?.loggedIn ?? false
+  const email = status?.email ?? ''
+  const initial = email ? email[0].toUpperCase() : loggedIn ? 'G' : '?'
+  const errorText = loginError
+    ? {
+        timeout: t('loginTimeout'),
+        launch: t('loginLaunchFailed'),
+        network: t('loginNetworkError'),
+        expired: t('loginExpired'),
+        failed: t('loginFailed'),
+      }[loginError]
+    : null
+
+  const doLogout = () => {
+    setLoggingOut(true)
+    statusSeq.current++
+    void window.aiOffice.accountLogout().then(() => {
+      setLoggingOut(false)
+      setStatus({ loggedIn: false })
+    })
+  }
+
+  const startLogin = () => {
+    // clicking again while waiting = relaunch the login (main kills the stale CLI, so the new device code is the live one)
+    setLoginError(null)
+    setWaiting(true)
+    setAuthUrl(null)
+    setUrlCopied(false)
+    loginDeadline.current = Date.now() + LOGIN_MAX_WAIT_MS
+    setLoginNonce((n) => n + 1)
+    void window.aiOffice.accountLogin().then((launched) => {
+      if (!launched) {
+        setWaiting(false)
+        setLoginError('launch')
+      }
+    })
+  }
+
+  const openLoginUrl = () => void window.aiOffice.openLoginUrl?.()
+
+  const copyLoginUrl = () => {
+    if (!authUrl) return
+    void navigator.clipboard.writeText(authUrl).then(() => {
+      setUrlCopied(true)
+      window.setTimeout(() => setUrlCopied(false), 2000)
+    })
+  }
+
+  const [target, setTarget] = useState<SettingsTarget | null>(null)
+  const openSettings = useCallback((to: SettingsTarget | null) => {
+    // refresh the login state / credit balance; drop the response
+    // when a logout happened while it was in flight
+    const seq = statusSeq.current
+    void window.aiOffice.accountStatus?.().then((s) => {
+      if (seq === statusSeq.current) setStatus(s)
+    })
+    setTarget(to)
+    setSettingsOpen(true)
+  }, [])
+  const handleClick = () => openSettings(null)
+  useEffect(() => {
+    if (openRequest) openSettings(openRequest)
+  }, [openRequest, openSettings])
+
+  return (
+    <div className="account-entry">
+      {settingsOpen && (
+        <SettingsModal
+          status={status}
+          loggingOut={loggingOut}
+          loginWaiting={waiting}
+          loginUrl={authUrl}
+          urlCopied={urlCopied}
+          onOpenLoginUrl={openLoginUrl}
+          onCopyLoginUrl={copyLoginUrl}
+          onClose={() => setSettingsOpen(false)}
+          onFileSearchChange={onFileSearchSettingsChange}
+          onLogin={() => {
+            setSettingsOpen(false)
+            startLogin()
+          }}
+          onLogout={doLogout}
+          skillUpdateDue={skillUpdate}
+          onSkillUpdateDue={setSkillUpdate}
+          target={target}
+        />
+      )}
+      {!settingsOpen && waiting && authUrl && (
+        <div className="login-hint" role="status">
+          <button className="login-hint-open" onClick={openLoginUrl}>
+            {t('loginOpenShort')}
+          </button>
+          <button
+            className={`login-hint-copy${urlCopied ? ' copied' : ''}`}
+            onClick={copyLoginUrl}
+            // static tip: screentips are suppressed from pointerdown until the pointer
+            // leaves the control, so a swapped-in "copied" tip would never show — the
+            // check-mark icon is the visible feedback
+            data-tip={t('loginCopyUrl')}
+            aria-label={urlCopied ? t('loginCopied') : t('loginCopyUrl')}
+          >
+            {urlCopied ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="m3.5 8.5 3 3 6-7"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect
+                  x="5.5"
+                  y="5.5"
+                  width="7"
+                  height="7"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+                <path
+                  d="M3.5 10.5V5a1.5 1.5 0 0 1 1.5-1.5h5.5"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                />
+              </svg>
+            )}
+          </button>
+        </div>
+      )}
+      <button
+        className="account-btn"
+        onClick={handleClick}
+        aria-haspopup="dialog"
+        aria-expanded={settingsOpen}
+        data-tip={
+          loggedIn
+            ? email || t('loggedInReveLith')
+            : waiting
+              ? t('waitingLogin')
+              : (errorText ?? t('loginReveLith'))
+        }
+        aria-label={t('settings')}
+      >
+        <span
+          className={`account-avatar${loggedIn ? ' logged-in' : ''}${waiting ? ' waiting' : ''}`}
+        >
+          {waiting ? (
+            <svg
+              className="account-spinner"
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                fill="none"
+                strokeDasharray="26"
+                strokeDashoffset="18"
+                strokeLinecap="round"
+              />
+            </svg>
+          ) : (
+            initial
+          )}
+          {skillUpdate && (
+            <span className="account-badge" role="img" aria-label={t('intgUpdateDue')} />
+          )}
+        </span>
+        <span className="account-text">
+          <span className="account-name">
+            {loggedIn
+              ? email
+                ? email.split('@')[0]
+                : t('loggedIn')
+              : waiting
+                ? t('waitingShort')
+                : t('login')}
+          </span>
+          {!loggedIn && !waiting && errorText && (
+            <span className="account-sub error">{errorText}</span>
+          )}
+        </span>
+        <svg
+          className="account-chevron"
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+// ── Cloud (ReveLith web) projects view ──────────────────
+
+/** kind filter segments; labels shared with the recents type filter */
+const CLOUD_FILTERS = [
+  { key: 'all', label: 'filterAll' },
+  { key: 'docs', label: 'filterDocs' },
+  { key: 'sheets', label: 'filterSheets' },
+  { key: 'slides', label: 'filterSlides' },
+] as const satisfies readonly { key: 'all' | CloudProjectKind; label: StringKey }[]
+
+/** module kind → file icon extension */
+const CLOUD_KIND_EXT: Record<string, string> = { docs: 'docx', sheets: 'xlsx', slides: 'pptx' }
+
+/** rows revealed per "load more" step; purely client-side over the local snapshot */
+const CLOUD_REVEAL_STEP = 100
+
+function CloudProjectsView() {
+  const i18n = useI18n()
+  const { t } = i18n
+  const [snapshot, setSnapshot] = useState<CloudProjectsSnapshot | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [loginWaiting, setLoginWaiting] = useState(false)
+  const [kind, setKind] = useState<'all' | CloudProjectKind>('all')
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<'recent' | 'oldest'>('recent')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [revealed, setRevealed] = useState(CLOUD_REVEAL_STEP)
+  const sortRef = useRef<HTMLDivElement>(null)
+
+  // the local store paints instantly; a background sync replaces it when done.
+  // a failed sync keeps whatever is shown; with nothing shown the
+  // !snapshot && !loading branch below renders the retry state
+  const startSync = () => {
+    setSyncing(true)
+    void window.aiOffice.cloudProjectsSync?.().then((synced) => {
+      setSyncing(false)
+      setLoading(false)
+      if (synced) setSnapshot(synced)
+    })
+  }
+  const startSyncRef = useRef(startSync)
+  startSyncRef.current = startSync
+
+  useEffect(() => {
+    let cancelled = false
+    void window.aiOffice.cloudProjectsCached?.().then((stored) => {
+      if (cancelled || !stored) return
+      setSnapshot((prev) => prev ?? stored)
+      setLoading(false)
+    })
+    startSyncRef.current()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // the sign-in button reuses the account login flow; sync once it lands
+  useEffect(() => {
+    const off = window.aiOffice.onAccountLogin?.((ev) => {
+      if (ev.phase === 'success') {
+        setLoginWaiting(false)
+        startSyncRef.current()
+      } else if (ev.phase === 'error') {
+        setLoginWaiting(false)
+      }
+    })
+    return off
+  }, [])
+
+  // unified dismissal: outside press, window blur, chrome press (tab strip / window drag)
+  useDismissablePopover(sortMenuOpen, () => setSortMenuOpen(false), {
+    inside: () => [sortRef.current],
+  })
+
+  const startLogin = () => {
+    setLoginWaiting(true)
+    void window.aiOffice.accountLogin?.().then((ok) => {
+      if (!ok) setLoginWaiting(false)
+    })
+  }
+
+  const changeKind = (k: 'all' | CloudProjectKind) => {
+    if (k === kind) return
+    setKind(k)
+    setRevealed(CLOUD_REVEAL_STEP)
+  }
+
+  const openProject = (projectUrl: string) => {
+    void window.aiOffice.openCloudProject?.(projectUrl)
+  }
+
+  // filter / search / sort are all local over the snapshot — no requests
+  const q = query.trim().toLowerCase()
+  let list = snapshot?.projects.filter((proj) => kind === 'all' || proj.kind === kind) ?? []
+  if (q) list = list.filter((proj) => proj.title.toLowerCase().includes(q))
+  if (sort === 'oldest') list = [...list].reverse()
+  const visible = list.slice(0, revealed)
+
+  const renderRows = () => {
+    const items: ReactElement[] = []
+    for (const proj of visible) {
+      items.push(
+        <li key={proj.projectId}>
+          <button
+            className="cloud-row"
+            data-tip={t('cloudOpenInBrowser')}
+            data-tip-anchor=".cloud-row-external"
+            data-tip-place="right"
+            onClick={() => openProject(proj.projectUrl)}
+          >
+            <FileBadge ext={CLOUD_KIND_EXT[proj.kind] ?? ''} size={24} />
+            <span className="cloud-row-main">
+              <span className="cloud-row-title">{proj.title || t('untitled')}</span>
+              <svg
+                className="cloud-row-external"
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6.5 3.5H4a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 4 13.5h7A1.5 1.5 0 0 0 12.5 12V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="cloud-row-time">
+              {proj.ctimeMs ? formatModified(proj.ctimeMs, i18n) : ''}
+            </span>
+          </button>
+        </li>,
+      )
+    }
+    return items
+  }
+
+  const renderBody = () => {
+    if (snapshot && !snapshot.available) {
+      return (
+        <p className="empty proj-empty">
+          <span className="empty-hint">{t('cloudLoginHint')}</span>
+          <button className="btn btn-secondary" disabled={loginWaiting} onClick={startLogin}>
+            {loginWaiting ? t('waitingShort') : t('loginReveLith')}
+          </button>
+        </p>
+      )
+    }
+    if (!snapshot) {
+      if (loading || syncing) {
+        return (
+          <div className="load-more" aria-hidden="true">
+            <span className="load-more-spinner" />
+          </div>
+        )
+      }
+      return (
+        <p className="empty proj-empty">
+          <span className="empty-hint">{t('cloudError')}</span>
+          <button className="btn btn-secondary" onClick={() => startSync()}>
+            {t('cloudRetry')}
+          </button>
+        </p>
+      )
+    }
+    if (list.length === 0) {
+      return (
+        <p className="empty proj-empty">
+          <span className="empty-hint">
+            {t(q ? 'cloudNoResults' : kind === 'all' ? 'cloudEmpty' : 'emptyFiltered')}
+          </span>
+        </p>
+      )
+    }
+    return (
+      <div className="cloud-scroll">
+        <div className="cloud-table">
+          <div className="cloud-columns">
+            <span className="col-name">{t('colName')}</span>
+            <div className="cloud-col-sort" ref={sortRef}>
+              <button
+                className="cloud-col-sort-btn"
+                aria-haspopup="menu"
+                aria-expanded={sortMenuOpen}
+                onClick={() => setSortMenuOpen((o) => !o)}
+              >
+                {t('colModified')}
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden="true"
+                  style={sort === 'oldest' ? { transform: 'rotate(180deg)' } : undefined}
+                >
+                  <path
+                    d="M8 3v10M4.5 9.5L8 13l3.5-3.5"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {sortMenuOpen && (
+                <div className="cloud-sort-menu" role="menu">
+                  {(['recent', 'oldest'] as const).map((key) => (
+                    <button
+                      key={key}
+                      className={sort === key ? 'active' : ''}
+                      role="menuitemradio"
+                      aria-checked={sort === key}
+                      onClick={() => {
+                        setSort(key)
+                        setSortMenuOpen(false)
+                        setRevealed(CLOUD_REVEAL_STEP)
+                      }}
+                    >
+                      <SortCheck visible={sort === key} />
+                      {t(key === 'recent' ? 'cloudSortRecent' : 'cloudSortOldest')}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <ul className="cloud-list">{renderRows()}</ul>
+        </div>
+        {list.length > revealed && (
+          <div className="load-more">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setRevealed((n) => n + CLOUD_REVEAL_STEP)}
+            >
+              {t('cloudLoadMore')}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <main className="content">
+      <section className="cloud-projects" aria-label={t('navCloud')}>
+        <header className="cloud-hero">
+          <div className="cloud-hero-top">
+            <h1 className="cloud-title">{t('navCloud')}</h1>
+          </div>
+          <p className="cloud-subtitle">{t('cloudSubtitle')}</p>
+          {snapshot?.available && (
+            <div className="cloud-controls">
+              <div className="cloud-seg" role="tablist" aria-label={t('filterAria')}>
+                {CLOUD_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    className={kind === f.key ? 'active' : ''}
+                    role="tab"
+                    aria-selected={kind === f.key}
+                    onClick={() => changeKind(f.key)}
+                  >
+                    {t(f.label)}
+                  </button>
+                ))}
+              </div>
+              <button
+                className={`cloud-refresh-btn${syncing ? ' syncing' : ''}`}
+                data-tip={t('cloudRefresh')}
+                aria-label={t('cloudRefresh')}
+                disabled={syncing}
+                onClick={() => startSync()}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M13.6 8a5.6 5.6 0 1 1-1.64-3.96M13.6 2.4v3.2h-3.2"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              <div className="cloud-search">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.4" />
+                  <path
+                    d="M10.5 10.5L14 14"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <input
+                  value={query}
+                  placeholder={t('cloudSearchPlaceholder', { n: snapshot.projects.length })}
+                  onChange={(e) => {
+                    setQuery(e.target.value)
+                    setRevealed(CLOUD_REVEAL_STEP)
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </header>
+        {renderBody()}
+      </section>
+    </main>
+  )
+}
+
+// ── Drop-to-open overlay ────────────────────────────────
+
+/**
+ * Full-window affordance while OS files hover over Home. Purely visual — the
+ * actual open is owned by the preload drop bridge (installDropOpenBridge), so
+ * this overlay stays pointer-events:none and never handles events itself.
+ * Visibility tracks a dragenter/dragleave depth counter: `dragover` stops
+ * being delivered while the cursor is stationary (macOS), so a debounce would
+ * hide the overlay mid-drag. Enter fires before the matching leave when
+ * moving between elements, so the depth never dips to zero inside the window.
+ */
+function DropToOpenOverlay(): ReactElement | null {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    let depth = 0
+    const hasFiles = (ev: DragEvent): boolean => ev.dataTransfer?.types.includes('Files') ?? false
+    // NB: the preload drop bridge also listens here and cancels file drags, so
+    // defaultPrevented can't discriminate anything at this layer — only zones
+    // that stopPropagation (none on Home) would keep us out entirely.
+    const onDragEnter = (ev: DragEvent) => {
+      if (!hasFiles(ev)) return
+      depth += 1
+      setVisible(true)
+    }
+    const onDragLeave = (ev: DragEvent) => {
+      if (!hasFiles(ev)) return
+      depth = Math.max(0, depth - 1)
+      if (depth === 0) setVisible(false)
+    }
+    // drop/blur reset the depth outright: leaving the window mid-drag can eat
+    // a dragleave, and a stuck overlay would be worse than a re-shown one
+    const onHide = () => {
+      depth = 0
+      setVisible(false)
+    }
+    window.addEventListener('dragenter', onDragEnter)
+    window.addEventListener('dragleave', onDragLeave)
+    window.addEventListener('drop', onHide)
+    window.addEventListener('blur', onHide)
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter)
+      window.removeEventListener('dragleave', onDragLeave)
+      window.removeEventListener('drop', onHide)
+      window.removeEventListener('blur', onHide)
+    }
+  }, [])
+  const { t } = useI18n()
+  if (!visible) return null
+  return (
+    <div className="home-drop-overlay" aria-hidden="true">
+      <div className="home-drop-card">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M12 3.5v11M7.5 10.5l4.5 4.5 4.5-4.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M4 16.5v2A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-2"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+        <h2>{t('dropToOpenTitle')}</h2>
+        <p>{OPEN_LOCAL_EXTENSIONS}</p>
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ──────────────────────────────────────
 
 export function Home() {
   const i18n = useI18n()
-  const { t } = i18n
-  // â”€â”€ Paged list state (rows loaded for the current view + filter) â”€â”€
+  const { t, lang } = i18n
+  // ── Paged list state (rows loaded for the current view + filter) ──
   const [entries, setEntries] = useState<RecentEntry[]>([])
   /** total count under the current view + filter (not just the loaded rows) */
   const [listTotal, setListTotal] = useState(0)
@@ -569,53 +1404,158 @@ export function Home() {
   const [navCounts, setNavCounts] = useState({ recent: 0, starred: 0 })
   const [loadingMore, setLoadingMore] = useState(false)
   const [view, setView] = useState<'recent' | 'starred'>('recent')
+  // ReveLith web projects take over the content area (like a selected folder)
+  const [cloudMode, setCloudMode] = useState(false)
   const [filter, setFilter] = useState('all')
-  // modified-column sort (WPS-style header popover), shared by the global and project tables
+  // ── File search (names + indexed content); active while the box has text ──
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchPage, setSearchPage] = useState<FileSearchPage | null>(null)
+  const [rerank, setRerank] = useState<{ key: string; result: FileSearchRerank } | null>(null)
+  // bumped when the Jev settings change so the current results are judged again (or the order dropped)
+  const [rerankSettingsTick, setRerankSettingsTick] = useState(0)
+  const [settingsRequest, setSettingsRequest] = useState<SettingsTarget | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  // IME composition: wait for the committed text instead of searching each keystroke
+  const composingRef = useRef(false)
+  const searchSeq = useRef(0)
+  const searchActive = searchQuery.trim().length > 0
+  // modified-column sort (WPS-style header popover), shared by the global and folder tables
   const [fileSort, setFileSort] = useState<'recent' | 'oldest'>('recent')
   const [fileSortMenuOpen, setFileSortMenuOpen] = useState(false)
   const fileSortRef = useRef<HTMLDivElement>(null)
   const [rowMenu, setRowMenu] = useState<string | null>(null)
+  // actions cell (… button + menu) of the row whose menu is open — the dismissal guard root
+  const rowMenuWrapRef = useRef<HTMLSpanElement>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [renaming, setRenaming] = useState<{ path: string; value: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null)
+  // unavailable recent entry (missing flag) the user clicked — offer list removal
+  const [confirmMissing, setConfirmMissing] = useState<RecentEntry | null>(null)
+  // name in the greeting; omitted when logged out
+  const [accountName, setAccountName] = useState('')
+  // ReveLith Projects is web-account data, so its nav entry only shows when logged in
+  const [loggedIn, setLoggedIn] = useState(false)
+  // single source of account state: AccountEntry reports every change (initial
+  // load, login, logout), keeping the greeting name and the nav entry in sync
+  const handleAccountStatus = useCallback((s: AccountStatus | null) => {
+    const on = s?.loggedIn ?? false
+    setLoggedIn(on)
+    if (!on) setCloudMode(false)
+    const name = on ? (s?.email ?? '').split('@')[0] : ''
+    setAccountName(name ? name[0].toUpperCase() + name.slice(1) : '')
+  }, [])
   const [greetAskKey] = useState(
     () => GREET_ASK_KEYS[Math.floor(Math.random() * GREET_ASK_KEYS.length)]!,
   )
 
-  // â”€â”€ Search state â”€â”€
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [searchTotal, setSearchTotal] = useState(0)
-  const [searchLoading, setSearchLoading] = useState(false)
-  const [searchTookMs, setSearchTookMs] = useState(0)
-  const [showSearch, setShowSearch] = useState(false)
-  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null)
-  const searchSeqRef = useRef(0)
-
-  // â”€â”€ Project state â”€â”€
-  const [projects, setProjects] = useState<ProjectSummaryEntry[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const projectMode = hasProjectApi()
-
-  // ── Save Folders state ──
-  const [saveDir, setSaveDir] = useState<string>('')
-  const [saveFolders, setSaveFolders] = useState<SaveFolderEntry[]>([])
+  // ── Folder tree state ──
+  // the default save folder first, then the folders the user added; `root` is the default one
+  const [roots, setRoots] = useState<FolderRoot[]>([])
+  const root = roots[0] ?? null
+  const canMove = roots.some((r) => r.usable)
+  const editableAt = (path: string) => rootOf(path, roots)?.usable !== false
+  const [panelDrop, setPanelDrop] = useState(false)
+  const [treeState] = useState(readTreeState)
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set(treeState.expanded))
+  // a root without a saved layout of its own is opened once when first seen
+  const seededRoot = useRef<string | null>(null)
+  const {
+    listings,
+    load: loadFolder,
+    invalidate: invalidateFolders,
+    reset: resetFolders,
+    tracked: trackedFolder,
+  } = useFolderListings()
+  // open folder menu: path + fixed-position anchor (viewport coords), so the
+  // popup can escape the scrollable tree without the tree losing overflow-y
+  const [folderMenu, setFolderMenu] = useState<{
+    path: string
+    where: 'tree' | 'table'
+    top: number
+    right: number
+  } | null>(null)
+  const menuOpenAt = (where: 'tree' | 'table', path: string) =>
+    folderMenu?.where === where && folderMenu.path === path
+  const folderMenuWrapRef = useRef<HTMLDivElement>(null)
+  const [folderRenaming, setFolderRenaming] = useState<{
+    path: string
+    where: 'tree' | 'table'
+    value: string
+  } | null>(null)
+  // inline "new folder" input in the tree, under this parent
+  const [creating, setCreating] = useState<{ parent: string } | null>(null)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<string | null>(null)
+  // move-to-folder picker for these paths; then the conflict prompt for the ones that collided
+  const [movePicker, setMovePicker] = useState<string[] | null>(null)
+  const [conflict, setConflict] = useState<{ paths: string[]; targetDir: string } | null>(null)
+  // folder row currently hovered by a drag (sidebar or table)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const dragExpandTimer = useRef<number | null>(null)
 
-  const refreshFolders = useCallback(() => {
-    void window.revelithApp?.getDefaultSaveDir?.().then((dir) => {
-      if (dir) setSaveDir(dir)
+  const loadRoot = useCallback(() => {
+    void window.aiOffice.folderRoots().then((next) => {
+      setRoots((prev) => {
+        if (prev[0] && prev[0].path !== next[0]?.path) {
+          // the default save folder changed in settings: the old tree is meaningless
+          resetFolders()
+          setSelectedFolder(null)
+          setExpanded(new Set(next.map((r) => r.path)))
+        } else if (prev.length > 0) {
+          // a folder just added opens so its contents show right away
+          const known = new Set(prev.map((r) => r.path))
+          const added = next.filter((r) => !known.has(r.path)).map((r) => r.path)
+          if (added.length > 0) setExpanded((e) => new Set([...e, ...added]))
+        }
+        return next
+      })
     })
-    void window.revelithApp?.listSaveFolders?.().then((f) => {
-      if (f) setSaveFolders(f)
-    })
-  }, [])
+  }, [resetFolders])
+
+  useEffect(loadRoot, [loadRoot])
 
   useEffect(() => {
-    refreshFolders()
-  }, [refreshFolders])
+    if (root?.usable) writeTreeState({ expanded: [...expanded], root: root.path })
+  }, [expanded, root])
 
-  // â”€â”€ Paged loading â”€â”€
+  useEffect(() => {
+    if (!root?.usable) return
+    if (seededRoot.current !== root.path) {
+      seededRoot.current = root.path
+      if (treeState.root !== root.path) {
+        // a layout saved for another root is not ours: start from the root rows
+        setExpanded(new Set(roots.map((r) => r.path)))
+        return
+      }
+    }
+    for (const dir of expanded) loadFolder(dir)
+  }, [root, roots, expanded, loadFolder, treeState])
+
+  useEffect(() => {
+    if (selectedFolder) loadFolder(selectedFolder)
+  }, [selectedFolder, loadFolder])
+
+  // a remembered selection that no longer exists (deleted in Finder) falls back to the root
+  useEffect(() => {
+    if (!selectedFolder || roots.length === 0) return
+    const owner = rootOf(selectedFolder, roots)
+    if (!owner?.readable) {
+      setSelectedFolder(null)
+      return
+    }
+    if (listings.get(selectedFolder)?.missing) {
+      setSelectedFolder(selectedFolder === owner.path ? null : dirOf(selectedFolder))
+    }
+  }, [roots, selectedFolder, listings])
+
+  useEffect(() => {
+    return window.aiOffice.onFolderChanged((dirs) => {
+      invalidateFolders(dirs.filter(trackedFolder))
+    })
+  }, [invalidateFolders, trackedFolder])
+
+  // ── Paged loading ──
   // stale responses are dropped via a request sequence number (when views/filters switch quickly)
   const requestSeq = useRef(0)
   const entriesLen = useRef(0)
@@ -626,8 +1566,8 @@ export function Home() {
     const seq = ++requestSeq.current
     const ext = filter === 'all' ? undefined : filter
     const limit = keepCount ? Math.max(entriesLen.current, PAGE_SIZE) : PAGE_SIZE
-    const primary = view === 'recent' ? window.revelithApp.recents : window.revelithApp.starred
-    const secondary = view === 'recent' ? window.revelithApp.starred : window.revelithApp.recents
+    const primary = view === 'recent' ? window.aiOffice.recents : window.aiOffice.starred
+    const secondary = view === 'recent' ? window.aiOffice.starred : window.aiOffice.recents
     void primary({ offset: 0, limit, ext }).then((page) => {
       if (seq !== requestSeq.current) return
       setEntries(page.entries)
@@ -647,105 +1587,104 @@ export function Home() {
           : { ...prev, recent: visiblePageCount(page) },
       )
     })
-    if (projectMode) {
-      void window.revelithAppProject!.listProjects().then(setProjects)
-    }
   }
   const reloadRef = useRef(reload)
   reloadRef.current = reload
 
-  // refresh signal for project-view data (re-pull file stats after file changes)
-  const [projectTick, setProjectTick] = useState(0)
-
+  /** everything on screen re-pulls: the paged list, the root and every loaded folder */
   const refresh = () => {
     reloadRef.current(true)
-    setProjectTick((n) => n + 1)
+    loadRoot()
+    invalidateFolders([...listings.keys()])
   }
-
-  // â”€â”€ Search handler â”€â”€
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query)
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
-
-    if (!query.trim()) {
-      setSearchResults([])
-      setSearchTotal(0)
-      setShowSearch(false)
-      return
-    }
-
-    setShowSearch(true)
-    searchDebounceRef.current = setTimeout(() => {
-      const seq = ++searchSeqRef.current
-      setSearchLoading(true)
-      const searchQueryObj: SearchQuery = {
-        query: query.trim(),
-        limit: 50,
-        offset: 0,
-      }
-      window.revelithApp
-        .searchFiles(searchQueryObj)
-        .then((page: SearchPage) => {
-          if (seq !== searchSeqRef.current) return
-          setSearchResults(page.results)
-          setSearchTotal(page.total)
-          setSearchTookMs(page.tookMs)
-          setSearchLoading(false)
-        })
-        .catch(() => {
-          if (seq !== searchSeqRef.current) return
-          setSearchResults([])
-          setSearchTotal(0)
-          setSearchLoading(false)
-        })
-    }, 200)
-  }, [])
-
-  const clearSearch = useCallback(() => {
-    setSearchQuery('')
-    setSearchResults([])
-    setSearchTotal(0)
-    setShowSearch(false)
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
-  }, [])
-
-  // cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
-    }
-  }, [])
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
 
   useEffect(() => {
     reloadRef.current(false)
   }, [view, filter])
 
+  const q = searchQuery.trim()
   useEffect(() => {
-    const onFocus = () => {
-      reloadRef.current(true)
-      setProjectTick((n) => n + 1)
+    if (!q) {
+      searchSeq.current++
+      setSearchPage(null)
+      return
     }
+    let timer = 0
+    const run = () => {
+      if (composingRef.current) {
+        timer = window.setTimeout(run, 150)
+        return
+      }
+      const seq = ++searchSeq.current
+      const ext = filter === 'all' ? undefined : filter
+      void window.aiOffice.searchFiles({ q, ext, limit: 100 }).then((page) => {
+        if (seq !== searchSeq.current) return
+        setSearchPage(page)
+        // results grow while the background index catches up
+        if (page.index.pending > 0 || page.index.scanning) timer = window.setTimeout(run, 1500)
+      })
+    }
+    timer = window.setTimeout(run, 150)
+    return () => window.clearTimeout(timer)
+  }, [q, filter])
+
+  // Jev judges the top local hits once they settle; the main process answers null when reranking is off.
+  // The key changes only with the query, filter or candidate set, so index polls do not restart the timer.
+  const rerankKey =
+    q && searchPage && searchPage.hits.length >= 2
+      ? [q, filter, ...searchPage.hits.slice(0, 20).map((h) => h.path)].join('\n')
+      : ''
+  useEffect(() => {
+    if (!rerankKey) return
+    const key = rerankKey
+    const paths = key.split('\n').slice(2)
+    const timer = window.setTimeout(() => {
+      void window.aiOffice.rerankSearch({ q, paths }).then((result) => {
+        if (result) setRerank({ key, result })
+        else setRerank((cur) => (cur && cur.key === key ? null : cur))
+      })
+    }, 600)
+    return () => window.clearTimeout(timer)
+  }, [q, filter, rerankKey, rerankSettingsTick])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+      if (event.key !== 'f' && event.key !== 'p') return
+      const input = searchInputRef.current
+      if (!input) return
+      event.preventDefault()
+      input.focus()
+      input.select()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  useEffect(() => {
+    const onFocus = () => refreshRef.current()
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [])
 
+  // a rename from the tab strip happens while this renderer already has focus
+  useEffect(() => onFilesChanged(() => refreshRef.current()), [])
+
   const hasMore = entries.length < listTotal
 
-  useEffect(() => {
-    if (!fileSortMenuOpen) return
-    const handler = (e: PointerEvent) => {
-      if (!fileSortRef.current?.contains(e.target as Node)) setFileSortMenuOpen(false)
-    }
-    window.addEventListener('pointerdown', handler)
-    return () => window.removeEventListener('pointerdown', handler)
-  }, [fileSortMenuOpen])
+  // unified dismissal: outside press, window blur, chrome press (tab strip / window drag)
+  useDismissablePopover(fileSortMenuOpen, () => setFileSortMenuOpen(false), {
+    inside: () => [fileSortRef.current],
+  })
 
   const loadMore = () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
     const seq = requestSeq.current
     const ext = filter === 'all' ? undefined : filter
-    const api = view === 'recent' ? window.revelithApp.recents : window.revelithApp.starred
+    const api = view === 'recent' ? window.aiOffice.recents : window.aiOffice.starred
     void api({ offset: entriesLen.current, limit: PAGE_SIZE, ext }).then((page) => {
       setLoadingMore(false)
       if (seq !== requestSeq.current) return
@@ -756,14 +1695,14 @@ export function Home() {
   const loadMoreRef = useRef(loadMore)
   loadMoreRef.current = loadMore
 
-  // oldest-first over a partially loaded list would miss the tail pages :
+  // oldest-first over a partially loaded list would miss the tail pages —
   // keep pulling until the list is complete (backend caps recents at 100)
   useEffect(() => {
     if (fileSort === 'oldest' && hasMore) loadMoreRef.current()
   }, [fileSort, hasMore, entries.length])
 
   // Load the next page once the bottom sentinel enters the viewport (240px early);
-  // depending on entries.length rebuilds the observer after each page : observe fires an immediate
+  // depending on entries.length rebuilds the observer after each page — observe fires an immediate
   // callback, so while the sentinel stays in view we keep loading until full or exhausted
   const sentinelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -779,116 +1718,43 @@ export function Home() {
     return () => observer.disconnect()
   }, [hasMore, entries.length])
 
+  // unified dismissal: outside press, window blur, chrome press (tab strip / window drag)
+  useDismissablePopover(rowMenu !== null, () => setRowMenu(null), {
+    inside: () => [rowMenuWrapRef.current],
+  })
+  useDismissablePopover(folderMenu !== null, () => setFolderMenu(null), {
+    inside: () => [folderMenuWrapRef.current],
+  })
+  // the fixed-position folder menu would detach from its row while the tree scrolls
   useEffect(() => {
-    if (rowMenu === null && confirmDelete === null) return
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Element | null
-      if (rowMenu !== null && !target?.closest?.('.recent-actions')) setRowMenu(null)
-    }
+    if (!folderMenu) return
+    const close = () => setFolderMenu(null)
+    window.addEventListener('scroll', close, true)
+    return () => window.removeEventListener('scroll', close, true)
+  }, [folderMenu])
+
+  // Escape closes the row menu and the confirm dialogs
+  useEffect(() => {
+    if (
+      rowMenu === null &&
+      folderMenu === null &&
+      confirmDelete === null &&
+      confirmMissing === null &&
+      confirmDeleteFolder === null
+    )
+      return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setRowMenu(null)
+        setFolderMenu(null)
         setConfirmDelete(null)
+        setConfirmMissing(null)
+        setConfirmDeleteFolder(null)
       }
     }
-    window.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [rowMenu, confirmDelete])
-
-  // â”€â”€ Project files state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  const [projectFileEntries, setProjectFileEntries] = useState<RecentEntry[]>([])
-  const [moveFileMenu, setMoveFileMenu] = useState<string | null>(null)
-  // submenu opens rightward by default; flips left when the window edge is too close
-  const [moveMenuFlip, setMoveMenuFlip] = useState(false)
-  // hover-open/close delays: avoid flashing the submenu while the pointer passes
-  // through, and keep it open while crossing the 4px gap into it
-  const moveMenuTimers = useRef<{ open: number | null; close: number | null }>({
-    open: null,
-    close: null,
-  })
-
-  const openMoveMenu = (path: string) => {
-    setMoveMenuFlip(false)
-    setMoveFileMenu(path)
-  }
-
-  // ref runs pre-paint, so measuring the real width (long project names exceed
-  // the min-width) and flipping never flashes; once flipped the check no longer hits
-  const measureSubmenu = (el: HTMLDivElement | null) => {
-    if (el && el.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
-      setMoveMenuFlip(true)
-    }
-  }
-
-  const clearMoveMenuTimer = (kind: 'open' | 'close') => {
-    const timers = moveMenuTimers.current
-    if (timers[kind] !== null) {
-      window.clearTimeout(timers[kind])
-      timers[kind] = null
-    }
-  }
-  const [bulkMoveMenu, setBulkMoveMenu] = useState(false)
-
-  useEffect(() => {
-    if (!projectMode || !selectedProjectId) {
-      setProjectFileEntries([])
-      return
-    }
-    let active = true
-    const api = window.revelithAppProject!
-    void api.listFiles(selectedProjectId).then(async (paths) => {
-      const stats = await window.revelithApp.statPaths(paths)
-      if (!active) return
-      setProjectFileEntries(stats.sort((a, b) => b.mtimeMs - a.mtimeMs))
-    })
-    return () => {
-      active = false
-    }
-  }, [projectMode, selectedProjectId, projectTick])
-
-  // the submenu lives inside the row menu: when that closes, drop the stale
-  // submenu state and any pending hover timers so it doesn't reopen expanded
-  useEffect(() => {
-    if (rowMenu === null) {
-      clearMoveMenuTimer('open')
-      clearMoveMenuTimer('close')
-      setMoveFileMenu(null)
-    }
-  }, [rowMenu])
-
-  // close the move-file menu
-  useEffect(() => {
-    if (!moveFileMenu) return
-    const handler = (e: PointerEvent) => {
-      const target = e.target as Element | null
-      if (!target?.closest?.('.move-menu-wrap')) setMoveFileMenu(null)
-    }
-    window.addEventListener('pointerdown', handler)
-    return () => window.removeEventListener('pointerdown', handler)
-  }, [moveFileMenu])
-
-  // close the bulk move-to-project menu in the selection bar
-  useEffect(() => {
-    if (!bulkMoveMenu) return
-    const handler = (e: PointerEvent) => {
-      const target = e.target as Element | null
-      if (!target?.closest?.('.selection-move-wrap')) setBulkMoveMenu(false)
-    }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setBulkMoveMenu(false)
-    }
-    window.addEventListener('pointerdown', handler)
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('pointerdown', handler)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [bulkMoveMenu])
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [rowMenu, folderMenu, confirmDelete, confirmMissing, confirmDeleteFolder])
 
   // WPS-style sortable "modified" column header, shared by both file tables
   const renderModifiedHeader = () => (
@@ -939,19 +1805,22 @@ export function Home() {
     </div>
   )
 
-  // â”€â”€ Plain view (no project selected): filtering runs in the main process; entries is the visible list â”€â”€
+  // ── Plain view (no folder selected): filtering runs in the main process; entries is the visible list ──
   const selectedPaths = entries.filter((e) => selected.has(e.path)).map((e) => e.path)
   const allSelected = entries.length > 0 && selectedPaths.length === entries.length
 
-  // project view shares the same `selected` set (keyed by path)
-  const projSelectedPaths = projectFileEntries
-    .filter((e) => selected.has(e.path))
-    .map((e) => e.path)
-  const projAllSelected =
-    projectFileEntries.length > 0 && projSelectedPaths.length === projectFileEntries.length
+  // folder view: files of the selected folder under the type filter; shares the same `selected` set
+  const folderListing = selectedFolder ? listings.get(selectedFolder) : undefined
+  const folderFiles = (folderListing?.files ?? []).filter((e) => matchesFilter(e, filter))
+  const folderSubfolders = folderListing?.folders ?? []
+  const folderSelectedPaths = folderFiles.filter((e) => selected.has(e.path)).map((e) => e.path)
+  const folderAllSelected =
+    folderFiles.length > 0 && folderSelectedPaths.length === folderFiles.length
 
   const changeView = (next: 'recent' | 'starred') => {
     setView(next)
+    setSelectedFolder(null)
+    setCloudMode(false)
     setSelected(new Set())
     setRowMenu(null)
   }
@@ -960,6 +1829,33 @@ export function Home() {
     setFilter(key)
     setSelected(new Set())
     setRowMenu(null)
+  }
+
+  const selectFolder = (dir: string) => {
+    setSelectedFolder(dir)
+    setCloudMode(false)
+    setSelected(new Set())
+    setRowMenu(null)
+    setFolderMenu(null)
+  }
+
+  const toggleExpanded = (dir: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(dir)) next.delete(dir)
+      else next.add(dir)
+      return next
+    })
+  }
+
+  const expandTo = (dir: string) => {
+    const owner = rootOf(dir, roots)
+    if (!owner) return
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (const crumb of crumbsOf(owner, dir)) next.add(crumb.path)
+      return next
+    })
   }
 
   const toggleSelect = (path: string, on: boolean) => {
@@ -975,18 +1871,18 @@ export function Home() {
     setSelected(allSelected ? new Set() : new Set(entries.map((e) => e.path)))
   }
 
-  const toggleSelectAllProject = () => {
-    setSelected(projAllSelected ? new Set() : new Set(projectFileEntries.map((e) => e.path)))
+  const toggleSelectAllFolder = () => {
+    setSelected(folderAllSelected ? new Set() : new Set(folderFiles.map((e) => e.path)))
   }
 
   const toggleStar = (path: string) => {
-    void window.revelithApp.toggleStar(path).then(refresh)
+    void window.aiOffice.toggleStar(path).then(refresh)
   }
 
   const removeRecent = (paths: string[]) => {
     setRowMenu(null)
     setSelected(new Set())
-    void window.revelithApp.removeRecent(paths).then(refresh)
+    void window.aiOffice.removeRecent(paths).then(refresh)
   }
 
   const deleteFiles = (paths: string[]) => {
@@ -998,12 +1894,12 @@ export function Home() {
     const paths = confirmDelete ?? []
     setConfirmDelete(null)
     setSelected(new Set())
-    void window.revelithApp.deleteFiles(paths).then(refresh)
+    void window.aiOffice.deleteFiles(paths).then(refresh)
   }
 
   const duplicateFile = (path: string) => {
     setRowMenu(null)
-    void window.revelithApp.duplicateFile(path).then(refresh)
+    void window.aiOffice.duplicateFile(path).then(refresh)
   }
 
   const startRename = (entry: RecentEntry) => {
@@ -1016,70 +1912,210 @@ export function Home() {
     setRenaming(null)
     if (!value || value === baseName(entry)) return
     const newName = entry.ext ? `${value}.${entry.ext}` : value
-    void window.revelithApp.renameFile(entry.path, newName).then((result) => {
+    void window.aiOffice.renameFile(entry.path, newName).then((result) => {
       if (!result.ok) window.alert(result.error ?? t('renameFailed'))
       refresh()
     })
   }
 
-  const moveFileTo = async (filePath: string, targetProjectId: string) => {
-    setMoveFileMenu(null)
+  // ── Folder actions ──
+
+  const startCreateFolder = (parent: string) => {
+    setFolderMenu(null)
+    expandTo(parent)
+    setCreating({ parent })
+    setNewFolderName('')
+  }
+
+  // inline inputs commit on Enter or blur and cancel on Escape; the blur an
+  // unmount may fire reads the edit from refs mirrored during render, so a
+  // finished or cancelled edit is a no-op (see FolderPicker.commitCreate)
+  const creatingFolderRef = useRef<{ parent: string; name: string } | null>(null)
+  creatingFolderRef.current = creating ? { parent: creating.parent, name: newFolderName } : null
+  const folderRenamingRef = useRef(folderRenaming)
+  folderRenamingRef.current = folderRenaming
+
+  const commitCreateFolder = async () => {
+    const pending = creatingFolderRef.current
+    creatingFolderRef.current = null
+    const name = pending?.name.trim()
+    setCreating(null)
+    setNewFolderName('')
+    if (!pending || !name) return
+    const result = await window.aiOffice.createFolder(pending.parent, name)
+    if (!result.ok) {
+      window.alert(result.error ?? t('renameFailed'))
+      return
+    }
+    invalidateFolders([pending.parent])
+  }
+
+  const startRenameFolder = (entry: { path: string; name: string }, where: 'tree' | 'table') => {
+    setFolderMenu(null)
     setRowMenu(null)
-    await window.revelithAppProject?.moveFile(filePath, targetProjectId)
-    refresh()
-    if (selectedProjectId) {
-      setProjectFileEntries((prev) => prev.filter((e) => e.path !== filePath))
-    }
+    setFolderRenaming({ path: entry.path, where, value: entry.name })
   }
 
-  const moveFilesTo = async (paths: string[], targetProjectId: string) => {
-    setBulkMoveMenu(false)
+  const commitRenameFolder = async () => {
+    const pending = folderRenamingRef.current
+    folderRenamingRef.current = null
+    setFolderRenaming(null)
+    if (!pending) return
+    const value = pending.value.trim()
+    if (!value || value === fileName(pending.path)) return
+    const result = await window.aiOffice.renameFolder(pending.path, value)
+    if (!result.ok) {
+      window.alert(result.error ?? t('renameFailed'))
+      return
+    }
+    if (result.path) {
+      const renamed = result.path
+      // selection / expansion follow the renamed folder (and anything inside it)
+      const rebase = (p: string) =>
+        p === pending.path || isUnder(pending.path, p) ? renamed + p.slice(pending.path.length) : p
+      setExpanded((prev) => new Set([...prev].map(rebase)))
+      if (selectedFolder) setSelectedFolder(rebase(selectedFolder))
+    }
+    refresh()
+  }
+
+  const confirmDeleteFolderNow = async () => {
+    const dir = confirmDeleteFolder
+    setConfirmDeleteFolder(null)
+    if (!dir) return
+    await window.aiOffice.deleteFolder(dir)
+    if (selectedFolder && (selectedFolder === dir || isUnder(dir, selectedFolder))) {
+      setSelectedFolder(dirOf(dir))
+    }
+    refresh()
+  }
+
+  const startMove = (paths: string[]) => {
+    setRowMenu(null)
+    setFolderMenu(null)
+    if (paths.length > 0) setMovePicker(paths)
+  }
+
+  const doMove = async (paths: string[], targetDir: string, policy: MoveConflictPolicy) => {
+    setMovePicker(null)
+    setConflict(null)
     setSelected(new Set())
-    // drop moved rows immediately (same as moveFileTo) so they cannot be
-    // re-selected or re-moved while the sequential IPC loop is in flight
-    const moved = new Set(paths)
-    setProjectFileEntries((prev) => prev.filter((e) => !moved.has(e.path)))
-    for (const path of paths) {
-      await window.revelithAppProject?.moveFile(path, targetProjectId)
+    const result = await window.aiOffice.movePaths(paths, targetDir, policy)
+    if (result.moved.length > 0 && selectedFolder) {
+      // a moved folder that held the selection drags the selection along
+      for (const { from, to } of result.moved) {
+        if (selectedFolder === from || isUnder(from, selectedFolder)) {
+          setSelectedFolder(to + selectedFolder.slice(from.length))
+        }
+      }
     }
     refresh()
+    if (result.failed.length > 0) window.alert(result.failed[0].error)
+    if (result.conflicts.length > 0) setConflict({ paths: result.conflicts, targetDir })
   }
 
-  // â”€â”€ New file (passes projectId when a project is selected) â”€â”€
-  const handleNewDoc = () => {
-    void window.revelithApp.newDoc(selectedProjectId ? { projectId: selectedProjectId } : undefined)
+  // ── Drag & drop (rows → folder rows) ──
+
+  const dragPathsFor = (path: string, context: 'global' | 'folder'): string[] => {
+    const pool = context === 'folder' ? folderSelectedPaths : selectedPaths
+    return pool.includes(path) ? pool : [path]
   }
 
-  const handleNewSheet = () => {
-    void window.revelithApp.newSheet(
-      selectedProjectId ? { projectId: selectedProjectId } : undefined,
-    )
+  const onRowDragStart = (event: ReactDragEvent, paths: string[]) => {
+    event.dataTransfer.setData(DRAG_PATHS_MIME, JSON.stringify(paths))
+    event.dataTransfer.effectAllowed = 'move'
+    setRowMenu(null)
   }
 
-  const handleNewSlide = () => {
-    void window.revelithApp.newSlide(
-      selectedProjectId ? { projectId: selectedProjectId } : undefined,
-    )
+  const readDragPaths = (event: ReactDragEvent): string[] => {
+    try {
+      const raw = JSON.parse(event.dataTransfer.getData(DRAG_PATHS_MIME)) as unknown
+      return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string') : []
+    } catch {
+      return []
+    }
   }
 
-  const handleNewMarkdown = () => {
-    void window.revelithApp.newMarkdown(
-      selectedProjectId ? { projectId: selectedProjectId } : undefined,
-    )
+  const clearDragExpand = () => {
+    if (dragExpandTimer.current !== null) {
+      window.clearTimeout(dragExpandTimer.current)
+      dragExpandTimer.current = null
+    }
   }
 
-  const handleNewHtml = () => {
-    void window.revelithApp.newHtml(
-      selectedProjectId ? { projectId: selectedProjectId } : undefined,
-    )
-  }
+  const folderDropProps = (dir: string, { autoExpand }: { autoExpand: boolean }) => ({
+    onDragOver: (event: ReactDragEvent) => {
+      if (rootOf(dir, roots)?.usable === false) return
+      if (!event.dataTransfer.types.includes(DRAG_PATHS_MIME)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      if (dropTarget !== dir) {
+        setDropTarget(dir)
+        clearDragExpand()
+        if (autoExpand && !expanded.has(dir)) {
+          dragExpandTimer.current = window.setTimeout(() => {
+            setExpanded((prev) => new Set([...prev, dir]))
+          }, DRAG_EXPAND_DELAY_MS)
+        }
+      }
+    },
+    onDragLeave: (event: ReactDragEvent) => {
+      if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+      if (dropTarget === dir) setDropTarget(null)
+      clearDragExpand()
+    },
+    onDrop: (event: ReactDragEvent) => {
+      event.preventDefault()
+      setDropTarget(null)
+      clearDragExpand()
+      const paths = readDragPaths(event).filter((p) => p !== dir && !isUnder(p, dir))
+      if (paths.length > 0) void doMove(paths, dir, 'ask')
+    },
+  })
+
+  // ── New file (lands in the selected folder) ──
+  const newFileOpts =
+    selectedFolder && root && selectedFolder !== root.path && rootOf(selectedFolder, roots)?.usable
+      ? { dir: selectedFolder }
+      : undefined
 
   const NEW_ITEMS = [
-    { ext: 'docx', title: t('newDoc'), sub: '.docx', action: handleNewDoc },
-    { ext: 'xlsx', title: t('newSheet'), sub: '.xlsx', action: handleNewSheet },
-    { ext: 'pptx', title: t('newSlide'), sub: '.pptx', action: handleNewSlide },
-    { ext: 'md', title: t('newMarkdown'), sub: '.md', action: handleNewMarkdown },
-    { ext: 'html', title: 'ReveLith HTML', sub: '.html', action: handleNewHtml },
+    {
+      ext: 'docx',
+      title: t('newDoc'),
+      sub: '.docx',
+      action: () => window.aiOffice.newDoc(newFileOpts),
+    },
+    {
+      ext: 'xlsx',
+      title: t('newSheet'),
+      sub: '.xlsx',
+      action: () => window.aiOffice.newSheet(newFileOpts),
+    },
+    {
+      ext: 'pptx',
+      title: t('newSlide'),
+      sub: '.pptx',
+      action: () => window.aiOffice.newSlide(newFileOpts),
+    },
+    {
+      ext: 'md',
+      title: t('newMarkdown'),
+      sub: '.md',
+      action: () => window.aiOffice.newMarkdown(newFileOpts),
+    },
+    {
+      ext: 'html',
+      title: t('newHtml'),
+      sub: '.html',
+      action: () => window.aiOffice.newHtml(newFileOpts),
+    },
+    {
+      ext: 'pdf',
+      title: t('newPdf'),
+      sub: '.pdf',
+      action: () => window.aiOffice.newPdf(newFileOpts),
+    },
   ]
 
   function renderQuickCards() {
@@ -1087,68 +2123,382 @@ export function Home() {
       <div className="quick-cards">
         {NEW_ITEMS.map((item) => (
           <button key={item.ext} className="quick-card" onClick={() => void item.action()}>
-            <div className="quick-icon-wrapper">
-              <FileBadge ext={item.ext} size={32} />
-            </div>
+            <FileBadge ext={item.ext} size={30} />
             <span className="quick-text">
               <span className="quick-title-row">
-                <span className="quick-title">
-                  {item.title} <span style={{ color: '#3b82f6', fontWeight: 600 }}>Ai</span>
-                </span>
+                <span className="quick-title">{item.title}</span>
+                <span className="ai-chip">AI</span>
               </span>
               <span className="quick-sub">{item.sub}</span>
             </span>
           </button>
         ))}
         <button
-          className="quick-card quick-card-browse"
-          onClick={() => void window.revelithApp.browse()}
+          className="quick-card"
+          onClick={() => void window.aiOffice.browse()}
+          data-tip={OPEN_LOCAL_EXTENSIONS}
         >
-          <div className="quick-icon-wrapper folder-icon">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
+          <span className="quick-folder">
+            <FolderIcon size={18} />
+          </span>
           <span className="quick-text">
             <span className="quick-title-row">
               <span className="quick-title">{t('openLocal')}</span>
             </span>
-            <span className="quick-sub">.docx Â· .xlsx Â· .pptx Â· .pdf Â· .md</span>
+            <span className="quick-sub">{OPEN_LOCAL_EXTENSIONS}</span>
           </span>
         </button>
       </div>
     )
   }
 
-  // â”€â”€ File row rendering (shared by the plain view and the project files view) â”€â”€
+  // ── Sidebar folder tree ──
 
-  function renderFileRow(entry: RecentEntry, context: 'global' | 'project') {
-    const isRenaming = renaming?.path === entry.path
-    const otherProjects = projects.filter(
-      (p) => p.id !== (context === 'project' ? selectedProjectId : undefined),
+  const addFolderRoot = () => {
+    void window.aiOffice.addFolderRoot().then((added) => {
+      if (added) loadRoot()
+    })
+  }
+
+  /** the folder leaves the list only; whatever it held on disk stays where it is */
+  const removeFolderRoot = (path: string) => {
+    setFolderMenu(null)
+    if (selectedFolder && isUnder(path, selectedFolder)) setSelectedFolder(null)
+    setExpanded((prev) => new Set([...prev].filter((dir) => !isUnder(path, dir))))
+    void window.aiOffice.removeFolderRoot(path).then(loadRoot)
+  }
+
+  // folders dragged in from the OS join the tree in place; documents open as they do anywhere else
+  const panelDropProps = {
+    onDragOver: (event: ReactDragEvent) => {
+      if (!event.dataTransfer.types.includes('Files')) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'link'
+      if (!panelDrop) setPanelDrop(true)
+    },
+    onDragLeave: (event: ReactDragEvent) => {
+      if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+      setPanelDrop(false)
+    },
+    onDrop: (event: ReactDragEvent) => {
+      if (!event.dataTransfer.types.includes('Files')) return
+      event.preventDefault()
+      setPanelDrop(false)
+      const paths = Array.from(event.dataTransfer.files)
+        .map((file) => window.aiOffice.pathForFile(file))
+        .filter(Boolean)
+      if (paths.length === 0) return
+      void window.aiOffice.dropFolderRoots(paths).then((added) => {
+        if (added.length > 0) loadRoot()
+      })
+    },
+  }
+
+  const renderFolderMenu = (entry: { path: string; name: string }, rootEntry?: FolderRoot) => (
+    <div
+      className="folder-menu-wrap"
+      ref={menuOpenAt('tree', entry.path) ? folderMenuWrapRef : undefined}
+    >
+      <button
+        className="folder-more-btn"
+        aria-label={t('folderMoreActions', { name: entry.name })}
+        aria-expanded={menuOpenAt('tree', entry.path)}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (menuOpenAt('tree', entry.path)) {
+            setFolderMenu(null)
+            return
+          }
+          const rect = e.currentTarget.getBoundingClientRect()
+          setFolderMenu({
+            path: entry.path,
+            where: 'tree',
+            top: rect.bottom + 4,
+            right: window.innerWidth - rect.right,
+          })
+        }}
+      >
+        <MoreDots />
+      </button>
+      {folderMenu && menuOpenAt('tree', entry.path) && (
+        <div
+          className="folder-menu"
+          role="menu"
+          style={{ top: folderMenu.top, right: folderMenu.right }}
+        >
+          {editableAt(entry.path) && (
+            <button role="menuitem" onClick={() => startCreateFolder(entry.path)}>
+              {t('newSubfolder')}
+            </button>
+          )}
+          {!rootEntry && editableAt(entry.path) && (
+            <button role="menuitem" onClick={() => startRenameFolder(entry, 'tree')}>
+              {t('rename')}
+            </button>
+          )}
+          {!rootEntry && editableAt(entry.path) && (
+            <button role="menuitem" onClick={() => startMove([entry.path])}>
+              {t('moveToFolder')}
+            </button>
+          )}
+          {(rootEntry?.readable ?? true) && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                setFolderMenu(null)
+                void window.aiOffice.revealPath(entry.path)
+              }}
+            >
+              {t('revealInFolder')}
+            </button>
+          )}
+          {!rootEntry && editableAt(entry.path) && (
+            <>
+              <div className="row-menu-divider" />
+              <button
+                role="menuitem"
+                className="danger"
+                onClick={() => {
+                  setFolderMenu(null)
+                  setConfirmDeleteFolder(entry.path)
+                }}
+              >
+                {t('deleteFolder')}
+              </button>
+            </>
+          )}
+          {rootEntry?.removable && (
+            <>
+              <div className="row-menu-divider" />
+              <button role="menuitem" onClick={() => removeFolderRoot(entry.path)}>
+                {t('removeFolderRoot')}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
+  const renderNewFolderInput = (depth: number) => (
+    <li className="tree-item">
+      <div className="tree-row" style={{ paddingLeft: 8 + depth * 14 }}>
+        <span className="tree-chevron" aria-hidden="true" />
+        <span className="tree-icon" aria-hidden="true">
+          <FolderIcon />
+        </span>
+        <input
+          className="folder-rename-input inline"
+          autoFocus
+          placeholder={t('untitledFolder')}
+          value={newFolderName}
+          onChange={(e) => setNewFolderName(e.target.value)}
+          onBlur={() => void commitCreateFolder()}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.nativeEvent.isComposing) return
+            if (e.key === 'Enter') void commitCreateFolder()
+            if (e.key === 'Escape') {
+              setCreating(null)
+              setNewFolderName('')
+            }
+          }}
+        />
+      </div>
+    </li>
+  )
+
+  function renderTreeNode(
+    entry: { path: string; name: string; hasSubfolders: boolean },
+    depth: number,
+  ): ReactElement {
+    const rootEntry = roots.find((r) => r.path === entry.path)
+    const isRoot = rootEntry !== undefined
+    const unavailable = rootEntry !== undefined && !rootEntry.readable
+    const isOpen = expanded.has(entry.path) && !unavailable
+    const children = listings.get(entry.path)?.folders ?? []
+    const isActive = selectedFolder === entry.path
+    const isRenaming = folderRenaming?.where === 'tree' && folderRenaming.path === entry.path
+    const showChevron = !unavailable && (isRoot || entry.hasSubfolders || children.length > 0)
+    return (
+      <li key={entry.path} className="tree-item">
+        <div
+          className={`tree-row${isActive ? ' active' : ''}${dropTarget === entry.path ? ' drop-target' : ''}${unavailable ? ' unavailable' : ''}`}
+          style={{ paddingLeft: 8 + depth * 14 }}
+          role="treeitem"
+          aria-selected={isActive}
+          aria-expanded={showChevron ? isOpen : undefined}
+          tabIndex={0}
+          title={isRoot ? entry.path : undefined}
+          onClick={() => {
+            if (!unavailable) selectFolder(entry.path)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !unavailable) selectFolder(entry.path)
+            if (e.key === 'ArrowRight' && !isOpen) toggleExpanded(entry.path)
+            if (e.key === 'ArrowLeft' && isOpen) toggleExpanded(entry.path)
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setFolderMenu({
+              path: entry.path,
+              where: 'tree',
+              top: e.clientY + 2,
+              right: window.innerWidth - e.clientX,
+            })
+          }}
+          draggable={!isRoot && !isRenaming}
+          onDragStart={(e) => onRowDragStart(e, [entry.path])}
+          {...folderDropProps(entry.path, { autoExpand: true })}
+        >
+          <button
+            className="tree-chevron"
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ visibility: showChevron ? undefined : 'hidden' }}
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleExpanded(entry.path)
+            }}
+          >
+            <Chevron open={isOpen} />
+          </button>
+          <span className="tree-icon" aria-hidden="true">
+            <FolderIcon open={isOpen} />
+          </span>
+          {isRenaming ? (
+            <input
+              className="folder-rename-input inline"
+              value={folderRenaming.value}
+              autoFocus
+              onFocus={(e) => e.target.select()}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) =>
+                setFolderRenaming({ path: entry.path, where: 'tree', value: e.target.value })
+              }
+              onBlur={() => void commitRenameFolder()}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.nativeEvent.isComposing) return
+                if (e.key === 'Enter') void commitRenameFolder()
+                if (e.key === 'Escape') setFolderRenaming(null)
+              }}
+            />
+          ) : (
+            <span className="tree-name">{entry.name}</span>
+          )}
+          {unavailable && <span className="tree-hint">{t('rootUnavailable')}</span>}
+          {renderFolderMenu(entry, rootEntry)}
+        </div>
+        {isOpen && (children.length > 0 || creating?.parent === entry.path) && (
+          <ul className="tree-children" role="group">
+            {creating?.parent === entry.path && renderNewFolderInput(depth + 1)}
+            {children.map((child) => renderTreeNode(child, depth + 1))}
+          </ul>
+        )}
+      </li>
     )
+  }
+
+  function renderFolderPanel() {
+    const createIn = selectedFolder ?? root?.path
+    const canCreate = createIn !== undefined && rootOf(createIn, roots)?.usable === true
+    return (
+      <div className={`folder-panel${panelDrop ? ' drop-target' : ''}`} {...panelDropProps}>
+        <div className="folder-panel-head">
+          <span className="folder-panel-title">{t('folders')}</span>
+          <div className="folder-panel-actions">
+            {roots.length > 0 && (
+              <button
+                className="folder-add-btn folder-add-root-btn"
+                data-tip={t('addFolderRoot')}
+                aria-label={t('addFolderRoot')}
+                onClick={addFolderRoot}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1" />
+                  <path d="M2 13h10" />
+                  <path d="m9 16 3-3-3-3" />
+                </svg>
+              </button>
+            )}
+            {canCreate && (
+              <button
+                className="folder-add-btn folder-new-btn"
+                data-tip={t('newFolder')}
+                aria-label={t('newFolder')}
+                onClick={() => startCreateFolder(createIn)}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path
+                    d="M7 1v12M1 7h12"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+        <ul className="tree" role="tree">
+          {root && !root.usable ? (
+            <li className="folder-unusable">
+              <p>{t('rootUnusable')}</p>
+              <button
+                className="btn btn-secondary"
+                onClick={() => void window.aiOffice.pickDefaultSaveDir().then(() => loadRoot())}
+              >
+                {t('pickSaveDir')}
+              </button>
+            </li>
+          ) : (
+            root && renderTreeNode({ path: root.path, name: root.name, hasSubfolders: true }, 0)
+          )}
+          {roots
+            .slice(1)
+            .map((r) =>
+              renderTreeNode({ path: r.path, name: r.name, hasSubfolders: r.readable }, 0),
+            )}
+        </ul>
+      </div>
+    )
+  }
+
+  // ── File row rendering (shared by the plain view and the folder view) ──
+
+  function renderFileRow(entry: RecentEntry, context: 'global' | 'folder') {
+    const isRenaming = renaming?.path === entry.path
+    const editable = editableAt(entry.path)
+    const canDelete =
+      context === 'folder' ? folderSelectedPaths.length === 0 : selectedPaths.length === 0
     return (
       <li className="recent-row" key={entry.path}>
         <div
-          className="recent-item"
+          className={`recent-item${entry.missing ? ' missing' : ''}`}
           role="button"
           tabIndex={0}
+          draggable={!isRenaming && !entry.missing}
+          onDragStart={(e) => onRowDragStart(e, dragPathsFor(entry.path, context))}
           onClick={() => {
-            if (!isRenaming) void window.revelithApp.openPath(entry.path)
+            if (isRenaming) return
+            if (entry.missing) setConfirmMissing(entry)
+            else void window.aiOffice.openPath(entry.path)
           }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && event.target === event.currentTarget) {
-              void window.revelithApp.openPath(entry.path)
+              if (entry.missing) setConfirmMissing(entry)
+              else void window.aiOffice.openPath(entry.path)
             }
           }}
         >
@@ -1175,6 +2525,7 @@ export function Home() {
               onBlur={() => commitRename(entry)}
               onKeyDown={(event) => {
                 event.stopPropagation()
+                if (event.nativeEvent.isComposing) return
                 if (event.key === 'Enter') commitRename(entry)
                 if (event.key === 'Escape') setRenaming(null)
               }}
@@ -1182,9 +2533,13 @@ export function Home() {
           ) : (
             <span className="recent-name">{entry.name}</span>
           )}
-          <span className="recent-path">{parentDir(entry.path)}</span>
-          <span className="recent-time">{formatModified(entry.mtimeMs, i18n)}</span>
-          <span className="recent-size">{formatSize(entry.sizeBytes)}</span>
+          <span className="recent-path" title={dirOf(entry.path)}>
+            {locationLabel(entry.path, roots)}
+          </span>
+          <span className="recent-time">
+            {entry.missing ? '—' : formatModified(entry.mtimeMs, i18n)}
+          </span>
+          <span className="recent-size">{entry.missing ? '—' : formatSize(entry.sizeBytes)}</span>
           <button
             className={`star-btn${entry.starred ? ' starred' : ''}`}
             aria-label={entry.starred ? t('unstar') : t('star')}
@@ -1203,7 +2558,11 @@ export function Home() {
               />
             </svg>
           </button>
-          <span className="recent-actions" onClick={(event) => event.stopPropagation()}>
+          <span
+            className="recent-actions"
+            ref={rowMenu === entry.path ? rowMenuWrapRef : undefined}
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               className="more-btn"
               aria-label={t('moreActions')}
@@ -1222,7 +2581,7 @@ export function Home() {
                   role="menuitem"
                   onClick={() => {
                     setRowMenu(null)
-                    void window.revelithApp.openPath(entry.path)
+                    void window.aiOffice.openPath(entry.path)
                   }}
                 >
                   {t('open')}
@@ -1231,7 +2590,7 @@ export function Home() {
                   role="menuitem"
                   onClick={() => {
                     setRowMenu(null)
-                    void window.revelithApp.revealPath(entry.path)
+                    void window.aiOffice.revealPath(entry.path)
                   }}
                 >
                   {t('revealInFolder')}
@@ -1245,96 +2604,187 @@ export function Home() {
                 >
                   {t('copyPath')}
                 </button>
-                {projectMode && otherProjects.length > 0 && (
+                {canMove && editable && !entry.missing && (
                   <>
                     <div className="row-menu-divider" />
-                    <div
-                      className="move-menu-wrap"
-                      onMouseEnter={() => {
-                        clearMoveMenuTimer('close')
-                        if (moveFileMenu === entry.path) return
-                        clearMoveMenuTimer('open')
-                        moveMenuTimers.current.open = window.setTimeout(
-                          () => openMoveMenu(entry.path),
-                          160,
-                        )
-                      }}
-                      onMouseLeave={() => {
-                        clearMoveMenuTimer('open')
-                        clearMoveMenuTimer('close')
-                        moveMenuTimers.current.close = window.setTimeout(
-                          () => setMoveFileMenu(null),
-                          140,
-                        )
-                      }}
-                    >
-                      <button
-                        role="menuitem"
-                        className="submenu-trigger"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          clearMoveMenuTimer('open')
-                          clearMoveMenuTimer('close')
-                          if (moveFileMenu === entry.path) setMoveFileMenu(null)
-                          else openMoveMenu(entry.path)
-                        }}
-                      >
-                        {t('moveToProject')}
-                        <svg
-                          width="11"
-                          height="11"
-                          viewBox="0 0 12 12"
-                          aria-hidden="true"
-                          style={{ marginLeft: 'auto' }}
-                        >
-                          <path
-                            d="M4.5 2.5l4 3.5-4 3.5"
-                            stroke="currentColor"
-                            strokeWidth="1.3"
-                            strokeLinecap="round"
-                            fill="none"
-                          />
-                        </svg>
-                      </button>
-                      {moveFileMenu === entry.path && (
-                        <div
-                          className={`submenu${moveMenuFlip ? ' submenu-left' : ''}`}
-                          role="menu"
-                          ref={measureSubmenu}
-                        >
-                          {otherProjects.map((p) => (
-                            <button
-                              key={p.id}
-                              role="menuitem"
-                              onClick={() => void moveFileTo(entry.path, p.id)}
-                            >
-                              {p.isDefault ? t('defaultProject') : p.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <button role="menuitem" onClick={() => startMove([entry.path])}>
+                      {t('moveToFolder')}
+                    </button>
                   </>
                 )}
-                <div className="row-menu-divider" />
-                <button role="menuitem" onClick={() => startRename(entry)}>
-                  {t('rename')}
-                </button>
-                <button role="menuitem" onClick={() => duplicateFile(entry.path)}>
-                  {t('duplicate')}
-                </button>
-                {context === 'global' && selectedPaths.length === 0 && (
+                {editable && (
                   <>
                     <div className="row-menu-divider" />
-                    <button role="menuitem" onClick={() => removeRecent([entry.path])}>
-                      {t('removeFromList')}
+                    <button role="menuitem" onClick={() => startRename(entry)}>
+                      {t('rename')}
                     </button>
+                    <button role="menuitem" onClick={() => duplicateFile(entry.path)}>
+                      {t('duplicate')}
+                    </button>
+                  </>
+                )}
+                {canDelete && (context === 'global' || editable) && (
+                  <>
+                    <div className="row-menu-divider" />
+                    {context === 'global' && (
+                      <button role="menuitem" onClick={() => removeRecent([entry.path])}>
+                        {t('removeFromList')}
+                      </button>
+                    )}
+                    {editable && (
+                      <button
+                        role="menuitem"
+                        className="danger"
+                        onClick={() => deleteFiles([entry.path])}
+                      >
+                        {t('deleteFiles')}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </span>
+        </div>
+      </li>
+    )
+  }
+
+  /** sub-folder row in the folder view's table: enter on click, same … menu as the tree */
+  function renderSubfolderRow(entry: FolderEntry) {
+    const isRenaming = folderRenaming?.where === 'table' && folderRenaming.path === entry.path
+    const editable = editableAt(entry.path)
+    return (
+      <li className="recent-row" key={entry.path}>
+        <div
+          className={`recent-item folder-item${dropTarget === entry.path ? ' drop-target' : ''}`}
+          role="button"
+          tabIndex={0}
+          draggable={!isRenaming}
+          onDragStart={(e) => onRowDragStart(e, [entry.path])}
+          {...folderDropProps(entry.path, { autoExpand: false })}
+          onClick={() => {
+            if (isRenaming) return
+            expandTo(entry.path)
+            selectFolder(entry.path)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && event.target === event.currentTarget) {
+              expandTo(entry.path)
+              selectFolder(entry.path)
+            }
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setFolderMenu({
+              path: entry.path,
+              where: 'table',
+              top: e.clientY + 2,
+              right: window.innerWidth - e.clientX,
+            })
+          }}
+        >
+          <span className="col-check" aria-hidden="true" />
+          <span className="recent-icon folder-badge">
+            <FolderIcon size={22} />
+          </span>
+          {isRenaming ? (
+            <input
+              className="rename-input"
+              value={folderRenaming.value}
+              autoFocus
+              onFocus={(event) => event.target.select()}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) =>
+                setFolderRenaming({ path: entry.path, where: 'table', value: event.target.value })
+              }
+              onBlur={() => void commitRenameFolder()}
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                if (event.nativeEvent.isComposing) return
+                if (event.key === 'Enter') void commitRenameFolder()
+                if (event.key === 'Escape') setFolderRenaming(null)
+              }}
+            />
+          ) : (
+            <span className="recent-name">{entry.name}</span>
+          )}
+          <span className="recent-path">{t('folderType')}</span>
+          <span className="recent-time">{formatModified(entry.mtimeMs, i18n)}</span>
+          <span className="recent-size">—</span>
+          <span />
+          <span
+            className="recent-actions"
+            ref={menuOpenAt('table', entry.path) ? folderMenuWrapRef : undefined}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              className="more-btn"
+              aria-label={t('folderMoreActions', { name: entry.name })}
+              aria-expanded={menuOpenAt('table', entry.path)}
+              onClick={(e) => {
+                if (menuOpenAt('table', entry.path)) {
+                  setFolderMenu(null)
+                  return
+                }
+                const rect = e.currentTarget.getBoundingClientRect()
+                setFolderMenu({
+                  path: entry.path,
+                  where: 'table',
+                  top: rect.bottom + 4,
+                  right: window.innerWidth - rect.right,
+                })
+              }}
+            >
+              <MoreDots />
+            </button>
+            {folderMenu && menuOpenAt('table', entry.path) && (
+              <div
+                className="folder-menu"
+                role="menu"
+                style={{ top: folderMenu.top, right: folderMenu.right }}
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setFolderMenu(null)
+                    expandTo(entry.path)
+                    selectFolder(entry.path)
+                  }}
+                >
+                  {t('open')}
+                </button>
+                {editable && (
+                  <>
+                    <button role="menuitem" onClick={() => startRenameFolder(entry, 'table')}>
+                      {t('rename')}
+                    </button>
+                    <button role="menuitem" onClick={() => startMove([entry.path])}>
+                      {t('moveToFolder')}
+                    </button>
+                  </>
+                )}
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setFolderMenu(null)
+                    void window.aiOffice.revealPath(entry.path)
+                  }}
+                >
+                  {t('revealInFolder')}
+                </button>
+                {editable && (
+                  <>
+                    <div className="row-menu-divider" />
                     <button
                       role="menuitem"
                       className="danger"
-                      onClick={() => deleteFiles([entry.path])}
+                      onClick={() => {
+                        setFolderMenu(null)
+                        setConfirmDeleteFolder(entry.path)
+                      }}
                     >
-                      {t('deleteFiles')}
+                      {t('deleteFolder')}
                     </button>
                   </>
                 )}
@@ -1346,13 +2796,193 @@ export function Home() {
     )
   }
 
-  // â”€â”€ Project files view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const renderEmpty = (hint: string) => (
+    <p className="empty proj-empty">
+      <svg
+        className="proj-empty-icon"
+        width="48"
+        height="48"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M6.29297 3.75H14.1729C14.4927 3.75 14.7979 3.88392 15.0146 4.11914L18.5566 7.96387C18.7512 8.17512 18.8593 8.45208 18.8594 8.73926V19.1055C18.8593 19.7376 18.346 20.25 17.7139 20.25H6.29297C5.66091 20.2499 5.14855 19.7375 5.14844 19.1055V4.89453C5.14855 4.26247 5.66091 3.75011 6.29297 3.75Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M13.8984 4V7.11C13.8984 8.15382 14.7446 9 15.7884 9H18.8984"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+      </svg>
+      <span className="empty-hint">{hint}</span>
+    </p>
+  )
 
-  function renderProjectContent() {
-    const proj = projects.find((p) => p.id === selectedProjectId)
-    if (!proj) return null
-    const otherProjects = projects.filter((p) => p.id !== proj.id)
+  // ── Folder view ────────────────────────────────────────
 
+  const clearSearch = () => {
+    setSearchQuery('')
+    searchInputRef.current?.focus()
+  }
+
+  const renderSearchSettingsButton = () => (
+    <button
+      className="file-search-settings"
+      title={t('searchJevSettings')}
+      aria-label={t('searchJevSettings')}
+      onClick={() => setSettingsRequest({ section: 'aiMedia', block: 'rerank' })}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 20V4M12 4l-4 4M12 4l4 4" />
+        <path d="M3 12h6M3 16h5M3 20h4" />
+      </svg>
+    </button>
+  )
+
+  const renderSearchBox = () => (
+    <div className={`file-search${searchActive ? ' active' : ''}`}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+        <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+      <input
+        ref={searchInputRef}
+        type="search"
+        value={searchQuery}
+        placeholder={t('searchFilesPlaceholder')}
+        aria-label={t('searchFilesPlaceholder')}
+        spellCheck={false}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        onCompositionStart={() => {
+          composingRef.current = true
+        }}
+        onCompositionEnd={(e) => {
+          composingRef.current = false
+          setSearchQuery(e.currentTarget.value)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && searchQuery) {
+            e.stopPropagation()
+            clearSearch()
+          }
+        }}
+      />
+      {searchQuery && (
+        <button className="file-search-clear" aria-label={t('searchClear')} onClick={clearSearch}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path
+              d="M2 2l8 8M10 2l-8 8"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+
+  const renderSearchRow = (hit: FileSearchHit) => (
+    <li
+      key={hit.path}
+      className="search-row"
+      role="button"
+      tabIndex={0}
+      onClick={() => void window.aiOffice.openPath(hit.path)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') void window.aiOffice.openPath(hit.path)
+      }}
+    >
+      <span className="recent-icon">
+        <FileBadge ext={hit.ext} size={24} />
+      </span>
+      <div className="search-main">
+        <div className="search-head">
+          <span className="search-name">{highlightText(hit.name, hit.needles)}</span>
+          <span className="search-path" title={dirOf(hit.path)}>
+            {highlightText(locationLabel(hit.path, roots), hit.needles)}
+          </span>
+        </div>
+        {hit.snippet && (
+          <p className="search-snippet">
+            {hit.snippet.map((part, i) =>
+              part.hit ? (
+                <mark key={i} className="search-hit">
+                  {part.text}
+                </mark>
+              ) : (
+                <span key={i}>{part.text}</span>
+              ),
+            )}
+          </p>
+        )}
+      </div>
+      <span className="search-time">{formatModified(hit.mtimeMs, i18n)}</span>
+    </li>
+  )
+
+  const renderSearchResults = () => {
+    const page = searchPage
+    const busy = !!page && (page.index.pending > 0 || page.index.scanning)
+    return (
+      <div className="search-results" aria-live="polite">
+        {busy && (
+          <div className="search-status">
+            <span className="load-more-spinner" />
+            {t('searchIndexing', { n: page.index.pending })}
+          </div>
+        )}
+        {page && page.hits.length === 0 && !busy
+          ? renderEmpty(t('searchNoResults', { q }))
+          : page && (
+              <ul className="search-list">{orderedSearchHits(page.hits).map(renderSearchRow)}</ul>
+            )}
+      </div>
+    )
+  }
+
+  const rerankApplied = rerank && rerank.key === rerankKey ? rerank.result : null
+
+  /** judged hits in Jev's order, then the rest in local order */
+  const orderedSearchHits = (hits: readonly FileSearchHit[]): FileSearchHit[] => {
+    if (!rerankApplied) return [...hits]
+    const rank = new Map(rerankApplied.order.map((path, i) => [path, i]))
+    return [...hits].sort((a, b) => (rank.get(a.path) ?? Infinity) - (rank.get(b.path) ?? Infinity))
+  }
+
+  const renderSearchHeading = () => {
+    const total = searchPage?.total ?? 0
+    return (
+      <div className="recents-heading">
+        {rerankApplied && (
+          <span className="search-rerank-badge" title={t('searchRerankedBy')}>
+            Jev
+          </span>
+        )}
+        <span className="file-count">
+          {t(total === 1 ? 'searchResultCountOne' : 'searchResultCount', { n: total })}
+        </span>
+      </div>
+    )
+  }
+
+  function renderFolderContent() {
+    if (roots.length === 0) return null
+    const total = folderSubfolders.length + folderFiles.length
+    const sortedFiles = fileSort === 'oldest' ? [...folderFiles].reverse() : folderFiles
     return (
       <main className="content">
         <section className="quick-start" aria-label={t('secQuickStart')}>
@@ -1362,102 +2992,89 @@ export function Home() {
           {renderQuickCards()}
         </section>
 
-        <section className="recents" aria-label={t('secProjectFiles')}>
+        <section className="recents" aria-label={t('folders')}>
           <div className="recents-toolbar">
-            <div className="recents-heading">
-              <span className="section-label">{t('secProjectFiles')}</span>
-              <span className="file-count">
-                {t(fileCountKey(projectFileEntries.length), { n: projectFileEntries.length })}
-              </span>
-            </div>
-            {projSelectedPaths.length > 0 && (
+            {folderSelectedPaths.length > 0 ? (
               <div className="selection-bar">
                 <span className="selection-count">
-                  {t('selectedCount', { n: projSelectedPaths.length })}
+                  {t('selectedCount', { n: folderSelectedPaths.length })}
                 </span>
-                {otherProjects.length > 0 && (
-                  <span className="selection-move-wrap">
+                {selectedFolder && editableAt(selectedFolder) && (
+                  <>
                     <button
                       className="selection-action"
-                      aria-expanded={bulkMoveMenu}
-                      onClick={() => setBulkMoveMenu((open) => !open)}
+                      onClick={() => startMove(folderSelectedPaths)}
                     >
-                      {t('moveToProject')}
+                      {t('moveToFolder')}
                     </button>
-                    {bulkMoveMenu && (
-                      <div className="selection-move-menu" role="menu">
-                        {otherProjects.map((p) => (
-                          <button
-                            key={p.id}
-                            role="menuitem"
-                            onClick={() => void moveFilesTo(projSelectedPaths, p.id)}
-                          >
-                            {p.isDefault ? t('defaultProject') : p.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </span>
+                    <button
+                      className="selection-action danger"
+                      onClick={() => deleteFiles(folderSelectedPaths)}
+                    >
+                      {t('deleteFiles')}
+                    </button>
+                  </>
                 )}
-                <button
-                  className="selection-action danger"
-                  onClick={() => deleteFiles(projSelectedPaths)}
-                >
-                  {t('deleteFiles')}
-                </button>
                 <button className="selection-action" onClick={() => setSelected(new Set())}>
                   {t('cancel')}
                 </button>
               </div>
+            ) : (
+              <div className="filter-pills" role="tablist" aria-label={t('filterAria')}>
+                {FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    className={`filter-pill${filter === f.key ? ' active' : ''}`}
+                    onClick={() => changeFilter(f.key)}
+                  >
+                    {t(f.label)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="file-search-group">
+              {renderSearchBox()}
+              {renderSearchSettingsButton()}
+            </div>
+            {searchActive ? (
+              renderSearchHeading()
+            ) : (
+              <div className="recents-heading folder-heading">
+                <span className="file-count">
+                  {t(total === 1 ? 'itemCountOne' : 'itemCount', { n: total })}
+                </span>
+              </div>
             )}
           </div>
 
-          {projectFileEntries.length === 0 ? (
-            <p className="empty proj-empty">
-              <svg
-                className="proj-empty-icon"
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6.29297 3.75H14.1729C14.4927 3.75 14.7979 3.88392 15.0146 4.11914L18.5566 7.96387C18.7512 8.17512 18.8593 8.45208 18.8594 8.73926V19.1055C18.8593 19.7376 18.346 20.25 17.7139 20.25H6.29297C5.66091 20.2499 5.14855 19.7375 5.14844 19.1055V4.89453C5.14855 4.26247 5.66091 3.75011 6.29297 3.75Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="M13.8984 4V7.11C13.8984 8.15382 14.7446 9 15.7884 9H18.8984"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-              </svg>
-              <span className="empty-hint">{t('projEmptyHint')}</span>
-            </p>
+          {searchActive ? (
+            renderSearchResults()
+          ) : total === 0 ? (
+            renderEmpty(filter === 'all' ? t('emptyFolder') : t('emptyFiltered'))
           ) : (
-            <div className="recent-table">
+            <div
+              className={`recent-table${folderSelectedPaths.length > 0 ? ' has-selection' : ''}`}
+            >
               <div className="recent-columns">
                 <span className="col-check">
                   <input
                     type="checkbox"
-                    checked={projAllSelected}
-                    onChange={toggleSelectAllProject}
+                    checked={folderAllSelected}
+                    disabled={folderFiles.length === 0}
+                    onChange={toggleSelectAllFolder}
                     aria-label={t('selectAll')}
                   />
                 </span>
                 <span className="col-name">{t('colName')}</span>
-                <span>{t('colLocation')}</span>
+                <span className="col-path">{t('colLocation')}</span>
                 {renderModifiedHeader()}
                 <span className="col-size">{t('colSize')}</span>
                 <span />
                 <span />
               </div>
               <ul className="recent-list">
-                {(fileSort === 'oldest'
-                  ? [...projectFileEntries].reverse()
-                  : projectFileEntries
-                ).map((entry) => renderFileRow(entry, 'project'))}
+                {folderSubfolders.map((entry) => renderSubfolderRow(entry))}
+                {sortedFiles.map((entry) => renderFileRow(entry, 'folder'))}
               </ul>
             </div>
           )}
@@ -1466,7 +3083,7 @@ export function Home() {
     )
   }
 
-  // â”€â”€ Plain view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Plain view ────────────────────────────────────────
 
   function renderGlobalContent() {
     const now = new Date()
@@ -1479,7 +3096,8 @@ export function Home() {
           : hour < 18
             ? 'greetAfternoon'
             : 'greetEvening'
-    const greeting = t(greetKey)
+    const cjk = lang === 'zh' || lang === 'zh-TW' || lang === 'ja'
+    const greeting = `${t(greetKey)}${accountName ? (cjk ? '，' : ', ') + accountName : ''}${cjk ? '。' : '. '}`
     return (
       <main className="content">
         <section className="quick-start" aria-label={t('secQuickStart')}>
@@ -1497,17 +3115,16 @@ export function Home() {
           aria-label={view === 'recent' ? t('secRecent') : t('secStarred')}
         >
           <div className="recents-toolbar">
-            <div className="recents-heading">
-              <span className="section-label">
-                {view === 'recent' ? t('secRecent') : t('secStarred')}
-              </span>
-              <span className="file-count">{t(fileCountKey(listTotal), { n: listTotal })}</span>
-            </div>
             {selectedPaths.length > 0 ? (
               <div className="selection-bar">
                 <span className="selection-count">
                   {t('selectedCount', { n: selectedPaths.length })}
                 </span>
+                {canMove && (
+                  <button className="selection-action" onClick={() => startMove(selectedPaths)}>
+                    {t('moveToFolder')}
+                  </button>
+                )}
                 <button className="selection-action" onClick={() => removeRecent(selectedPaths)}>
                   {t('removeFromList')}
                 </button>
@@ -1534,373 +3151,85 @@ export function Home() {
                 ))}
               </div>
             )}
-            {/* Search bar (right side, like .cloud-search) */}
-            <div className="search-bar-wrapper">
-              <div className="search-input-wrapper">
-                <svg
-                  className="search-icon"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" />
-                  <path
-                    d="M11 11l3.5 3.5"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <input
-                  type="search"
-                  className="search-input"
-                  placeholder={t('searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  onFocus={() => handleSearch(searchQuery)}
-                  aria-label={t('searchAriaLabel')}
-                  autoComplete="off"
-                />
-                {searchQuery && (
-                  <button
-                    className="search-clear"
-                    onClick={clearSearch}
-                    aria-label={t('searchClear')}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path
-                        d="M4 4l8 8M12 4l-8 8"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-                )}
-                {searchLoading && <span className="search-spinner" aria-hidden="true" />}
-              </div>
+            <div className="file-search-group">
+              {renderSearchBox()}
+              {renderSearchSettingsButton()}
             </div>
+            {searchActive ? (
+              renderSearchHeading()
+            ) : (
+              <div className="recents-heading">
+                <span className="section-label">
+                  {view === 'recent' ? t('secRecent') : t('secStarred')}
+                </span>
+                <span className="file-count">{fileCountLabel(listTotal, lang, t)}</span>
+              </div>
+            )}
           </div>
 
-          {/* Search results */}
-          {showSearch && (
-            <section className="search-results" aria-label={t('searchResultsAria')}>
-              <div className="search-results-header">
-                <span className="search-results-count">
-                  {t('searchResultsCount', {
-                    n: searchTotal,
-                    query: searchQuery,
-                    time: searchTookMs,
-                  })}
-                </span>
-                {searchTotal > 50 && (
-                  <button
-                    className="search-load-more"
-                    onClick={() => {
-                      const seq = ++searchSeqRef.current
-                      setSearchLoading(true)
-                      window.revelithApp
-                        .searchFiles({
-                          query: searchQuery,
-                          limit: 50,
-                          offset: searchResults.length,
-                        })
-                        .then((page: SearchPage) => {
-                          if (seq !== searchSeqRef.current) return
-                          setSearchResults((prev) => [...prev, ...page.results])
-                          setSearchTotal(page.total)
-                          setSearchTookMs(page.tookMs)
-                          setSearchLoading(false)
-                        })
-                        .catch(() => {
-                          if (seq !== searchSeqRef.current) return
-                          setSearchLoading(false)
-                        })
-                    }}
-                  >
-                    {searchLoading ? t('searchLoading') : t('searchLoadMore')}
-                  </button>
-                )}
-              </div>
-              {searchResults.length === 0 && searchQuery.trim() ? (
-                <p className="empty search-empty">
-                  <svg width="48" height="48" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <circle
-                      cx="7"
-                      cy="7"
-                      r="5.5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      opacity="0.4"
-                    />
-                    <path
-                      d="M11 11l3.5 3.5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      opacity="0.4"
-                    />
-                  </svg>
-                  <span className="empty-hint">{t('searchNoResults', { query: searchQuery })}</span>
-                </p>
-              ) : (
-                <ul className="search-results-list">
-                  {searchResults.map((result) => (
-                    <li key={result.filePath} className="search-result-row">
-                      <button
-                        className="search-result-item"
-                        onClick={() => {
-                          clearSearch()
-                          window.revelithApp.openPath(result.filePath)
-                        }}
-                      >
-                        <span className="search-result-icon">
-                          <FileBadge ext={result.extension} size={20} />
-                        </span>
-                        <div className="search-result-content">
-                          <span className="search-result-name">{result.fileName}</span>
-                          <span className="search-result-path">{parentDir(result.filePath)}</span>
-                          <span
-                            className="search-result-snippet"
-                            dangerouslySetInnerHTML={{ __html: result.snippet }}
-                          />
-                        </div>
-                        <span className="search-result-meta">
-                          <span className="search-result-time">
-                            {formatModified(result.mtimeMs, i18n)}
-                          </span>
-                          <span className="search-result-size">
-                            {formatSize(result.sizeBytes ?? 0)}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
-          {entries.length === 0 && !showSearch ? (
-            <p className="empty proj-empty">
-              <svg
-                className="proj-empty-icon"
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6.29297 3.75H14.1729C14.4927 3.75 14.7979 3.88392 15.0146 4.11914L18.5566 7.96387C18.7512 8.17512 18.8593 8.45208 18.8594 8.73926V19.1055C18.8593 19.7376 18.346 20.25 17.7139 20.25H6.29297C5.66091 20.2499 5.14855 19.7375 5.14844 19.1055V4.89453C5.14855 4.26247 5.66091 3.75011 6.29297 3.75Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="M13.8984 4V7.11C13.8984 8.15382 14.7446 9 15.7884 9H18.8984"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-              </svg>
-              <span className="empty-hint">
-                {view === 'starred'
-                  ? t('emptyStarred')
-                  : navCounts.recent === 0
-                    ? t('emptyRecent')
-                    : t('emptyFiltered')}
-              </span>
-            </p>
+          {searchActive ? (
+            renderSearchResults()
+          ) : entries.length === 0 ? (
+            renderEmpty(
+              view === 'starred'
+                ? t('emptyStarred')
+                : navCounts.recent === 0
+                  ? t('emptyRecent')
+                  : t('emptyFiltered'),
+            )
           ) : (
-            <>
-              {selectedFolder && (
-                <div
-                  className="folder-filter-banner"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 14px',
-                    background: 'var(--surface-subtle)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 8,
-                    marginBottom: 12,
-                    fontSize: 13,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path
-                        d="M1.5 3.5A1.5 1.5 0 013 2h3.586a1.5 1.5 0 011.06.44l1.415 1.414A1.5 1.5 0 0010.12 4.5H13A1.5 1.5 0 0114.5 6v6.5A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-9z"
-                        stroke="var(--accent)"
-                        strokeWidth="1.5"
-                      />
-                    </svg>
-                    <span>
-                      Folder: <strong>{selectedFolder.split(/[\\/]/).pop()}</strong>
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                      (
-                      {selectedFolder
-                        ? entries.filter(
-                            (e) =>
-                              e.path.toLowerCase().startsWith(selectedFolder.toLowerCase()) ||
-                              parentDir(e.path).toLowerCase() ===
-                                (selectedFolder.split(/[\\/]/).pop() || '').toLowerCase(),
-                          ).length
-                        : entries.length}{' '}
-                      files)
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      className="btn-chip"
-                      onClick={() => void window.revelithApp?.openPathInExplorer?.(selectedFolder)}
-                      style={{
-                        border: 'none',
-                        background: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--accent)',
-                        fontSize: 12,
-                        padding: '2px 6px',
-                      }}
-                    >
-                      Reveal in Explorer
-                    </button>
-                    <button
-                      className="btn-chip"
-                      onClick={() => setSelectedFolder(null)}
-                      style={{
-                        border: 'none',
-                        background: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        fontSize: 13,
-                        padding: '2px 6px',
-                      }}
-                    >
-                      ✕ Clear
-                    </button>
-                  </div>
+            <div className={`recent-table${selectedPaths.length > 0 ? ' has-selection' : ''}`}>
+              <div className="recent-columns">
+                <span className="col-check">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label={t('selectAll')}
+                  />
+                </span>
+                <span className="col-name">{t('colName')}</span>
+                <span className="col-path">{t('colLocation')}</span>
+                {renderModifiedHeader()}
+                <span className="col-size">{t('colSize')}</span>
+                <span />
+                <span />
+              </div>
+              <ul className="recent-list">
+                {(fileSort === 'oldest' ? [...entries].reverse() : entries).map((entry) =>
+                  renderFileRow(entry, 'global'),
+                )}
+              </ul>
+              {hasMore && (
+                <div ref={sentinelRef} className="load-more" aria-hidden="true">
+                  <span className="load-more-spinner" />
                 </div>
               )}
-              <div className={`recent-table${selectedPaths.length > 0 ? ' has-selection' : ''}`}>
-                <div className="recent-columns">
-                  <span className="col-check">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleSelectAll}
-                      aria-label={t('selectAll')}
-                    />
-                  </span>
-                  <span className="col-name">{t('colName')}</span>
-                  <span>{t('colLocation')}</span>
-                  {renderModifiedHeader()}
-                  <span className="col-size">{t('colSize')}</span>
-                  <span />
-                  <span />
-                </div>
-                <ul className="recent-list">
-                  {(fileSort === 'oldest'
-                    ? [
-                        ...(selectedFolder
-                          ? entries.filter(
-                              (e) =>
-                                e.path.toLowerCase().startsWith(selectedFolder.toLowerCase()) ||
-                                parentDir(e.path).toLowerCase() ===
-                                  (selectedFolder.split(/[\\/]/).pop() || '').toLowerCase(),
-                            )
-                          : entries),
-                      ].reverse()
-                    : selectedFolder
-                      ? entries.filter(
-                          (e) =>
-                            e.path.toLowerCase().startsWith(selectedFolder.toLowerCase()) ||
-                            parentDir(e.path).toLowerCase() ===
-                              (selectedFolder.split(/[\\/]/).pop() || '').toLowerCase(),
-                        )
-                      : entries
-                  ).map((entry) => renderFileRow(entry, 'global'))}
-                </ul>
-                {hasMore && (
-                  <div ref={sentinelRef} className="load-more" aria-hidden="true">
-                    <span className="load-more-spinner" />
-                  </div>
-                )}
-              </div>
-            </>
+            </div>
           )}
         </section>
       </main>
     )
   }
 
+  const movingDirs = (paths: string[]) =>
+    paths.filter((p) => {
+      // a folder being moved: its own listing is cached, or it is a known sub-folder
+      if (listings.has(p)) return true
+      const parent = listings.get(dirOf(p))
+      return parent?.folders.some((f) => f.path === p) ?? false
+    })
+
   return (
     <div className="home">
       <aside className="sidebar">
-        <div className="sidebar-logo brand-header">
-          <div className="brand-badge">
-            <svg
-              width="34"
-              height="34"
-              viewBox="0 0 32 32"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* Pure orbital glyph with bold lines and no enclosing border or background box */}
-              {/* Central Core Nucleus */}
-              <circle cx="16" cy="16" r="2.2" fill="#38bdf8" />
-
-              {/* Bold Interlocking Elliptical Orbitals */}
-              <ellipse
-                cx="16"
-                cy="16"
-                rx="13"
-                ry="5.5"
-                stroke="#38bdf8"
-                strokeWidth="2"
-                transform="rotate(0 16 16)"
-              />
-              <circle cx="28" cy="16" r="2" fill="#67e8f9" />
-
-              <ellipse
-                cx="16"
-                cy="16"
-                rx="13"
-                ry="5.5"
-                stroke="#60a5fa"
-                strokeWidth="2"
-                transform="rotate(60 16 16)"
-              />
-              <circle cx="10" cy="5.6" r="2" fill="#93c5fd" />
-
-              <ellipse
-                cx="16"
-                cy="16"
-                rx="13"
-                ry="5.5"
-                stroke="#818cf8"
-                strokeWidth="2"
-                transform="rotate(120 16 16)"
-              />
-              <circle cx="10" cy="26.4" r="2" fill="#c7d2fe" />
-            </svg>
-          </div>
-          <div className="brand-info">
-            <span className="brand-title">ReveLith</span>
-            <span className="brand-subtitle">OFFICE WORKSPACE</span>
-          </div>
+        <div className="sidebar-logo">
+          <img className="logo-lockup" src={logoLockup} alt="ReveLith" />
         </div>
-
         <nav className="sidebar-nav">
           <button
-            className={`nav-item${view === 'recent' && !selectedProjectId ? ' active' : ''}`}
-            onClick={() => {
-              changeView('recent')
-              setSelectedProjectId(null)
-            }}
+            className={`nav-item${view === 'recent' && !selectedFolder && !cloudMode ? ' active' : ''}`}
+            onClick={() => changeView('recent')}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.3" />
@@ -1915,11 +3244,8 @@ export function Home() {
             <span className="nav-count">{navCounts.recent}</span>
           </button>
           <button
-            className={`nav-item${view === 'starred' && !selectedProjectId ? ' active' : ''}`}
-            onClick={() => {
-              changeView('starred')
-              setSelectedProjectId(null)
-            }}
+            className={`nav-item${view === 'starred' && !selectedFolder && !cloudMode ? ' active' : ''}`}
+            onClick={() => changeView('starred')}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path
@@ -1932,44 +3258,59 @@ export function Home() {
             <span className="nav-label">{t('navStarred')}</span>
             <span className="nav-count">{navCounts.starred}</span>
           </button>
-        </nav>
-
-        {/* save folders panel */}
-        <div className="sidebar-divider" />
-        <FoldersPanel
-          saveDir={saveDir}
-          folders={saveFolders}
-          selectedFolder={selectedFolder}
-          onSelect={(folderPath) => {
-            setSelectedFolder(folderPath)
-            setSelected(new Set())
-            setRowMenu(null)
-          }}
-          onRefresh={refreshFolders}
-        />
-
-        {/* project sidebar */}
-        {projectMode && (
-          <>
-            <div className="sidebar-divider" />
-            <ProjectPanel
-              projects={projects}
-              selectedId={selectedProjectId}
-              onSelect={(id) => {
-                setSelectedProjectId(id)
-                // reset list-selection state on any project switch (paths are
-                // shared between the plain view and project views)
+          {loggedIn && (
+            <button
+              className={`nav-item${cloudMode && !selectedFolder ? ' active' : ''}`}
+              onClick={() => {
+                setCloudMode(true)
+                setSelectedFolder(null)
                 setSelected(new Set())
                 setRowMenu(null)
               }}
-              onRefresh={refresh}
-            />
-          </>
-        )}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M8 1.8l1.55 4.65L14.2 8l-4.65 1.55L8 14.2 6.45 9.55 1.8 8l4.65-1.55z"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="nav-label">{t('navCloud')}</span>
+              <svg
+                className="nav-external"
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6.5 3.5H4a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 4 13.5h7A1.5 1.5 0 0 0 12.5 12V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
+        </nav>
+        <div className="sidebar-divider" />
+        {renderFolderPanel()}
+        <AccountEntry
+          onStatusChange={handleAccountStatus}
+          onFileSearchSettingsChange={() => setRerankSettingsTick((n) => n + 1)}
+          openRequest={settingsRequest}
+        />
       </aside>
-
-      {selectedProjectId ? renderProjectContent() : renderGlobalContent()}
-
+      {selectedFolder && rootOf(selectedFolder, roots)?.readable ? (
+        renderFolderContent()
+      ) : cloudMode ? (
+        <CloudProjectsView />
+      ) : (
+        renderGlobalContent()
+      )}
       {confirmDelete && (
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
           <div
@@ -2010,6 +3351,90 @@ export function Home() {
           </div>
         </div>
       )}
+
+      {confirmDeleteFolder && (
+        <div className="modal-overlay" onClick={() => setConfirmDeleteFolder(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('deleteFolderTitle')}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3>{t('deleteFolderTitle')}</h3>
+            <p>{t('deleteFolderConfirm', { name: fileName(confirmDeleteFolder) })}</p>
+            <div className="modal-buttons">
+              <button
+                className="btn btn-secondary"
+                autoFocus
+                onClick={() => setConfirmDeleteFolder(null)}
+              >
+                {t('cancel')}
+              </button>
+              <button className="btn btn-danger" onClick={() => void confirmDeleteFolderNow()}>
+                {t('delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmMissing && (
+        <div className="modal-overlay" onClick={() => setConfirmMissing(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('missingFileTitle')}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3>{t('missingFileTitle')}</h3>
+            <p>{t('missingFileBody', { name: confirmMissing.name })}</p>
+            <div className="modal-buttons">
+              <button
+                className="btn btn-secondary"
+                autoFocus
+                onClick={() => setConfirmMissing(null)}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  // main drops the star of an unavailable entry with the row
+                  removeRecent([confirmMissing.path])
+                  setConfirmMissing(null)
+                }}
+              >
+                {t('removeFromList')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {movePicker && canMove && (
+        <FolderPicker
+          roots={roots}
+          currentDirs={new Set(movePicker.map(dirOf))}
+          movingDirs={movingDirs(movePicker)}
+          count={movePicker.length}
+          onCancel={() => setMovePicker(null)}
+          onPick={(dir) => void doMove(movePicker, dir, 'ask')}
+        />
+      )}
+
+      {conflict && (
+        <ConflictPrompt
+          names={conflict.paths.map(fileName)}
+          onChoose={(policy) => {
+            if (policy === 'skip') setConflict(null)
+            else void doMove(conflict.paths, conflict.targetDir, policy)
+          }}
+        />
+      )}
+
+      <DropToOpenOverlay />
     </div>
   )
 }

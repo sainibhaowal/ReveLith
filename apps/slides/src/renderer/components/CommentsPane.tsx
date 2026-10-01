@@ -1,5 +1,5 @@
-﻿/**
- * Comments pane (right side) : current page's comment list + create/delete.
+/**
+ * Comments pane (right side) — current page's comment list + create/delete.
  * The source of truth lives in the main process (the pptx comments part); this only displays and
  * sends back intents. The list is owned by App (refreshed after page switch/add/delete), keeping
  * the ribbon badge in sync.

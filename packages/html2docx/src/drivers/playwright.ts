@@ -4,7 +4,6 @@
  * re-exported from the package index so app bundles never pull in Playwright.
  */
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { chromium } from 'playwright-core'
 import type { Browser, BrowserContext, Page } from 'playwright-core'
 import type { BrowserDriver, ScreenshotOptions, Viewport } from '../driver'
@@ -16,31 +15,6 @@ const CHROME_CANDIDATES = [
   '/usr/bin/google-chrome-stable',
   '/usr/bin/chromium',
   '/usr/bin/chromium-browser',
-  // Windows: Chrome and Edge are installed per-machine or per-user, and the
-  // user profile may not sit on C:.
-  ...(process.env.LOCALAPPDATA
-    ? [join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')]
-    : []),
-  join(
-    process.env['ProgramFiles'] ?? 'C:\\Program Files',
-    'Google',
-    'Chrome',
-    'Application',
-    'chrome.exe',
-  ),
-  ...(process.env['ProgramFiles(x86)']
-    ? [join(process.env['ProgramFiles(x86)'], 'Google', 'Chrome', 'Application', 'chrome.exe')]
-    : []),
-  ...(process.env.LOCALAPPDATA
-    ? [join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'Application', 'msedge.exe')]
-    : []),
-  join(
-    process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)',
-    'Microsoft',
-    'Edge',
-    'Application',
-    'msedge.exe',
-  ),
 ].filter((p): p is string => Boolean(p))
 
 export function findChrome(): string {

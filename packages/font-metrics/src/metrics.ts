@@ -1,11 +1,11 @@
-﻿/**
+/**
  * Vertical metrics of installed fonts, resolved by exact family name (nameID
- * 1/16, all languages, normalized) : never fuzzy: a wrong-font match is worse
+ * 1/16, all languages, normalized) — never fuzzy: a wrong-font match is worse
  * than a miss, the caller's heuristic fallback handles misses.
  *
  * Both metric groups are returned: Word uses win metrics unless OS/2
  * fsSelection bit 7 (USE_TYPO_METRICS) is set, in which case it honors the
- * typo group : deciding is the consumer's policy, not this package's.
+ * typo group — deciding is the consumer's policy, not this package's.
  */
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'

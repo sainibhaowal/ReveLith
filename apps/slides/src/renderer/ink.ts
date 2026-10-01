@@ -1,7 +1,7 @@
-﻿import type { PictureRenderNode, RenderNode, RenderSlide } from '@revelith/pptx-render'
+import type { PictureRenderNode, RenderNode, RenderSlide } from '@revelith/pptx-render'
 
 /**
- * Freehand ink (Draw tab) : editor-side model. Same mechanism as apps/docs ink, but a
+ * Freehand ink (Draw tab) — editor-side model. Same mechanism as apps/docs ink, but a
  * slide is a fixed canvas: no paragraph anchors needed; ink coordinates use page px
  * directly (fitWidth viewport).
  *
@@ -55,6 +55,10 @@ export function encodeInkPayload(stroke: InkStroke): string {
   })
 }
 
+/** descr payloads are file-controlled: cap points, reject non-finite coords. */
+const MAX_INK_POINTS = 20_000
+const MAX_INK_WIDTH = 200
+
 export function decodeInkPayload(payload: string): InkStroke | null {
   try {
     const data = JSON.parse(payload) as {
@@ -67,11 +71,32 @@ export function decodeInkPayload(payload: string): InkStroke | null {
     if (data.v !== PAYLOAD_VERSION || !Array.isArray(data.points) || data.points.length === 0) {
       return null
     }
+    if (data.points.length > MAX_INK_POINTS) return null
+    const points: InkPoint[] = []
+    for (const pair of data.points) {
+      if (!Array.isArray(pair) || pair.length !== 2) return null
+      const [x, y] = pair
+      if (
+        typeof x !== 'number' ||
+        typeof y !== 'number' ||
+        !Number.isFinite(x) ||
+        !Number.isFinite(y)
+      ) {
+        return null
+      }
+      points.push({ x, y })
+    }
     return {
       tool: data.tool === 'highlighter' ? 'highlighter' : 'pen',
-      color: typeof data.color === 'string' ? data.color : '000000',
-      width: typeof data.width === 'number' && data.width > 0 ? data.width : 2,
-      points: data.points.map(([x, y]) => ({ x, y })),
+      color:
+        typeof data.color === 'string' && /^[0-9a-fA-F]{6}$/.test(data.color)
+          ? data.color
+          : '000000',
+      width:
+        typeof data.width === 'number' && Number.isFinite(data.width) && data.width > 0
+          ? Math.min(data.width, MAX_INK_WIDTH)
+          : 2,
+      points,
     }
   } catch {
     return null
@@ -151,7 +176,7 @@ export function strokeHitTest(stroke: InkStroke, point: InkPoint, threshold: num
 
 /**
  * Hit test in page coordinates: payload points are stored relative to the original bounding
- * box top-left, but the element may have been moved/scaled : map the page point back into
+ * box top-left, but the element may have been moved/scaled — map the page point back into
  * ink-local coordinates using the ratio between the current box and the original box.
  */
 export function inkNodeHitTest(

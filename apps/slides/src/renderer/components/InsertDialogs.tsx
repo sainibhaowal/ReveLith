@@ -1,8 +1,10 @@
-﻿/**
+/**
  * The Insert tab's three dialogs: hyperlink / header & footer / equation.
  * Reuses SettingsModal's .modal-backdrop/.modal styles.
  */
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
+import { useModalDialog } from './modal-dialog'
+import { Dropdown } from '@revelith/ui'
 import type { LinkTargetOp } from '../../shared/ipc'
 import { EQUATION_GALLERY } from '../insert-presets'
 import { useI18n } from '../i18n/locale'
@@ -26,6 +28,7 @@ export function LinkDialog({
   onApply,
   onClose,
 }: LinkDialogProps) {
+  const { titleId, dialogProps } = useModalDialog(onClose)
   const { t } = useI18n()
   const [mode, setMode] = useState<'url' | 'slide'>(initial?.kind === 'slide' ? 'slide' : 'url')
   const [url, setUrl] = useState(initial?.kind === 'url' ? initial.url : 'https://')
@@ -44,11 +47,11 @@ export function LinkDialog({
   }
 
   return (
-    // data-keep-edit: opening over a text-edit session must not commit it : the run-level
+    // data-keep-edit: opening over a text-edit session must not commit it — the run-level
     // link applies to the saved editor selection after the dialog closes
     <div className="modal-backdrop" data-keep-edit="" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonDlgHyperlink')}</h2>
+      <div className="modal" {...dialogProps} onClick={(e) => e.stopPropagation()}>
+        <h2 id={titleId}>{t('ribbonDlgHyperlink')}</h2>
         <div className="dlg-radio-row">
           <label className="dlg-radio">
             <input type="radio" checked={mode === 'url'} onChange={() => setMode('url')} />
@@ -74,14 +77,17 @@ export function LinkDialog({
         ) : (
           <label>
             {t('ribbonDlgGoTo')}
-            <select value={slideIndex} onChange={(e) => setSlideIndex(Number(e.target.value))}>
-              {Array.from({ length: slideCount }, (_, i) => (
-                <option key={i} value={i}>
-                  {t('ribbonSlideN', { n: i + 1 })}
-                  {i === currentSlide ? t('ribbonCurrentSlideSuffix') : ''}
-                </option>
-              ))}
-            </select>
+            <Dropdown
+              value={String(slideIndex)}
+              ariaLabel={t('ribbonDlgGoTo')}
+              options={Array.from({ length: slideCount }, (_, i) => ({
+                value: String(i),
+                label:
+                  t('ribbonSlideN', { n: i + 1 }) +
+                  (i === currentSlide ? t('ribbonCurrentSlideSuffix') : ''),
+              }))}
+              onPick={(v) => setSlideIndex(Number(v))}
+            />
           </label>
         )}
         <div className="modal-actions">
@@ -115,6 +121,7 @@ interface HeaderFooterDialogProps {
 }
 
 export function HeaderFooterDialog({ initial, onApply, onClose }: HeaderFooterDialogProps) {
+  const { titleId, dialogProps } = useModalDialog(onClose)
   const { t } = useI18n()
   const [dateOn, setDateOn] = useState(!!initial.date)
   const [dateAuto, setDateAuto] = useState(true)
@@ -125,8 +132,8 @@ export function HeaderFooterDialog({ initial, onApply, onClose }: HeaderFooterDi
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonDlgHeaderFooter')}</h2>
+      <div className="modal" {...dialogProps} onClick={(e) => e.stopPropagation()}>
+        <h2 id={titleId}>{t('ribbonDlgHeaderFooter')}</h2>
         <label className="dlg-check">
           <input type="checkbox" checked={dateOn} onChange={(e) => setDateOn(e.target.checked)} />
           {t('ribbonDlgDateTime')}
@@ -201,20 +208,14 @@ interface EquationDialogProps {
 }
 
 export function EquationDialog({ onInsert, onClose }: EquationDialogProps) {
+  const { titleId, dialogProps } = useModalDialog(onClose)
   const { t } = useI18n()
   const [text, setText] = useState('')
 
-  // Esc closes
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
-        <h2>{t('ribbonDlgInsertEquation')}</h2>
+      <div className="modal modal-wide" {...dialogProps} onClick={(e) => e.stopPropagation()}>
+        <h2 id={titleId}>{t('ribbonDlgInsertEquation')}</h2>
         <div className="eq-gallery">
           {EQUATION_GALLERY.map((eq) => (
             <button
@@ -249,74 +250,54 @@ export function EquationDialog({ onInsert, onClose }: EquationDialogProps) {
   )
 }
 
-// ── Insert Table ────────────────────────────────────────────────────────
+// ── Insert table (explicit size beyond the 8×10 hover grid) ──────────────
 
-interface TableDialogProps {
-  onInsert: (rows: number, cols: number, headerRow: boolean, style: string) => void
+const MAX_TABLE_SIDE = 50
+
+export function TableInsertDialog({
+  onInsert,
+  onClose,
+}: {
+  onInsert: (rows: number, cols: number) => void
   onClose: () => void
-}
-
-export function TableDialog({ onInsert, onClose }: TableDialogProps) {
+}) {
+  const { titleId, dialogProps } = useModalDialog(onClose)
   const { t } = useI18n()
-  const [rows, setRows] = useState(3)
-  const [cols, setCols] = useState(3)
-  const [headerRow, setHeaderRow] = useState(true)
-  const [style, setStyle] = useState('medium2')
+  const [cols, setCols] = useState(5)
+  const [rows, setRows] = useState(2)
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const insert = () => onInsert(rows, cols)
 
-  const clamp = (v: number): number => Math.min(50, Math.max(1, Math.floor(v) || 1))
+  const countInput = (label: string, value: number, set: (v: number) => void, focus = false) => (
+    <label>
+      {label}
+      <input
+        type="number"
+        min={1}
+        max={MAX_TABLE_SIDE}
+        value={value}
+        autoFocus={focus}
+        onChange={(e) => {
+          const v = Math.round(Number(e.target.value))
+          set(Number.isFinite(v) ? Math.min(MAX_TABLE_SIDE, Math.max(1, v)) : 1)
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && insert()}
+      />
+    </label>
+  )
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Insert Table</h2>
-        <label>
-          Rows
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={rows}
-            onChange={(e) => setRows(clamp(Number(e.target.value)))}
-          />
-        </label>
-        <label>
-          Columns
-          <input
-            type="number"
-            min={1}
-            max={50}
-            value={cols}
-            onChange={(e) => setCols(clamp(Number(e.target.value)))}
-          />
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={headerRow}
-            onChange={(e) => setHeaderRow(e.target.checked)}
-          />
-          Header row
-        </label>
-        <label>
-          Style
-          <select value={style} onChange={(e) => setStyle(e.target.value)}>
-            <option value="light1">Light 1</option>
-            <option value="medium2">Medium 2</option>
-            <option value="dark1">Dark 1</option>
-          </select>
-        </label>
+      <div className="modal" {...dialogProps} onClick={(e) => e.stopPropagation()}>
+        <h2 id={titleId}>{t('ribbonTableInsertDialog')}</h2>
+        <div className="dlg-two-col">
+          {countInput(t('ribbonTableColsLabel'), cols, setCols, true)}
+          {countInput(t('ribbonTableRowsLabel'), rows, setRows)}
+        </div>
         <div className="modal-actions">
           <button onClick={onClose}>{t('ribbonCancel')}</button>
-          <button
-            className="primary"
-            onClick={() => onInsert(clamp(rows), clamp(cols), headerRow, style)}
-          >
-            {t('ribbonInsert')}
+          <button className="primary" onClick={insert}>
+            {t('ribbonOk')}
           </button>
         </div>
       </div>

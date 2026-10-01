@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Build the bundled Tamil subset: Noto Sans Tamil outlines, advances matched to Latha.
+"""Build ReveLith Tamil from upstream Noto Sans Tamil, hmtx-normalized to Latha.
 
-A document declaring a Tamil family that is not installed gets substituted, and
-the substitute on some platforms is noticeably narrower than the face the
-document was authored against, so line breaks drift. Matching the advances to
-that reference face closes the gap without touching a single outline:
-codepoints the two faces share take its value exactly, and everything else
-(GSUB conjunct and matra output) is scaled by the median Tamil-letter ratio.
+Word substitutes missing Tamil families (Latha/Vijaya/Noto Sans Tamil...) with
+Latha; macOS has no Latha and Chromium's Tamil fallback (Tamil Sangam MN) is
+~27% narrower shaped (M3 probe 2026-08-14: sentence R 0.728, space 0.39x), so
+line breaks drift far from Word. This rewrites advances to Latha's values:
+cmap-shared codepoints exactly, remaining glyphs (GSUB conjunct/matra outputs)
+by the median Tamil-letter ratio. Outlines are untouched. Validated shaped
+sentence R vs Latha: 0.994 mean, all sentences within +/-2.3%.
 
-Renamed under OFL 1.1 — "Noto" is a Reserved Font Name, and rewriting advances
-is itself a modification.
-
+Renamed per OFL 1.1 ("Noto" is a Reserved Font Name; advances are modified).
 Upstream: https://github.com/notofonts/notofonts.github.io
           fonts/NotoSansTamil/hinted/ttf/NotoSansTamil-Regular.ttf
 
@@ -24,14 +23,12 @@ from pathlib import Path
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.woff2 import WOFF2FlavorData
 
-DEFAULT_OUT = "apps/docs/src/renderer/fonts/ReveLithTamil-Regular.woff2"
+DEFAULT_OUT = "apps/docs/src/renderer/fonts/RevelithTamil-Regular.woff2"
 FAMILY = "ReveLith Tamil"
-PS_NAME = "ReveLithTamil-Regular"
 
-# Codepoint -> advance in 1/1000 em, measured from the reference face at 2048upm.
-# The two faces share only the Tamil block, digits, punctuation and space: the
-# Noto Tamil subset carries no Latin letters at all, so the overlap set is
-# exactly this table's coverage.
+# ord -> advance in 1/1000 em, measured from Word's latha.ttf (2048 upm).
+# Latha has no A-Z/a-z overlap with Noto Sans Tamil (Noto ships no Latin
+# letters), so the shared set is Tamil block + digits + punctuation + space.
 LATHA_ADVANCES = {
     0x0020: 578, 0x0021: 250, 0x0022: 319, 0x0023: 500, 0x0025: 800, 0x0027: 172,
     0x0028: 300, 0x0029: 300, 0x002A: 350, 0x002B: 525, 0x002C: 250, 0x002D: 300,
@@ -80,8 +77,6 @@ def main() -> None:
     cmap = font.getBestCmap()
     hmtx = font["hmtx"]
 
-    # exact matches where the two faces overlap; the ratio sample is taken from
-    # Tamil letters only, so punctuation cannot skew the median
     exact = {}
     ratios = []
     for cp, adv in LATHA_ADVANCES.items():
@@ -101,12 +96,12 @@ def main() -> None:
         elif adv > 0:
             hmtx[gname] = (round(adv * scale), lsb)
 
-    rename(font, FAMILY, PS_NAME)
+    rename(font, FAMILY, "RevelithTamil-Regular")
     space = cmap.get(0x20)
-    assert space and hmtx[space][0] == round(0.578 * upm), "space must match the reference"
-
+    assert space and hmtx[space][0] == round(0.578 * upm), "space must match Latha"
     font.flavor = "woff2"
-    # plain glyf/loca (no woff2 transform), same as the other bundled subsets
+    # plain glyf/loca (no woff2 transform), same as the other bundled subsets —
+    # tests/helpers/woff2-metrics.ts reads the tables directly
     font.flavorData = WOFF2FlavorData(transformedTables=())
     font.save(str(out))
     print(f"{out.name}: {len(exact)} exact, scale {scale:.4f} for the rest")

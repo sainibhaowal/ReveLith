@@ -1,11 +1,11 @@
-﻿/**
- * Show tween for the Morph transition : a Konva approximation of PowerPoint "Morph".
+/**
+ * Show tween for the Morph transition — a Konva approximation of PowerPoint "Morph".
  *
- * Pairing rules: elements of the previous and target pages match by stable keys : cNvPr id first
+ * Pairing rules: elements of the previous and target pages match by stable keys — cNvPr id first
  * (same-id elements produced by duplicating a page), then cNvPr name (same-named shapes); each key
  * is consumed one-to-one. Paired elements tween position/size/rotation (around the target box
  * center), new elements on the target page fade in, elements unique to the previous page fade out.
- * The decoration layer (master/layout) renders statically per the target page : in the common
+ * The decoration layer (master/layout) renders statically per the target page — in the common
  * same-layout case it's identical anyway; with different layouts we accept an instant switch.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'

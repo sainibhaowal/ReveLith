@@ -26,13 +26,6 @@ export interface AgentToolResult {
   isError?: boolean | undefined
 }
 
-/** One executed tool call of a run, for response verification (see AgentSkill.verifyResponse) */
-export interface ExecutedToolCall {
-  name: string
-  /** false when the tool errored or was skipped */
-  ok: boolean
-}
-
 /** inline image attached to a user turn, fed to vision-capable providers as multimodal input */
 export interface AgentImage {
   /** raw base64 (no data: URL prefix) */

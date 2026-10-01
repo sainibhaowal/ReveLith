@@ -1,4 +1,4 @@
-﻿import type { AgentSkill } from './skill'
+import type { AgentSkill, ExecutedToolCall } from './skill'
 import type {
   AgentImage,
   AgentMessage,
@@ -79,26 +79,34 @@ const SUMMARIZE_TIMEOUT_MS = 30_000
 const STALE_TOOL_KEEP_RECENT = 2
 const STALE_TOOL_OUTPUT_MAX = 1_000
 
-/** Cap on consecutive tool-input parse failures (a successful parse resets it); abort beyond it (keeps the model from burning turns on bad JSON) */
+/** Unified turn budget across the suite's chat panels (apps may still override per loop) */
+export const DEFAULT_MAX_TURNS = 100
+
+/** Cap on consecutive turns whose tool input was all unusable (a turn that executes a call resets it); abort beyond it (keeps the model from burning turns on bad JSON) */
 const MAX_INPUT_PARSE_RETRIES = 3
 
 /**
- * Default turn budget for a run, shared by every chat panel (an app may still
- * pass its own `maxTurns`).
- *
- * Named rather than inlined: this was previously a literal 8 duplicated at two
- * call sites, which meant the two could drift and neither was discoverable from
- * the outside. A long document task legitimately needs far more than 8 model
- * round-trips — the budget is a runaway backstop, not a working limit, and the
- * degenerate-loop guards below are what actually stop a stuck run early.
+ * Required fields the model left out of a tool call, per the tool's JSON
+ * Schema. Providers turn an empty argument stream into `{}` without an
+ * inputError (the model wrote prose instead of arguments, or a gateway dropped
+ * the argument stream), so without this check the empty object reaches the
+ * skill and fails with a tool-specific message instead of a targeted retry.
  */
-export const DEFAULT_MAX_TURNS = 100
+export function missingRequiredFields(
+  tool: AgentToolDef | undefined,
+  input: Record<string, unknown>,
+): string[] {
+  const required = tool?.inputSchema.required
+  if (!Array.isArray(required)) return []
+  return required.filter(
+    (field): field is string => typeof field === 'string' && input[field] === undefined,
+  )
+}
 
 /**
- * Degenerate-loop guards. A weak model (a local endpoint or a BYOK provider
- * especially) can repeat the exact same turn forever, or keep issuing tool
- * calls that all fail. With a 100-turn budget those must abort early instead of
- * quietly consuming the whole budget.
+ * Degenerate-loop guards. Weak models (BYOK/local endpoints especially) can
+ * repeat the exact same turn forever or keep issuing failing tool calls; with
+ * a large turn budget these must abort early instead of burning it.
  */
 const MAX_IDENTICAL_TURNS = 3
 const MAX_ALL_ERROR_TURNS = 8
@@ -124,27 +132,11 @@ const TURN_LIMIT_NOTE =
   '[System] The tool-call turn limit for this request has been reached; no more tools may be called this turn. ' +
   'Answer directly from the information already gathered; if the task is unfinished, briefly state what is done and what remains.'
 
-/**
- * Tool result recorded when the run was stopped while this tool was still
- * executing. Distinct from the "not executed" message used for a tool that had
- * not started yet: here the work was genuinely in flight and its result thrown
- * away, and the model needs to know the difference so it does not assume the
- * tool never ran.
- */
 export const TOOL_ABORTED_OUTPUT =
   '(the user stopped the run while this tool was still executing; its result was discarded)'
 
 const TOOL_ABORTED = Symbol('tool-aborted')
 
-/**
- * Wait for a tool, but stop waiting the moment the user aborts.
- *
- * A tool that honours the signal rejects on its own, but one that ignores it
- * (a long render, a shell-out, a buggy handler) would otherwise keep the run
- * blocked until it finished on its own — the UI looks stuck after Stop and the
- * run does not end. The in-flight promise is not cancelled (JavaScript cannot),
- * so its eventual rejection is swallowed to avoid an unhandled rejection.
- */
 async function awaitToolOrAbort(
   tool: ToolExecution | Promise<ToolExecution>,
   signal: AbortSignal | undefined,
@@ -172,38 +164,6 @@ async function awaitToolOrAbort(
 }
 
 /**
- * Fields a tool's schema marks required but the model did not supply.
- *
- * Catching this before executing is what turns a silent no-op into a targeted
- * retry: a tool called with a missing argument would otherwise run, do nothing
- * useful, and report success.
- */
-export function missingRequiredFields(
-  tool: AgentToolDef | undefined,
-  input: Record<string, unknown>,
-): string[] {
-  const required = tool?.inputSchema.required
-  if (!Array.isArray(required)) return []
-  return required.filter(
-    (field): field is string => typeof field === 'string' && input[field] === undefined,
-  )
-}
-
-/**
- * Date preamble prepended to the system prompt.
- *
- * A model with no clock resolves "next quarter" or "this year's report" against
- * its training cutoff, which is why date-sensitive requests come back anchored
- * to the wrong year. Exported so an app can reuse the same wording in its own
- * prompts rather than drifting from the loop's.
- */
-export function runtimePreamble(now = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  return `Today's date is ${date}; the current year is ${now.getFullYear()}.\n\n`
-}
-
-/**
  * Terminal assistant text when tools mutated the artifact (or an edits-only
  * turn was restored) and the model returned no prose. Must be non-empty so
  * provider message converters never emit empty assistant content, which breaks
@@ -211,6 +171,18 @@ export function runtimePreamble(now = new Date()): string {
  * Exported so apps can substitute a localized / tool-derived summary in the UI.
  */
 export const COMPLETED_VIA_TOOLS_TEXT = '(completed tool actions; no text reply)'
+
+/**
+ * Models default to their training-cutoff year without this (e.g. web searches
+ * for "... 2024"). Leads the system prompt and spells out the year: measured
+ * against claude-opus-4-7 with the docs prompt, the date alone (front or tail)
+ * still produced cutoff-year searches in 6/6 runs; naming the year fixed all.
+ */
+export function runtimePreamble(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  return `Today's date is ${date}; the current year is ${now.getFullYear()}.\n\n`
+}
 
 const SUMMARIZE_SYSTEM =
   'You are a conversation compressor. Compress this editing session between the user and the AI assistant into a concise summary so later turns can continue with context. ' +
@@ -223,7 +195,7 @@ const COMPACT_SUMMARY_PREFIX = '[Summary of earlier conversation'
 const COMPACT_SUMMARY_HEADER = '[Summary of earlier conversation (auto-compacted)]'
 const COMPACT_SUMMARY_ACK = 'Understood, continuing from the progress so far.'
 
-/** Approximate UTF-8 byte count (ASCII 1 byte, CJK etc. 3; surrogate pairs count as 6 : slight overestimate is harmless) */
+/** Approximate UTF-8 byte count (ASCII 1 byte, CJK etc. 3; surrogate pairs count as 6 — slight overestimate is harmless) */
 function utf8Size(s: string): number {
   let n = 0
   for (let i = 0; i < s.length; i++) {
@@ -287,26 +259,24 @@ export class AgentLoop<TSnapshot = unknown> {
   private finalizing = false
   private mutationSeen = false
   private inputParseFails = 0
-  /** tools executed this run (for response verification) */
-  private runExecuted: { name: string; ok: boolean }[] = []
-  /** response verification already ran once this run (caps it at one extra turn) */
-  private verifyDone = false
+  /** signature (text + tool calls) of the previous turn, for the identical-turn guard */
+  private lastTurnSig = ''
+  private identicalTurns = 0
+  private allErrorTurns = 0
   private turnStopReason: string | null = null
   private turnText = ''
   private turnReasoning = ''
   private toolCalls: AgentToolCall[] = []
+  /** tools actually executed during this run, fed to skill.verifyResponse */
+  private executedCalls: ExecutedToolCall[] = []
+  /** verifyResponse may force one extra corrective turn per run — never more */
+  private verifyRetryUsed = false
   /** user message of the in-flight run; a failed run rolls it (and everything after) back out of history */
   private runUserMsg: AgentMessage | null = null
   /** invalidates stale transport callbacks after cancel/reset */
   private generation = 0
   /** per-run abort: aborted on cancel(); long tools (e.g. generate_deck) use it to break internal loops */
   private abortController: AbortController | null = null
-  /** consecutive turns in which every tool call failed; a turn with any success resets it */
-  private allErrorTurns = 0
-  /** consecutive turns byte-identical to the one before (and which changed nothing) */
-  private identicalTurns = 0
-  /** signature of the last comparable turn, for the identical-turn guard */
-  private lastTurnSig: string | null = null
 
   constructor(options: AgentLoopOptions<TSnapshot>) {
     this.options = options
@@ -371,13 +341,11 @@ export class AgentLoop<TSnapshot = unknown> {
     this.finalizing = false
     this.mutationSeen = false
     this.inputParseFails = 0
-    // Guards are per-run: a streak that aborted the previous request must not
-    // carry over and abort this one on its first turn
-    this.allErrorTurns = 0
+    this.lastTurnSig = ''
     this.identicalTurns = 0
-    this.lastTurnSig = null
-    this.runExecuted = []
-    this.verifyDone = false
+    this.allErrorTurns = 0
+    this.executedCalls = []
+    this.verifyRetryUsed = false
     this.abortController = new AbortController()
     const context = this.options.skill.buildContext?.() ?? ''
     const format =
@@ -475,15 +443,13 @@ export class AgentLoop<TSnapshot = unknown> {
     if (historySize(this.history) <= maxBytes) return
     const cut = this.findCompactCut(keepRecentBytes)
     if (cut <= 0) return // no foldable prefix
-    // A reset() while the summarising request is in flight must not resurrect
-    // the conversation the user just discarded. beginRun checks the generation
-    // after awaiting us, but that is too late: the write below has already
-    // happened, so the summary and its ack would reappear in a fresh session.
     const generation = this.generation
     const dropped = this.history.slice(0, cut)
     const opt = this.options.compaction === false ? undefined : this.options.compaction
     let summary: string | null = null
     if (!opt?.disableLlmSummary) summary = await this.summarizeViaLlm(dropped)
+    // A reset may have cleared history or started a new conversation while
+    // the summary was pending. Discard its result before touching that history.
     if (generation !== this.generation) return
     if (!summary) summary = mechanicalDigest(dropped)
     this.history = [
@@ -519,8 +485,6 @@ export class AgentLoop<TSnapshot = unknown> {
         clearTimeout(timer)
         resolve(v)
       }
-      // a timed-out summary must also stop billing: cancel the turn, then fall
-      // back to the mechanical digest
       const timer = setTimeout(() => {
         finish(null)
         handle?.cancel()
@@ -621,14 +585,11 @@ export class AgentLoop<TSnapshot = unknown> {
     this.turnReasoning = ''
     this.toolCalls = []
     this.turnStopReason = null
-    // Some transports emit an extra onDone after cancel : this turn may finalize only once
+    // Some transports emit an extra onDone after cancel — this turn may finalize only once
     let settled = false
     this.handle = this.options.transport.stream(
       {
         system:
-          // The model has no clock of its own, so date-relative requests
-          // ("next quarter", "this year's report") otherwise resolve against its
-          // training cutoff. Prepending the date is the cheapest fix.
           runtimePreamble() +
           this.options.skill.systemPrompt +
           (this.options.systemSuffix?.() ?? ''),
@@ -708,11 +669,11 @@ export class AgentLoop<TSnapshot = unknown> {
       // snapshot copy: the live array keeps growing if the corrective turn
       // runs more tools, and the hook must see the state at check time
       const correction =
-        !this.verifyDone && this.turnText && skill.verifyResponse
-          ? skill.verifyResponse(this.turnText, [...this.runExecuted])
+        !this.verifyRetryUsed && this.turnText && skill.verifyResponse
+          ? skill.verifyResponse(this.turnText, [...this.executedCalls])
           : null
       if (correction) {
-        this.verifyDone = true
+        this.verifyRetryUsed = true
         this.history.push({ role: 'assistant', text: this.turnText })
         this.history.push({ role: 'user', text: correction })
         // No onTurnEnd here: UIs use it to seal the current assistant bubble,
@@ -730,7 +691,7 @@ export class AgentLoop<TSnapshot = unknown> {
       // The turn-limit note has served its purpose once the finalizing turn
       // ends. Left in history it would tell every later run "no more tools may
       // be called" — a stale directive models obey (or worse, echo verbatim
-      // over and over).
+      // over and over; see public issue about BYOK models repeating it).
       if (this.finalizing) {
         for (let i = this.history.length - 1; i >= 0; i--) {
           const m = this.history[i]!
@@ -743,7 +704,7 @@ export class AgentLoop<TSnapshot = unknown> {
       // Models often end a tool-using run with an empty text turn ("I'm done").
       // Leaving assistant text empty in history then poisons the next user
       // prompt: Anthropic rejects empty content arrays, Gemini rejects empty
-      // parts, and OpenAI-compatible routes send content:null with no tool_calls :
+      // parts, and OpenAI-compatible routes send content:null with no tool_calls —
       // all of which make follow-up turns fail or return empty again (see
       // revelith#12 / #22: first prompt works, second shows "no summary").
       // Same normalization as restore(), applied unconditionally: cancelled and
@@ -769,8 +730,6 @@ export class AgentLoop<TSnapshot = unknown> {
     // history is echoed back on the next turn. The OpenAI-compatible stream
     // paths attach `inputError: undefined` on every parsed call, so without
     // this the second turn of any custom-provider agent run fails validation.
-    // The provider's own opaque token (Gemini thoughtSignature) is kept: it must
-    // travel back with the call or the next request is rejected.
     this.history.push({
       role: 'assistant',
       text: this.turnText,
@@ -800,12 +759,10 @@ export class AgentLoop<TSnapshot = unknown> {
           output: '(the user stopped the run; this tool was not executed)',
           isError: true,
         })
-        this.runExecuted.push({ name: call.name, ok: false })
         continue
       }
-      // Unusable input: truncated by the token limit, JSON that failed to parse,
-      // or a required argument the model simply omitted. Don't execute; feed a
-      // targeted error back so the model retries correctly.
+      // Unusable input (truncated by the token limit, or JSON that failed to parse):
+      // don't execute; feed a targeted error back so the model retries correctly
       const missing =
         call.truncated || call.inputError
           ? []
@@ -821,7 +778,6 @@ export class AgentLoop<TSnapshot = unknown> {
             ? `Tool input JSON failed to parse; the tool was not executed: ${call.inputError}\nFix the arguments (make sure quotes inside strings are escaped) and call again.`
             : `Tool call ${call.name} is missing the required argument(s) ${missing.map((f) => `"${f}"`).join(', ')}; the tool was not executed. Put the arguments in the tool call itself (not in your reply text) and call again with every required field.`
         results.push({ id: call.id, name: call.name, output, isError: true })
-        this.runExecuted.push({ name: call.name, ok: false })
         events?.onToolExecuted?.({
           call,
           execution: { output, isError: true, summary: call.name },
@@ -833,8 +789,6 @@ export class AgentLoop<TSnapshot = unknown> {
       const snapshot = !this.mutationSeen ? captureSnapshot?.() : undefined
       let raced: ToolExecution | typeof TOOL_ABORTED
       try {
-        // Race the tool against the abort signal so a tool that ignores the
-        // signal cannot keep the run blocked after the user pressed stop
         raced = await awaitToolOrAbort(
           skill.executeTool(call, this.abortController?.signal),
           this.abortController?.signal,
@@ -853,12 +807,13 @@ export class AgentLoop<TSnapshot = unknown> {
           isError: true,
           summary: call.name,
         }
-        this.runExecuted.push({ name: call.name, ok: false })
-        results.push({ id: call.id, name: call.name, output: TOOL_ABORTED_OUTPUT, isError: true })
+        this.executedCalls.push({ name: call.name, ok: false })
+        results.push({ id: call.id, name: call.name, output: aborted.output, isError: true })
         events?.onToolExecuted?.({ call, execution: aborted })
         continue
       }
       const execution = raced
+      this.executedCalls.push({ name: call.name, ok: !execution.isError })
       const firstMutation = !!execution.mutated && !this.mutationSeen
       if (execution.mutated) {
         this.mutationSeen = true
@@ -870,7 +825,6 @@ export class AgentLoop<TSnapshot = unknown> {
         output: execution.output,
         isError: execution.isError,
       })
-      this.runExecuted.push({ name: call.name, ok: !execution.isError })
       events?.onToolExecuted?.({
         call,
         execution,
@@ -899,9 +853,9 @@ export class AgentLoop<TSnapshot = unknown> {
       return
     }
 
-    // A turn where every tool call failed makes no progress. A long streak —
-    // an unknown-tool loop from a malformed local stream, a hallucinated tool
-    // name — would otherwise re-error its way through the whole turn budget.
+    // A turn where every tool call failed makes no progress; a long streak
+    // (unknown-tool loops from malformed BYOK streams, hallucinated tools)
+    // would otherwise burn the whole turn budget re-erroring.
     this.allErrorTurns = results.every((r) => r.isError) ? this.allErrorTurns + 1 : 0
     if (this.allErrorTurns >= MAX_ALL_ERROR_TURNS) {
       this.running = false
@@ -912,10 +866,11 @@ export class AgentLoop<TSnapshot = unknown> {
       return
     }
 
-    // Identical-turn guard: a model re-emitting the same text, tool calls AND
-    // tool outputs is looping, not progressing. Turns that mutated the artifact
-    // are exempt — repeating an identical edit is legitimate progress — and a
-    // changed tool output breaks the streak, so poll-style tools survive.
+    // Identical-turn guard: a model (typically a weak BYOK/local endpoint)
+    // re-emitting the same text, tool calls AND tool outputs is looping, not
+    // progressing. Turns that mutated the artifact are exempt (repeating an
+    // identical edit is legitimate progress), and changing outputs break the
+    // streak (so poll-style tools survive).
     const turnSig = JSON.stringify([
       this.turnText,
       toolCalls.map(({ name, input }) => [name, input]),

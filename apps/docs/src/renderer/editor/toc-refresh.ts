@@ -1,4 +1,4 @@
-﻿import type { Node as PmNode } from '@tiptap/pm/model'
+import type { Node as PmNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
 
 import type { HeadingRef } from './headings'
@@ -11,7 +11,7 @@ import type { HeadingRef } from './headings'
  * (unmeasured entries keep their tocLine untouched instead of shifting later
  * pages up). The caller formats via the owning section's pgNumType, so
  * Roman/letter/dashed numbers survive the refresh. Duplicate titles keep
- * their own entries : the Nth tocLine with a title takes the Nth same-titled
+ * their own entries — the Nth tocLine with a title takes the Nth same-titled
  * heading's page (extras reuse the last one, matching a stale TOC with more
  * lines than headings).
  *

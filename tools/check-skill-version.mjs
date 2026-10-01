@@ -1,20 +1,7 @@
-#!/usr/bin/env node
-/**
- * Version guard for skills/<name>/SKILL.md.
- *
- * A skill file is copied into the user's agent directory (Claude Code, Codex,
- * OpenCode, …) and the installer only replaces an existing copy when
- * metadata.version grows. So editing the body without bumping the version ships
- * nothing: the change is invisible to everyone who already installed the skill.
- * This makes that mismatch a build failure instead.
- *
- * Diff-based like the other repo checks: only files that changed in this branch
- * are inspected, compared against their base revision.
- *
- * Usage:
- *   node tools/check-skill-version.mjs
- *   node tools/check-skill-version.mjs --base <git-ref>
- */
+// skills/*/SKILL.md are copied into users' agent directories (Claude Code,
+// Codex, ...) and only replaced when metadata.version grows, so a body change
+// that keeps the version would never reach anyone. Diff-based like the other
+// checks: compares each changed SKILL.md with its base revision.
 import { readFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -25,7 +12,6 @@ if (args[0] === '--base') {
   args.shift()
   baseRef = args.shift() || ''
 }
-// The all-zero id means "no previous commit"; there is nothing to diff against.
 if (/^0+$/.test(baseRef)) baseRef = ''
 if (args.length > 0) {
   console.error(`Unexpected argument: ${args[0]}`)
@@ -48,11 +34,11 @@ if (!baseRef) baseRef = 'HEAD'
 
 const changed = [
   ...git(['diff', '--name-only', '--diff-filter=AMR', baseRef]).stdout.split('\n'),
-  // a skill added but not yet committed (local runs; CI sees it as committed)
+  // new skills not yet committed (local runs; CI sees them as committed)
   ...git(['ls-files', '--others', '--exclude-standard', 'skills']).stdout.split('\n'),
 ].filter((f) => SKILL_FILE.test(f))
 
-/** frontmatter fields this check reads, plus the body with the frontmatter removed */
+/** frontmatter fields the check cares about, and the body with the frontmatter removed */
 export function parseSkill(text) {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text)
   if (!m) return { name: null, version: null, body: text.trim() }
@@ -65,7 +51,7 @@ export function parseSkill(text) {
 export function compareSemver(a, b) {
   const pa = a.split('.').map(Number)
   const pb = b.split('.').map(Number)
-  for (let i = 0; i < 3; i += 1) if (pa[i] !== pb[i]) return pa[i] - pb[i]
+  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i]
   return 0
 }
 
@@ -73,25 +59,22 @@ const problems = []
 for (const file of changed) {
   const head = parseSkill(readFileSync(join(repoRoot, file), 'utf8'))
   const dir = basename(dirname(file))
-  if (!head.name) {
-    problems.push(`${file}: frontmatter needs a name`)
-  } else if (head.name !== dir) {
+  if (!head.name) problems.push(`${file}: frontmatter needs a name`)
+  else if (head.name !== dir)
     problems.push(`${file}: name "${head.name}" must match its directory "${dir}"`)
-  }
   if (!head.version) {
     problems.push(`${file}: frontmatter needs metadata.version (x.y.z)`)
     continue
   }
   const base = git(['show', `${baseRef}:${file}`], { allowFailure: true })
-  if (base.status !== 0) continue // brand new skill: nothing to compare against
+  if (base.status !== 0) continue
   const prev = parseSkill(base.stdout)
   if (!prev.version) continue
   const cmp = compareSemver(head.version, prev.version)
-  if (cmp < 0) {
+  if (cmp < 0)
     problems.push(`${file}: metadata.version went backwards (${prev.version} -> ${head.version})`)
-  } else if (cmp === 0 && head.body !== prev.body) {
-    problems.push(`${file}: body changed but metadata.version is still ${head.version}; bump it`)
-  }
+  else if (cmp === 0 && head.body !== prev.body)
+    problems.push(`${file}: body changed but metadata.version is still ${prev.version}; bump it`)
 }
 
 if (problems.length) {

@@ -4,7 +4,7 @@ export const ms = {
   aiCollapsePanel: 'Runtuhkan panel',
   aiComposerPlaceholder: 'Minta AI menulis atau menyunting…',
   aiCopyReplyTitle: 'Salin balasan',
-  aiCreditsExhausted: 'Kredit habis — periksa penagihan penyedia AI Anda, lalu coba lagi',
+  aiCreditsExhausted: 'Kredit habis — tambah nilai di revelith.ai',
   aiEmptyTitle: 'Reka halaman dengan AI',
   aiEmptyBody:
     'Halaman pendaratan, laporan, poster: nyatakan tujuan dan khalayak; AI mencadangkan ringkasan dahulu, kemudian membina halaman',

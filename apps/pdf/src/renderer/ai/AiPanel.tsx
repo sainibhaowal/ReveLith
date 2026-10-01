@@ -2,7 +2,7 @@ import { aiPanelWidthAtPointer, AiPanelSideButton } from '@revelith/ui'
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactElement } from 'react'
 import { AgentLoop } from '@revelith/agent-core'
-import { imageGenerationAvailable, type AiSettings } from '@revelith/ai-provider'
+import { imageGenerationAvailable, type AiSettings } from '@revelith/ai-provider/browser'
 import { AiComposer, AiScopeQuote, AiTypingIndicator, type AiScopeQuoteData } from '@revelith/ui'
 import { aiLangDirective, t as tGlobal, useI18n } from '../i18n/locale'
 import { Markdown } from '@revelith/ui'
@@ -250,15 +250,15 @@ export function AiPanel({
   }, [panelWidth])
   const settingsRef = useRef<AiSettings | null>(null)
 
-  /** image-generation availability, re-read from the saved provider settings */
-  const imageGenAvailableRef = useRef(false)
+  /** gsk login state for the cloud-tools gate (refreshed on mount and window focus) */
+  const gskLoggedInRef = useRef(false)
   useEffect(() => {
     let alive = true
     const refresh = () => {
       void window.pdfApi
-        ?.getAiSettings()
+        ?.gskStatus()
         .then((s) => {
-          if (alive) imageGenAvailableRef.current = imageGenerationAvailable(s)
+          if (alive) gskLoggedInRef.current = !!s?.loggedIn
         })
         .catch(() => {})
     }
@@ -374,11 +374,8 @@ export function AiPanel({
       deleteImage: (ref) => apiRef.current.deleteImage(ref),
       searchImages: (query, max) => apiRef.current.searchImages(query, max),
       generateImage: (op) => apiRef.current.generateImage(op),
-      imageGenAvailable: () => {
-        // live: settingsRef refreshes on every send; the ref covers first paint
-        const s = settingsRef.current
-        return s ? imageGenerationAvailable(s) : imageGenAvailableRef.current
-      },
+      imageGenAvailable: () =>
+        imageGenerationAvailable(settingsRef.current, gskLoggedInRef.current),
       fetchImage: (url) => apiRef.current.fetchImage(url),
     }
     loopRef.current = new AgentLoop({

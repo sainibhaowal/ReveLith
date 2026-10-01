@@ -1,64 +1,39 @@
-/* Markdown bubble typography. The shared Markdown component emits these class
- * names, so the basics live here; each app may layer its own sizes on top. */
-
-.ai-md {
-  font-size: var(--ai-panel-font-size, 14px);
-  line-height: 1.5;
-  overflow-wrap: break-word;
+/* Block-level markdown in AI chat bubbles (tables, fenced code); inline chips stay per-app */
+.ai-md-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 16px;
 }
-
-.ai-md p,
-.ai-md ul,
-.ai-md ol {
-  margin: 4px 0;
+.ai-md-table {
+  border-collapse: collapse;
+  font-size: 0.95em;
+  line-height: 1.45;
 }
-
-.ai-md :last-child {
-  margin-bottom: 0;
+.ai-md-table th,
+.ai-md-table td {
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  text-align: left;
+  vertical-align: top;
 }
-
-.ai-md p:empty {
-  display: none;
-}
-
-.ai-md .ai-md-h {
-  margin: 8px 0 4px;
+.ai-md-table th {
+  background: var(--surface-subtle);
   font-weight: 600;
 }
-
-.ai-md .ai-md-h:first-child {
-  margin-top: 0;
+.ai-md-pre {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--color-bg-subtle);
+  overflow-x: auto;
+  line-height: 1.5;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 }
-
-.ai-md ul,
-.ai-md ol {
-  padding-left: 20px;
-}
-
-.ai-md li {
-  margin: 2px 0;
-}
-
-.ai-md code {
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--bg-hover);
-  font-family: Consolas, Monaco, 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
-/* in-answer citation link: the host owns the scheme and the click behavior */
-.ai-md .ai-md-nav {
-  color: var(--accent, var(--color-border-brand));
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-
-.ai-md .ai-md-nav:hover {
-  text-decoration-style: solid;
-}
-
-.ai-md-rtl {
-  text-align: right;
+.ai-md .ai-md-pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  white-space: pre;
 }

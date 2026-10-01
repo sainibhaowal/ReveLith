@@ -1,31 +1,19 @@
-/**
- * Exit codes and result envelopes shared by every command.
- *
- * Two rules make the CLI scriptable:
- *   - stdout carries exactly one JSON object in --json mode, so a caller can
- *     pipe it straight into a parser. Progress and diagnostics go to stderr.
- *   - the exit code is coarse (a shell can only branch on a few values) and
- *     `reason` is the fine-grained, stable string a program should branch on.
- *     Every reason a command can emit is listed in skills/revelith/SKILL.md, so
- *     the set is a published contract: add reasons sparingly, never rename one.
- */
-
-/** Process exit code. The JSON error payload carries the same number. */
+/** Process exit codes; the JSON error payload carries the same number. */
 export const EXIT = {
   ok: 0,
-  /** the command line itself was wrong: unknown command, missing operand */
   usage: 1,
-  /** the file could not be read, or does not exist */
   file: 2,
-  /** the file was read but could not be converted or rebuilt */
   conversion: 3,
-  /** the desktop app was needed but unavailable (not running, no GUI) */
   app: 4,
 } as const
 
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT]
 
-/** Machine-readable failure reason; see the note on stability above. */
+/**
+ * Machine-readable reason, finer than the exit code: a program branches on
+ * `error`, a person reads `message`. Every reason is also documented in the
+ * skill, so add sparingly and keep the names stable.
+ */
 export type ErrorReason =
   | 'unknown_command'
   | 'unknown_option'
@@ -49,7 +37,12 @@ export type ErrorReason =
   | 'app_unavailable'
   | 'invalid_usage'
 
-/** Reason implied by an exit code when the caller did not name one. */
+export interface ErrorHints {
+  reason?: ErrorReason
+  /** one sentence on what to do next, imperative, no trailing period */
+  suggestion?: string
+}
+
 const DEFAULT_REASON: Record<ExitCode, ErrorReason> = {
   [EXIT.ok]: 'invalid_usage',
   [EXIT.usage]: 'invalid_usage',
@@ -58,13 +51,6 @@ const DEFAULT_REASON: Record<ExitCode, ErrorReason> = {
   [EXIT.app]: 'app_unavailable',
 }
 
-export interface ErrorHints {
-  reason?: ErrorReason
-  /** One imperative sentence, no trailing period: what to do next. */
-  suggestion?: string
-}
-
-/** A failure a command reports deliberately, as opposed to a crash. */
 export class CliError extends Error {
   readonly reason: ErrorReason
   readonly suggestion?: string
@@ -82,7 +68,7 @@ export class CliError extends Error {
   }
 }
 
-/** Something a program should know about a run that nonetheless succeeded. */
+/** Something a program should know about a result that still succeeded. */
 export interface Warning {
   code: string
   message: string
@@ -90,11 +76,7 @@ export interface Warning {
 }
 
 export interface CommandResult {
-  /**
-   * `partial` means the output was written but part of the input was not
-   * applied. The per-item breakdown lives in `detail.batch` / `detail.failures`
-   * so a caller can tell a partial success from a clean one.
-   */
+  /** `partial`: the file was written but a batch lost ops (see detail.batch / detail.failures) */
   status?: 'ok' | 'partial'
   summary: string
   outputPath?: string
@@ -144,7 +126,6 @@ export function toJsonError(command: string | null, err: CliError): JsonError {
   }
 }
 
-/** Human output: summary first, then output path, warnings, then detail pairs. */
 export function formatHuman(r: CommandResult): string {
   const lines = [r.summary]
   if (r.outputPath) lines.push(`  output: ${r.outputPath}`)

@@ -271,10 +271,6 @@ export interface TextRun {
   glow?: GlowEffect
   /** Run-level reflection (<a:rPr><a:effectLst><a:reflection>), rendered as a faded mirror */
   reflection?: boolean
-  /** <a:rPr rtl>: run-level RTL override (rare; paragraph rtl is more common) */
-  rtl?: boolean
-  /** <a:rPr rtlCol>: column direction for vertical text */
-  rtlCol?: boolean
 }
 
 export type TextAlign = 'left' | 'center' | 'right' | 'justify'
@@ -376,8 +372,6 @@ export interface Paragraph {
     spcBef?: boolean
     spcAft?: boolean
     bullet?: boolean
-    /** <a:pPr rtl> base direction */
-    rtl?: boolean
     marL?: boolean
     marR?: boolean
     indent?: boolean
@@ -404,8 +398,6 @@ export interface TextBody {
   wrap?: boolean
   /** <a:bodyPr vert>: vertical text (Japanese tategaki etc.). Read-only display — write-back keeps original bodyPr bytes */
   vert?: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert'
-  /** <a:bodyPr rtlCol>: column direction for vertical text */
-  rtlCol?: boolean
   /** <a:bodyPr numCol>: body text flows across N columns (fill one, then the next) */
   numCol?: number
   /** <a:bodyPr spcCol>: gap between columns (EMU) */
@@ -450,21 +442,12 @@ export interface PPrDirty {
   align?: boolean
   /** Paragraph base direction rtl attribute */
   rtl?: boolean
-  /**
-   * With rtl: drop the attribute instead of writing rtl="0". A direction toggle
-   * back to LTR must fall back to the inheritance chain (a master can set RTL);
-   * an explicit rtl="0" would pin the paragraph regardless.
-   */
-  rtlRemove?: boolean
   /** marL + indent as a pair (bullet indent linkage) */
   indents?: boolean
   /** Restrict the patch to these paragraph indices; absent = all paragraphs */
   paraIndices?: number[]
 }
 
-/** Paragraph format patch (bullet/line spacing/paragraph spacing/alignment/direction).
- * Mirrors the setElementParagraphFormat operation.
- */
 interface ElementBase {
   id: string
   type: ElementType

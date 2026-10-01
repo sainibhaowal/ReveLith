@@ -1,95 +1,95 @@
 import type { AgentSkill } from '@revelith/agent-core'
-import type { ImageSearchResult } from '../../shared/desktop-api'
+import { t } from '../i18n/locale'
+
+/**
+ * Image acquisition AgentSkill: image_search (shared main-process channel, same
+ * source as docs/slides) and generate_image (sheets-owned channel).
+ * Both return a URL; placement happens through the normal propose_operations
+ * add_image path, which downloads the URL in the main process on apply.
+ */
+
+const PLACEMENT_PROMPT = `- To place an image on a sheet, pass the URL to propose_operations {op:"add_image", sheetId, path:"<https url>", anchorCell} — field details in guide charts. The image anchors at that cell and is written into the file on save (imported xlsx only).
+- Only insert images the user asked for; data correctness always outranks decoration.`
 
 const IMAGES_SYSTEM_PROMPT = `## Images
 - image_search finds real web images (returns direct imageUrl entries); generate_image creates an illustration with AI when no suitable real image exists or the user explicitly wants generated art.
-- To place an image on a sheet, pass the URL to propose_operations {op:"add_image", sheetId, path:"<https url>", anchorCell} — field details in guide charts. The image anchors at that cell and is written into the file on save (imported xlsx only).
-- Only insert images the user asked for; data correctness always outranks decoration.`
+${PLACEMENT_PROMPT}`
 
-/** Image acquisition skill: web search plus AI generation, placed via add_image. */
+const IMAGES_SYSTEM_PROMPT_NO_GEN = `## Images
+- image_search finds real web images (returns direct imageUrl entries).
+${PLACEMENT_PROMPT}`
 
-/** Renderer bridge (window in production, absent under node tests) */
-function bridge(): {
-  imageSearch: (query: string, maxResults: number) => Promise<ImageSearchResult>
-  generateImage: (request: { prompt: string; aspectRatio?: string }) => Promise<{ url?: string; error?: string }>
-} | null {
-  const api = (
-    globalThis as unknown as {
-      window?: {
-        desktopApi?: {
-          imageSearch?: unknown
-          generateImage?: unknown
-        }
-      }
-    }
-  ).window?.desktopApi
-  if (!api || typeof api.imageSearch !== 'function' || typeof api.generateImage !== 'function') {
-    return null
-  }
-  return api as {
-    imageSearch: (query: string, maxResults: number) => Promise<ImageSearchResult>
-    generateImage: (request: { prompt: string; aspectRatio?: string }) => Promise<{ url?: string; error?: string }>
-  }
-}
-export function createImageSkill(): AgentSkill {
+/**
+ * `imageGen` is a live predicate (ReveLith login + cloud-tools toggle, or a
+ * BYOK media key); the loop re-reads tools and systemPrompt before every
+ * request, so generate_image appears and disappears without rebuilding the loop.
+ */
+export function createImageSkill(imageGen: () => boolean = () => true): AgentSkill {
+  const allTools = [
+    {
+      name: 'image_search',
+      description:
+        'Search the web for images. Returns a numbered list of direct imageUrl entries with pixel sizes; ' +
+        'pick one and insert it with propose_operations add_image (path = the URL).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Image search keywords (English works better)' },
+          maxResults: { type: 'integer', description: 'Maximum number of results, default 8' },
+        },
+        required: ['query'],
+      },
+    },
+    {
+      name: 'generate_image',
+      description:
+        'Generate an image with AI from a text prompt. Returns a URL to insert ' +
+        'with propose_operations add_image. Use for illustrations/decorative art; prefer image_search for real-world subjects.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          prompt: {
+            type: 'string',
+            description: 'What to draw — subject, style, composition (English works better)',
+          },
+          aspectRatio: {
+            type: 'string',
+            description: 'Aspect ratio like "1:1", "16:9", "4:3"; default 1:1',
+          },
+        },
+        required: ['prompt'],
+      },
+    },
+  ]
   return {
     id: 'images',
-    systemPrompt: IMAGES_SYSTEM_PROMPT,
-    tools: [
-      {
-        name: 'image_search',
-        description:
-          'Search the web for images. Returns a numbered list of direct imageUrl entries with pixel sizes; ' +
-          'pick one and insert it with propose_operations add_image (path = the URL).',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Image search keywords (English works better)' },
-            maxResults: { type: 'integer', description: 'Maximum number of results, default 8' },
-          },
-          required: ['query'],
-        },
-      },
-      {
-        name: 'generate_image',
-        description:
-          'Generate an image with AI from a text prompt. Returns a URL to insert ' +
-          'with propose_operations add_image. Use for illustrations/decorative art; prefer image_search for real-world subjects.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            prompt: {
-              type: 'string',
-              description: 'What to draw — subject, style, composition (English works better)',
-            },
-            aspectRatio: {
-              type: 'string',
-              description: 'Aspect ratio like "1:1", "16:9", "4:3"; default 1:1',
-            },
-          },
-          required: ['prompt'],
-        },
-      },
-    ],
+    get systemPrompt() {
+      return imageGen() ? IMAGES_SYSTEM_PROMPT : IMAGES_SYSTEM_PROMPT_NO_GEN
+    },
+    get tools() {
+      return imageGen() ? allTools : allTools.filter((t) => t.name !== 'generate_image')
+    },
     executeTool: async (call) => {
-      const desktop = bridge()
-      if (!desktop) {
-        return { output: 'desktop bridge unavailable', isError: true, summary: call.name }
-      }
       if (call.name === 'image_search') {
         const query = String(call.input.query ?? '').trim()
         if (!query) {
-          return { output: 'query must not be empty', isError: true, summary: 'Search images' }
+          return {
+            output: 'query must not be empty',
+            isError: true,
+            summary: t('aiToolImageSearch'),
+          }
         }
-        const result = await desktop.imageSearch(
+        const result = await window.desktopApi.imageSearch(
           query,
           Number(call.input.maxResults) || 8,
         )
+        // A backend failure must not read as an empty gallery — the model
+        // would fabricate image choices
         if (result.method === 'error') {
           return {
-            output: `image search failed (service error, not an empty result : you may retry): ${result.error ?? 'unknown error'}`,
+            output: `image search failed (service error, not an empty result — you may retry): ${result.error ?? 'unknown error'}`,
             isError: true,
-            summary: 'Image search',
+            summary: t('aiToolImageSearch'),
           }
         }
         const lines = result.images.map(
@@ -97,31 +97,32 @@ export function createImageSkill(): AgentSkill {
             `${index + 1}. ${image.title || '(untitled)'} [${image.width ?? '?'}x${image.height ?? '?'}]\n   ${image.imageUrl}`,
         )
         return {
-          output: lines.join('\n') || '(no images found)',
+          output: lines.join('\n') || '(no images)',
           mutated: false,
-          summary: 'Image search',
+          summary: t('aiToolImageSearchDone', { query, count: result.images.length }),
         }
       }
       if (call.name === 'generate_image') {
         const prompt = String(call.input.prompt ?? '').trim()
         if (!prompt) {
-          return { output: 'prompt must not be empty', isError: true, summary: 'Generate image' }
+          return { output: 'prompt must not be empty', isError: true, summary: t('aiToolGenImage') }
         }
-        const aspect = call.input.aspectRatio === undefined ? undefined : String(call.input.aspectRatio)
-        const result = await desktop.generateImage(
-          aspect === undefined ? { prompt } : { prompt, aspectRatio: aspect },
-        )
+        const aspectRatio = String(call.input.aspectRatio ?? '').trim()
+        const result = await window.desktopApi.generateImage({
+          prompt,
+          ...(aspectRatio ? { aspectRatio } : {}),
+        })
         if (!result.url) {
           return {
             output: `image generation failed: ${result.error ?? 'unknown error'}`,
             isError: true,
-            summary: 'Generate image',
+            summary: t('aiToolGenImage'),
           }
         }
         return {
-          output: `Generated image URL: ${result.url}\nInsert it with propose_operations add_image.`,
+          output: `Image generated: ${result.url}\nInsert it with propose_operations {op:"add_image", path:"${result.url}", ...}.`,
           mutated: false,
-          summary: 'Generate image',
+          summary: t('aiToolGenImageDone'),
         }
       }
       return { output: `Unknown tool: ${call.name}`, isError: true, summary: call.name }

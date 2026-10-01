@@ -3,13 +3,32 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client"],
+    // resolve the sibling source package by path (worktree-safe: a linked
+    // node_modules would otherwise typecheck against another checkout) —
+    // same mapping as packages/pdf2docx/tsconfig.json
+    "paths": {
+      "@revelith/docx-engine": ["../../packages/docx-engine/src/index.ts"],
+      "@revelith/font-metrics": ["../../packages/font-metrics/src/index.ts"],
+      "@revelith/electron-utils/headless-export": [
+        "../../packages/electron-utils/src/headless-export.ts"
+      ],
+      "@revelith/electron-utils": ["../../packages/electron-utils/src/index.ts"],
+      "@revelith/ai-provider": ["../../packages/ai-provider/src/index.ts"],
+      "@revelith/i18n": ["../../packages/i18n/src/index.ts"],
+      "@revelith/ui": ["../../packages/ui/src/index.ts"],
+      "@revelith/pptx-engine": ["../../packages/pptx-engine/src/index.ts"],
+      "@revelith/cli/install": ["../../packages/cli/src/install.ts"],
+      "@revelith/cli/agent-skills": ["../../packages/cli/src/agent-skills.ts"],
+      "@revelith/cli/control-protocol": ["../../packages/cli/src/control-protocol.ts"]
+    }
   },
   "include": [
     "electron.vite.config.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "../slides/src/main/env.d.ts",
-    "../../packages/pptx-render/src/bidi-js.d.ts"
+    "../../packages/pdf2docx/src/bidi-js.d.ts",
+    "../../packages/html2docx/src/raw.d.ts"
   ]
 }

@@ -1,7 +1,7 @@
-﻿/**
+/**
  * Shared sfnt/ttc plumbing: system font directory scan, per-face name-table
  * index, and targeted table reads. Everything works from small fd reads of the
- * tables it needs : CJK collections run 100MB+ (PingFang.ttc ~180MB), so
+ * tables it needs — CJK collections run 100MB+ (PingFang.ttc ~180MB), so
  * whole-file reads at scan time are not an option.
  */
 import { closeSync, openSync, readdirSync, readSync, statSync } from 'node:fs'

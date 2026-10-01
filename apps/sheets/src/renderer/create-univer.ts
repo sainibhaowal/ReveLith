@@ -1,6 +1,6 @@
-﻿/// Local replacement for the `createUniver` helper from `@univerjs/presets`.
+/// Local replacement for the `createUniver` helper from `@univerjs/presets`.
 ///
-/// The `@univerjs/presets` meta-package bundles every preset : including the
+/// The `@univerjs/presets` meta-package bundles every preset — including the
 /// advanced/collaboration ones, which transitively pull 27 proprietary
 /// `@univerjs-pro/*` packages (npm license "None") into the lockfile and
 /// node_modules. We only ever use the free Apache-2.0 presets, so we depend

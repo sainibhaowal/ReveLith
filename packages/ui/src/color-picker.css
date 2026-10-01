@@ -1,76 +1,140 @@
-/* Shared color palette: the theme row, the standard row, the "no color" entry
- * and the "more colors" handoff to the OS picker. The native input is kept in
- * the layout (not display:none) so the OS dialog still reports its value. */
+/* Shared Word-style color picker panel (packages/ui color-picker.tsx).
+ * Appearance only — anchor/fixed positioning comes from the per-app class
+ * passed through the className prop. Selection outlines use the app accent.
+ *
+ * Interactive elements use a doubled .gcp-palette prefix: the panel is
+ * anchored inside app ribbon rows whose generic resets (e.g. sheets'
+ * `.inline-tools button { border: none; height: 30px; }` and its :hover
+ * rules) would otherwise outrank single-class rules here. */
 
-.color-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 200px;
-  padding: 8px;
-}
-
-.color-picker-section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.color-picker-section-label {
-  color: var(--text-tertiary);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.color-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 3px;
-}
-
-.color-picker-swatch {
-  width: 18px;
-  height: 18px;
+.gcp-palette {
+  display: block;
+  box-sizing: border-box;
+  width: 260px;
+  padding: 10px 12px;
+  background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: 3px;
-  cursor: pointer;
+  border-radius: 8px;
+  box-shadow: var(--shadow-modal-strong);
+  color: var(--text);
+  text-align: left;
+  cursor: default;
 }
 
-.color-picker-swatch[data-selected='true'] {
-  outline: 2px solid var(--color-border-brand);
-  outline-offset: 1px;
-}
-
-.color-picker-auto,
-.color-picker-more {
-  padding: 4px 8px;
+.gcp-palette.gcp-palette .gcp-auto {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  padding: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--surface);
   color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
+  font-size: 12.5px;
+  font-family: inherit;
   cursor: pointer;
 }
 
-.color-picker-auto:hover,
-.color-picker-more:hover {
+.gcp-palette.gcp-palette .gcp-auto:hover {
   background: var(--hover);
 }
 
-.color-picker-auto[data-selected='true'] {
-  border-color: var(--color-border-brand);
+/* Selected (color unset / no fill applied): the per-app accent tint, matching
+   the shared dropdown's selected option (each app's --accent-soft) */
+.gcp-palette.gcp-palette .gcp-auto.selected {
+  background: var(--accent-soft);
 }
 
-/* visually hidden, still focusable: the OS picker dialog needs a live control */
-.color-picker-native {
-  position: absolute;
-  width: 1px;
-  height: 1px;
+.gcp-section-title {
+  margin: 12px 0 6px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.gcp-section-title:first-child {
+  margin-top: 2px;
+}
+
+.gcp-theme-base,
+.gcp-theme-shades,
+.gcp-standard-row {
+  display: grid;
+  grid-template-columns: repeat(10, 20px);
+  column-gap: 4px;
+  row-gap: 0;
+}
+
+.gcp-theme-base {
+  margin-bottom: 8px;
+}
+
+.gcp-row {
+  display: contents;
+}
+
+.gcp-palette.gcp-palette .gcp-swatch {
+  display: block;
+  box-sizing: border-box;
+  min-width: 0;
+  width: 20px;
+  height: 20px;
   padding: 0;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.gcp-palette.gcp-palette .gcp-swatch:hover,
+.gcp-palette.gcp-palette .gcp-swatch:focus-visible,
+.gcp-palette.gcp-palette .gcp-swatch.selected {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.gcp-palette.gcp-palette .gcp-more {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px -12px -10px;
+  padding: 9px 14px;
   border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  background: none;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.gcp-palette.gcp-palette .gcp-more:hover {
+  background: var(--hover);
+}
+
+.gcp-palette.gcp-palette .gcp-more-icon,
+.gcp-palette.gcp-palette .gcp-more-icon:hover {
+  display: inline-flex;
+  min-width: 0;
+  width: auto;
+  height: auto;
+  padding: 0;
+  background: none;
+  line-height: 1;
+}
+
+/* Invisible but covering the whole row (not pointer-events: none): pointer
+   events must land on the input itself so callers' moreInputProps hooks
+   (onPointerDown arming / selection save) fire before the OS dialog opens. */
+.gcp-more input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
-  pointer-events: none;
+  cursor: pointer;
 }

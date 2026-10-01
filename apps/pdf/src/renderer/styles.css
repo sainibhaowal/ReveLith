@@ -858,7 +858,7 @@ button {
 }
 
 .pdf-form-input.is-required-empty,
-.pdf-form-select.is-required-empty .rv-dd-btn {
+.pdf-form-select.is-required-empty .gs-dd-btn {
   border-color: var(--pdf-error);
 }
 
@@ -906,19 +906,19 @@ button {
   color: transparent;
 }
 
-/* Choice widget: shared dropdown (@revelith/ui rv-dd) sized to the AcroForm
+/* Choice widget: shared dropdown (@revelith/ui gs-dd) sized to the AcroForm
  * rect — the wrapper carries the absolute position, the trigger the field look */
 .pdf-form-select {
   position: absolute;
   box-sizing: border-box;
 }
 
-.pdf-form-select .rv-dd {
+.pdf-form-select .gs-dd {
   width: 100%;
   height: 100%;
 }
 
-.pdf-form-select .rv-dd-btn {
+.pdf-form-select .gs-dd-btn {
   height: 100%;
   border: 1px solid var(--pdf-form-border);
   background: var(--pdf-form-bg);
@@ -928,7 +928,7 @@ button {
   color: var(--pdf-form-text);
 }
 
-.pdf-form-select .rv-dd-btn:focus {
+.pdf-form-select .gs-dd-btn:focus {
   outline: none;
   border-color: var(--pdf-select);
   background: var(--pdf-paper);
@@ -2113,12 +2113,12 @@ button {
   font-size: 12px;
 }
 
-/* Font picker: shared dropdown (@revelith/ui rv-dd) sized to the 22px bar row */
+/* Font picker: shared dropdown (@revelith/ui gs-dd) sized to the 22px bar row */
 .pdf-textedit-fontsel {
   max-width: 130px;
 }
 
-.pdf-textedit-fontsel .rv-dd-btn {
+.pdf-textedit-fontsel .gs-dd-btn {
   height: 22px;
   padding: 0 4px;
   border-color: var(--border);
@@ -2365,14 +2365,14 @@ button {
   min-width: 0;
 }
 
-/* Shared dropdown (@revelith/ui rv-dd) in modal field rows: matches the
+/* Shared dropdown (@revelith/ui gs-dd) in modal field rows: matches the
  * .pdf-modal-input frame (28px, radius 4, 13px) */
 .pdf-field .pdf-modal-dd {
   flex: 1;
   min-width: 0;
 }
 
-.pdf-modal-dd .rv-dd-btn {
+.pdf-modal-dd .gs-dd-btn {
   height: 28px;
   border-radius: 4px;
   padding: 0 6px 0 8px;
@@ -3321,7 +3321,7 @@ button {
   border-left: var(--ai-panel-border-left, 0px) solid var(--border);
   border-right: var(--ai-panel-border-right, 1px) solid var(--border);
   background: var(--surface);
-  font-family: var(--ui-font-sans);
+  font-family: var(--gs-font-sans);
   color: var(--color-text-primary);
 }
 
@@ -3433,7 +3433,7 @@ button {
   margin-top: 36px;
   padding: 0 10px;
   text-align: center;
-  font-family: var(--ui-font-sans);
+  font-family: var(--gs-font-sans);
 }
 
 .ai-chat-empty-title {
@@ -3924,7 +3924,7 @@ button {
   border-top: none;
   padding: 8px 12px 12px;
   background: var(--color-bg-page);
-  font-family: var(--ui-font-sans);
+  font-family: var(--gs-font-sans);
 }
 
 /* composer card — 16px radius, default border, production float shadow */

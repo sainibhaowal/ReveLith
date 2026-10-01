@@ -1,23 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import {
   AI_PROVIDERS,
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  MAX_MAX_OUTPUT_TOKENS,
+  MIN_MAX_OUTPUT_TOKENS,
+  activeProvider,
+  clampMaxOutputTokens,
+  cloudToolsEnabled,
   defaultAiSettings,
-  defaultMediaSearch,
+  maxOutputTokensOf,
   resolveAiSettings,
-  resolveImageGenTarget,
-  resolveMediaAnalysisTarget,
-  resolveWebSearchKey,
 } from '../src/providers'
+import type { AiProviderId } from '../src/types'
 
 describe('defaultAiSettings', () => {
   it('gives every provider its default model and an empty key by default', () => {
     const settings = defaultAiSettings()
-    expect(settings.provider).toBe('lmstudio')
+    expect(settings.provider).toBe('revelith')
     for (const meta of AI_PROVIDERS) {
       expect(settings.providers[meta.id].apiKey).toBe('')
       expect(settings.providers[meta.id].model).toBe(meta.defaultModel)
     }
-    expect(settings.providers.custom.baseUrl).toBe('http://localhost:8080/v1')
+    expect(settings.providers.custom.baseUrl).toBe('')
+    expect(settings.providers.codex.cliPath).toBe('')
+    expect(settings.providers.codex.model).toBe('')
     expect(settings.providers.anthropic.baseUrl).toBeUndefined()
   })
 
@@ -28,10 +34,85 @@ describe('defaultAiSettings', () => {
   })
 })
 
+describe('provider model catalog', () => {
+  it('offers DeepSeek V4.1 Flash directly under the same versioned name as the pool', () => {
+    const revelith = AI_PROVIDERS.find((provider) => provider.id === 'revelith')!
+    const deepseek = AI_PROVIDERS.find((provider) => provider.id === 'deepseek')!
+
+    expect(deepseek.models).toContain('deep-seek-v4.1-flash')
+    expect(deepseek.models).not.toContain('deepseek-flash')
+    expect(deepseek.models).not.toContain('deepseek-v4-flash')
+    expect(deepseek.models).not.toContain('deepseek-v4-flash-vision-exp')
+    expect(revelith.models).not.toContain('deep-seek-v4-flash')
+    expect(revelith.models).not.toContain('deep-seek-v4-flash-vision-exp-openrouter')
+  })
+
+  it('serves DeepSeek V4.1 Flash through the ReveLith proxy under its hyphenated pool id', () => {
+    const revelith = AI_PROVIDERS.find((provider) => provider.id === 'revelith')!
+    expect(revelith.models).toContain('deep-seek-v4.1-flash')
+    expect(revelith.models).not.toContain('deep-seek-v4-pro')
+  })
+
+  it('keeps Responses-only models out of the OpenCode tiers (no such protocol yet)', () => {
+    for (const id of ['opencode-zen', 'opencode-go'] as const) {
+      const meta = AI_PROVIDERS.find((provider) => provider.id === id)!
+      expect(meta.models).toContain(meta.defaultModel)
+      expect(meta.needsBaseUrl).toBeUndefined()
+      for (const model of meta.models) {
+        expect(model).not.toMatch(/^(gpt-|grok-|muse-spark-)/)
+      }
+    }
+  })
+
+  it('seeds Requesty with managed policy ids (short names, no vendor prefix)', () => {
+    const requesty = AI_PROVIDERS.find((provider) => provider.id === 'requesty')!
+    expect(requesty.models).toContain(requesty.defaultModel)
+    expect(requesty.needsBaseUrl).toBeUndefined()
+    for (const model of requesty.models) {
+      expect(model).not.toContain('/')
+    }
+  })
+
+  it('seeds Opper with pool ids (bare names, no vendor prefix)', () => {
+    const opper = AI_PROVIDERS.find((provider) => provider.id === 'opper')!
+    expect(opper.models).toContain(opper.defaultModel)
+    expect(opper.needsBaseUrl).toBeUndefined()
+    for (const model of opper.models) {
+      expect(model).not.toContain('/')
+    }
+  })
+})
+
 describe('resolveAiSettings', () => {
   it('returns fresh defaults when nothing is stored', () => {
     const defaults = defaultAiSettings({ anthropic: 'sk-ant-preset' })
     expect(resolveAiSettings({}, defaults)).toEqual(defaults)
+  })
+
+  it('falls back to defaults for null and non-object settings roots', () => {
+    for (const stored of [null, 'settings', 7, true, []]) {
+      const defaults = defaultAiSettings()
+      expect(resolveAiSettings(stored, defaults)).toEqual(defaults)
+    }
+  })
+
+  it('falls back to defaults for null and non-object provider maps', () => {
+    for (const providers of [null, 'providers', 7, true, []]) {
+      const defaults = defaultAiSettings()
+      expect(resolveAiSettings({ providers } as never, defaults)).toEqual(defaults)
+    }
+  })
+
+  it('ignores null and non-object provider entries', () => {
+    for (const entry of [null, 'provider', 7, true, []]) {
+      const defaults = defaultAiSettings()
+      const resolved = resolveAiSettings(
+        { provider: 'anthropic', providers: { anthropic: entry } } as never,
+        defaults,
+      )
+      expect(resolved.providers.anthropic).toEqual(defaults.providers.anthropic)
+      expect(activeProvider(resolved)).toBe('revelith')
+    }
   })
 
   it('migrates the pre-provider single-endpoint shape into the custom provider', () => {
@@ -74,116 +155,241 @@ describe('resolveAiSettings', () => {
     expect(resolved.providers.anthropic.apiKey).toBe('preset-key')
   })
 
-  it('supports DeepSeek V4.1 Flash, gpt-6-astra, and Opper provider', () => {
-    const deepseek = AI_PROVIDERS.find((p) => p.id === 'deepseek')
-    expect(deepseek?.models).toContain('deepseek-v4.1-flash')
-    expect(deepseek?.defaultModel).toBe('deepseek-v4.1-flash')
+  it('rewrites a stored model id the vendor has retired', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: {
+          deepseek: { apiKey: 'sk-user', model: 'deepseek-reasoner' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.deepseek).toEqual({
+      apiKey: 'sk-user',
+      model: 'deep-seek-v4.1-flash',
+    })
+  })
 
-    const openai = AI_PROVIDERS.find((p) => p.id === 'openai')
-    expect(openai?.models).toContain('gpt-6-astra')
+  it('rewrites the retired V4 Flash id and the vendor wire id to the listed V4.1 Flash name', () => {
+    for (const model of ['deepseek-v4-flash', 'deepseek-flash']) {
+      const resolved = resolveAiSettings(
+        { providers: { deepseek: { apiKey: 'sk-user', model } } as never },
+        defaultAiSettings(),
+      )
+      expect(resolved.providers.deepseek.model).toBe('deep-seek-v4.1-flash')
+    }
+  })
 
-    const opper = AI_PROVIDERS.find((p) => p.id === 'opper')
-    expect(opper).toBeDefined()
-    expect(opper?.defaultModel).toBe('opper-default')
+  it('rewrites revelith model ids the proxy no longer serves', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: {
+          revelith: { apiKey: '', model: 'gemini-3.7-flash' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.revelith.model).toBe('claude-opus-4-7')
 
-    const defaults = defaultAiSettings()
-    expect(defaults.providers.opper.baseUrl).toBe('https://api.opper.ai/v1')
+    const gpt = resolveAiSettings(
+      {
+        providers: {
+          revelith: { apiKey: '', model: 'gpt-5.6' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(gpt.providers.revelith.model).toBe('gpt-5.6-terra')
+  })
+
+  it('leaves a still-supported model id alone', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: {
+          deepseek: { apiKey: 'sk-user', model: 'deepseek-v4-pro' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.deepseek.model).toBe('deepseek-v4-pro')
+  })
+
+  it('trims whitespace pasted around stored keys and base URLs', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: {
+          deepseek: { apiKey: ' sk-user\n', model: ' deepseek-v4-pro ' },
+          custom: { apiKey: 'k', model: ' m ', baseUrl: ' http://localhost:1234/v1 ' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.deepseek.apiKey).toBe('sk-user')
+    expect(resolved.providers.deepseek.model).toBe('deepseek-v4-pro')
+    expect(resolved.providers.deepseek.baseUrl).toBeUndefined()
+    expect(resolved.providers.custom.model).toBe('m')
+    expect(resolved.providers.custom.baseUrl).toBe('http://localhost:1234/v1')
+  })
+
+  it('still remaps retired model ids padded with whitespace', () => {
+    const resolved = resolveAiSettings(
+      {
+        providers: {
+          deepseek: { apiKey: 'sk-user', model: ' deepseek-reasoner ' },
+        } as never,
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.deepseek.model).toBe('deep-seek-v4.1-flash')
+  })
+
+  it('trims the legacy single-endpoint key and base URL too', () => {
+    const resolved = resolveAiSettings(
+      {
+        apiKey: ' legacy-key ',
+        model: ' legacy-model ',
+        baseUrl: ' https://legacy.example.com/v1 ',
+      },
+      defaultAiSettings(),
+    )
+    expect(resolved.providers.custom.apiKey).toBe('legacy-key')
+    expect(resolved.providers.custom.model).toBe('legacy-model')
+    expect(resolved.providers.custom.baseUrl).toBe('https://legacy.example.com/v1')
+  })
+
+  it('carries a stored output cap and clamps a hand-edited one', () => {
+    // a multi-provider file (the legacy single-endpoint shape returns defaults wholesale)
+    const stored = { providers: {} as never }
+    expect(
+      resolveAiSettings({ ...stored, maxOutputTokens: 32768 }, defaultAiSettings()).maxOutputTokens,
+    ).toBe(32768)
+    // a settings file edited by hand must not forward an absurd budget to the endpoint
+    expect(
+      resolveAiSettings({ ...stored, maxOutputTokens: 1 }, defaultAiSettings()).maxOutputTokens,
+    ).toBe(MIN_MAX_OUTPUT_TOKENS)
+    expect(
+      resolveAiSettings({ ...stored, maxOutputTokens: 1e9 }, defaultAiSettings()).maxOutputTokens,
+    ).toBe(MAX_MAX_OUTPUT_TOKENS)
+    // absent stays absent: pre-existing settings files keep the default behaviour
+    expect('maxOutputTokens' in resolveAiSettings(stored, defaultAiSettings())).toBe(false)
   })
 })
 
-describe('mediaSearch', () => {
-  it('defaults to the free search fallback with no dedicated backends', () => {
+describe('maxOutputTokensOf', () => {
+  it('falls back to the default when the setting is absent or unusable', () => {
+    expect(maxOutputTokensOf({})).toBe(DEFAULT_MAX_OUTPUT_TOKENS)
+    expect(maxOutputTokensOf(undefined)).toBe(DEFAULT_MAX_OUTPUT_TOKENS)
+    expect(maxOutputTokensOf({ maxOutputTokens: Number.NaN })).toBe(DEFAULT_MAX_OUTPUT_TOKENS)
+    expect(maxOutputTokensOf({ maxOutputTokens: '8192' as unknown as number })).toBe(
+      DEFAULT_MAX_OUTPUT_TOKENS,
+    )
+  })
+
+  it('honors a stored cap inside the bounds', () => {
+    expect(maxOutputTokensOf({ maxOutputTokens: 16384 })).toBe(16384)
+    expect(maxOutputTokensOf({ maxOutputTokens: 3.7 })).toBe(MIN_MAX_OUTPUT_TOKENS)
+    expect(maxOutputTokensOf({ maxOutputTokens: 20000 })).toBe(20000)
+  })
+})
+
+describe('clampMaxOutputTokens', () => {
+  it('floors, bounds and defaults whatever the settings field or the input box held', () => {
+    expect(clampMaxOutputTokens(16384.9)).toBe(16384)
+    expect(clampMaxOutputTokens(0)).toBe(MIN_MAX_OUTPUT_TOKENS)
+    expect(clampMaxOutputTokens(5e6)).toBe(MAX_MAX_OUTPUT_TOKENS)
+    expect(clampMaxOutputTokens(Number.POSITIVE_INFINITY)).toBe(DEFAULT_MAX_OUTPUT_TOKENS)
+    expect(clampMaxOutputTokens(undefined)).toBe(DEFAULT_MAX_OUTPUT_TOKENS)
+  })
+})
+
+describe('activeProvider', () => {
+  it('honors a configured BYOK provider and falls back to revelith otherwise', () => {
     const settings = defaultAiSettings()
-    expect(settings.mediaSearch).toEqual(defaultMediaSearch())
-    expect(settings.mediaSearch?.webSearch.provider).toBe('duckduckgo')
-    expect(resolveWebSearchKey(settings)).toBe('')
-    expect(resolveImageGenTarget(settings)).toBeNull()
-    expect(resolveMediaAnalysisTarget(settings)).toBeNull()
+    expect(activeProvider(settings)).toBe('revelith')
+
+    settings.provider = 'kimi'
+    expect(activeProvider(settings)).toBe('revelith') // no key yet
+    settings.providers.kimi.apiKey = 'sk-user'
+    expect(activeProvider(settings)).toBe('kimi')
   })
 
-  it('preserves stored mediaSearch and byok through resolveAiSettings', () => {
-    const stored = {
-      provider: 'openai',
-      providers: { openai: { apiKey: 'sk-x', model: 'gpt-4.1-mini' } },
-      byok: { webSearchKey: 'legacy-serper' },
-      mediaSearch: {
-        ...defaultMediaSearch(),
-        webSearch: { provider: 'serper', apiKey: 'tvly-new' },
-      },
-    } as never
-    const resolved = resolveAiSettings(stored, defaultAiSettings())
-    expect(resolved.byok?.webSearchKey).toBe('legacy-serper')
-    expect(resolved.mediaSearch?.webSearch).toEqual({ provider: 'serper', apiKey: 'tvly-new' })
-    expect(resolveWebSearchKey(resolved)).toBe('tvly-new')
+  it('requires a base URL for providers that declare needsBaseUrl', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'custom'
+    settings.providers.custom.apiKey = 'k'
+    expect(activeProvider(settings)).toBe('revelith')
+    settings.providers.custom.baseUrl = 'http://localhost:1234/v1'
+    expect(activeProvider(settings)).toBe('revelith') // custom's default model is empty
+    settings.providers.custom.model = 'my-model'
+    expect(activeProvider(settings)).toBe('custom')
   })
 
-  it('migrates legacy byok webSearchKey into mediaSearch', () => {
+  it('allows keyless custom endpoints for local servers', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'custom'
+    settings.providers.custom.apiKey = ''
+    settings.providers.custom.baseUrl = 'http://localhost:11434/v1'
+    settings.providers.custom.model = 'llama3'
+    expect(activeProvider(settings)).toBe('custom')
+  })
+
+  it('auto-discovers Codex without an API key and preserves an optional override', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'codex'
+    expect(activeProvider(settings)).toBe('codex')
+    settings.providers.codex.cliPath = ' C:\\Tools\\codex.exe '
+    expect(activeProvider(settings)).toBe('codex')
+
     const resolved = resolveAiSettings(
-      { byok: { webSearchKey: 'legacy-serper' }, providers: {} } as never,
+      { providers: { codex: settings.providers.codex } as never },
       defaultAiSettings(),
     )
-    expect(resolved.mediaSearch?.webSearch.apiKey).toBe('legacy-serper')
-    expect(resolved.mediaSearch?.webSearch.provider).toBe('duckduckgo')
-    expect(resolveWebSearchKey(resolved)).toBe('legacy-serper')
+    expect(resolved.providers.codex.cliPath).toBe('C:\\Tools\\codex.exe')
+    expect(resolved.providers.codex.apiKey).toBe('')
   })
 
-  it('resolves the dedicated image backend only when usable', () => {
+  it('treats whitespace-only keys, URLs, and models as unconfigured', () => {
     const settings = defaultAiSettings()
-    // no dedicated provider -> legacy behavior (null)
-    expect(resolveImageGenTarget(settings)).toBeNull()
-    // hosted provider without any key -> null
-    const nokey = resolveAiSettings(
-      {
-        mediaSearch: {
-          ...defaultMediaSearch(),
-          imageGen: { provider: 'openai', model: 'gpt-image-1', apiKey: '', baseUrl: '' },
-        },
-      } as never,
-      settings,
-    )
-    expect(resolveImageGenTarget(nokey)).toBeNull()
-    // hosted provider with key -> dedicated target with stored fallbacks
-    const keyed = resolveAiSettings(
-      {
-        mediaSearch: {
-          ...defaultMediaSearch(),
-          imageGen: { provider: 'openai', model: '', apiKey: 'sk-img', baseUrl: '' },
-        },
-      } as never,
-      settings,
-    )
-    expect(resolveImageGenTarget(keyed)).toEqual({
-      provider: 'openai',
-      config: { apiKey: 'sk-img', model: 'gpt-4.1-mini', baseUrl: undefined },
-    })
-    // keyless local provider works without a key
-    const local = resolveAiSettings(
-      {
-        mediaSearch: {
-          ...defaultMediaSearch(),
-          imageGen: { provider: 'ollama', model: 'llama3.2', apiKey: '', baseUrl: '' },
-        },
-      } as never,
-      settings,
-    )
-    expect(resolveImageGenTarget(local)?.provider).toBe('ollama')
+    settings.provider = 'kimi'
+    settings.providers.kimi.apiKey = '   '
+    expect(activeProvider(settings)).toBe('revelith')
+    settings.providers.kimi.apiKey = 'sk-user'
+    settings.providers.kimi.model = '  '
+    expect(activeProvider(settings)).toBe('revelith')
+    settings.providers.kimi.model = 'kimi-k2'
+    expect(activeProvider(settings)).toBe('kimi')
+
+    const custom = defaultAiSettings()
+    custom.provider = 'custom'
+    custom.providers.custom.baseUrl = '   '
+    custom.providers.custom.model = 'my-model'
+    expect(activeProvider(custom)).toBe('revelith')
   })
 
-  it('resolves the dedicated media-analysis backend with model override', () => {
+  it('falls back to revelith for unknown ids from a hand-edited settings file', () => {
     const settings = defaultAiSettings()
-    expect(resolveMediaAnalysisTarget(settings)).toBeNull()
-    const withAnalysis = resolveAiSettings(
-      {
-        mediaSearch: {
-          ...defaultMediaSearch(),
-          imageAnalysis: { provider: 'gemini', model: 'gemini-2.0-flash' },
-        },
-      } as never,
-      settings,
+    settings.provider = 'nonsense' as AiProviderId
+    expect(activeProvider(settings)).toBe('revelith')
+  })
+
+  it('revelith never requires a key (injected from the gsk login at request time)', () => {
+    const settings = defaultAiSettings()
+    settings.provider = 'revelith'
+    expect(activeProvider(settings)).toBe('revelith')
+  })
+})
+
+describe('gskToolsEnabled', () => {
+  it('defaults on, survives resolveAiSettings, and only an explicit false turns it off', () => {
+    expect(cloudToolsEnabled(defaultAiSettings())).toBe(true)
+    // pre-toggle settings file (field absent) stays on
+    const legacy = resolveAiSettings({ providers: {} as never }, defaultAiSettings())
+    expect(cloudToolsEnabled(legacy)).toBe(true)
+    const off = resolveAiSettings(
+      { providers: {} as never, gskToolsEnabled: false },
+      defaultAiSettings(),
     )
-    expect(resolveMediaAnalysisTarget(withAnalysis)).toEqual({
-      provider: 'gemini',
-      model: 'gemini-2.0-flash',
-    })
+    expect(off.gskToolsEnabled).toBe(false)
+    expect(cloudToolsEnabled(off)).toBe(false)
   })
 })

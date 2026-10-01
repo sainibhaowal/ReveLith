@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   InMemoryWorkbookAdapter,
@@ -606,7 +606,7 @@ describe('InMemoryWorkbookAdapter', () => {
         operations: [{ op: 'add_chart', sheetId: 'sheet-1', chartType: 'pie', dataRange: 'A1:B3' }],
       }),
     )
-    // the value-label default is bar/column only : pie keeps its legend
+    // the value-label default is bar/column only — pie keeps its legend
     expect(adapter.getSnapshot().sheets[0]?.visuals?.[0]?.chart.dataLabels).toBeUndefined()
     const visualId = adapter.getSnapshot().sheets[0]?.visuals?.[0]?.id ?? ''
     adapter.apply(
@@ -652,7 +652,7 @@ describe('InMemoryWorkbookAdapter', () => {
     expect(plan.structuralChanges[0]?.label).toBe(
       'Insert column chart from A1:B3 "Regional Revenue"',
     )
-    // plan is a dry run : nothing lands until apply
+    // plan is a dry run — nothing lands until apply
     expect(adapter.getSnapshot().sheets[0]?.visuals).toBeUndefined()
 
     adapter.apply(plan)

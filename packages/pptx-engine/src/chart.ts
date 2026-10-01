@@ -16,7 +16,7 @@
  */
 import { XMLParser } from 'fast-xml-parser'
 import { resolveFontRef, type Theme } from './theme'
-import { applyColorMods, resolveColorNode, resolveFillRefColor, scaleLuminance } from './color'
+import { applyColorMods, resolveColorNode, scaleLuminance } from './color'
 import type { Fill } from './types'
 
 const chartParser = new XMLParser({
@@ -26,18 +26,6 @@ const chartParser = new XMLParser({
   parseTagValue: false,
   isArray: (name) => ['c:ser', 'c:pt', 'c:lvl', 'c:dPt'].includes(name),
 })
-
-/** Normalized manual-layout box (c:manualLayout x/y/w/h + xMode/yMode). */
-export interface ManualLayoutBox {
-  x: number
-  y: number
-  w: number
-  h: number
-  /** 'edge' = absolute fraction of the frame, 'factor' = offset from the auto position; absent = edge */
-  xMode?: 'edge' | 'factor'
-  /** absent = edge */
-  yMode?: 'edge' | 'factor'
-}
 
 export type ChartKind =
   'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'funnel' | 'sunburst' | 'unknown'
@@ -190,8 +178,6 @@ export interface ChartModel {
   /** Series indices in PowerPoint's legend display order with c:legendEntry deletions applied
    *  (absent = document order, nothing deleted) */
   legendOrder?: number[]
-  /** Deleted legend entry indexes (c:legendEntry/c:delete); skipped in legends */
-  hiddenLegendEntries?: number[]
   /** c:legend manual layout: factor = offset from the auto position, edge = absolute, fractions of the frame */
   legendLayout?: {
     x?: number
@@ -206,7 +192,7 @@ export interface ChartModel {
   /** Chart part has a Microsoft chartStyle companion (style1.xml); without one PowerPoint uses black label text */
   hasStylePart?: boolean
   /** Plot-area inner rectangle (c:plotArea/c:layout/c:manualLayout layoutTarget=inner), fractions of the chart frame */
-  plotLayout?: ManualLayoutBox
+  plotLayout?: { x: number; y: number; w: number; h: number }
   valAxis?: ChartAxisStyle
   /** Secondary value axis (right side, combo column+line dual axes; undefined without a right value axis or style info) */
   valAxis2?: ChartAxisStyle
@@ -252,8 +238,6 @@ export interface ChartModel {
   titleBold?: boolean
   titleItalic?: boolean
   titleColor?: string
-  /** Manual title layout (c:title/c:layout/c:manualLayout): factor/edge fractions of the chart frame */
-  titleLayout?: ManualLayoutBox
   /** chartSpace-level <c:spPr> fill (whole-chart background, e.g. picture fill) */
   bgFill?: Fill
   /** Plot-area fill (c:plotArea's own spPr) */
@@ -724,13 +708,8 @@ export function parseChartXml(
     model.holePct = hole != null ? parseInt(hole, 10) || 0 : plotArea['c:doughnutChart'] ? 50 : 0
     const first = plot['c:firstSliceAng']?.['@_val']
     if (first != null) model.firstSliceAngDeg = parseInt(first, 10) || 0
-  }
-  // c:varyColors colors every data point differently (pivots to per-point colors);
-  // it appears on pie, bar, line and area plots alike
-  {
     const vary = plot['c:varyColors']?.['@_val']
     if (vary === '0' || vary === 'false') model.varyColors = false
-    else if (vary === '1' || vary === 'true') model.varyColors = true
   }
 
   if (kind === 'scatter') {
@@ -824,28 +803,26 @@ export function parseChartXml(
     )
     const shown = order.filter((_, pos) => !deleted.has(pos))
     if (shown.length !== series.length || shown.some((si, k) => si !== k)) model.legendOrder = shown
-    // c:legendEntry/c:idx counts display positions; report the raw deleted indexes
-    // so a renderer can gray out the matching entry without re-deriving the order
-    if (deleted.size) model.hiddenLegendEntries = [...deleted].sort((a, b) => a - b)
   }
 
   // Plot-area inner rectangle (edge-mode fractions of the chart frame); PowerPoint positions
-  // gridlines/bars exactly here, with axis labels outside it. layoutTarget defaults to
-  // "inner", so a manualLayout that omits it still describes the plot rectangle.
+  // gridlines/bars exactly here, with axis labels outside it
   const mLay = plotArea['c:layout']?.['c:manualLayout']
-  if (mLay && mLay['c:layoutTarget']?.['@_val'] !== 'outer') {
+  if (mLay?.['c:layoutTarget']?.['@_val'] === 'inner') {
     const frac = (k: string) => Number(mLay[k]?.['@_val'])
-    const mode = (k: string): 'edge' | 'factor' =>
-      mLay[k]?.['@_val'] === 'factor' ? 'factor' : 'edge'
+    const edgeMode = (k: string) => {
+      const m = mLay[k]?.['@_val']
+      return m == null || m === 'edge'
+    }
     const [lx, ly, lw, lh] = [frac('c:x'), frac('c:y'), frac('c:w'), frac('c:h')]
     if (
-      mode('c:xMode') === 'edge' &&
-      mode('c:yMode') === 'edge' &&
+      edgeMode('c:xMode') &&
+      edgeMode('c:yMode') &&
       [lx, ly, lw, lh].every(Number.isFinite) &&
       lw > 0 &&
       lh > 0
     ) {
-      model.plotLayout = { x: lx, y: ly, w: lw, h: lh, xMode: 'edge', yMode: 'edge' }
+      model.plotLayout = { x: lx, y: ly, w: lw, h: lh }
     }
   }
 
@@ -932,26 +909,6 @@ export function parseChartXml(
     collectText(chart['c:title']?.['c:tx']?.['c:rich']) ||
     readStrPoints(chart['c:title']?.['c:tx'])[0]
   if (chart['c:title']?.['c:overlay']?.['@_val'] === '1') model.titleOverlay = true
-  // Manual title placement (c:title/c:layout/c:manualLayout): edge fractions of the frame
-  {
-    const tLay = chart['c:title']?.['c:layout']?.['c:manualLayout']
-    if (tLay) {
-      const frac = (k: string) => Number(tLay[k]?.['@_val'])
-      const mode = (k: string): 'edge' | 'factor' =>
-        tLay[k]?.['@_val'] === 'factor' ? 'factor' : 'edge'
-      const [tx, ty, tw, th] = [frac('c:x'), frac('c:y'), frac('c:w'), frac('c:h')]
-      if ([tx, ty, tw, th].every(Number.isFinite) && tw > 0 && th > 0) {
-        model.titleLayout = {
-          x: tx,
-          y: ty,
-          w: tw,
-          h: th,
-          xMode: mode('c:xMode'),
-          yMode: mode('c:yMode'),
-        }
-      }
-    }
-  }
   if (chartTitle) model.title = chartTitle
   // Auto title: a <c:title> with no c:tx at all (and autoTitleDeleted != 1) takes the
   // sole series name; with several series PowerPoint shows the literal "Chart Title"
@@ -1121,9 +1078,7 @@ export function parseChartXml(
 
 /** Numeric cache inside <c:val>/<c:cat>/<c:tx> → number[] (idx order kept, empty points null). */
 function readNumPoints(node: any): Array<number | null> {
-  // PowerPoint nests the cache under c:numRef; a c:numLit (or a bare cache, as
-  // some generators write) sits directly on the parent
-  const cache = node?.['c:numRef']?.['c:numCache'] ?? node?.['c:numLit'] ?? node?.['c:numCache']
+  const cache = node?.['c:numRef']?.['c:numCache'] ?? node?.['c:numLit']
   if (!cache) return []
   return readPoints(cache).map((v) => {
     if (v == null || v === '') return null
@@ -1134,8 +1089,7 @@ function readNumPoints(node: any): Array<number | null> {
 
 /** String cache (strRef/strCache or the innermost lvl of multiLvlStrRef) → string[]. */
 function readStrPoints(node: any, date1904 = false): string[] {
-  // as readNumPoints: tolerate a bare c:strCache next to the c:strRef form
-  const strCache = node?.['c:strRef']?.['c:strCache'] ?? node?.['c:strLit'] ?? node?.['c:strCache']
+  const strCache = node?.['c:strRef']?.['c:strCache'] ?? node?.['c:strLit']
   if (strCache) return readPoints(strCache).map((v) => v ?? '')
   const lit = node?.['c:v']
   if (lit != null) return [typeof lit === 'string' ? lit : String(lit['#text'] ?? lit)]
@@ -1271,15 +1225,8 @@ function serColor(ser: any, theme: Theme | undefined, preferLine: boolean): stri
   const spPr = ser['c:spPr']
   if (!spPr) return undefined
   const lnColor = resolveColorNode(spPr['a:ln']?.['a:solidFill'], theme)
-  // A style reference (legacy-2007 charts) resolves through the theme's fmtScheme;
-  // the reference's own color stands in when the theme has no such fill style
-  const fillColor = resolveFillRefColor(spPr, theme) ?? resolveColorNode(spPr['a:solidFill'], theme)
-  // A gradient series is represented by its first stop (a mid-stop would be
-  // arbitrary); c:gs parses to an object for one stop and an array for several
-  const gsRaw = spPr['a:gradFill']?.['a:gsLst']?.['a:gs']
-  const gs = Array.isArray(gsRaw) ? gsRaw[0] : gsRaw
-  const gradFirst = gs ? resolveColorNode(gs, theme) : undefined
-  return preferLine ? (lnColor ?? gradFirst ?? fillColor) : (gradFirst ?? fillColor ?? lnColor)
+  const fillColor = resolveColorNode(spPr['a:solidFill'], theme)
+  return preferLine ? (lnColor ?? fillColor) : (fillColor ?? lnColor)
 }
 
 /** c:dLbls / c:dLbl spPr: solid label-box fill and outline colors; an explicit a:noFill

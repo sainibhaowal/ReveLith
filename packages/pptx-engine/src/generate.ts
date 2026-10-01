@@ -169,14 +169,7 @@ export function patchParagraphPPrXml(paraXml: string, p: Paragraph, which: PPrDi
     else openTag = openTag.replace(/^<a:pPr/, `<a:pPr ${name}="${escapeXmlAttr(value)}"`)
   }
   if (which.align) setPPrAttr('algn', p.align ? ALIGN_MAP[p.align] : undefined)
-  // rtl: write the flag. rtlRemove (a direction toggle back to LTR) drops the
-  // attribute instead so the inheritance chain applies again, while an explicit
-  // rtl=false pins rtl="0" as a deliberate LTR base.
-  if (which.rtl) {
-    if (p.rtl) setPPrAttr('rtl', '1')
-    else if (which.rtlRemove) setPPrAttr('rtl', undefined)
-    else setPPrAttr('rtl', '0')
-  }
+  if (which.rtl) setPPrAttr('rtl', p.rtl != null ? (p.rtl ? '1' : '0') : undefined)
   if (which.level) setPPrAttr('lvl', p.level ? String(p.level) : undefined)
   if (which.indents) {
     setPPrAttr('marL', p.marL != null ? String(clampInt(p.marL, 0, 51206400)) : undefined)
@@ -876,7 +869,7 @@ function defRPrXml(d: ParagraphDefaultRunProps): string {
   return inner ? `<a:defRPr${attrs}>${inner}</a:defRPr>` : `<a:defRPr${attrs}/>`
 }
 
-export function generateRunXml(r: TextRun): string {
+function generateRunXml(r: TextRun): string {
   if (r.rawXml) return r.rawXml
   // Soft-break sentinel → <a:br/>; embedded "\n" in text (new editor Shift+Enter input) splits into alternating run+br
   if (isSoftBreakRun(r)) return '<a:br/>'
@@ -915,10 +908,7 @@ export function generateRunXml(r: TextRun): string {
         : ''
   // Run-level hyperlink: rId written back (allocated by ensureRunLinkRels for links set this session)
   const hlink = hlinkXml(r)
-  // <a:rtl> sits after the font slots and the hyperlink, before a:extLst
-  // (CT_TextCharacterProperties order); rtl=0 is the explicit "off" override
-  const rtl = r.rtl != null ? (r.rtl ? '<a:rtl/>' : '<a:rtl val="0"/>') : ''
-  const rprInner = ln + color + highlight + font + hlink + rtl
+  const rprInner = ln + color + highlight + font + hlink
   const rPr = rprInner
     ? `<a:rPr${attrs}>${rprInner}</a:rPr>`
     : attrs
@@ -1707,200 +1697,5 @@ export function patchBodyPrAutofit(
   return xml.replace(
     /<a:normAutofit\b[^>]*?(?:\/>|>\s*<\/a:normAutofit>)/,
     `<a:normAutofit${attrs}/>`,
-  )
-}
-
-/**
- * Shape/picture effects patch: a field set writes that effect, null removes it,
- * and an absent field leaves whatever the original bytes carry. Only <a:effectLst>
- * is touched; every other byte of the element is preserved verbatim.
- */
-export interface ElementEffectsPatch {
-  /** <a:outerShdw> (inner: true → <a:innerShdw>); color may carry alpha as #RRGGBBAA */
-  shadow?: {
-    color: string
-    blurRad: number
-    dist: number
-    dirDeg: number
-    inner?: boolean
-    sx?: number
-    sy?: number
-    kxDeg?: number
-    kyDeg?: number
-    algn?: string
-  } | null
-  /** <a:glow>; radius in EMU */
-  glow?: { color: string; radius: number } | null
-  /** <a:reflection>: stA/endA/endPos are raw ST_PositiveFixedPercent (1/1000 %),
-   * blurRad/dist in EMU, dirDeg in degrees */
-  reflection?: {
-    blurRad: number
-    stA: number
-    endA?: number
-    endPos?: number
-    dist?: number
-    dirDeg?: number
-  } | null
-  /** <a:softEdge rad> feather radius (EMU) */
-  softEdge?: number | null
-}
-
-/** #RRGGBB / #RRGGBBAA → <a:srgbClr> (the alpha channel becomes an <a:alpha> child). */
-function effectColorXml(hex: string): string {
-  const m = /^#?([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.exec(hex)
-  const val = (m?.[1] ?? '000000').toUpperCase()
-  const alpha = m?.[2] != null ? Math.round((parseInt(m[2], 16) / 255) * 100000) : 100000
-  return alpha < 100000
-    ? `<a:srgbClr val="${val}"><a:alpha val="${alpha}"/></a:srgbClr>`
-    : `<a:srgbClr val="${val}"/>`
-}
-
-/** ECMA-376 CT_EffectList child order; the list is re-emitted in this order. */
-const EFFECT_ORDER = [
-  'blur',
-  'fillOverlay',
-  'glow',
-  'innerShdw',
-  'outerShdw',
-  'prstShdw',
-  'reflection',
-  'softEdge',
-]
-
-/**
- * In-place <a:effectLst> patch inside a shape/picture's <p:spPr>. Existing
- * children the patch does not mention are kept verbatim; an emptied list is
- * removed entirely. The list is anchored on spPr's OWN children (a:ln and
- * a:blipFill may carry effect lists of their own) and inserted in schema
- * position: after a:ln, before a:scene3d / a:sp3d / a:extLst.
- */
-export function patchElementEffects(originalXml: string, patch: ElementEffectsPatch): string {
-  const spPr = /<p:spPr\b[^>]*>[\s\S]*?<\/p:spPr>/.exec(originalXml)
-  if (!spPr) return originalXml
-  const block = spPr[0]
-  const innerStart = block.indexOf('>') + 1
-  const innerEnd = block.lastIndexOf('</p:spPr>')
-  const children = topLevelChildren(block, innerStart, innerEnd)
-  const lst = children.find((c) => c.name === 'a:effectLst')
-
-  // existing effect children, keyed by local name
-  const effects = new Map<string, string>()
-  if (lst) {
-    const listXml = block.slice(lst.start, lst.end)
-    const listInner = /^<a:effectLst\b[^>]*>([\s\S]*)<\/a:effectLst>$/.exec(listXml)?.[1] ?? ''
-    const childRe = /<a:(\w+)\b(?:[^>]*?\/>|[^>]*>[\s\S]*?<\/a:\1>)/g
-    for (let m = childRe.exec(listInner); m; m = childRe.exec(listInner)) effects.set(m[1]!, m[0])
-  }
-
-  if (patch.shadow !== undefined) {
-    effects.delete('outerShdw')
-    effects.delete('innerShdw')
-    if (patch.shadow !== null) {
-      const s = patch.shadow
-      const base = [
-        s.blurRad ? ` blurRad="${Math.max(0, Math.round(s.blurRad))}"` : '',
-        s.dist ? ` dist="${Math.max(0, Math.round(s.dist))}"` : '',
-        ` dir="${Math.round((((s.dirDeg % 360) + 360) % 360) * 60000)}"`,
-      ].join('')
-      if (s.inner) {
-        effects.set('innerShdw', `<a:innerShdw${base}>${effectColorXml(s.color)}</a:innerShdw>`)
-      } else {
-        // CT_OuterShadowEffect attribute order: blurRad dist dir sx sy kx ky algn
-        const persp = [
-          s.sx != null && s.sx !== 1 ? ` sx="${Math.round(s.sx * 100000)}"` : '',
-          s.sy != null && s.sy !== 1 ? ` sy="${Math.round(s.sy * 100000)}"` : '',
-          s.kxDeg ? ` kx="${Math.round(s.kxDeg * 60000)}"` : '',
-          s.kyDeg ? ` ky="${Math.round(s.kyDeg * 60000)}"` : '',
-          s.algn ? ` algn="${escapeXmlAttr(s.algn)}"` : '',
-        ].join('')
-        effects.set(
-          'outerShdw',
-          `<a:outerShdw${base}${persp}>${effectColorXml(s.color)}</a:outerShdw>`,
-        )
-      }
-    }
-  }
-  if (patch.glow !== undefined) {
-    if (patch.glow === null) effects.delete('glow')
-    else
-      effects.set(
-        'glow',
-        `<a:glow rad="${Math.max(0, Math.round(patch.glow.radius))}">${effectColorXml(patch.glow.color)}</a:glow>`,
-      )
-  }
-  if (patch.reflection !== undefined) {
-    if (patch.reflection === null) effects.delete('reflection')
-    else {
-      const r = patch.reflection
-      // CT_ReflectionEffect attr order: blurRad stA … endA endPos dist dir …
-      // the alpha/position values are already ST_PositiveFixedPercent
-      const fixed = (v: number) => Math.max(0, Math.min(100000, Math.round(v)))
-      const attrs = [
-        r.blurRad ? ` blurRad="${Math.max(0, Math.round(r.blurRad))}"` : '',
-        ` stA="${fixed(r.stA)}"`,
-        r.endA != null ? ` endA="${fixed(r.endA)}"` : '',
-        r.endPos != null ? ` endPos="${fixed(r.endPos)}"` : '',
-        r.dist ? ` dist="${Math.max(0, Math.round(r.dist))}"` : '',
-        r.dirDeg != null ? ` dir="${Math.round((((r.dirDeg % 360) + 360) % 360) * 60000)}"` : '',
-      ].join('')
-      effects.set('reflection', `<a:reflection${attrs}/>`)
-    }
-  }
-  if (patch.softEdge !== undefined) {
-    if (patch.softEdge === null) effects.delete('softEdge')
-    else effects.set('softEdge', `<a:softEdge rad="${Math.max(0, Math.round(patch.softEdge))}"/>`)
-  }
-
-  const inner = [...effects.entries()]
-    .sort((a, b) => EFFECT_ORDER.indexOf(a[0]) - EFFECT_ORDER.indexOf(b[0]))
-    .map(([, frag]) => frag)
-    .join('')
-  const rebuilt = inner ? `<a:effectLst>${inner}</a:effectLst>` : ''
-
-  let next: string
-  if (lst) {
-    next = block.slice(0, lst.start) + rebuilt + block.slice(lst.end)
-  } else if (rebuilt) {
-    // schema order: effectLst follows a:ln and precedes a:scene3d / a:sp3d / a:extLst
-    const anchor = children.find(
-      (c) => c.name === 'a:scene3d' || c.name === 'a:sp3d' || c.name === 'a:extLst',
-    )
-    const at = anchor ? anchor.start : innerEnd
-    next = block.slice(0, at) + rebuilt + block.slice(at)
-  } else {
-    return originalXml
-  }
-  return originalXml.slice(0, spPr.index) + next + originalXml.slice(spPr.index + block.length)
-}
-
-/**
- * Set (or clear) the <a:bodyPr vert> writing-mode attribute: 'horz' and null
- * both mean horizontal, so vert is removed. The txBody's other attributes and
- * every byte outside the bodyPr start tag are preserved.
- */
-export function patchBodyPrVert(
-  originalXml: string,
-  vert: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null,
-): string {
-  const whole = /<a:bodyPr\b[^>]*?\/>|<a:bodyPr\b[^>]*>[\s\S]*?<\/a:bodyPr>/.exec(originalXml)
-  if (!whole) return originalXml
-  const bodyXml = whole[0]
-  const selfClosing = !bodyXml.includes('</a:bodyPr>')
-  const openEnd = bodyXml.indexOf('>') + 1
-  const openTag = bodyXml.slice(0, openEnd)
-  // the closing '>' of a self-closing tag is followed by the '/'
-  const base = openTag.replace(/\s*\/?>$/, '')
-
-  const patchedOpen =
-    vert === null || vert === 'horz'
-      ? base.replace(/\svert="[^"]*"/, '')
-      : /\svert="[^"]*"/.test(base)
-        ? base.replace(/\svert="[^"]*"/, ` vert="${vert}"`)
-        : `${base} vert="${vert}"`
-  const patched =
-    patchedOpen + (selfClosing ? '/>' : '>') + (selfClosing ? '' : bodyXml.slice(openEnd))
-
-  return (
-    originalXml.slice(0, whole.index) + patched + originalXml.slice(whole.index + bodyXml.length)
   )
 }

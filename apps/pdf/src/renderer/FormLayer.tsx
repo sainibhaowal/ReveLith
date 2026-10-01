@@ -128,7 +128,7 @@ export function FormLayer({
               key={w.id}
               // Focus (⇥ field navigation) must land on the inner trigger button
               ref={(element) =>
-                registerControl?.(w.id, element?.querySelector<HTMLElement>('.rv-dd-btn') ?? null)
+                registerControl?.(w.id, element?.querySelector<HTMLElement>('.gs-dd-btn') ?? null)
               }
               className={`pdf-form-select${missing ? ' is-required-empty' : ''}${active}`}
               style={{ ...style, fontSize: Math.max(9, Math.min(14, style.height * 0.55)) }}

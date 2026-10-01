@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
-"""Build the ReveLith KR Gothic subset from upstream NanumGothic, metrics untouched.
+"""Build ReveLith Gothic KR from upstream NanumGothic, with metrics untouched.
 
-Documents that declare NanumGothic hit the real downloadable face, so a
-reference renderer lays them out with Nanum's own metrics (hangul 0.94em, space
-0.28em, digits 0.606em) while the bundled Batang-normalized subset lays the same
-run out wider (hangul 1.0em, space 0.333em) — roughly 6% per hangul line and 19%
-per space, which shows up as line breaks that drift from the reference. Shipping
-this real-metric derivative closes the gap by construction: the advances are
-NOT modified, only the glyph set is narrowed and the family renamed.
+Documents declaring NanumGothic hit Word's macOS *downloadable* source face
+(a FontServices subset Chromium cannot see), so Word lays out with its real
+metrics (hangul 0.94em, space 0.28, digits 0.606 — M3 probe 2026-08-14) while
+the renderer otherwise substitutes the Batang-normalized subset (hangul
+1.0em, space 0.333): +6.4% per hangul line, +19% per space. Bundling this
+real-metric derivative closes the gap by definition; advances are NOT
+modified.
 
-The subset covers what the KR fallback subsets cover: KS X 1001 syllables plus
-jamo, and Basic Latin / punctuation / fullwidth forms.
-
-Renamed under OFL 1.1: the upstream family and PostScript names are Reserved
-Font Names, and subsetting is itself a modification.
-
+Subset matches the KR fallback subsets: KS X 1001 syllables + jamo + Basic
+Latin/punctuation/fullwidth forms. Renamed per OFL 1.1 because the upstream
+family and PostScript names are Reserved Font Names and subsetting is a
+modification.
 Upstream: https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf
 
 Usage: python3 tools/build-gothic-kr-font.py <NanumGothic-Regular.ttf> [out.woff2]
@@ -27,15 +25,14 @@ from fontTools.subset import Options, Subsetter
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.woff2 import WOFF2FlavorData
 
-DEFAULT_OUT = "apps/docs/src/renderer/fonts/ReveLithGothicKR-Regular-subset.woff2"
+DEFAULT_OUT = "apps/docs/src/renderer/fonts/RevelithGothicKR-Regular-subset.woff2"
 FAMILY = "ReveLith Gothic KR"
-PS_NAME = "ReveLithGothicKR-Regular"
-PS_PREFIX = "ReveLithGothicKR"
+PS_NAME = "RevelithGothicKR-Regular"
+PS_PREFIX = "RevelithGothicKR"
 PRIMARY_NAME_IDS = {1, 2, 3, 4, 6, 16, 17, 18, 20, 21, 22, 25}
 
 
 def ksx1001_syllables() -> set[int]:
-    """Every codepoint the KS X 1001 EUC-KR index decodes to."""
     cps = set()
     for hi in range(0xB0, 0xC9):
         for lo in range(0xA1, 0xFF):
@@ -47,7 +44,6 @@ def ksx1001_syllables() -> set[int]:
 
 
 def rename_primary_names(font: TTFont) -> None:
-    """Rewrite the primary name IDs in place, on every platform/encoding/language."""
     values = {
         1: FAMILY,
         2: "Regular",
@@ -76,7 +72,6 @@ def rename_primary_names(font: TTFont) -> None:
 
 
 def assert_primary_names(font: TTFont) -> None:
-    """No Reserved Font Name may survive in a name a font matcher can read."""
     for record in font["name"].names:
         if record.nameID not in PRIMARY_NAME_IDS:
             continue
@@ -96,12 +91,12 @@ def main() -> None:
     font = TTFont(str(src), recalcTimestamp=False)
     unicodes = ksx1001_syllables()
     for lo, hi in (
-        (0x1100, 0x11FF),  # Hangul Jamo
-        (0x3130, 0x318F),  # Hangul Compatibility Jamo
-        (0x0020, 0x024F),  # Basic Latin + Latin Extended
-        (0x2000, 0x206F),  # general punctuation
-        (0x3000, 0x303F),  # CJK symbols and punctuation
-        (0xFF00, 0xFFEF),  # halfwidth and fullwidth forms
+        (0x1100, 0x11FF),
+        (0x3130, 0x318F),
+        (0x0020, 0x024F),
+        (0x2000, 0x206F),
+        (0x3000, 0x303F),
+        (0xFF00, 0xFFEF),
     ):
         unicodes.update(range(lo, hi + 1))
     opts = Options()
@@ -114,8 +109,6 @@ def main() -> None:
 
     rename_primary_names(font)
     assert_primary_names(font)
-
-    # the whole point of shipping this face is that these do not move
     upm = font["head"].unitsPerEm
     cmap = font.getBestCmap()
     hmtx = font["hmtx"]
@@ -123,10 +116,9 @@ def main() -> None:
     assert ga and hmtx[ga][0] == round(0.94 * upm), "hangul must keep 0.94em"
     assert hmtx[cmap[0x20]][0] == round(0.28 * upm), "space must keep 0.28em"
     assert hmtx[cmap[0x30]][0] == round(0.606 * upm), "digits must keep 0.606em"
-
     font.flavor = "woff2"
-    # Plain glyf/loca (no woff2 table transform), matching the other bundled
-    # subsets so a test helper can read the tables straight out of the file.
+    # Plain glyf/loca (no woff2 transform), matching the other bundled subsets.
+    # tests/helpers/woff2-metrics.ts reads the tables directly.
     font.flavorData = WOFF2FlavorData(transformedTables=())
     font.save(str(out))
     print(f"{out.name}: {len(font.getGlyphOrder())} glyphs")

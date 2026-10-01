@@ -1,4 +1,4 @@
-﻿# Financial statement formatting guide (financial-formatting)
+# Financial statement formatting guide (financial-formatting)
 
 Applies to balance sheets, income statements, cash flow statements, P&L statements, financial analysis, and other accounting/finance tables. All operations use the `format_range` / `set_cell` / `merge_cells` / `set_hyperlink` DSL; format and content classes can share a batch, structural changes (row/column insertion/deletion) need their own batch.
 
@@ -6,7 +6,7 @@ Applies to balance sheets, income statements, cash flow statements, P&L statemen
 
 - **Lock the currency locale** (prevents `$`→`¥` remapping in Chinese-locale Excel): USD `[$$-409]#,##0`, CNY `[$¥-804]#,##0.00`.
 - **Negatives in red parentheses**: `[$$-409]#,##0;[Red]([$$-409]#,##0)`.
-- **Zero as a dash** (0 displays as `:`; blank means missing data): `[$$-409]#,##0;[Red]([$$-409]#,##0);"-"`.
+- **Zero as a dash** (0 displays as `—`; blank means missing data): `[$$-409]#,##0;[Red]([$$-409]#,##0);"-"`.
 - Numbers **right-aligned**, consistent decimal places within a column; note thousand/million units in the header ("Amount (thousands)").
 
 ```json
@@ -17,7 +17,7 @@ Applies to balance sheets, income statements, cash flow statements, P&L statemen
 ## Hierarchy visualization
 
 - Parent line items **bold**; child items express the parent-child relationship via format_range's `indent` field (+1 per level, effective both on screen and in the file).
-- Do not simulate indentation with leading spaces : spaces pollute the cell text and break lookups and formula references.
+- Do not simulate indentation with leading spaces — spaces pollute the cell text and break lookups and formula references.
 
 ```json
 {"op":"set_cell","sheetId":"s1","address":"A6","value":"Accounts receivable"}
@@ -38,7 +38,7 @@ Bold + light gray fill `#F2F2F2`, separated with a thin top border + double bott
 
 ## Headers
 
-- Section titles (e.g. "Balance Sheet"): **merged across columns + centered + bold + visually larger (compensate with bold : this app does not change font size for this)**.
+- Section titles (e.g. "Balance Sheet"): **merged across columns + centered + bold + visually larger (compensate with bold — this app does not change font size for this)**.
 - Period columns ("FY2024 | FY2023 | FY2022"): bold + centered, separated with a medium bottom border.
 
 ```json

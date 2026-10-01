@@ -1,19 +1,18 @@
 /**
- * Headless-export mode: a process started by the CLI to convert a file without
- * a window (`--headless-export`). Only a process flag decides this, so a normal
- * launch is never affected.
+ * Process-wide "no user is watching" flag, set once by the shell's
+ * `--headless-export` entry before any editor module boots.
+ *
+ * The editor modules share one bundle inside the shell, so a single module
+ * variable is enough. Everything that would steal focus or spawn UI after a
+ * successful write (opening the exported PDF in a tab, revealing it in the
+ * file manager) checks this first.
  */
-const HEADLESS_FLAG = '--headless-export'
+let headless = false
 
-/** True when this process was started to export one file and exit. */
-export function isHeadlessMode(): boolean {
-  return process.argv.includes(HEADLESS_FLAG)
+export function setHeadlessMode(on: boolean): void {
+  headless = on
 }
 
-/** The `--headless-export=<format>` value, when the flag carries one. */
-export function headlessExportFormatArg(): string | null {
-  for (const arg of process.argv) {
-    if (arg.startsWith(`${HEADLESS_FLAG}=`)) return arg.slice(HEADLESS_FLAG.length + 1)
-  }
-  return null
+export function isHeadlessMode(): boolean {
+  return headless
 }

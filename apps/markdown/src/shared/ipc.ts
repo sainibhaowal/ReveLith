@@ -1,6 +1,11 @@
 import type { AiPanelPrefs } from '@revelith/ui'
 import type { Lang } from '@revelith/i18n'
-import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@revelith/ai-provider'
+import type {
+  AiSettings,
+  AiStreamChunk,
+  AiStreamRequest,
+  ReveLithAccountStatus,
+} from '@revelith/ai-provider'
 import type { ExportImageMime } from './export-image-mime'
 
 export const MAX_PASTED_IMAGE_BYTES = 50 * 1024 * 1024
@@ -81,6 +86,7 @@ export type SaveMarkdownResult =
 /** AI channels are app-wide shared ipcMain handlers (shell registers via docs-main registerAiIpc); pass-through only */
 export const AI_CHANNELS = {
   getSettings: 'ai:get-settings',
+  gskStatus: 'ai:gsk-status',
   stream: 'ai:stream',
   streamChunk: 'ai:stream-chunk',
   streamCancel: 'ai:stream-cancel',
@@ -216,6 +222,8 @@ export interface MarkdownApi {
    *  clicks produce no DOM event here) — dismiss open popovers */
   onChromePressed(handler: () => void): () => void
   getAiSettings(): Promise<AiSettings>
+  /** ReveLith login state (shell-registered ai:gsk-status) — gates generate_image with the cloud-tools toggle */
+  aiGskStatus(): Promise<ReveLithAccountStatus>
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
@@ -225,7 +233,7 @@ export interface MarkdownApi {
   imageSearch(query: string, maxResults?: number): Promise<ImageSearchResult>
   /** Download an image URL in the main process (CORS-free, scheme/target validated) */
   fetchImage(url: string): Promise<{ base64: string; mime: string } | null>
-  /** Image generation through the configured provider (markdown-owned channel) */
+  /** ReveLith cloud image generation (markdown-owned channel, gsk login required) */
   aiGenerateImage(op: { prompt: string; aspectRatio?: string }): Promise<{
     url?: string
     error?: string

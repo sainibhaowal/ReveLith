@@ -27,18 +27,6 @@ export interface ChatAttachment {
   sizeBytes?: number
 }
 
-/**
- * Scope quote recorded with a user message: the selection (or explicit page
- * / range) the turn was asked about, shown as a chip above the restored
- * message so the reader knows what the reply referred to. Display-only.
- */
-export interface ChatScope {
-  /** the quoted text; absent when the selection was too large to quote */
-  text?: string | undefined
-  /** where the selection sits, e.g. "Page 3" or "Lines 10-24" */
-  label?: string | undefined
-}
-
 // ────────────────────────────────────────────────────────────
 // Message structures
 // ────────────────────────────────────────────────────────────
@@ -60,8 +48,14 @@ export interface ChatMessage {
   tools?: ToolActivity[]
   /** Attachment metadata of a user message */
   attachments?: ChatAttachment[]
-  /** Scope quote of a user message (which selection the turn was asked about) */
+  /** Document selection a user message targeted */
   scope?: ChatScope
+}
+
+/** What a user message was scoped to: a caption plus an excerpt of the selected content */
+export interface ChatScope {
+  label: string
+  text?: string
 }
 
 // ────────────────────────────────────────────────────────────

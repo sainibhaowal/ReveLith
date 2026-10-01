@@ -4,7 +4,8 @@ declare module '*?asset' {
   export default path
 }
 
-declare module 'pdf-parse'
-declare module 'mammoth'
-declare module 'xlsx'
-declare module 'pptxgenjs'
+/** electron-vite bundles the module as its own chunk and returns its runtime path (worker threads) */
+declare module '*?modulePath' {
+  const path: string
+  export default path
+}

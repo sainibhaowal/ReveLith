@@ -1,4 +1,4 @@
-/** Search result types and shared constants (used by both the index and gsk backends) */
+/** Search result types and shared constants. */
 
 export interface WebSearchResult {
   title: string
@@ -18,15 +18,8 @@ export interface ImageSearchResult {
 // Known stock-photo hosts skipped during image search (matches the upstream filter list)
 export const COPYRIGHT_HOSTS = ['gettyimages', 'istockphoto', 'shutterstock', 'corbis']
 
-/**
- * True when an image URL lives on a stock-photo host. Scoped to the hostname
- * (not a full-URL substring): a blog image whose *path* merely mentions a
- * stock site ("…/shutterstock-review.png") is kept, while host matching keeps
- * the previous behavior (gettyimages.com and its subdomains stay blocked).
- */
 const SECOND_LEVEL_SUFFIXES = new Set(['co', 'com', 'org', 'net', 'ac', 'gov', 'edu'])
 
-/// 'shutterstock' for shutterstock.com, sub.shutterstock.co.uk, ...
 function registrableLabel(labels: string[]): string | undefined {
   if (labels.length < 2) return undefined
   const tld = labels[labels.length - 1]!
@@ -42,10 +35,7 @@ export function isCopyrightHost(imageUrl: string): boolean {
   const labels = host.split('.')
   return COPYRIGHT_HOSTS.some((entry) => {
     const d = entry.toLowerCase()
-    // Exact host or subdomain suffix match.
     if (host === d || host.endsWith('.' + d)) return true
-    // Bare stock names match the registrable domain label, so
-    // myshutterstock.com stays allowed while sub.shutterstock.com stays blocked.
     return registrableLabel(labels) === d
   })
 }
@@ -73,11 +63,6 @@ export function firstItem(v: unknown): unknown {
 
 let explicitProxyUrl = ''
 
-/**
- * Proxy resolved by the apps' proxy bootstraps (env vars, else the system
- * proxy via session.resolveProxy); consumed by gskChildEnv() and the login
- * flow's proxy fallback.
- */
 export function setGskProxyUrl(url: string): void {
   explicitProxyUrl = url
 }

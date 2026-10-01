@@ -1320,8 +1320,6 @@ export interface TableModel {
   }
   /** floating table (w:tblpPr): text wraps around the side opposite the anchor */
   floatSide?: 'left' | 'right' | null
-  /** Floating table positioning (w:tblpPr); absent = inline table */
-  floating?: TableFloating
   /** per-row height (twips, w:trHeight; null = not set), aligned with rows */
   rowHeightsTwips?: Array<number | null>
   /** per-row height rule (w:trHeight w:hRule; absent/legacy models = atLeast), aligned with rows */
@@ -1343,25 +1341,6 @@ export interface TableModel {
   tableLook?: TableLook
   /** RTL table (tblPr w:bidiVisual): columns display right to left */
   bidiVisual?: boolean
-}
-
-/** Floating table positioning (w:tblpPr + w:tblOverlap); absent = inline table. */
-export interface TableFloating {
-  horizAnchor: 'margin' | 'page' | 'text'
-  /** absolute offset (twips); absent when xSpec positions relatively */
-  xTwips?: number
-  xSpec?: 'left' | 'center' | 'right' | 'inside' | 'outside'
-  vertAnchor: 'margin' | 'page' | 'text'
-  /** absolute offset (twips); absent when ySpec positions relatively */
-  yTwips?: number
-  ySpec?: 'top' | 'center' | 'bottom' | 'inside' | 'outside'
-  /** allow overlap with other floating objects (w:tblOverlap) */
-  overlap?: 'never' | 'overlap'
-  /** exclusion margins (twips) */
-  topFromTextTwips?: number
-  bottomFromTextTwips?: number
-  leftFromTextTwips?: number
-  rightFromTextTwips?: number
 }
 
 /**

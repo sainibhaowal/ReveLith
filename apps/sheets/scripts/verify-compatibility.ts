@@ -1,4 +1,4 @@
-﻿import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 import { applyPlanToXlsx } from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
@@ -90,7 +90,7 @@ async function verifyCase(entry: CorpusCase): Promise<FixtureReport> {
     const changedEntries = mutation.afterEntries
       .filter((e) => beforeByPath.get(e.path) !== e.sha256)
       .map((e) => e.path)
-    // entries that vanished from the package are preservation failures too :
+    // entries that vanished from the package are preservation failures too —
     // hash comparison alone never sees them because they have no after-entry
     const removedEntries = mutation.beforeEntries
       .filter((e) => !afterPaths.has(e.path))

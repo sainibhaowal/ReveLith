@@ -2,7 +2,7 @@ import { aiPanelWidthAtPointer, AiPanelSideButton } from '@revelith/ui'
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactElement, ReactNode } from 'react'
 import { AgentLoop, composeSkills, streamText } from '@revelith/agent-core'
-import { imageGenerationAvailable, type AiSettings } from '@revelith/ai-provider'
+import { imageGenerationAvailable, type AiSettings } from '@revelith/ai-provider/browser'
 import {
   AiComposer,
   AiScopeQuote,
@@ -187,15 +187,15 @@ export function AiPanel({
   }, [panelWidth])
 
   const settingsRef = useRef<AiSettings | null>(null)
-  /** image-generation availability, re-read from the saved provider settings */
-  const imageGenAvailableRef = useRef(false)
+  /** gsk login state for the generate_image gate (refreshed on mount and window focus) */
+  const gskLoggedInRef = useRef(false)
   useEffect(() => {
     let alive = true
     const refresh = () => {
       void window.markdownApi
-        .getAiSettings?.()
+        .aiGskStatus?.()
         .then((s) => {
-          if (alive && s) imageGenAvailableRef.current = imageGenerationAvailable(s)
+          if (alive) gskLoggedInRef.current = !!s?.loggedIn
         })
         .catch(() => {})
     }
@@ -366,11 +366,7 @@ export function AiPanel({
             read: () => depsRef.current.getFrontmatter(),
             write: (inner) => depsRef.current.setFrontmatter(inner),
           },
-          () => {
-            // live: settingsRef refreshes on every send; the ref covers first paint
-            const s = settingsRef.current
-            return s ? imageGenerationAvailable(s) : imageGenAvailableRef.current
-          },
+          () => imageGenerationAvailable(settingsRef.current, gskLoggedInRef.current),
           () => ({
             write: (spec, onProgress, signal) => runDocWriterRef.current(spec, onProgress, signal),
           }),
@@ -512,9 +508,7 @@ export function AiPanel({
               isError: tool.isError,
               output: tool.output ? tool.output.slice(0, TOOL_OUTPUT_MAX_CHARS) : undefined,
             })),
-            // a stored scope always has a label (it was required at send time);
-            // a legacy line without one still renders, just untitled
-            ...(m.scope ? { scope: { ...m.scope, label: m.scope.label ?? '' } } : {}),
+            ...(m.scope ? { scope: m.scope } : {}),
           }))
         })
         if (applied && !loopRef.current?.busy) {

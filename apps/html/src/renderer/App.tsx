@@ -8,7 +8,10 @@ import {
   type FindPanelStrings,
   type FindTarget,
 } from '@revelith/ui'
-import { pollUntilReady, runHeadlessRendererExport } from '@revelith/electron-utils/headless-export'
+import {
+  pollUntilReady,
+  runHeadlessRendererExport,
+} from '@revelith/electron-utils/headless-export'
 import { useI18n } from './i18n/locale'
 import { parseDocText, serializeDocText, type Envelope } from './document/envelope'
 import { SourceEditor, type CursorInfo, type SourceEditorHandle } from './source/SourceEditor'
@@ -17,7 +20,6 @@ import { instrumentForPreview } from './preview/instrument'
 import type { ComputedSnapshot, ElementRect, FromInspector } from './preview/inspector-protocol'
 import inspectorSource from './preview/inspector.js?raw'
 import { AiPanel, ReveLithMark, type AiPreset, type HtmlAiDeps } from './ai/AiPanel'
-import { exportHtmlToDocxBytes, bytesToBase64 } from './export/htmlDocxExport'
 import { AiAskPopover, type AnchorRect, type AskMode } from './components/AiAskPopover'
 import {
   EDIT_QUEUE_MAX,
@@ -1166,26 +1168,12 @@ export default function App() {
         deriveAutoFileName(html) ||
         ''
       const request = { html, suggestedName, ...(outPath ? { outPath } : {}) }
-      let result
-      if (format === 'docx') {
-        // Word export converts in the renderer (DOM + in-tree OOXML builder);
-        // main only shows the dialog/headless path and writes the bytes.
-        try {
-          const bytes = await exportHtmlToDocxBytes(html)
-          result = await window.htmlApi.exportDocx({ ...request, base64: bytesToBase64(bytes) })
-        } catch (err) {
-          console.error('[html] docx conversion failed:', err)
-          setNotice(t('exportFailed'))
-          return false
-        }
-      } else {
-        result =
-          format === 'pdf'
-            ? await window.htmlApi.exportPdf(request)
-            : format === 'html'
-              ? await window.htmlApi.exportHtml(request)
-              : await window.htmlApi.exportDocx(request)
-      }
+      const result =
+        format === 'pdf'
+          ? await window.htmlApi.exportPdf(request)
+          : format === 'html'
+            ? await window.htmlApi.exportHtml(request)
+            : await window.htmlApi.exportDocx(request)
       if (!result.ok) {
         console.error('[html] export failed:', result.error)
         setNotice(t('exportFailed'))

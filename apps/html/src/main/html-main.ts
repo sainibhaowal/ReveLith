@@ -41,15 +41,11 @@ import {
   readBodyCapped,
 } from '@revelith/electron-utils'
 import { createI18n, getUiLang } from '@revelith/i18n'
-import {
-  defaultAiSettings,
-  generateImageWithSettings,
-  resolveAiSettings,
-  type AiSettings,
-  type LegacyAiSettings,
-} from '@revelith/ai-provider'
+import { generateImageTool } from '@revelith/ai-search'
 import { parseFileToText } from '@revelith/file-parse'
+import { convertHtmlToDocx } from '../../../../packages/html2docx/src'
 import { atomicWriteFile } from './atomic-write'
+import { ElectronBrowserDriver } from '../../../../packages/html2docx/src/drivers/electron'
 import {
   copyImageIntoOwnedAssets,
   discardPendingOwnedAssets,
@@ -925,6 +921,9 @@ function closePresentViewsOf(ownerWcId: number): void {
   }
 }
 
+/** A4 at 96dpi; html2docx re-measures at the authored width itself when the page asks for more. */
+const HTML2DOCX_VIEWPORT = { width: 794, height: 1123, deviceScaleFactor: 2 }
+
 /** Print the document in a hidden script-free window (sheets-style). Relative assets
  * resolve through html-asset:// against the document's folder, exactly as in the preview. */
 async function renderPrintPdf(
@@ -1547,42 +1546,12 @@ function registerHtmlIpc(): void {
     },
   )
 
-  // Image generation with the user's on-device AI settings file.
-  async function generateImageFromSettingsFile(
-    settingsPath: string,
-    op: { prompt?: unknown; aspectRatio?: unknown },
-  ): Promise<{ url?: string; error?: string }> {
-    try {
-      let stored: Partial<AiSettings> & LegacyAiSettings = {}
-      try {
-        if (existsSync(settingsPath)) {
-          stored = JSON.parse(readFileSync(settingsPath, 'utf-8')) as typeof stored
-        }
-      } catch {
-        /* fall through with defaults */
-      }
-      const settings = resolveAiSettings(stored, defaultAiSettings())
-      const prompt = String(op?.prompt ?? '').trim()
-      if (!prompt) return { error: 'prompt must not be empty' }
-      const r = await generateImageWithSettings(
-        settings,
-        prompt,
-        op?.aspectRatio ? { aspectRatio: String(op.aspectRatio) } : {},
-      )
-      return r.ok ? { url: r.url } : { error: r.error }
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) }
-    }
-  }
-
   // html-owned (like docs:ai-generate-image): the shared ai:* handlers are
-  // shell-registered, but image generation is gated per app. Reads the
-  // on-device AI settings so the dedicated Media & Search backend wins,
-  // falling back to the active chat provider.
+  // shell-registered, but image generation is gated per app
   ipcMain.handle(
     HTML_CHANNELS.aiGenerateImage,
     (_e, op: { prompt?: unknown; aspectRatio?: unknown }) =>
-      generateImageFromSettingsFile(join(app.getPath('userData'), 'ai-settings.json'), {
+      generateImageTool(join(app.getPath('userData'), 'ai-settings.json'), {
         prompt: String(op?.prompt ?? ''),
         aspectRatio: op?.aspectRatio ? String(op.aspectRatio) : undefined,
       }),
@@ -1656,15 +1625,25 @@ function registerHtmlIpc(): void {
       if (docxExportPrepareHook && !(await docxExportPrepareHook(picked.filePath))) {
         return { ok: true, canceled: true }
       }
-      if (typeof request.base64 !== 'string' || !request.base64) {
-        return { ok: false, error: 'html: bad export request (missing document bytes)' }
-      }
+      const workDir = await mkdtemp(join(tmpdir(), 'revelith-html-docx-'))
+      let driver: ElectronBrowserDriver | null = null
       try {
-        await writeFile(picked.filePath, Buffer.from(request.base64, 'base64'))
+        // Same document the preview shows (scripts on, relative assets via html-asset://):
+        // html2docx extracts from the rendered DOM, not from a print.
+        const docPath = savePathByWc.get(e.sender.id)
+        const base = docPath ? assetBaseHref(dirname(docPath)) : null
+        const htmlPath = join(workDir, 'export.html')
+        await writeFile(htmlPath, buildPreviewDocument(request.html, base), 'utf8')
+        driver = await ElectronBrowserDriver.create(HTML2DOCX_VIEWPORT)
+        const { docx } = await convertHtmlToDocx({ url: pathToFileURL(htmlPath).href }, driver)
+        await writeFile(picked.filePath, docx)
         openExportedDocx(picked.filePath)
         return { ok: true, path: picked.filePath }
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      } finally {
+        await driver?.close()
+        await rm(workDir, { recursive: true, force: true }).catch(() => {})
       }
     },
   )

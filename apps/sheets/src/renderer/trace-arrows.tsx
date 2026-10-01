@@ -1,4 +1,4 @@
-﻿/// Formula auditing overlays: Trace Precedents / Dependents. References are
+/// Formula auditing overlays: Trace Precedents / Dependents. References are
 /// parsed out of formula text (same tokenizer as the streaming closure) and
 /// drawn as arrows in float DOM layers anchored to cell ranges,
 /// so they scroll and zoom with the grid.
@@ -38,7 +38,7 @@ export interface SheetBounds {
 export interface PrecedentResult {
   /// Same-sheet referenced ranges, deduped, in formula order.
   readonly areas: CellArea[]
-  /// References that resolve to another sheet : counted, not drawn.
+  /// References that resolve to another sheet — counted, not drawn.
   readonly offSheet: number
 }
 
@@ -103,7 +103,7 @@ export interface DependentsSource {
 export interface DependentResult {
   /// Formula cells on the active sheet that read the target cell.
   readonly cells: CellPoint[]
-  /// Dependent formulas living on other sheets : counted, not drawn.
+  /// Dependent formulas living on other sheets — counted, not drawn.
   readonly offSheet: number
 }
 

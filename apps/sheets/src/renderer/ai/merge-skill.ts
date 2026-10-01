@@ -1,22 +1,24 @@
+/**
+ * AI-driven workbook merging: the user
+ * attaches spreadsheet files in the chat and asks the assistant to combine
+ * them. The heavy lifting stays engine-side — the tool imports every sheet of
+ * the chosen attachments into the current workbook through the same pipeline
+ * as Data ▸ Merge Workbooks, and the model then works on the merged data with
+ * the normal workbook tools (and create_document for new output files).
+ */
 import type { AgentSkill } from '@revelith/agent-core'
-import type {
-  AttachmentMeta,
-  MergeSourcesResult,
-  WorkbookRangeRequest,
-  WorkbookRangeResult,
-} from '../../shared/desktop-api'
-import { mergeSources } from '../merge-workbooks'
-import type { SheetsSkillDeps } from './tools'
+import type { AttachmentMeta } from '../../shared/desktop-api'
+import type { MergeSourcesResult } from '../merge-workbooks'
 
-export const SPREADSHEET_ATTACHMENT_EXTS = new Set(['xlsx', 'xlsm', 'xls', 'csv'])
+export const SPREADSHEET_ATTACHMENT_EXTS = new Set(['xlsx', 'xlsm', 'xls', 'csv', 'tsv'])
 
 const MERGE_SYSTEM_PROMPT = `## Merging attached spreadsheets
-When the user attaches spreadsheet files (xlsx/xlsm/xls/csv) and asks to merge, combine, consolidate, or process them together:
+When the user attaches spreadsheet files (xlsx/xlsm/xls/csv/tsv) and asks to merge, combine, consolidate, or process them together:
 - Call merge_attached_workbooks FIRST. It imports every sheet of the chosen attachments into the current workbook engine-side (fast, exact) and reports the new sheet names. Never reconstruct spreadsheet contents from read_attachment text for merging — that path is lossy and slow.
 - Afterwards the data IS in the current workbook: use get_workbook_context / read_range / aggregate_range on the reported sheets, and create_document to emit new files if the user wants separate outputs.
 - Formulas in the sources arrive as their computed values.`
 
-/** Attachment indexes that are spreadsheets (the tool's default selection) */
+/** attachment indexes that are spreadsheets (the tool's default selection) */
 export function spreadsheetAttachmentIndexes(list: readonly AttachmentMeta[]): number[] {
   const indexes: number[] = []
   for (let index = 0; index < list.length; index += 1) {
@@ -26,63 +28,33 @@ export function spreadsheetAttachmentIndexes(list: readonly AttachmentMeta[]): n
   return indexes
 }
 
-export interface MergeSkillDeps extends SheetsSkillDeps {
+export interface MergeSkillDeps {
   getAttachments(): readonly AttachmentMeta[]
+  mergePaths(paths: string[]): Promise<MergeSourcesResult>
 }
 
-/** Renderer bridge (window in production, absent under node tests) */
-function bridge():
-  | {
-      openWorkbooksForMerge(paths: string[]): Promise<MergeSourcesResult>
-      readWorkbookRange(request: {
-        sessionId: string
-        sheetId: string
-        range: { startRow: number; endRow: number; startColumn: number; endColumn: number }
-      }): Promise<WorkbookRangeResult>
-      closeWorkbook(sessionId: string): Promise<void>
-    }
-  | null {
-  const api = (globalThis as unknown as { window?: { desktopApi?: Record<string, unknown> } }).window
-    ?.desktopApi
-  if (
-    !api ||
-    typeof api.openWorkbooksForMerge !== 'function' ||
-    typeof api.readWorkbookRange !== 'function' ||
-    typeof api.closeWorkbook !== 'function'
-  ) {
-    return null
-  }
-  return api as unknown as {
-    openWorkbooksForMerge(paths: string[]): Promise<MergeSourcesResult>
-    readWorkbookRange(request: {
-      sessionId: string
-      sheetId: string
-      range: { startRow: number; endRow: number; startColumn: number; endColumn: number }
-    }): Promise<WorkbookRangeResult>
-    closeWorkbook(sessionId: string): Promise<void>
-  }
-}
-
-/** AI-driven workbook merging over chat attachments + the Data-pipeline importer. */
 export function createMergeSkill(deps: MergeSkillDeps): AgentSkill {
   return {
-    id: 'merge',
+    id: 'workbook-merge',
     systemPrompt: MERGE_SYSTEM_PROMPT,
     tools: [
       {
         name: 'merge_attached_workbooks',
         description:
-          'Import every sheet of attached spreadsheet files into the current workbook (new sheets, journaled and undoable). ' +
-          'Use it first when the user attaches spreadsheets and asks to merge/combine/process them together; afterwards work on the reported sheets with the normal workbook tools.',
+          'Import every sheet of the attached spreadsheet files (xlsx/xlsm/xls/csv) into the current workbook, engine-side. ' +
+          'Returns the created sheet names. Use this before analyzing or restructuring attached spreadsheet data; ' +
+          'never rebuild attachment contents cell-by-cell from text.',
         inputSchema: {
           type: 'object',
           properties: {
-            attachment_indexes: {
+            indexes: {
               type: 'array',
               items: { type: 'integer' },
-              description: 'Attachment indexes to merge; defaults to all spreadsheet attachments',
+              description:
+                'Attachment indexes to merge (0-based, from the attachment list). Omit to merge every spreadsheet attachment.',
             },
           },
+          required: [],
         },
       },
     ],
@@ -90,59 +62,50 @@ export function createMergeSkill(deps: MergeSkillDeps): AgentSkill {
       if (call.name !== 'merge_attached_workbooks') {
         return { output: `Unknown tool: ${call.name}`, isError: true, summary: call.name }
       }
-      const desktop = bridge()
-      if (!desktop) {
-        return { output: 'desktop bridge unavailable', isError: true, summary: call.name }
-      }
       const list = deps.getAttachments()
-      const picked = Array.isArray(call.input.attachment_indexes)
-        ? (call.input.attachment_indexes as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < list.length)
+      const requested = Array.isArray((call.input as { indexes?: unknown }).indexes)
+        ? ((call.input as { indexes: unknown[] }).indexes.filter(
+            (value) => Number.isInteger(value) && (value as number) >= 0,
+          ) as number[])
         : spreadsheetAttachmentIndexes(list)
-      const paths = [...new Set(picked.map((index) => list[index]!.path))]
+      const paths: string[] = []
+      const skipped: string[] = []
+      for (const index of requested) {
+        const attachment = list[index]
+        if (!attachment) {
+          skipped.push(`#${index} (no such attachment)`)
+        } else if (!SPREADSHEET_ATTACHMENT_EXTS.has(attachment.ext)) {
+          skipped.push(`${attachment.name} (not a spreadsheet)`)
+        } else {
+          paths.push(attachment.path)
+        }
+      }
       if (paths.length === 0) {
         return {
-          output: 'No spreadsheet attachments to merge (attach xlsx/xlsm/xls/csv files first)',
+          output:
+            'No spreadsheet attachments to merge. Ask the user to attach xlsx/xlsm/xls/csv files first.',
           isError: true,
-          summary: 'Merge workbooks',
+          summary: 'merge: no sources',
         }
       }
-      let sources: MergeSourcesResult
       try {
-        sources = await desktop.openWorkbooksForMerge(paths)
-      } catch (error) {
+        const result = await deps.mergePaths(paths)
+        const lines = [
+          `Merged ${result.importedSheets} sheets from ${result.files} files into the current workbook.`,
+          `New sheets: ${result.sheetNames.join(', ')}`,
+          'Source formulas were imported as computed values.',
+        ]
+        if (skipped.length > 0) lines.push(`Skipped: ${skipped.join('; ')}`)
         return {
-          output: `Could not open merge sources: ${error instanceof Error ? error.message : String(error)}`,
-          isError: true,
-          summary: 'Merge workbooks',
+          output: lines.join('\n'),
+          summary: `merged ${result.importedSheets} sheets`,
         }
-      }
-      const outcome = await mergeSources(
-        {
-          existingNames: () => deps.getActiveSheetInfo().sheets.map((sheet) => sheet.name),
-          readSourceRange: async (sessionId, sheetId, range) => {
-            const request: WorkbookRangeRequest = { sessionId, sheetId, range }
-            const result: WorkbookRangeResult = await desktop.readWorkbookRange(request)
-            return result.cells.map((cell) => ({ row: cell.row, column: cell.column, value: cell.value }))
-          },
-          propose: (operations, summary) =>
-            deps.proposeOperations(
-              operations as unknown as Parameters<SheetsSkillDeps['proposeOperations']>[0],
-              summary,
-            ),
-          resolveSheetId: (name) =>
-            deps.getActiveSheetInfo().sheets.find((sheet) => sheet.name === name)?.id ?? null,
-          closeSession: (sessionId) => desktop.closeWorkbook(sessionId),
-        },
-        sources.files,
-      )
-      const lines = outcome.imported.map(
-        (sheet) => `- ${sheet.file} / ${sheet.sheet} → ${sheet.as} (${sheet.cells} cells)`,
-      )
-      for (const skipped of outcome.skipped) lines.push(`- skipped: ${skipped}`)
-      return {
-        output: lines.join('\n') || '(nothing imported)',
-        mutated: outcome.imported.length > 0,
-        summary: 'Merge workbooks',
+      } catch (error: unknown) {
+        return {
+          output: `Merge failed: ${error instanceof Error ? error.message : String(error)}`,
+          isError: true,
+          summary: 'merge failed',
+        }
       }
     },
   }

@@ -1,9 +1,9 @@
-﻿/**
+/**
  * Rule-management panels say what each rule actually does.
  *
  * - List-type data validation names show the actual options (literal lists)
  *   or the source range address, instead of the fixed "from range" wording.
- * - Rules whose formula references #REF! (deleted cells : they can never
+ * - Rules whose formula references #REF! (deleted cells — they can never
  *   trigger) get a visible ⚠ prefix.
  * - Conditional-formatting "custom formula" items show the formula text.
  *   Univer keeps that describe function module-private, so this is a DOM
@@ -40,7 +40,7 @@ function listDetail(formula1: string | undefined): string | null {
 
 function withBrokenBadge(name: string, ...formulas: Array<string | undefined>): string {
   return formulas.some((f) => f && BROKEN_REF.test(f))
-    ? `⚠ ${name} : ${t('appRuleBrokenRef')}`
+    ? `⚠ ${name} — ${t('appRuleBrokenRef')}`
     : name
 }
 
@@ -122,7 +122,7 @@ function enhanceCfPanel(runtime: UniverRuntime): () => void {
       if (formula === undefined) continue
       div.dataset.gsRuleDetail = '1'
       div.textContent = BROKEN_REF.test(formula)
-        ? `⚠ ${label}: ${formula} : ${t('appRuleBrokenRef')}`
+        ? `⚠ ${label}: ${formula} — ${t('appRuleBrokenRef')}`
         : `${label}: ${formula}`
       div.title = div.textContent
       div.classList.remove('univer-truncate')
@@ -137,7 +137,16 @@ function enhanceCfPanel(runtime: UniverRuntime): () => void {
     scheduled = true
     requestAnimationFrame(() => {
       scheduled = false
-      augment()
+      // Purely cosmetic panel decoration: it must never take the app down.
+      // getActiveWorkbook() can throw a redi CircularDependencyError when the
+      // rAF lands while a facade resolution is still on the injector stack
+      // (seen after add_table_column followed by a row delete) — uncaught,
+      // that unmounted the React tree.
+      try {
+        augment()
+      } catch {
+        /* retried on the next mutation */
+      }
     })
   })
   observer.observe(document.body, { childList: true, subtree: true })

@@ -27,4 +27,4 @@ const api: UpdateWindowApi = {
   },
 }
 
-contextBridge.exposeInMainWorld('revelithAppUpdate', api)
+contextBridge.exposeInMainWorld('aiOfficeUpdate', api)

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { growPivotDefinition, recomputePivotData } from '@revelith/xlsx-gateway/domain/pivot-engine'
+import {
+  growPivotDefinition,
+  recomputePivotData,
+} from '@revelith/xlsx-gateway/domain/pivot-engine'
 import {
   createBufferEntrySource,
   planCellEditsToXlsx,
@@ -450,8 +453,8 @@ describe('multi-level column pivots', () => {
       }),
     ])
     const tableXml = plan.added.get('xl/pivotTables/pivotTable1.xml')!
-    expect(tableXml).toContain('<extLst><ext uri="{REVELITH-PIVOT-GROUPINGS}"')
-    expect(tableXml).toContain('revelithPivotGroupings')
+    expect(tableXml).toContain('<extLst><ext uri="{AIO-PIVOT-GROUPINGS}"')
+    expect(tableXml).toContain('aioPivotGroupings')
 
     const definition = parsePivotDefinition(
       tableXml,

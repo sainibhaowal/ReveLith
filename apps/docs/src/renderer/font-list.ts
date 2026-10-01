@@ -1,4 +1,4 @@
-﻿import type { Lang } from '@revelith/i18n'
+import type { Lang } from '@revelith/i18n'
 
 /**
  * Font dropdown candidates grouped by script, ordered per UI language so the
@@ -49,7 +49,7 @@ const EAST_ASIAN_FONT_RE =
 
 /**
  * Which rFonts slot a font-box pick should target: East Asian names go to
- * w:eastAsia, everything else to w:ascii/w:hAnsi : mirroring Word, where
+ * w:eastAsia, everything else to w:ascii/w:hAnsi — mirroring Word, where
  * picking a Latin font never clobbers the Chinese font and vice versa.
  */
 export function isEastAsianFontName(name: string): boolean {
@@ -74,7 +74,7 @@ export function fontFamiliesFor(lang: Lang): readonly string[] {
 /**
  * docDefaults w:eastAsia font for new blank documents, matching what Word
  * ships per market (zh → SimSun, ja → Yu Mincho, ko → Malgun Gothic,
- * zh-TW → PMingLiU). English and every other language return undefined :
+ * zh-TW → PMingLiU). English and every other language return undefined —
  * like en-US Word, whose theme leaves the East Asian slot empty and lets
  * per-script substitution kick in only when CJK text actually appears.
  * Latin default stays Calibri for every language.

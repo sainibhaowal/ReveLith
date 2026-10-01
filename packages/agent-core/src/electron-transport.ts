@@ -59,13 +59,9 @@ export interface IpcTransportOptions<S> {
   timeoutErrorText?(): string
   /** localized message for exhausted credits (errorCode 'credits') */
   creditsErrorText?(): string
-  /**
-   * localized message for network connectivity failures (errorCode 'network',
-   * and transport-level failures that never reached the main process). Without
-   * it a raw transport message would surface in the chat UI.
-   */
+  /** localized message for network connectivity failures (errorCode 'network') */
   networkErrorText?(): string
-  /** localized message when the provider reports itself busy/overloaded */
+  /** localized message for capacity/rate-limit failures (errorCode 'overloaded') */
   overloadedErrorText?(): string
 }
 
@@ -76,15 +72,6 @@ export interface IpcTransportOptions<S> {
  */
 export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTransport {
   const timeoutText = () => options.timeoutErrorText?.() ?? options.unknownErrorText()
-  /**
-   * A failure that never reached the model (bridge rejected, no handler, socket
-   * gone) is a local/connection problem, not something the user can act on in
-   * the provider's dashboard; only a real provider message is passed through.
-   */
-  const startFailureText = (err: unknown) =>
-    err instanceof Error && err.message
-      ? err.message
-      : (options.networkErrorText?.() ?? options.unknownErrorText())
   const sessionId = crypto.randomUUID()
   return {
     stream(request: AgentStreamRequest, cb) {
@@ -127,21 +114,17 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
           cb.onDone()
         } else {
           settle()
-          if (chunk.errorCode === 'timeout') {
-            cb.onError(timeoutText())
-          } else if (chunk.errorCode === 'credits') {
-            cb.onError(options.creditsErrorText?.() ?? chunk.error ?? options.unknownErrorText())
-          } else if (chunk.errorCode === 'overloaded') {
-            cb.onError(options.overloadedErrorText?.() ?? chunk.error ?? options.unknownErrorText())
-          } else if (chunk.errorCode === 'network') {
-            // connectivity failures get the localized wording when the app has one
-            cb.onError(options.networkErrorText?.() ?? chunk.error ?? options.unknownErrorText())
-          } else if (chunk.error) {
-            cb.onError(chunk.error)
-          } else {
-            // no message came back: a dropped connection, not a provider refusal
-            cb.onError(options.networkErrorText?.() ?? options.unknownErrorText())
-          }
+          cb.onError(
+            chunk.errorCode === 'timeout'
+              ? timeoutText()
+              : chunk.errorCode === 'credits'
+                ? (options.creditsErrorText?.() ?? chunk.error ?? options.unknownErrorText())
+                : chunk.errorCode === 'network'
+                  ? (options.networkErrorText?.() ?? chunk.error ?? options.unknownErrorText())
+                  : chunk.errorCode === 'overloaded'
+                    ? (options.overloadedErrorText?.() ?? chunk.error ?? options.unknownErrorText())
+                    : (chunk.error ?? options.unknownErrorText()),
+          )
         }
       })
       armSilence()
@@ -157,10 +140,10 @@ export function createIpcTransport<S>(options: IpcTransportOptions<S>): AgentTra
             tools: request.tools,
           }),
         ).catch((err: unknown) => {
-          fail(startFailureText(err))
+          fail(err instanceof Error ? err.message : options.unknownErrorText())
         })
       } catch (err) {
-        fail(startFailureText(err))
+        fail(err instanceof Error ? err.message : options.unknownErrorText())
       }
       return { cancel: () => options.cancel(requestId) }
     },

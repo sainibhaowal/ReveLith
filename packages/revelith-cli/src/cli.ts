@@ -1,148 +1,262 @@
-/**
- * Dispatch: turn argv into exactly one command run and one line of output.
- *
- * A command owns stdout for the whole run (an MCP server on stdio would be
- * corrupted by anything printed after it), so `quiet` commands suppress the
- * result entirely rather than having it interleaved.
- */
-import { parseArgs } from './args.js'
-import type { ParsedArgs } from './args.js'
-import { infoCommand } from './commands/info.js'
-import { CommandRegistry, commandHelp } from './registry.js'
-import type { CommandDef } from './registry.js'
-import { CliError, EXIT, formatHuman, formatHumanError, toJsonError, toJsonOk } from './result.js'
-import type { CommandResult, Warning } from './result.js'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { flagBool, parseArgs } from './args'
+import { appendAudit } from './audit'
+import { capabilitiesCommand } from './commands/capabilities'
+import { convertCommand } from './commands/convert'
+import { docsCommand } from './commands/docs'
+import { createCommand } from './commands/create'
+import { guideCommand } from './commands/guide'
+import { imageCommand } from './commands/image'
+import { mediaCommand } from './commands/media'
+import { mergeCommand } from './commands/merge'
+import { searchCommand } from './commands/search'
+import { selectionCommand } from './commands/selection'
+import { infoCommand } from './commands/info'
+import { installCommand } from './commands/install'
+import { mcpCommand } from './commands/mcp'
+import { openCommand } from './commands/open'
+import { pdfCommand } from './commands/pdf'
+import { renderCommand } from './commands/render'
+import { sheetCommand } from './commands/sheet'
+import { skillCommand } from './commands/skill'
+import { slidesCommand } from './commands/slides'
+import { CommandRegistry, commandHelp, type CommandContext } from './registry'
+import {
+  CliError,
+  EXIT,
+  formatHuman,
+  formatHumanError,
+  toJsonError,
+  toJsonOk,
+  type ExitCode,
+  type Warning,
+} from './result'
+import { didYouMean } from './suggest'
 
-/** Flags that never take a value, so the next token stays a positional. */
-const BOOLEAN_FLAGS = new Set(['json', 'help', 'version', 'quiet', 'force', 'dry-run'])
+declare const __REVELITH_VERSION__: string | undefined
 
-export const VERSION = '0.10.100'
+/** The @revelith/cli package version: inlined by build.mjs, read from disk when running from source. */
+export const VERSION: string =
+  typeof __REVELITH_VERSION__ === 'string' ? __REVELITH_VERSION__ : devVersion()
 
-export function defaultRegistry(): CommandRegistry {
-  return new CommandRegistry().register(infoCommand)
+function devVersion(): string {
+  try {
+    const dir = typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(import.meta.url))
+    return `${JSON.parse(readFileSync(join(dir, '..', 'package.json'), 'utf-8')).version}-dev`
+  } catch {
+    return '0.0.0-dev'
+  }
 }
 
-export function topLevelHelp(registry: CommandRegistry): string {
+export function defaultRegistry(): CommandRegistry {
+  return new CommandRegistry()
+    .register(infoCommand)
+    .register(convertCommand)
+    .register(createCommand)
+    .register(slidesCommand)
+    .register(sheetCommand)
+    .register(docsCommand)
+    .register(mergeCommand)
+    .register(pdfCommand)
+    .register(renderCommand)
+    .register(guideCommand)
+    .register(searchCommand)
+    .register(imageCommand)
+    .register(mediaCommand)
+    .register(openCommand)
+    .register(selectionCommand)
+    .register(capabilitiesCommand)
+    .register(installCommand)
+    .register(mcpCommand)
+    .register(skillCommand)
+}
+
+export interface RunIo {
+  stdout: (text: string) => void
+  stderr: (text: string) => void
+}
+
+export interface RunOptions {
+  cwd?: string
+  env?: NodeJS.ProcessEnv
+  registry?: CommandRegistry
+  io?: RunIo
+}
+
+/** Runs one invocation; returns the exit code instead of exiting so tests and hosts can embed it. */
+export async function runCli(argv: readonly string[], opts: RunOptions = {}): Promise<ExitCode> {
+  const registry = opts.registry ?? defaultRegistry()
+  const io = opts.io ?? {
+    stdout: (t) => process.stdout.write(t + '\n'),
+    stderr: (t) => process.stderr.write(t + '\n'),
+  }
+  const args = parseArgs(argv, booleanFlags(registry))
+  const json = flagBool(args, 'json')
+  const name = args.positionals.shift() ?? null
+
+  const fail = (err: CliError): ExitCode => {
+    if (json) io.stdout(JSON.stringify(toJsonError(name, err)))
+    else io.stderr(formatHumanError(err))
+    return err.code
+  }
+
+  if (flagBool(args, 'version')) {
+    io.stdout(json ? JSON.stringify({ status: 'ok', version: VERSION }) : `revelith ${VERSION}`)
+    return EXIT.ok
+  }
+  if (name === null || (name === 'help' && args.positionals.length === 0)) {
+    io.stdout(globalHelp(registry))
+    return name === null && !flagBool(args, 'help') ? EXIT.usage : EXIT.ok
+  }
+  const def = registry.get(name === 'help' ? args.positionals[0] : name)
+  if (!def)
+    return fail(
+      new CliError(
+        EXIT.usage,
+        `unknown command: ${name}`,
+        { commands: registry.list().map((d) => d.name) },
+        {
+          reason: 'unknown_command',
+          suggestion: withGuess(
+            didYouMean(
+              name,
+              registry.list().map((d) => d.name),
+            ),
+            'run `revelith help` for the command list',
+          ),
+        },
+      ),
+    )
+  if (name === 'help' || flagBool(args, 'help')) {
+    io.stdout(commandHelp(def))
+    return EXIT.ok
+  }
+  const known = new Set(['json', 'help', 'version', ...(def.options ?? []).map((o) => o.name)])
+  const unknown = Object.keys(args.flags).filter((f) => !known.has(f))
+  if (unknown.length) {
+    return fail(
+      new CliError(
+        EXIT.usage,
+        `unknown option${unknown.length > 1 ? 's' : ''} for ${def.name}: ${unknown.map((f) => `--${f}`).join(', ')}`,
+        { options: [...known].map((f) => `--${f}`) },
+        {
+          reason: 'unknown_option',
+          suggestion: withGuess(
+            didYouMean(unknown[0]!, known),
+            `run \`revelith help ${def.name}\` for its options`,
+            '--',
+          ),
+        },
+      ),
+    )
+  }
+
+  const warnings: Warning[] = []
+  const ctx: CommandContext = {
+    cwd: opts.cwd ?? process.cwd(),
+    env: opts.env ?? process.env,
+    log: (m) => io.stderr(m),
+    warn: (w) => warnings.push(w),
+  }
+  const started = Date.now()
+  const audit = (status: 'ok' | 'error', code: ExitCode, outputPath?: string) =>
+    appendAudit(ctx.env, {
+      command: def.name,
+      argv: redactArgv(argv),
+      status,
+      code,
+      ...(outputPath ? { output_path: outputPath } : {}),
+      ms: Date.now() - started,
+      cwd: ctx.cwd,
+    })
+  try {
+    const run = await def.run(args, ctx)
+    const result = warnings.length
+      ? { ...run, warnings: [...(run.warnings ?? []), ...warnings] }
+      : run
+    audit('ok', EXIT.ok, result.outputPath)
+    const quiet = typeof def.quiet === 'function' ? def.quiet(args) : def.quiet
+    if (!quiet) {
+      io.stdout(json ? JSON.stringify(toJsonOk(def.name, result)) : formatHuman(result))
+    }
+    return EXIT.ok
+  } catch (err) {
+    const error =
+      err instanceof CliError
+        ? err
+        : new CliError(EXIT.conversion, err instanceof Error ? err.message : String(err))
+    audit('error', error.code)
+    return fail(error)
+  }
+}
+
+const SECRET_FLAG = /^--(password|api[-_]?key|token|secret)$/i
+
+/** Secrets never reach the audit log; the flag stays so the call is still recognizable. */
+export function redactArgv(argv: readonly string[]): string[] {
+  const out: string[] = []
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!
+    const eq = arg.indexOf('=')
+    if (eq !== -1 && SECRET_FLAG.test(arg.slice(0, eq))) {
+      out.push(`${arg.slice(0, eq)}=***`)
+      continue
+    }
+    out.push(arg)
+    if (SECRET_FLAG.test(arg) && i + 1 < argv.length) {
+      out.push('***')
+      i++
+    }
+  }
+  return out
+}
+
+function booleanFlags(registry: CommandRegistry): Set<string> {
+  const names = new Set(['json', 'help', 'version'])
+  for (const def of registry.list()) {
+    for (const o of def.options ?? []) if (!o.value) names.add(o.name)
+  }
+  return names
+}
+
+function withGuess(guess: string | undefined, fallback: string, prefix = ''): string {
+  return guess ? `did you mean \`${prefix}${guess}\`? (${fallback})` : fallback
+}
+
+function globalHelp(registry: CommandRegistry): string {
   const defs = registry.list()
   const width = Math.max(...defs.map((d) => d.name.length))
   return [
-    `revelith ${VERSION} — local document tooling (nothing leaves this machine)`,
+    `revelith ${VERSION} — ReveLith command line`,
     '',
-    'Usage:',
-    '  revelith <command> [options]',
+    'Usage: revelith <command> [options]',
     '',
     'Commands:',
     ...defs.map((d) => `  ${d.name.padEnd(width)}  ${d.summary}`),
     '',
-    'Options:',
-    '  --json     Emit one JSON object on stdout instead of human-readable text',
-    '  -h, --help Show help for a command, or this list when no command is given',
-    '  -v, --version  Show version',
+    'Global options:',
+    '  --json     machine-readable output (one JSON object on stdout)',
+    '  --help     show help for a command',
+    '  --version  print the version',
     '',
-    'Run `revelith <command> --help` for the options of one command.',
+    'Exit codes: 0 ok, 1 usage, 2 file, 3 conversion failed, 4 app not available',
+    'Errors (--json): { status, code, error, message, suggestion?, detail? }; error is a stable reason such as unknown_op or target_not_found',
+    'Batches (<domain> apply --ops): atomic by default; --best-effort / --stop-on-error write what applied and answer status "partial" with detail.batch counts',
   ].join('\n')
 }
 
-export interface RunOutcome {
-  code: number
-  /** What to print on stdout. Empty for quiet commands and for errors. */
-  stdout: string
-  /** What to print on stderr, or '' for a clean run. */
-  stderr: string
-}
-
-/**
- * Parse and execute. Returns what to print rather than printing it, so a test
- * can assert on the output and the MCP layer can forward it.
- */
-export async function runCli(
-  argv: readonly string[],
-  registry: CommandRegistry = defaultRegistry(),
-  cwd: string = process.cwd(),
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<RunOutcome> {
-  const args = parseArgs(argv, BOOLEAN_FLAGS)
-  const json = args.flags.json === true
-
-  if (argv.length === 0) {
-    return { code: EXIT.ok, stdout: topLevelHelp(registry), stderr: '' }
-  }
-
-  const name = args.positionals[0]
-  const def = name ? registry.get(name) : undefined
-
-  if (!def) {
-    // No `detail`: the name is already the message and, in --json, the
-    // top-level `command` field. Repeating it just prints a bare object.
-    const err = new CliError(
-      EXIT.usage,
-      name ? `unknown command: ${name}` : 'no command given',
-      undefined,
-      {
-        reason: 'unknown_command',
-        suggestion: 'run `revelith --help` for the command list',
-      },
+const isMain =
+  typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module
+if (isMain) {
+  // stdout is async on a pipe: exiting right after write() drops everything past the
+  // 64 KiB pipe buffer, so a `--json` consumer would see a cut JSON object
+  const exit = (code: number) => process.stdout.write('', () => process.exit(code))
+  runCli(process.argv.slice(2)).then(exit, (err) => {
+    process.stderr.write(
+      `revelith: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`,
     )
-    return { code: err.code, stdout: '', stderr: renderError(err, json, name ?? null) }
-  }
-
-  if (args.flags.help) {
-    return { code: EXIT.ok, stdout: commandHelp(def), stderr: '' }
-  }
-
-  const warnings: Warning[] = []
-  // The command name is argv[0] and belongs to the dispatcher, not the
-  // command: a command's first positional is its first operand, so a file
-  // argument must not be off by one.
-  const operands: ParsedArgs = { positionals: args.positionals.slice(1), flags: args.flags }
-  const ctx = {
-    cwd,
-    env,
-    // Progress belongs on stderr: stdout is reserved for the single result
-    // object, and a caller parsing it must not trip over a status line.
-    log: (message: string) => {
-      if (!json) process.stderr.write(`${message}\n`)
-    },
-    warn: (warning: Warning) => {
-      warnings.push(warning)
-    },
-  }
-
-  try {
-    const result: CommandResult = await def.run(operands, ctx)
-    // Context warnings come first, then the command's own. The key is omitted
-    // entirely when empty so the JSON does not carry a bare [] on every run.
-    const allWarnings = [...warnings, ...(result.warnings ?? [])]
-    const merged: CommandResult = { ...result }
-    if (allWarnings.length > 0) merged.warnings = allWarnings
-    if (isQuiet(def, operands)) return { code: EXIT.ok, stdout: '', stderr: '' }
-    return { code: EXIT.ok, stdout: renderOk(def.name, merged, json), stderr: '' }
-  } catch (err) {
-    if (err instanceof CliError) {
-      return { code: err.code, stdout: '', stderr: renderError(err, json, def.name) }
-    }
-    // An unexpected throw is a bug, not a user error: report it as such rather
-    // than dressing it as a bad argument, but still keep stdout clean.
-    const wrapped = new CliError(EXIT.app, (err as Error).message ?? String(err), undefined, {
-      reason: 'app_unavailable',
-    })
-    return { code: wrapped.code, stdout: '', stderr: renderError(wrapped, json, def.name) }
-  }
-}
-
-function isQuiet(def: CommandDef, args: ReturnType<typeof parseArgs>): boolean {
-  if (typeof def.quiet === 'function') return def.quiet(args)
-  return def.quiet === true
-}
-
-function renderOk(name: string, result: CommandResult, json: boolean): string {
-  if (json) return JSON.stringify(toJsonOk(name, result), null, 2)
-  // A partial run must be visible without reading the JSON: the exit code is
-  // still 0 (the file was written) but the human must not miss the losses.
-  const body = formatHuman(result)
-  return result.status === 'partial' ? `${body}\n  (partial: some input was not applied)` : body
-}
-
-function renderError(err: CliError, json: boolean, command: string | null): string {
-  return json ? JSON.stringify(toJsonError(command, err), null, 2) : formatHumanError(err)
+    exit(EXIT.conversion)
+  })
 }

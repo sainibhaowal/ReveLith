@@ -5,8 +5,8 @@ import type { StringKey } from './locale'
 import './onboarding.css'
 
 interface OnboardingProps {
-  /** called when the user finishes the last slide or clicks skip */
-  onDone: () => void
+  /** persists completion; analytics remains enabled unless opted out in Settings */
+  onDone: () => Promise<boolean>
 }
 
 interface Slide {
@@ -17,19 +17,25 @@ interface Slide {
   bodyKey?: StringKey
   /** render the body in the dimmer footnote gray (slide 3's credits disclaimer) */
   bodyDim?: boolean
-  /** community slide shows the credits offer panel with the "Join Community" call-to-action */
+  /** community slide shows the credits offer panel with the "Join GenTeam" call-to-action */
   showOffer?: boolean
+  /** closing slide shows the "star us on GitHub" hint */
+  showStar?: boolean
+  /** closing slide explains default-on analytics and how to disable it */
+  showAnalyticsNotice?: boolean
   art: 'logo' | 'gift' | 'check'
 }
 
 const SLIDES: readonly Slide[] = [
   { titleKey: 'onbTitle1', subtitleKey: 'onbSubtitle1', bodyKey: 'onbBody1', art: 'logo' },
-  { titleKey: 'onbTitle2', subtitleKey: 'onbBody2', art: 'gift' },
+  { titleKey: 'onbTitle2', subtitleKey: 'onbBody2', showOffer: true, art: 'gift' },
   {
     titleKey: 'onbTitle3',
     subtitleKey: 'onbBody3',
     bodyKey: 'onbNote3',
     bodyDim: true,
+    showStar: true,
+    showAnalyticsNotice: true,
     art: 'check',
   },
 ]
@@ -42,7 +48,7 @@ function renderEmphasis(text: string) {
 }
 
 /* exact vectors from the design spec:
- * 60px canvas, 4px strokes : same visual mass as the 60px app icon */
+ * 60px canvas, 4px strokes — same visual mass as the 60px app icon */
 function SlideArt({ kind }: { kind: Slide['art'] }) {
   if (kind === 'logo') {
     return <img className="onb-art onb-art-logo" src={appIcon} alt="" />
@@ -89,13 +95,22 @@ function SlideArt({ kind }: { kind: Slide['art'] }) {
 export function Onboarding({ onDone }: OnboardingProps) {
   const { t } = useI18n()
   const [index, setIndex] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const slide = SLIDES[index]
   const isLast = index === SLIDES.length - 1
 
+  const finish = () => {
+    if (submitting) return
+    setSubmitting(true)
+    void onDone()
+      .catch(() => false)
+      .finally(() => setSubmitting(false))
+  }
+
   const next = () => {
-    if (isLast) onDone()
-    else setIndex(index + 1)
+    if (isLast) finish()
+    else setIndex((current) => current + 1)
   }
 
   // move focus into the dialog on mount so keyboard users start inside it
@@ -105,7 +120,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
   }, [])
 
   // slide changes can strip focus from the active control (leaving slide 2
-  // makes its community button inert, which blurs it) : pull focus back onto the
+  // makes its GenTeam button inert, which blurs it) — pull focus back onto the
   // card so it never drops to body
   useEffect(() => {
     const card = cardRef.current
@@ -119,14 +134,14 @@ export function Onboarding({ onDone }: OnboardingProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onDone()
+        finish()
         return
       }
       if (event.key === 'Tab') {
         const card = cardRef.current
         if (!card) return
         // inactive slides stay mounted (stacked for the height lock) but are
-        // inert : their buttons must not enter the tab cycle
+        // inert — their buttons must not enter the tab cycle
         const focusables = Array.from(card.querySelectorAll<HTMLElement>('button')).filter(
           (el) => !el.closest('[inert]'),
         )
@@ -177,14 +192,39 @@ export function Onboarding({ onDone }: OnboardingProps) {
               {s.bodyKey && (
                 <p className={`onb-body${s.bodyDim ? ' onb-body-dim' : ''}`}>{t(s.bodyKey)}</p>
               )}
+              {s.showStar && (
+                <div className="onb-star">
+                  <p className="onb-star-hint">{t('onbStarHint')}</p>
+                  <button
+                    className="onb-star-btn"
+                    onClick={() => void window.aiOffice.openGitHubRepo()}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.3l-5.8 3.1 1.1-6.5L2.6 9.3l6.5-.9L12 2.5z" />
+                    </svg>
+                    {t('starOnGitHub')}
+                  </button>
+                </div>
+              )}
+              {s.showAnalyticsNotice && (
+                <div className="onb-consent">
+                  <span className="onb-consent-copy">
+                    <span className="onb-consent-title">{t('setAnalytics')}</span>
+                    <span className="onb-consent-desc">{t('setAnalyticsDesc')}</span>
+                  </span>
+                </div>
+              )}
               {s.showOffer && (
                 <div className="onb-offer">
                   <p className="onb-credits">{renderEmphasis(t('onbCredits'))}</p>
-                  <button
-                    className="onb-join"
-                    onClick={() => void window.revelithApp.openCommunity()}
-                  >
-                    {t('onbJoinCommunity')}
+                  <button className="onb-join" onClick={() => void window.aiOffice.openGenTeam()}>
+                    {t('onbJoinGenTeam')}
                     <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                       <path
                         d="M3.5 8.5 8.5 3.5M4.5 3.5h4v4"
@@ -214,15 +254,19 @@ export function Onboarding({ onDone }: OnboardingProps) {
             ))}
           </div>
           <div className="onb-nav">
-            <button className="onb-skip" onClick={onDone}>
+            <button className="onb-skip" disabled={submitting} onClick={finish}>
               {t('onbSkip')}
             </button>
             {index > 0 && (
-              <button className="onb-back" onClick={() => setIndex(index - 1)}>
+              <button
+                className="onb-back"
+                disabled={submitting}
+                onClick={() => setIndex(index - 1)}
+              >
                 {t('onbBack')}
               </button>
             )}
-            <button className="onb-next" onClick={next}>
+            <button className="onb-next" disabled={submitting} onClick={next}>
               {isLast ? t('onbStart') : t('onbNext')}
             </button>
           </div>

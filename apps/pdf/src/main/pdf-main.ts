@@ -28,13 +28,7 @@ import {
   rendererUrl,
 } from '@revelith/electron-utils'
 import { createI18n, getUiLang } from '@revelith/i18n'
-import {
-  defaultAiSettings,
-  generateImageWithSettings,
-  resolveAiSettings,
-  type AiSettings,
-  type LegacyAiSettings,
-} from '@revelith/ai-provider'
+import { generateImageTool } from '@revelith/ai-search'
 import { PDF_CHANNELS } from '../shared/ipc'
 import { buildExportImagePaths, hasValidExportPageNumbers } from './export-images'
 import type {
@@ -1533,40 +1527,12 @@ function registerPdfIpc(): void {
     },
   )
 
-  // Image generation with the user's on-device AI settings file.
-  async function generateImageFromSettingsFile(
-    settingsPath: string,
-    op: { prompt?: unknown; aspectRatio?: unknown },
-  ): Promise<{ url?: string; error?: string }> {
-    try {
-      let stored: Partial<AiSettings> & LegacyAiSettings = {}
-      try {
-        if (existsSync(settingsPath)) {
-          stored = JSON.parse(readFileSync(settingsPath, 'utf-8')) as typeof stored
-        }
-      } catch {
-        /* fall through with defaults */
-      }
-      const settings = resolveAiSettings(stored, defaultAiSettings())
-      const prompt = String(op?.prompt ?? '').trim()
-      if (!prompt) return { error: 'prompt must not be empty' }
-      const r = await generateImageWithSettings(
-        settings,
-        prompt,
-        op?.aspectRatio ? { aspectRatio: String(op.aspectRatio) } : {},
-      )
-      return r.ok ? { url: r.url } : { error: r.error }
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) }
-    }
-  }
-
   // pdf-owned (unlike ai:image-search / ai:fetch-image, which the shell registers app-wide):
   // slides' ai:generate-image is only registered once a slides view exists, so pdf needs its own
   ipcMain.handle(
     PDF_CHANNELS.generateImage,
     (_e, op: { prompt?: unknown; aspectRatio?: unknown }) =>
-      generateImageFromSettingsFile(join(app.getPath('userData'), 'ai-settings.json'), {
+      generateImageTool(join(app.getPath('userData'), 'ai-settings.json'), {
         prompt: String(op?.prompt ?? ''),
         aspectRatio: op?.aspectRatio ? String(op.aspectRatio) : undefined,
       }),

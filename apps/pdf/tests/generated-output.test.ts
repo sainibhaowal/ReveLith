@@ -17,7 +17,6 @@ describe('uniqueGeneratedPdfPath', () => {
   })
 
   it('sanitizes characters that are invalid in file names', () => {
-    // a colon must be replaced, not read as a Windows drive designator
     expect(uniqueGeneratedPdfPath('/save', 'a:b?.pdf', () => false)).toBe(join('/save', 'a_b_.pdf'))
   })
 })

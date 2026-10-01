@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import type { JSZipObject } from 'jszip'
 import { LAZY_MEDIA_PLACEHOLDER_BYTES, lazyMediaHashOf, lazyMediaUrl } from './lazy-media'
-import { parseCustGeom } from '../../pptx-engine/src/custgeom'
+import { parseCustGeom } from '@revelith/pptx-engine/custgeom'
 import { parseChartPartXml } from './chart'
 import { findInkRuns, stripInkRuns } from './ink'
 import { isMetafileMime, metafileToDataUrl } from './metafile'
@@ -62,7 +62,6 @@ import type {
   StyleInfo,
   TableStyleDisplay,
   TableBorders,
-  TableFloating,
   TableCell,
   TableModel,
   TextboxDisplay,
@@ -4522,72 +4521,6 @@ function tableSummary(xml: string): { label: string; previewText: string } {
  * @param docOffset the table's document.xml offset: cell paragraphs resolve
  *   their character-unit indents under that section's document grid
  */
-/** w:tblpPr -> floating-table model; null when absent or unusable. */
-function tableFloatingOf(node: XNode | undefined): TableFloating | null {
-  if (!node) return null
-  const a = attrsOf(node)
-  const horizAnchor = a['w:horzAnchor']
-  const vertAnchor = a['w:vertAnchor']
-  if (
-    horizAnchor !== 'margin' &&
-    horizAnchor !== 'page' &&
-    horizAnchor !== 'text' &&
-    vertAnchor !== 'margin' &&
-    vertAnchor !== 'page' &&
-    vertAnchor !== 'text'
-  ) {
-    return null
-  }
-  const num = (v: string | undefined): number | undefined => {
-    const n = Number(v)
-    return Number.isFinite(n) ? n : undefined
-  }
-  const xSpec = a['w:tblpXSpec']
-  const ySpec = a['w:tblpYSpec']
-  const floating: TableFloating = {
-    horizAnchor:
-      horizAnchor === 'margin' || horizAnchor === 'page' || horizAnchor === 'text'
-        ? horizAnchor
-        : 'page',
-    vertAnchor:
-      vertAnchor === 'margin' || vertAnchor === 'page' || vertAnchor === 'text'
-        ? vertAnchor
-        : 'page',
-  }
-  const xTwips = num(a['w:tblpX'])
-  if (xTwips !== undefined) floating.xTwips = xTwips
-  if (
-    xSpec === 'left' ||
-    xSpec === 'center' ||
-    xSpec === 'right' ||
-    xSpec === 'inside' ||
-    xSpec === 'outside'
-  ) {
-    floating.xSpec = xSpec
-  }
-  const yTwips = num(a['w:tblpY'])
-  if (yTwips !== undefined) floating.yTwips = yTwips
-  if (
-    ySpec === 'top' ||
-    ySpec === 'center' ||
-    ySpec === 'bottom' ||
-    ySpec === 'inside' ||
-    ySpec === 'outside'
-  ) {
-    floating.ySpec = ySpec
-  }
-  for (const [attr, key] of [
-    ['w:topFromText', 'topFromTextTwips'],
-    ['w:bottomFromText', 'bottomFromTextTwips'],
-    ['w:leftFromText', 'leftFromTextTwips'],
-    ['w:rightFromText', 'rightFromTextTwips'],
-  ] as const) {
-    const n = num(a[attr])
-    if (n !== undefined && n >= 0) floating[key] = n
-  }
-  return floating
-}
-
 function extractTable(xml: string, ctx: BuildContext, docOffset?: number): TableModel | undefined {
   // whole try: hostile depth inside a cell paragraph can overflow the
   // run-extraction recursion — degrade to a protected block, not a failed document
@@ -5077,16 +5010,6 @@ function extractTableModel(
   if (tblAlign) model.align = tblAlign
   if (floatSide) model.floatSide = floatSide
   if (floatPos) model.floatPos = floatPos
-  const tblPrForFloat = findChild(tbl, 'w:tblPr')
-  const floating = tableFloatingOf(findChild(tblPrForFloat ?? {}, 'w:tblpPr'))
-  if (floating) model.floating = floating
-  const tblOverlapVal = attrsOf(findChild(tblPrForFloat ?? {}, 'w:tblOverlap') ?? {})['w:val']
-  if (tblOverlapVal === 'never' || tblOverlapVal === 'overlap') {
-    model.floating = {
-      ...(model.floating ?? { horizAnchor: 'page', vertAnchor: 'page' }),
-      overlap: tblOverlapVal,
-    }
-  }
   if (Number.isFinite(tblIndTwips) && tblIndTwips !== 0) model.indentTwips = tblIndTwips
   const tblStyle = attrsOf(findChild(findChild(tbl, 'w:tblPr') ?? {}, 'w:tblStyle') ?? {})['w:val']
   if (tblStyle) model.tblStyleId = tblStyle

@@ -1,35 +1,40 @@
-/* Collapsible-ribbon behavior. `useRibbonCollapse` puts `ribbon-collapsed` on
- * the ribbon root, which folds the command band away and leaves the tab row —
- * plus the chevron that brings it back. Apps hide the chevrons in chrome-free
- * modes (Present) with their own rules. */
-
-.ribbon.ribbon-collapsed > .ribbon-body {
+/* Word for Mac "Collapse ribbon" (see ribbon-collapse.tsx for the markup contract) */
+.ribbon-collapsible {
+  position: relative;
+}
+.ribbon-collapsible [data-ribbon-body] {
+  anchor-name: --ribbon-body;
+}
+.ribbon-collapsible.ribbon-collapsed [data-ribbon-body] {
   display: none;
 }
-
-.ribbon-collapse-button,
-.ribbon-expand-button {
+.ribbon-collapse-btn {
+  position: absolute;
+  position-anchor: --ribbon-body;
+  bottom: calc(anchor(bottom) + 3px);
+  right: calc(anchor(right) + 4px);
+  z-index: 61;
+}
+.ribbon-collapse-btn,
+.ribbon-expand-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 20px;
-  height: 20px;
+  height: 18px;
   padding: 0;
-  border: none;
-  border-radius: 4px;
+  border: 0;
+  border-radius: 3px;
   background: transparent;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1;
+  color: var(--text-secondary);
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
-
-.ribbon-collapse-button:hover,
-.ribbon-expand-button:hover {
+.ribbon-collapse-btn:hover,
+.ribbon-expand-btn:hover {
   background: var(--hover);
   color: var(--text);
 }
-
-.ribbon-chevron {
-  pointer-events: none;
+.ribbon-expand-btn {
+  margin-left: 4px;
 }

@@ -1,9 +1,9 @@
-﻿/**
+/**
  * Selection edge-wrap guard. Univer's MoveSelectionCommand calls
  * findNextRange with its default isGoBack=true, so an arrow key at the
  * sheet edge wraps the selection to the opposite side and shifts one
  * row/column (Z1000 + Down lands on A1's path). Enter/Tab have an
- * upstream no-wrap guard; arrow keys don't : cancel the command when no
+ * upstream no-wrap guard; arrow keys don't — cancel the command when no
  * visible cell exists in the pressed direction. Ctrl+arrow (jumpOver)
  * never wraps upstream, so the same cancel is a no-op for it.
  */

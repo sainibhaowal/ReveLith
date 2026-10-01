@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
-/* eslint-enable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck — generation layer ported verbatim from untyped JS; it is typed
+// file by file without logic changes, and until then strict consumers
+// (apps/html, apps/shell) must not fail on it.
 import {
   AlignmentType,
   BorderStyle,

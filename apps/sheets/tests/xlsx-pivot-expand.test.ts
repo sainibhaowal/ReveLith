@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Tests for pivot layout growth: when source data gains new row/column items,
  * applyPivotLayoutExpansions() widens the pivotTableDefinition location ref
  * and fails closed if existing (non-pivot) content is in the way.
@@ -24,6 +24,12 @@ import { recomputePivotData } from '@revelith/xlsx-gateway/domain/pivot-engine'
 async function buildPivotFixture(
   opts: {
     extraCellAtRow?: number // if set, put non-empty content at G<extraCellAtRow>
+    // Snippets appended to the pivotTableDefinition root (unmodelled content).
+    tableExtra?: string
+    // Replacement for the <pivotTableStyleInfo …/> element.
+    tableStyleInfo?: string
+    // Snippets appended to the pivotCacheDefinition root.
+    cacheExtra?: string
   } = {},
 ): Promise<Buffer> {
   const zip = new JSZip()
@@ -139,6 +145,8 @@ ${extraCell}  </sheetData>
   <rowItems count="3"><i><x/></i><i><x v="1"/></i><i t="grand"><x/></i></rowItems>
   <colItems count="1"><i/></colItems>
   <dataFields count="1"><dataField name="Sum of Amount" fld="2" baseField="0" baseItem="0"/></dataFields>
+  ${opts.tableStyleInfo ?? '<pivotTableStyleInfo name="PivotStyleLight16" showRowHeaders="1" showColHeaders="1"/>'}
+  ${opts.tableExtra ?? ''}
 </pivotTableDefinition>`,
   )
 
@@ -166,6 +174,7 @@ ${extraCell}  </sheetData>
     <cacheField name="Product" numFmtId="0"><sharedItems/></cacheField>
     <cacheField name="Amount" numFmtId="0"><sharedItems/></cacheField>
   </cacheFields>
+  ${opts.cacheExtra ?? ''}
 </pivotCacheDefinition>`,
   )
 
@@ -226,6 +235,26 @@ async function planWithRefreshUpdate(buf: Buffer, updates: PivotRefreshUpdate[])
   )
 }
 
+/// A relayout update (rows switch from Region to Product) used by the tests
+/// that exercise the rebuild-from-the-model path.
+function relayoutUpdate(): PivotRefreshUpdate {
+  return {
+    cachePath: 'xl/pivotCache/pivotCacheDefinition1.xml',
+    sheetName: 'Data',
+    newOutputRef: 'F1:G4',
+    relayout: {
+      sourceSheetName: 'Data',
+      sourceArea: { startRow: 0, startColumn: 0, endRow: 3, endColumn: 2 },
+      location: { startRow: 0, startColumn: 5, endRow: 3, endColumn: 6 },
+      name: 'PivotEdit',
+      fieldNames: ['Region', 'Product', 'Amount'],
+      rowFieldIndices: [1],
+      rowItems: ['A', 'B'],
+      values: [{ fieldIndex: 2, agg: 'sum' }],
+    },
+  }
+}
+
 describe('applyPivotLayoutExpansions', () => {
   it('no-op when newOutputRef matches current location ref', async () => {
     const buf = await buildPivotFixture()
@@ -268,7 +297,7 @@ describe('applyPivotLayoutExpansions', () => {
   })
 
   it('fails closed when new rows conflict with existing non-pivot content', async () => {
-    // Row 5 (G5) has content in fixture : new area F1:G5 would overwrite it
+    // Row 5 (G5) has content in fixture — new area F1:G5 would overwrite it
     const buf = await buildPivotFixture({ extraCellAtRow: 5 })
     const update: PivotRefreshUpdate = {
       cachePath: 'xl/pivotCache/pivotCacheDefinition1.xml',
@@ -285,7 +314,7 @@ describe('applyPivotLayoutExpansions', () => {
     const update: PivotRefreshUpdate = {
       cachePath: 'xl/pivotCache/pivotCacheDefinition1.xml',
       worksheetPath: 'xl/worksheets/sheet1.xml',
-      newOutputRef: 'F1:G5', // G6 is outside : should pass
+      newOutputRef: 'F1:G5', // G6 is outside — should pass
     }
     const plan = await planWithRefreshUpdate(buf, [update])
     expect(plan.replaced.get('xl/pivotTables/pivotTable1.xml')).toContain('ref="F1:G5"')
@@ -320,7 +349,7 @@ describe('applyPivotLayoutExpansions', () => {
       worksheetPath: 'xl/worksheets/sheet1.xml',
       newOutputRef: 'F1:G5',
     }
-    // Should not throw : just skip
+    // Should not throw — just skip
     const plan = await planWithRefreshUpdate(buf, [update])
     expect(plan.replaced.has('xl/pivotTables/pivotTable1.xml')).toBe(false)
   })
@@ -350,7 +379,7 @@ describe('pivot layout edits (relayout)', () => {
           sourceSheetName: 'Data',
           sourceArea: { startRow: 0, startColumn: 0, endRow: 3, endColumn: 2 },
           location: { startRow: 0, startColumn: 5, endRow: 3, endColumn: 6 },
-          name: 'PivotEdit', // renderer placeholder : the file name must win
+          name: 'PivotEdit', // renderer placeholder — the file name must win
           fieldNames: ['Region', 'Product', 'Amount'],
           rowFieldIndices: [1], // rows switch from Region to Product
           rowItems: ['A', 'B'],
@@ -379,7 +408,7 @@ describe('pivot layout edits (relayout)', () => {
       ['West', 'B', 50],
       ['East', 'B', 50],
     ])
-    // Rows: A, B, Grand Total : single value column.
+    // Rows: A, B, Grand Total — single value column.
     expect(data).toEqual([[100], [100], [200]])
   })
 
@@ -408,5 +437,108 @@ describe('pivot layout edits (relayout)', () => {
         },
       ]),
     ).rejects.toThrow(PivotExpandError)
+  })
+
+  it('relayouts a pivot whose parts carry only modelled content', async () => {
+    const buf = await buildPivotFixture({
+      tableStyleInfo:
+        '<pivotTableStyleInfo name="PivotStyleLight16" showRowHeaders="1" showColHeaders="1" showLastColumn="1"/>',
+    })
+    const plan = await planWithRefreshUpdate(buf, [relayoutUpdate()])
+    expect(plan.replaced.get('xl/pivotTables/pivotTable1.xml')).toContain('name="PivotData"')
+  })
+
+  it.each([
+    [
+      'an unmodelled formats section',
+      { tableExtra: '<formats count="1"><format dxfId="0"/></formats>' },
+      /unmodelled <formats> section/,
+    ],
+    [
+      'unmodelled conditional formats',
+      { tableExtra: '<conditionalFormats count="1"><conditionalFormat/></conditionalFormats>' },
+      /unmodelled <conditionalFormats> section/,
+    ],
+    [
+      'unmodelled chart formats',
+      { tableExtra: '<chartFormats count="1"><chartFormat/></chartFormats>' },
+      /unmodelled <chartFormats> section/,
+    ],
+    [
+      'unmodelled extension content',
+      { tableExtra: '<extLst><ext uri="{X}" xmlns:a="urn:x"><a:thing/></ext></extLst>' },
+      /unmodelled <a:thing> section/,
+    ],
+    [
+      'a pivot style the model does not carry',
+      { tableStyleInfo: '<pivotTableStyleInfo name="PivotStyleMedium9"/>' },
+      /the pivot table style "PivotStyleMedium9"/,
+    ],
+    [
+      'an unmodelled cache section',
+      { cacheExtra: '<calculatedItems count="1"><m fld="1"/></calculatedItems>' },
+      /unmodelled <calculatedItems> section/,
+    ],
+    [
+      'unmodelled cache extension content',
+      { cacheExtra: '<extLst><ext uri="{X}" xmlns:a="urn:x"><a:x/></ext></extLst>' },
+      /unmodelled <a:x> section/,
+    ],
+  ])('fails closed on %s', async (_label, options, message) => {
+    const buf = await buildPivotFixture(options as Parameters<typeof buildPivotFixture>[0])
+    await expect(planWithRefreshUpdate(buf, [relayoutUpdate()])).rejects.toThrow(PivotExpandError)
+    await expect(planWithRefreshUpdate(buf, [relayoutUpdate()])).rejects.toThrow(message)
+  })
+
+  it('fails closed on an unmodelled sortType attribute', async () => {
+    const buf = await buildPivotFixture()
+    const zip = await JSZip.loadAsync(buf)
+    const tableXml = await zip.file('xl/pivotTables/pivotTable1.xml')!.async('string')
+    zip.file(
+      'xl/pivotTables/pivotTable1.xml',
+      tableXml.replace(
+        '<pivotField axis="axisRow" showAll="0">',
+        '<pivotField axis="axisRow" showAll="0" sortType="descending">',
+      ),
+    )
+    const withSort = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+    await expect(planWithRefreshUpdate(withSort, [relayoutUpdate()])).rejects.toThrow(
+      /unmodelled <pivotField sortType="…"> attribute/,
+    )
+  })
+
+  it('fails closed on an unmodelled dataField base', async () => {
+    const buf = await buildPivotFixture()
+    const zip = await JSZip.loadAsync(buf)
+    const tableXml = await zip.file('xl/pivotTables/pivotTable1.xml')!.async('string')
+    zip.file('xl/pivotTables/pivotTable1.xml', tableXml.replace('baseItem="0"', 'baseItem="2"'))
+    const withBase = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+    await expect(planWithRefreshUpdate(withBase, [relayoutUpdate()])).rejects.toThrow(
+      /a dataField baseItem/,
+    )
+  })
+
+  it('leaves the pivot parts untouched when the guard rejects a relayout', async () => {
+    const buf = await buildPivotFixture({
+      tableExtra: '<formats count="1"><format dxfId="0"/></formats>',
+    })
+    await expect(planWithRefreshUpdate(buf, [relayoutUpdate()])).rejects.toThrow(PivotExpandError)
+  })
+
+  it('still widens the ref surgically when a pivot has unmodelled content', async () => {
+    // The plain-ref path only rewrites one attribute, so it stays allowed.
+    const buf = await buildPivotFixture({
+      tableExtra: '<formats count="1"><format dxfId="0"/></formats>',
+    })
+    const plan = await planWithRefreshUpdate(buf, [
+      {
+        cachePath: 'xl/pivotCache/pivotCacheDefinition1.xml',
+        worksheetPath: 'xl/worksheets/sheet1.xml',
+        newOutputRef: 'F1:G5',
+      },
+    ])
+    const table = plan.replaced.get('xl/pivotTables/pivotTable1.xml')!
+    expect(table).toContain('ref="F1:G5"')
+    expect(table).toContain('<formats count="1">')
   })
 })

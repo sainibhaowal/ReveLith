@@ -1,26 +1,49 @@
 {
   "name": "@revelith/cli",
-  "version": "0.10.100",
-  "description": "ReveLith CLI and Model Context Protocol (MCP) server for AI agents",
+  "version": "0.10.0",
   "license": "Apache-2.0",
-  "author": "ReveLith Contributors",
+  "private": true,
   "type": "module",
-  "bin": {
-    "revelith": "./bin/revelith.js"
+  "description": "revelith: the ReveLith command line (create, convert, read, edit and render documents) built on the same engines as the app; runs headless on the app's bundled Node runtime",
+  "exports": {
+    ".": "./src/index.ts",
+    "./install": "./src/install.ts",
+    "./agent-skills": "./src/agent-skills.ts",
+    "./mcp-launch": "./src/mcp-launch.ts",
+    "./control-protocol": "./src/control-protocol.ts"
   },
-  "main": "./src/index.ts",
+  "bin": {
+    "revelith": "./bin/revelith"
+  },
   "scripts": {
+    "build": "node build.mjs && node collect-deps.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@revelith/ai-provider": "*",
+    "@revelith/ai-search": "*",
     "@revelith/docx-engine": "*",
-    "@revelith/file-parse": "*",
-    "@revelith/pptx-engine": "*"
+    "@revelith/pdf2docx": "*",
+    "@revelith/pipelines": "*",
+    "@revelith/pptx-engine": "*",
+    "@revelith/pptx-ops": "*",
+    "@revelith/pptx-render": "*",
+    "@revelith/xlsx-gateway": "*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@tiptap/core": "3.31.0",
+    "jsdom": "^28.0.0",
+    "jszip": "^3.10.1",
+    "numfmt": "^3.2.6",
+    "pngjs": "^7.0.0",
+    "undici": "^6.28.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^22.13.9",
-    "typescript": "^5.8.2",
-    "vitest": "^4.1.10"
+    "@types/node": "^24.10.1",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
   }
 }

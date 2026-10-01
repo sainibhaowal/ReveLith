@@ -1,125 +1,101 @@
-/**
- * "Save image as…" for a picture already on screen.
- *
- * The src a document shows is one of three things: a `data:` URL (an AI
- * insert), an app-owned asset scheme (`md-asset://`, `revelith-media://`) that
- * only the main process can resolve, or a plain `http(s)` URL. All three end
- * in the same place: bytes on disk, chosen by a Save dialog.
- */
+/// "Save Image As…" for any image the renderer displays: data URLs are decoded
+/// in place, everything else (http(s), app asset schemes) goes through
+/// net.fetch so custom protocol handlers keep enforcing their own access rules.
 import { writeFile } from 'node:fs/promises'
-import { basename, extname, join } from 'node:path'
-import { dialog, net, type BrowserWindow } from 'electron'
-import { MAX_REMOTE_IMAGE_BYTES, readBodyCapped } from './capped-body'
-import { fetchRemoteImage } from './remote-image'
+import type { BrowserWindow } from 'electron'
+import { showSaveDialogWithMemory } from './dialog-memory'
+import { MAX_REMOTE_IMAGE_BYTES, readBodyCapped } from './remote-image'
 
-export interface SaveImageOptions {
-  /** window the Save dialog is parented to (keeps it modal where it should be) */
-  title: string
-  /** folder the dialog opens in */
-  fallbackDir: string
-  /** full path proposed in the dialog; overrides the derived file name */
-  defaultPath?: string
-  /** base name used when the src carries no usable file name */
-  defaultName?: string
+const EXT_BY_MIME: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/bmp': 'bmp',
+  'image/svg+xml': 'svg',
+  'image/avif': 'avif',
+  'image/tiff': 'tif',
 }
+const IMAGE_FILE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|tiff?)$/i
 
 export interface SaveImageResult {
   ok: boolean
-  /** absolute path written, on success */
   path?: string
   error?: string
 }
 
-/** Extension → the label of the filter the Save dialog should offer. */
-const TYPE_BY_EXT: Record<string, string> = {
-  '.png': 'PNG image',
-  '.jpg': 'JPEG image',
-  '.jpeg': 'JPEG image',
-  '.gif': 'GIF image',
-  '.webp': 'WebP image',
-  '.bmp': 'BMP image',
-  '.avif': 'AVIF image',
-  '.svg': 'SVG image',
-  '.tif': 'TIFF image',
-  '.tiff': 'TIFF image',
+/** file:// would let a page read arbitrary local files; blob: lives in the renderer only */
+export function isSavableImageUrl(url: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(url) && !/^(file|blob|javascript|about):/i.test(url)
 }
 
-/** The path part of any src the editor can display. */
-function srcPath(src: string): string {
+function urlFileName(url: string): string {
   try {
-    return decodeURIComponent(new URL(src).pathname)
+    return decodeURIComponent(new URL(url).pathname).split('/').pop() ?? ''
   } catch {
-    return src
+    return ''
   }
 }
 
-/** File name proposed in the dialog: the src's own, when it has a usable one. */
-function suggestName(src: string, fallback: string): string {
-  if (src.startsWith('data:')) {
-    const mime = /^data:image\/([a-z0-9.+-]+)[;,]/i.exec(src)?.[1]?.toLowerCase()
-    return `${fallback}.${mime === 'jpeg' ? 'jpg' : (mime ?? 'png')}`
-  }
-  const fromUrl = basename(srcPath(src))
-  if (fromUrl && extname(fromUrl)) return fromUrl
-  return `${fallback}.png`
+/** The URL's own file name when it carries an image extension, else image.<ext from the MIME type> */
+export function suggestImageFileName(url: string, mime: string | null | undefined): string {
+  const name = urlFileName(url)
+  if (name && IMAGE_FILE.test(name)) return name
+  const key = (mime ?? '').split(';')[0]!.trim().toLowerCase()
+  return `image.${EXT_BY_MIME[key] ?? 'png'}`
 }
 
-async function readSrcBytes(src: string): Promise<{ bytes: Uint8Array; ext: string } | null> {
-  if (src.startsWith('data:')) {
-    const match = /^data:image\/([a-z0-9.+-]+);base64,([\s\S]+)$/i.exec(src)
-    if (!match) return null
-    const mime = match[1]!.toLowerCase()
-    return {
-      bytes: new Uint8Array(Buffer.from(match[2]!, 'base64')),
-      ext: mime === 'jpeg' ? 'jpg' : mime,
-    }
+export function decodeDataUrl(url: string): { bytes: Buffer; mime: string | null } | null {
+  const m = /^data:([^;,]*)((?:;[^,]*)*),([\s\S]*)$/i.exec(url)
+  if (!m) return null
+  const mime = m[1] || null
+  const payload = m[3] ?? ''
+  const bytes = /;base64/i.test(m[2] ?? '')
+    ? Buffer.from(payload, 'base64')
+    : Buffer.from(decodeURIComponent(payload), 'utf8')
+  return { bytes, mime }
+}
+
+async function fetchImageBytes(url: string): Promise<{ bytes: Buffer; mime: string | null }> {
+  if (/^data:/i.test(url)) {
+    const decoded = decodeDataUrl(url)
+    if (!decoded) throw new Error('malformed data URL')
+    return decoded
   }
-  // Everything else goes through Electron's net, which serves the app's own
-  // privileged schemes (md-asset://, file://) and the network alike. The
-  // downloader wrapper only adds browser headers and retries, so a local asset
-  // scheme is unaffected by it.
-  try {
-    const resp = /^(https?|file):/i.test(src) ? await fetchRemoteImage(src) : await net.fetch(src)
-    if (!resp?.ok) return null
-    const mime = (resp.headers.get('content-type') ?? '').split(';')[0]!.toLowerCase()
-    const ext = mime.replace('image/', '') || extname(srcPath(src)).slice(1) || 'png'
-    return { bytes: await readBodyCapped(resp, MAX_REMOTE_IMAGE_BYTES), ext }
-  } catch {
-    return null
+  const { net } = await import('electron')
+  const res = await net.fetch(url)
+  if (!res.ok) throw new Error(`fetch failed: HTTP ${res.status}`)
+  return {
+    bytes: Buffer.from(await readBodyCapped(res, MAX_REMOTE_IMAGE_BYTES)),
+    mime: res.headers.get('content-type'),
   }
 }
 
-/**
- * Save a displayed image through a Save dialog. Returns `{ok:false}` with no
- * error when the user cancels, so a caller that shows a notice can tell the
- * two apart.
- */
 export async function saveImageFromUrl(
-  win: BrowserWindow | null,
-  src: string,
-  options: SaveImageOptions,
+  parent: BrowserWindow | null | undefined,
+  url: string,
+  opts: { title: string; fallbackDir?: string },
 ): Promise<SaveImageResult> {
-  const loaded = await readSrcBytes(src)
-  if (!loaded) return { ok: false, error: 'the image could not be read' }
-
-  const ext = loaded.ext || 'png'
-  const filters = [
-    { name: TYPE_BY_EXT[`.${ext}`] ?? 'Image', extensions: [ext] },
-    { name: 'All files', extensions: ['*'] },
-  ]
-  const proposed =
-    options.defaultPath ??
-    join(options.fallbackDir, suggestName(src, options.defaultName ?? 'image'))
-  const parent = win && !win.isDestroyed() ? win : null
-  const picked = parent
-    ? await dialog.showSaveDialog(parent, { title: options.title, defaultPath: proposed, filters })
-    : await dialog.showSaveDialog({ title: options.title, defaultPath: proposed, filters })
-  if (picked.canceled || !picked.filePath) return { ok: false }
-
+  if (!isSavableImageUrl(url)) return { ok: false, error: 'unsupported image url' }
   try {
-    await writeFile(picked.filePath, loaded.bytes)
+    const { bytes, mime } = await fetchImageBytes(url)
+    const name = suggestImageFileName(url, mime)
+    const ext = name.slice(name.lastIndexOf('.') + 1)
+    const { dialog } = await import('electron')
+    const picked = await showSaveDialogWithMemory(
+      dialog,
+      parent,
+      {
+        title: opts.title,
+        defaultPath: name,
+        filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+      },
+      opts.fallbackDir,
+    )
+    if (picked.canceled || !picked.filePath) return { ok: false }
+    await writeFile(picked.filePath, bytes)
     return { ok: true, path: picked.filePath }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    return { ok: false, error: String(err) }
   }
 }

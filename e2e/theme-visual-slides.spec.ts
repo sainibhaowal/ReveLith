@@ -1,4 +1,4 @@
-﻿import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
 
 async function findShellPage(app: ElectronApplication, timeoutMs = 15_000): Promise<Page> {
@@ -6,12 +6,12 @@ async function findShellPage(app: ElectronApplication, timeoutMs = 15_000): Prom
   for (;;) {
     for (const candidate of app.windows()) {
       const has = await candidate
-        .evaluate(() => Boolean((window as unknown as { revelithApp?: unknown }).revelithApp))
+        .evaluate(() => Boolean((window as unknown as { aiOffice?: unknown }).aiOffice))
         .catch(() => false)
       if (has) return candidate
     }
     const remaining = deadline - Date.now()
-    if (remaining <= 0) throw new Error('No window exposing window.revelithApp')
+    if (remaining <= 0) throw new Error('No window exposing window.aiOffice')
     await app.waitForEvent('window', { timeout: Math.min(remaining, 1_000) }).catch(() => {})
   }
 }
@@ -27,13 +27,13 @@ test('slides chrome darkens while the slide canvas stays paper-white', async () 
   try {
     const shellPage = await findShellPage(launched.app)
     await shellPage.locator('.quick-card', { hasText: 'AI Slides' }).click()
-    const editorPage = await waitForPageWithUrl(launched.app, 'slides/out')
+    const editorPage = await waitForPageWithUrl(launched.app, '://slides/')
     await editorPage.waitForSelector('.stage-wrap canvas', { timeout: 20_000 })
 
     await shellPage.evaluate(() =>
-      (
-        window as unknown as { revelithApp: { setTheme(v: string): Promise<void> } }
-      ).revelithApp.setTheme('dark'),
+      (window as unknown as { aiOffice: { setTheme(v: string): Promise<void> } }).aiOffice.setTheme(
+        'dark',
+      ),
     )
     // ribbon and thumbnail rail darken
     await expect
@@ -49,7 +49,7 @@ test('slides chrome darkens while the slide canvas stays paper-white', async () 
     // the Konva stage still paints the slide paper white: the slide-bg Rect is
     // canvas content, so assert via the stage screenshot's center pixel
     const shot = await editorPage.locator('.stage-wrap').first().screenshot()
-    // PNG: naive check via Playwright : decode through a data URL in the page
+    // PNG: naive check via Playwright — decode through a data URL in the page
     const center = await editorPage.evaluate(async (b64) => {
       const img = new Image()
       img.src = `data:image/png;base64,${b64}`

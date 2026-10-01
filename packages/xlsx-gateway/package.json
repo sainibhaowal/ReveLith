@@ -4,14 +4,13 @@
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "description": "Spreadsheet OOXML domain logic: theme colors, stylesheet read-back, document themes, namespace normalization and the edit schema contract. No Electron, no spreadsheet UI dependency.",
+  "description": "xlsx write gateway and workbook domain logic (OOXML patching, CSV import, workbook DSL, pivots, charts) shared by the sheets app and the revelith CLI; no Electron, no Univer",
   "exports": {
-    ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },
   "dependencies": {

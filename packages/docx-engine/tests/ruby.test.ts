@@ -32,10 +32,7 @@ describe('phonetic guide (w:ruby)', () => {
     const bytes = await saveDocx(parsed, [
       {
         kind: 'generated',
-        block: {
-          type: 'paragraph',
-          runs: [{ text: 'edited ' }, ...block.runs!.filter((r) => r.ruby)],
-        },
+        block: { type: 'paragraph', runs: [{ text: 'edited ' }, ...block.runs!.filter((r) => r.ruby)] },
       },
     ])
     const reparsed = await parseDocx(bytes)

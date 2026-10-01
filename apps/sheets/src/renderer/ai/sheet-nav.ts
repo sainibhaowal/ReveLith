@@ -1,29 +1,40 @@
-/** sheetnav:// citation links in AI answers: [C42](sheetnav://C42) jumps the
-    grid to the cited range. An optional Sheet! prefix targets another sheet:
-    [total](sheetnav://Summary!B2). */
+/**
+ * In-answer citations: the model links cells as [B12](sheetnav://B12) or
+ * [Data!B2:D9](sheetnav://Data!B2:D9), and clicking one jumps the grid there
+ * through the same Go To path the Name Box uses.
+ *
+ * A citation is a link the user chooses to follow, so pointing at a cell no
+ * longer costs a select_range call that takes the selection away from them.
+ */
 
-export const SHEET_NAV_SCHEME = 'sheetnav'
+export const SHEET_NAV_SCHEME = 'sheetnav://'
 
-export interface SheetNavTarget {
-  /** A1 range on the target sheet */
-  readonly range: string
-  /** Sheet name when the href carries a Sheet! prefix */
-  readonly sheetName?: string | undefined
+/**
+ * sheetnav://Data!B2:D9 -> "Data!B2:D9"; null for anything else. The markdown
+ * link syntax stops at the first space, so sheet names containing one arrive
+ * percent-escaped — and once decoded they need Excel's quoting before the Go To
+ * parser will take them.
+ */
+export function parseSheetNavHref(href: string): string | null {
+  if (!href.startsWith(SHEET_NAV_SCHEME)) return null
+  const raw = href.slice(SHEET_NAV_SCHEME.length).trim()
+  if (raw === '') return null
+  let ref: string
+  try {
+    ref = decodeURIComponent(raw)
+  } catch {
+    // a stray '%' is not worth dropping the citation over
+    ref = raw
+  }
+  return quoteSheetPrefix(ref.trim()) || null
 }
 
-/** Parse a sheetnav: href; null when it is not a well-formed citation link */
-export function parseSheetNavHref(href: string): SheetNavTarget | null {
-  const prefix = `${SHEET_NAV_SCHEME}://`
-  if (!href.startsWith(prefix)) return null
-  const body = href.slice(prefix.length).trim()
-  if (!body) return null
-  const bang = body.lastIndexOf('!')
-  if (bang < 0) {
-    if (!/^[A-Za-z$]{1,3}[0-9]+(?::[A-Za-z$]{1,3}[0-9]+)?$/.test(body)) return null
-    return { range: body.toUpperCase() }
-  }
-  const sheetName = body.slice(0, bang).trim().replace(/^'(.*)'$/, '$1').replace(/''/g, "'")
-  const range = body.slice(bang + 1).trim()
-  if (!sheetName || !/^[A-Za-z$]{1,3}[0-9]+(?::[A-Za-z$]{1,3}[0-9]+)?$/.test(range)) return null
-  return { range: range.toUpperCase(), sheetName }
+/** `My Summary!B2` -> `'My Summary'!B2`; already-quoted and bare refs pass through. */
+function quoteSheetPrefix(ref: string): string {
+  const bang = ref.lastIndexOf('!')
+  if (bang <= 0) return ref
+  const sheet = ref.slice(0, bang)
+  const body = ref.slice(bang + 1)
+  if (sheet.startsWith("'") || !/[\s'()]/.test(sheet)) return ref
+  return `'${sheet.replace(/'/g, "''")}'!${body}`
 }

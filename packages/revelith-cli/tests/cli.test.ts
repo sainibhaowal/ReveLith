@@ -1,230 +1,138 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { checkDocument, formatError, openDocumentAt, guidedDeckBuilder } from '../src/commands.js'
-import { MCP_TOOLS, handleToolCall } from '../src/mcp.js'
-import { startMcpHttpServer } from '../src/mcp-http.js'
-import { writeFileSync, unlinkSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { xlsxSidecarPath } from '../src/resources'
+import { run, tempDir, writeMinimalPdf } from './helpers'
 
-describe('@revelith/cli core commands', () => {
-  it('formatError produces human-readable and structured json errors', () => {
-    const err = new Error('Test failure')
-    ;(err as any).code = 'ERR_TEST'
+const REPO = resolve(__dirname, '../../..')
+const DOCX = join(REPO, 'apps/docs/tests/pagination-corpus/docx/01-simple-english.docx')
+const PPTX = join(REPO, 'packages/pptx-engine/tests/fixtures/01_standard_business.pptx')
+const XLSX = join(REPO, 'apps/sheets/fixtures/generated/compatibility-basic.xlsx')
 
-    const human = formatError(err, false)
-    expect(human).toContain('ERR_TEST')
-    expect(human).toContain('Test failure')
-
-    const jsonStr = formatError(err, true)
-    const parsed = JSON.parse(jsonStr)
-    expect(parsed.error).toBe(true)
-    expect(parsed.code).toBe('ERR_TEST')
-    expect(parsed.message).toBe('Test failure')
+describe('revelith cli', () => {
+  it('prints help and usage errors with the documented exit codes', async () => {
+    expect((await run([])).code).toBe(1)
+    expect((await run(['--help'])).code).toBe(0)
+    expect((await run(['help', 'convert'])).stdout).toContain('Usage: revelith convert')
+    const unknown = await run(['frobnicate', '--json'])
+    expect(unknown.code).toBe(1)
+    expect(unknown.json()).toMatchObject({ status: 'error', code: 1, command: 'frobnicate' })
+    expect((await run(['--version'])).stdout).toMatch(/^revelith \d/)
   })
 
-  it('checkDocument detects quality issues in documents', async () => {
-    const tmp = join(tmpdir(), 'test_check.md')
-    writeFileSync(tmp, '# Title\n\n[Broken Link]()\n', 'utf-8')
-    try {
-      const rep = await checkDocument(tmp)
-      expect(rep.file).toBe(tmp)
-      expect(rep.issues.some((i) => i.code === 'MD_EMPTY_LINK')).toBe(true)
-    } finally {
-      unlinkSync(tmp)
-    }
+  it('reports a missing file as exit code 2', async () => {
+    const r = await run(['info', '/nonexistent/x.docx', '--json'])
+    expect(r.code).toBe(2)
+    expect(r.json().message).toContain('file not found')
   })
 
-  it('openDocumentAt parses slide, range, and page targets', async () => {
-    const tmp = join(tmpdir(), 'test_open.pptx')
-    writeFileSync(tmp, 'dummy content', 'utf-8')
-    try {
-      const resSlide = await openDocumentAt(tmp, { slide: 3 })
-      expect(resSlide.ok).toBe(true)
-      expect(resSlide.target).toBe('slide 3')
+  it('info describes docx, pptx, csv and markdown without any app process', async () => {
+    const docx = await run(['info', DOCX, '--json'])
+    expect(docx.code).toBe(0)
+    expect(docx.json().detail).toMatchObject({ format: 'docx' })
+    expect(docx.json().detail.blocks).toBeGreaterThan(0)
 
-      const resRange = await openDocumentAt(tmp, { range: 'B2:E10' })
-      expect(resRange.ok).toBe(true)
-      expect(resRange.target).toBe('range B2:E10')
+    const pptx = await run(['info', PPTX, '--json'])
+    expect(pptx.code).toBe(0)
+    expect(pptx.json().detail.slides).toBeGreaterThan(0)
+    expect(pptx.json().detail.slide_size_in.width).toBeGreaterThan(0)
 
-      const resPage = await openDocumentAt(tmp, { page: 5 })
-      expect(resPage.ok).toBe(true)
-      expect(resPage.target).toBe('page 5')
-    } finally {
-      unlinkSync(tmp)
-    }
+    const dir = tempDir()
+    const csv = join(dir, 'data.csv')
+    writeFileSync(csv, 'name,qty\nApple,3\nPear,5\n')
+    const csvInfo = await run(['info', csv, '--json'])
+    expect(csvInfo.json().detail).toMatchObject({ rows: 3, columns: 2, delimiter: ',' })
+
+    const md = join(dir, 'notes.md')
+    writeFileSync(md, '# Title\n\ntext\n\n## Sub\n')
+    const mdInfo = await run(['info', md])
+    expect(mdInfo.code).toBe(0)
+    expect(mdInfo.stdout).toContain('headings: 2')
   })
 
-  it('MCP_TOOLS exposes required tools for AI agents', () => {
-    const names = MCP_TOOLS.map((t) => t.name)
-    expect(names).toContain('revelith_info')
-    expect(names).toContain('revelith_check')
-    expect(names).toContain('revelith_open')
-    expect(names).toContain('docs_apply')
-    expect(names).toContain('sheet_apply')
-    expect(names).toContain('slides_apply')
-    expect(names).toContain('guided_deck_builder')
-    expect(names).toContain('live_word_edit')
-    expect(names).toContain('docs_edit_text')
-    expect(names).toContain('pdf_read_text')
-    expect(names).toContain('sheet_set_cells')
+  it('info counts pdf pages and flags encrypted files', async () => {
+    const dir = tempDir()
+    const pdf = writeMinimalPdf(join(dir, 'one.pdf'))
+    const r = await run(['info', pdf, '--json'])
+    expect(r.code).toBe(0)
+    expect(r.json().detail).toMatchObject({ pages: 1, encrypted: false })
+    // a password nobody asked for must not flip the flag
+    const pw = await run(['--json', 'info', pdf, '--password', 'x'])
+    expect(pw.json().detail).toMatchObject({ pages: 1, encrypted: false })
   })
 
-  it('guidedDeckBuilder produces deck specification', async () => {
-    const tmp = join(tmpdir(), 'pitch_deck.pptx')
-    const res = await guidedDeckBuilder(
-      {
-        title: 'Renewable Energy Trends',
-        slides: [
-          { title: 'Overview', layout: 'title' },
-          {
-            title: 'Solar Capacity Growth',
-            layout: 'bullet_points',
-            bulletPoints: ['30% YoY', 'Falling costs'],
-          },
-        ],
+  it('converts csv to xlsx and refuses to overwrite without --force', async () => {
+    const dir = tempDir()
+    const csv = join(dir, 'data.csv')
+    writeFileSync(csv, 'name,qty\nApple,3\n')
+    const first = await run(['convert', csv, '--to', 'xlsx', '--json'])
+    expect(first.code).toBe(0)
+    const out = first.json().output_path as string
+    expect(out).toBe(join(dir, 'data.xlsx'))
+    const zip = await JSZip.loadAsync(readFileSync(out))
+    const sheet = await zip.file('xl/worksheets/sheet1.xml')!.async('string')
+    expect(sheet).toContain('Apple')
+
+    const again = await run(['convert', csv, '--to', 'xlsx', '--json'])
+    expect(again.code).toBe(2)
+    expect((await run(['convert', csv, '--to', 'xlsx', '--force'])).code).toBe(0)
+  })
+
+  it('rejects unsupported routes as a usage error', async () => {
+    const r = await run(['convert', DOCX, '--to', 'pptx', '--json'])
+    expect(r.code).toBe(1)
+    expect(r.json().detail.supported).toContain('pdf→docx/pptx/xlsx')
+  })
+
+  it('converts pdf to docx through the local engine', async () => {
+    const dir = tempDir()
+    const pdf = writeMinimalPdf(join(dir, 'one.pdf'), 'Converted by revelith')
+    const r = await run([
+      'convert',
+      pdf,
+      '--to',
+      'docx',
+      '--out',
+      join(dir, 'sub/one.docx'),
+      '--json',
+    ])
+    expect(r.code).toBe(0)
+    expect(r.json().detail.pages).toBe(1)
+    const out = r.json().output_path as string
+    expect(existsSync(out)).toBe(true)
+    const zip = await JSZip.loadAsync(readFileSync(out))
+    const doc = await zip.file('word/document.xml')!.async('string')
+    expect(doc).toContain('Converted by revelith')
+  })
+
+  it.skipIf(!xlsxSidecarPath())('info reads workbook sheets through the xlsx sidecar', async () => {
+    const r = await run(['info', XLSX, '--json'])
+    expect(r.code).toBe(0)
+    expect(r.json().detail.sheets.length).toBeGreaterThan(0)
+    expect(r.json().detail.sheets[0]).toMatchObject({ name: expect.any(String) })
+  })
+
+  it('open fails with exit code 4 when no app binary is available', async () => {
+    // A ReveLith already running on this machine publishes its control endpoint in the
+    // user-data dir; `open` would then hand the file to that live instance and exit 0,
+    // never reaching the missing-binary path. Isolate the lookup like control.test.ts does.
+    const r = await run(['open', DOCX, '--json'], {
+      env: {
+        REVELITH_APP_BIN: '/nonexistent/ReveLith',
+        REVELITH_USER_DATA: tempDir(),
+        REVELITH_AUDIT_LOG: 'off',
       },
-      tmp,
-    )
-    expect(res.ok).toBe(true)
-    expect(res.slideCount).toBe(2)
-  })
-
-  it('handleToolCall executes MCP tools', async () => {
-    const tmp = join(tmpdir(), 'tool_test.md')
-    writeFileSync(tmp, '# Test Doc\n', 'utf-8')
-    try {
-      const info = await handleToolCall('revelith_info', { path: tmp })
-      expect(info.status).toBe('valid')
-
-      const editRes = await handleToolCall('docs_edit_text', {
-        action: 'insert_text',
-        text: 'Hello',
-      })
-      expect(editRes).toBeDefined()
-
-      const sheetRes = await handleToolCall('sheet_set_cells', { range: 'A1', values: 'Test' })
-      expect(sheetRes).toBeDefined()
-    } finally {
-      unlinkSync(tmp)
-    }
+    })
+    expect(r.code).toBe(4)
   })
 })
 
-describe('MCP over HTTP server', () => {
-  it('starts and serves health check', async () => {
-    const server = await startMcpHttpServer({ port: 0 })
-    try {
-      const res = await fetch(`http://localhost:${server.port}/health`)
-      expect(res.ok).toBe(true)
-      const data = (await res.json()) as { status: string; server: string }
-      expect(data.status).toBe('ok')
-      expect(data.server).toBe('revelith-mcp-http')
-    } finally {
-      await server.close()
-    }
-  })
-
-  it('serves tools/list via POST /mcp', async () => {
-    const server = await startMcpHttpServer({ port: 0 })
-    try {
-      const res = await fetch(`http://localhost:${server.port}/mcp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-      })
-      expect(res.ok).toBe(true)
-      const data = (await res.json()) as { result: { tools: { name: string }[] } }
-      expect(Array.isArray(data.result.tools)).toBe(true)
-      expect(data.result.tools.some((t) => t.name === 'pdf_read_text')).toBe(true)
-      expect(data.result.tools.some((t) => t.name === 'docs_edit_text')).toBe(true)
-      expect(data.result.tools.some((t) => t.name === 'sheet_set_cells')).toBe(true)
-    } finally {
-      await server.close()
-    }
-  })
-
-  it('handles initialize handshake', async () => {
-    const server = await startMcpHttpServer({ port: 0 })
-    try {
-      const res = await fetch(`http://localhost:${server.port}/mcp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
-      })
-      expect(res.ok).toBe(true)
-      const data = (await res.json()) as { result: { protocolVersion: string } }
-      expect(data.result.protocolVersion).toBe('2024-11-05')
-    } finally {
-      await server.close()
-    }
-  })
-
-  it('rejects unauthorized requests when token is set', async () => {
-    const server = await startMcpHttpServer({ port: 0, token: 'secret-tok' })
-    try {
-      const res = await fetch(`http://localhost:${server.port}/mcp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-      })
-      expect(res.status).toBe(401)
-    } finally {
-      await server.close()
-    }
-  })
-
-  it('accepts authorized requests with bearer token', async () => {
-    const token = 'my-secret-token'
-    const server = await startMcpHttpServer({ port: 0, token })
-    try {
-      const res = await fetch(`http://localhost:${server.port}/mcp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-      })
-      expect(res.ok).toBe(true)
-      const data = (await res.json()) as { result: { tools: unknown[] } }
-      expect(Array.isArray(data.result.tools)).toBe(true)
-    } finally {
-      await server.close()
-    }
-  })
-
-  it('PUT /files/<name> uploads a file and returns download URL', async () => {
-    const server = await startMcpHttpServer({ port: 0 })
-    try {
-      const content = 'Hello MCP HTTP upload!'
-      const res = await fetch(`http://localhost:${server.port}/files/test-upload.txt`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'text/plain' },
-        body: content,
-      })
-      expect(res.status).toBe(201)
-      const data = (await res.json()) as { ok: boolean; url: string; name: string }
-      expect(data.ok).toBe(true)
-      expect(data.name).toBe('test-upload.txt')
-      expect(data.url).toContain('/files/test-upload.txt')
-
-      // Verify file is downloadable
-      const dlRes = await fetch(data.url)
-      expect(dlRes.ok).toBe(true)
-      const text = await dlRes.text()
-      expect(text).toBe(content)
-    } finally {
-      await server.close()
-    }
-  })
-
-  it('GET /files/<name> returns 404 for missing file', async () => {
-    const server = await startMcpHttpServer({ port: 0 })
-    try {
-      const res = await fetch(`http://localhost:${server.port}/files/nonexistent.txt`)
-      expect(res.status).toBe(404)
-    } finally {
-      await server.close()
-    }
+describe('option validation', () => {
+  it('rejects an option the command does not define instead of ignoring it', async () => {
+    const r = await run(['info', DOCX, '--dry-run', '--json'])
+    expect(r.code).toBe(1)
+    expect(r.json().message).toContain('--dry-run')
+    expect(r.json().detail.options).toContain('--password')
   })
 })

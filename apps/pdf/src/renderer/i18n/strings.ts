@@ -311,7 +311,7 @@ export const strings = {
     aiTimeoutError: 'AI 请求超时：网络长时间无响应，已停止。请检查网络后重试',
     aiOverloadedError: 'AI 服务当前繁忙，请稍后重试',
     aiNetworkError: '网络有问题，无法连接 AI 服务。请检查网络后重试',
-    aiCreditsExhausted: '积分不足，请检查 AI 提供商的账单后重试',
+    aiCreditsExhausted: 'ReveLith 积分已用完，请前往 revelith.ai/pricing 充值后重试',
     aiToolReadPages: '读取第 {start}-{end} 页',
     aiToolSearch: '搜索"{query}"（{count} 处）',
     aiToolGoto: '跳转到第 {page} 页',
@@ -642,7 +642,7 @@ export const strings = {
     aiNetworkError:
       'Network problem: could not reach the AI service. Check your connection and try again',
     aiCreditsExhausted:
-      'Your AI credits have run out. Check your AI provider billing to top up, then try again',
+      'Your ReveLith credits have run out. Visit revelith.ai/pricing to top up, then try again',
     aiToolReadPages: 'Read pages {start}-{end}',
     aiToolSearch: 'Search "{query}" ({count} hits)',
     aiToolGoto: 'Go to page {page}',
@@ -979,7 +979,7 @@ export const strings = {
     aiNetworkError:
       'Sự cố mạng: không thể kết nối tới dịch vụ AI. Kiểm tra kết nối của bạn và thử lại',
     aiCreditsExhausted:
-      'Tín dụng AI của bạn đã hết. Hãy kiểm tra thanh toán của nhà cung cấp AI rồi thử lại',
+      'ReveLith credits của bạn đã hết. Hãy truy cập revelith.ai/pricing để nạp thêm rồi thử lại',
     aiToolReadPages: 'Đọc các trang {start}-{end}',
     aiToolSearch: 'Tìm kiếm "{query}" ({count} kết quả)',
     aiToolGoto: 'Đi tới trang {page}',
@@ -1315,7 +1315,7 @@ export const strings = {
     aiNetworkError:
       'ネットワークに問題があり、AI サービスに接続できません。接続を確認して再試行してください',
     aiCreditsExhausted:
-      'AIクレジットを使い切りました。AIプロバイダーの請求を確認してから再試行してください',
+      'ReveLithクレジットを使い切りました。revelith.ai/pricing でチャージしてから再試行してください',
     aiToolReadPages: 'ページ {start}-{end} を読む',
     aiToolSearch: '「{query}」を検索（{count} 件）',
     aiToolGoto: 'ページ {page} へ移動',
@@ -1651,7 +1651,7 @@ export const strings = {
     aiNetworkError:
       '네트워크에 문제가 있어 AI 서비스에 연결할 수 없습니다. 연결을 확인한 후 다시 시도해 주세요',
     aiCreditsExhausted:
-      'AI 크레딧을 모두 사용했습니다. AI 제공업체의 결제를 확인한 후 다시 시도해 주세요',
+      'ReveLith 크레딧을 모두 사용했습니다. revelith.ai/pricing에서 충전한 후 다시 시도해 주세요',
     aiToolReadPages: '{start}-{end}쪽 읽기',
     aiToolSearch: '"{query}" 검색 ({count}건)',
     aiToolGoto: '{page}쪽으로 이동',
@@ -1989,7 +1989,7 @@ export const strings = {
     aiNetworkError:
       'Problème réseau : impossible de joindre le service IA. Vérifiez votre connexion et réessayez',
     aiCreditsExhausted:
-      'Vos crédits IA sont épuisés. Vérifiez la facturation de votre fournisseur IA puis réessayez',
+      'Vos crédits ReveLith sont épuisés. Rechargez sur revelith.ai/pricing puis réessayez',
     aiToolReadPages: 'Lire les pages {start}-{end}',
     aiToolSearch: 'Rechercher « {query} » ({count} occurrences)',
     aiToolGoto: 'Aller à la page {page}',
@@ -2331,7 +2331,7 @@ export const strings = {
     aiNetworkError:
       'Netzwerkproblem: Der KI-Dienst ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut',
     aiCreditsExhausted:
-      'Deine KI-Credits sind aufgebraucht. Prüfe die Abrechnung deines KI-Anbieters und versuche es erneut',
+      'Deine ReveLith-Credits sind aufgebraucht. Lade unter revelith.ai/pricing auf und versuche es erneut',
     aiToolReadPages: 'Seiten {start}-{end} lesen',
     aiToolSearch: '„{query}" suchen ({count} Treffer)',
     aiToolGoto: 'Zu Seite {page} springen',
@@ -2672,7 +2672,7 @@ export const strings = {
     aiNetworkError:
       'Problema de red: no se pudo conectar con el servicio de IA. Comprueba tu conexión e inténtalo de nuevo',
     aiCreditsExhausted:
-      'Tus créditos de IA se han agotado. Revisa la facturación de tu proveedor de IA e inténtalo de nuevo',
+      'Tus créditos de ReveLith se han agotado. Recarga en revelith.ai/pricing e inténtalo de nuevo',
     aiToolReadPages: 'Leer páginas {start}-{end}',
     aiToolSearch: 'Buscar «{query}» ({count} resultados)',
     aiToolGoto: 'Ir a la página {page}',
@@ -3010,7 +3010,7 @@ export const strings = {
     aiNetworkError:
       'เครือข่ายมีปัญหา ไม่สามารถเชื่อมต่อบริการ AI ได้ โปรดตรวจสอบการเชื่อมต่อแล้วลองใหม่',
     aiCreditsExhausted:
-      'เครดิต AI ของคุณหมดแล้ว โปรดตรวจสอบการเรียกเก็บเงินของผู้ให้บริการ AI แล้วลองใหม่',
+      'เครดิต ReveLith ของคุณหมดแล้ว โปรดเติมเครดิตที่ revelith.ai/pricing แล้วลองใหม่',
     aiToolReadPages: 'อ่านหน้า {start}-{end}',
     aiToolSearch: 'ค้นหา "{query}" ({count} แห่ง)',
     aiToolGoto: 'ไปที่หน้า {page}',
@@ -3344,7 +3344,8 @@ export const strings = {
     aiOverloadedError: 'Layanan AI sedang sibuk — silakan coba lagi sebentar lagi',
     aiNetworkError:
       'Masalah jaringan: tidak dapat terhubung ke layanan AI. Periksa koneksi Anda lalu coba lagi',
-    aiCreditsExhausted: 'Kredit AI Anda telah habis. Periksa penagihan penyedia AI lalu coba lagi',
+    aiCreditsExhausted:
+      'Kredit ReveLith Anda telah habis. Isi ulang di revelith.ai/pricing lalu coba lagi',
     aiToolReadPages: 'Baca halaman {start}-{end}',
     aiToolSearch: 'Cari "{query}" ({count} temuan)',
     aiToolGoto: 'Ke halaman {page}',
@@ -3682,7 +3683,7 @@ export const strings = {
     aiNetworkError:
       'Проблема с сетью: не удалось подключиться к сервису ИИ. Проверьте подключение и повторите попытку',
     aiCreditsExhausted:
-      'Кредиты ИИ исчерпаны. Проверьте оплату вашего ИИ-провайдера и повторите попытку',
+      'Кредиты ReveLith исчерпаны. Пополните баланс на revelith.ai/pricing и повторите попытку',
     aiToolReadPages: 'Чтение страниц {start}-{end}',
     aiToolSearch: 'Поиск «{query}» ({count} совпадений)',
     aiToolGoto: 'Перейти на страницу {page}',
@@ -4019,7 +4020,7 @@ export const strings = {
     aiNetworkError:
       'مشكلة في الشبكة: تعذّر الوصول إلى خدمة الذكاء الاصطناعي. تحقق من الاتصال وحاول مجددًا',
     aiCreditsExhausted:
-      'نفدت أرصدة الذكاء الاصطناعي لديك. يرجى التحقق من فوترة المزود ثم المحاولة مجددًا',
+      'نفدت أرصدة ReveLith لديك. يرجى إعادة الشحن عبر revelith.ai/pricing ثم المحاولة مجددًا',
     aiToolReadPages: 'قراءة الصفحات {start}-{end}',
     aiToolSearch: 'بحث عن "{query}" ({count} نتيجة)',
     aiToolGoto: 'الانتقال إلى الصفحة {page}',
@@ -4355,7 +4356,7 @@ export const strings = {
     aiNetworkError:
       'Problema de rede: não foi possível conectar ao serviço de IA. Verifique sua conexão e tente novamente',
     aiCreditsExhausted:
-      'Seus créditos de IA acabaram. Verifique a cobrança do seu provedor de IA e tente novamente',
+      'Seus créditos ReveLith acabaram. Recarregue em revelith.ai/pricing e tente novamente',
     aiToolReadPages: 'Ler páginas {start}-{end}',
     aiToolSearch: 'Pesquisar "{query}" ({count} ocorrências)',
     aiToolGoto: 'Ir para a página {page}',
@@ -4695,7 +4696,7 @@ export const strings = {
     aiNetworkError:
       'Problema di rete: impossibile raggiungere il servizio IA. Controlla la connessione e riprova',
     aiCreditsExhausted:
-      'I tuoi crediti IA sono esauriti. Controlla la fatturazione del tuo provider IA e riprova',
+      'I tuoi crediti ReveLith sono esauriti. Ricarica su revelith.ai/pricing e riprova',
     aiToolReadPages: 'Leggi le pagine {start}-{end}',
     aiToolSearch: 'Cerca "{query}" ({count} risultati)',
     aiToolGoto: 'Vai alla pagina {page}',
@@ -5035,7 +5036,7 @@ export const strings = {
     aiNetworkError:
       'Problem z siecią: nie można połączyć się z usługą AI. Sprawdź połączenie i spróbuj ponownie',
     aiCreditsExhausted:
-      'Twoje kredyty AI wyczerpały się. Sprawdź rozliczenia swojego dostawcy AI i spróbuj ponownie',
+      'Twoje kredyty ReveLith wyczerpały się. Doładuj konto na revelith.ai/pricing i spróbuj ponownie',
     aiToolReadPages: 'Czytaj strony {start}-{end}',
     aiToolSearch: 'Szukaj „{query}" ({count} wyników)',
     aiToolGoto: 'Przejdź do strony {page}',
@@ -5373,7 +5374,7 @@ export const strings = {
     aiNetworkError:
       'Problém se sítí: službu AI se nepodařilo kontaktovat. Zkontrolujte připojení a zkuste to znovu',
     aiCreditsExhausted:
-      'Vaše kredity AI byly vyčerpány. Zkontrolujte fakturaci svého poskytovatele AI a zkuste to znovu',
+      'Vaše kredity ReveLith byly vyčerpány. Navštivte revelith.ai/pricing, dobijte je a zkuste to znovu',
     aiToolReadPages: 'Číst stránky {start}-{end}',
     aiToolSearch: 'Hledat „{query}“ ({count} výskytů)',
     aiToolGoto: 'Přejít na stránku {page}',
@@ -5712,7 +5713,7 @@ export const strings = {
     aiNetworkError:
       'Netwerkprobleem: kan de AI-service niet bereiken. Controleer je verbinding en probeer het opnieuw',
     aiCreditsExhausted:
-      'Je AI-credits zijn op. Controleer de facturering van je AI-provider en probeer het opnieuw',
+      'Je ReveLith-credits zijn op. Waardeer op via revelith.ai/pricing en probeer het opnieuw',
     aiToolReadPages: "Pagina's {start}-{end} lezen",
     aiToolSearch: 'Zoeken naar "{query}" ({count} resultaten)',
     aiToolGoto: 'Ga naar pagina {page}',
@@ -6049,7 +6050,8 @@ export const strings = {
     aiOverloadedError: 'Perkhidmatan AI sedang sibuk — sila cuba lagi sebentar lagi',
     aiNetworkError:
       'Masalah rangkaian: tidak dapat menghubungi perkhidmatan AI. Semak sambungan anda dan cuba lagi',
-    aiCreditsExhausted: 'Kredit AI anda telah habis. Semak bil pembekal AI dan cuba lagi',
+    aiCreditsExhausted:
+      'Kredit ReveLith anda telah habis. Tambah nilai di revelith.ai/pricing dan cuba lagi',
     aiToolReadPages: 'Baca halaman {start}-{end}',
     aiToolSearch: 'Cari "{query}" ({count} padanan)',
     aiToolGoto: 'Pergi ke halaman {page}',
@@ -6382,7 +6384,7 @@ export const strings = {
     aiTimeoutError: 'תם הזמן לבקשת ה-AI: אין תגובה מהרשת וההרצה הופסקה. בדוק את החיבור ונסה שוב',
     aiOverloadedError: 'שירות ה-AI עמוס כרגע — נסו שוב בעוד רגע',
     aiNetworkError: 'בעיית רשת: לא ניתן להתחבר לשירות ה-AI. בדוק את החיבור ונסה שוב',
-    aiCreditsExhausted: 'נגמרו הקרדיטים — בדקו את החיוב אצל ספק ה-AI ונסו שוב',
+    aiCreditsExhausted: 'קרדיטי ReveLith שלך אזלו. טען מחדש ב-revelith.ai/pricing ונסה שוב',
     aiToolReadPages: 'קריאת עמודים {start}-{end}',
     aiToolSearch: 'חיפוש "{query}" ({count} תוצאות)',
     aiToolGoto: 'מעבר לעמוד {page}',
@@ -6715,7 +6717,7 @@ export const strings = {
     aiNetworkError:
       'नेटवर्क समस्या: AI सेवा से कनेक्ट नहीं हो सका। कनेक्शन जांचें और फिर से प्रयास करें',
     aiCreditsExhausted:
-      'आपके AI क्रेडिट समाप्त हो गए हैं। अपने AI प्रदाता की बिलिंग जाँचें और फिर से प्रयास करें',
+      'आपके ReveLith क्रेडिट समाप्त हो गए हैं। revelith.ai/pricing पर रिचार्ज करें और फिर से प्रयास करें',
     aiToolReadPages: 'पृष्ठ {start}-{end} पढ़ें',
     aiToolSearch: '"{query}" खोजें ({count} परिणाम)',
     aiToolGoto: 'पृष्ठ {page} पर जाएँ',
@@ -7046,7 +7048,7 @@ export const strings = {
     aiTimeoutError: 'AI 請求逾時：網路長時間無回應，已停止。請檢查網路後重試',
     aiOverloadedError: 'AI 服務目前繁忙，請稍後重試',
     aiNetworkError: '網路有問題，無法連接 AI 服務。請檢查網路後重試',
-    aiCreditsExhausted: '點數不足，請檢查 AI 提供商的帳單後重試',
+    aiCreditsExhausted: 'ReveLith 點數已用完，請前往 revelith.ai/pricing 儲值後重試',
     aiToolReadPages: '讀取第 {start}-{end} 頁',
     aiToolSearch: '搜尋「{query}」（{count} 處）',
     aiToolGoto: '跳至第 {page} 頁',

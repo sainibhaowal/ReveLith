@@ -1,10 +1,10 @@
-﻿import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
 export default defineConfig({
   main: {
     // @revelith/* workspace packages ship TS source (no build step, no
-    // compiled entry point) : externalizing them makes Node's ESM loader try
+    // compiled entry point) — externalizing them makes Node's ESM loader try
     // to resolve their relative imports at runtime and fail. Bundle those;
     // externalize everything else (Electron, zod, node builtins).
     plugins: [
@@ -17,13 +17,16 @@ export default defineConfig({
           '@revelith/file-parse',
           '@revelith/electron-utils',
           '@revelith/i18n',
+          '@revelith/pptx-render',
+          '@revelith/xlsx-gateway',
         ],
       }),
     ],
   },
   preload: {
-    // Sandboxed preload scripts cannot require arbitrary npm packages at runtime.
-    plugins: [],
+    // Sandboxed preload scripts cannot require arbitrary npm packages at
+    // runtime, so the drop-open bridge must be bundled, not externalized.
+    plugins: [externalizeDepsPlugin({ exclude: ['@revelith/electron-utils'] })],
   },
   renderer: {
     plugins: [react()],

@@ -23,7 +23,7 @@ export function LocaleProvider({ initial, children }: { initial: Lang; children:
       setLang: (next) => {
         setLangState(next)
         document.documentElement.lang = htmlLang(next)
-        void window.revelithApp.setLanguage(next)
+        void window.aiOffice.setLanguage(next)
       },
     }),
     [lang],
@@ -55,13 +55,13 @@ const DATE_LOCALES: Record<Lang, string> = {
   pt: 'pt-BR',
   it: 'it-IT',
   pl: 'pl-PL',
+  cs: 'cs-CZ',
   nl: 'nl-NL',
   ms: 'ms-MY',
   he: 'he-IL',
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
-  cs: 'cs-CZ',
-  vi: '\n\nTrả lời bằng cùng ngôn ngữ với tin nhắn của người dùng; nếu không xác định được, hãy trả lời bằng tiếng Việt.',
+  vi: 'vi-VN',
 }
 
 export function useI18n(): I18n {

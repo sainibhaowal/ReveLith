@@ -1,54 +1,39 @@
-/* AI panel preference application: the font-size token every panel styles
- * against, plus the body wrapper the shared panel chrome renders. The Settings
- * toggle writes --ai-panel-font-size at runtime, so nothing here hardcodes a
- * size. */
-
-:root {
-  --ai-panel-font-size: 14px;
+/* AI panel text size (Settings → General). The chat log and composer are
+   scaled as a block so the per-app px type scale keeps its proportions;
+   the factor comes from applyAiPanelPrefs() via --ai-font-zoom. */
+html[data-ai-font-size] .ai-chat,
+html[data-ai-font-size] .ai-composer {
+  zoom: var(--ai-font-zoom, 1);
 }
 
-.ai-panel-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  font-size: var(--ai-panel-font-size);
+/* Move only the assistant; document navigation retains its existing ordering. */
+html[data-ai-panel-side='right'] {
+  --ai-panel-border-left: 1px;
+  --ai-panel-border-right: 0px;
 }
 
-/* collapsed-panel affordance: docked to the edge the panel is on, so the
- * chevron points at the panel it would open */
-.ai-panel-side-button {
-  position: absolute;
-  top: 50%;
-  z-index: 40;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-size: 12px;
-  transform: translateY(-50%);
-  cursor: pointer;
+html[data-ai-panel-side='right'] .ai-dock {
+  order: 1;
 }
 
-[data-ai-panel-side='right'] .ai-panel-side-button {
-  right: 0;
-  border-right: none;
-  border-radius: 6px 0 0 6px;
-}
-
-[data-ai-panel-side='left'] .ai-panel-side-button {
+html[data-ai-panel-side='right'] .ai-panel-resizer {
   left: 0;
-  border-left: none;
-  border-radius: 0 6px 6px 0;
+  right: auto;
 }
 
-.ai-panel-side-button:hover {
-  background: var(--hover);
-  color: var(--text);
+/* Sheets has a two-column grid instead of the other apps' flex docks. */
+html[data-ai-panel-side='right'] .sheet-body {
+  grid-template-columns: minmax(0, 1fr) var(--copilot-width, 360px);
+}
+
+html[data-ai-panel-side='right'] .sheet-body > .copilot {
+  order: 1;
+}
+
+html[data-ai-panel-side='right'] .app-shell.copilot-collapsed .sheet-body {
+  grid-template-columns: minmax(0, 1fr) 34px;
+}
+
+html[data-ai-panel-side='right'] .ai-panel-collapse svg {
+  transform: scaleX(-1);
 }

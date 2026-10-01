@@ -41,7 +41,7 @@ export function resolveColorNode(
 }
 
 /** ECMA-376 ST_PresetColorVal (CSS/X11 values plus the dk/lt/med aliases). */
-export const PRESET_COLORS: Record<string, string> = {
+const PRESET_COLORS: Record<string, string> = {
   aliceBlue: '#F0F8FF',
   antiqueWhite: '#FAEBD7',
   aqua: '#00FFFF',
@@ -237,38 +237,6 @@ export const PRESET_COLORS: Record<string, string> = {
 const PRESET_COLORS_LOWER = new Map<string, string>(
   Object.entries(PRESET_COLORS).map(([k, v]) => [k.toLowerCase(), v]),
 )
-
-/**
- * Resolve an <a:fillRef> style reference through the theme's fmtScheme: idx
- * 1-3 index theme.fillStyles, whose first a:solidFill supplies the color (the
- * chart / legacy-2007 path). Falls back to the reference's own color.
- */
-export function resolveFillRefColor(spPr: unknown, theme: Theme | undefined): string | undefined {
-  const ref = asXmlNode(asXmlNode(spPr)?.['a:fillRef'])
-  if (!ref || typeof ref !== 'object') return undefined
-  const idx = parseInt(String(ref['@_idx'] ?? '0'), 10) || 0
-  const refColor = resolveColorNode(ref, theme) ?? undefined
-  if (idx <= 0) return refColor
-  const tpl = theme?.fillStyles?.[idx - 1]
-  const solid = tpl ? findSolidFill(tpl) : undefined
-  return (solid ? resolveColorNode(solid, theme) : undefined) ?? refColor
-}
-
-/** First a:solidFill anywhere inside a (possibly nested) style template node. */
-function findSolidFill(node: unknown): XmlNode | undefined {
-  const n = asXmlNode(node)
-  if (!n || typeof n !== 'object') return undefined
-  if (n['a:solidFill'] && typeof n['a:solidFill'] === 'object') {
-    return asXmlNode(n['a:solidFill'])
-  }
-  for (const value of Object.values(n)) {
-    if (value && typeof value === 'object') {
-      const found = findSolidFill(value)
-      if (found) return found
-    }
-  }
-  return undefined
-}
 
 /** Apply lumMod/lumOff/tint/shade/satMod/alpha modifiers (percentages, in units of 1/1000%). */
 export function applyColorMods(hex: string, mods: XmlNode | undefined): string {

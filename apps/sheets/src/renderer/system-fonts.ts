@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 
 export const DEFAULT_FONT_FAMILIES: readonly string[] = [
   'Aptos',
@@ -37,7 +37,7 @@ function loadSystemFontFamilies(): Promise<readonly string[]> {
   return pending
 }
 
-/// Empty until load() runs : call it from the picker's open click so the
+/// Empty until load() runs — call it from the picker's open click so the
 /// Local Font Access API sees user activation; cached for the page lifetime,
 /// and on failure the pickers just keep the default list.
 export function useSystemFontFamilies(): {

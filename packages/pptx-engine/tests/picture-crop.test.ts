@@ -38,11 +38,7 @@ describe('parsePicture presetGeometry (picture styles)', () => {
     })
     expect((withEllipse.elements[0] as any).presetGeometry).toBe('ellipse')
 
-    const withRect = parseSlide({
-      path: 'ppt/slides/slide1.xml',
-      slideXml: slideWith(PIC_XML_NO_SRCRECT),
-      ctx: {},
-    })
+    const withRect = parseSlide({ path: 'ppt/slides/slide1.xml', slideXml: slideWith(PIC_XML_NO_SRCRECT), ctx: {} })
     expect((withRect.elements[0] as any).presetGeometry).toBeUndefined()
   })
 
@@ -51,9 +47,7 @@ describe('parsePicture presetGeometry (picture styles)', () => {
     const slide = parseSlide({
       path: 'ppt/slides/slide1.xml',
       slideXml: slideWith(
-        picWithGeom(
-          '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 25000"/></a:avLst></a:prstGeom>',
-        ),
+        picWithGeom('<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 25000"/></a:avLst></a:prstGeom>'),
       ),
       ctx: {},
     })
@@ -130,11 +124,7 @@ describe('editPictureSrcRect + savePptx roundtrip', () => {
     let slideIdx = 0
     for (let i = 0; i < opened.deck.slides.length; i++) {
       const pic = opened.deck.slides[i]!.elements.find((e) => e.type === 'picture')
-      if (pic) {
-        picId = pic.id
-        slideIdx = i
-        break
-      }
+      if (pic) { picId = pic.id; slideIdx = i; break }
     }
     if (!picId) {
       // Pass directly if the standard business pptx has no pictures (test fixtures cover the base case)
@@ -159,11 +149,7 @@ describe('editPictureSrcRect + savePptx roundtrip', () => {
     let slideIdx = 0
     for (let i = 0; i < opened.deck.slides.length; i++) {
       const pic = opened.deck.slides[i]!.elements.find((e) => e.type === 'picture')
-      if (pic) {
-        picId = pic.id
-        slideIdx = i
-        break
-      }
+      if (pic) { picId = pic.id; slideIdx = i; break }
     }
     if (!picId) return
     const slide = opened.deck.slides[slideIdx]!

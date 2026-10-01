@@ -1,10 +1,11 @@
 import type { ExecutedToolCall } from '@revelith/agent-core'
 
 /**
- * Claimed-selection guard: a reply that tells the user "I selected / located
- * / highlighted ... for you" is only acceptable when a select_range call
- * actually succeeded during the run. Prompt rules alone are soft — models
- * still occasionally narrate an action instead of performing it; this check
+ * Claimed-selection guard for the sheets skill (AgentSkill.verifyResponse):
+ * a reply that tells the user "I selected / located / highlighted ... for
+ * you" is only acceptable when a select_range call actually succeeded during
+ * the run. Prompt rules alone are soft — models still occasionally narrate an
+ * action instead of performing it (claimed-action hallucination); this check
  * is the mechanical backstop that forces one corrective turn.
  *
  * Detection is intentionally narrow (Chinese + English claim phrasings, the
@@ -13,11 +14,12 @@ import type { ExecutedToolCall } from '@revelith/agent-core'
  * and the loop caps it at one extra turn per run.
  */
 
-// The perfective marker ("already") plus a selection verb, allowing a short
-// gap for filler words ("already [for you] selected ..."). The gap must not
-// cross punctuation — otherwise "done. please select ..." (an instruction to
-// the user) would match — and the attributive form "the already-selected
-// range" (the user's own selection) is excluded by the lookahead guard.
+// The perfective marker (U+5DF2, "already") plus a selection verb, allowing
+// a short gap for filler words ("already [for you] selected ..."). The gap
+// must not cross punctuation — otherwise "done. please select ..." (an
+// instruction to the user) would match — and the attributive form
+// "the already-selected range" (referring to the user's own selection) is
+// excluded by the lookahead guard rejecting U+7684 after the verb.
 const ZH_SELECTION_CLAIM =
   /已[^。．.!！?？，,;；:：\n]{0,8}?(?:定位|选中|選中|选定|選定|圈选|圈選|高亮|跳转|跳轉)(?!的)/
 const EN_SELECTION_CLAIM =

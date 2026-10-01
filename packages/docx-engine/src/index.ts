@@ -177,4 +177,3 @@ export {
 } from './list-markers'
 
 export { previewFontSettings } from './font-settings'
-export { extractEmfBitmapDataUrl } from './metafile-bitmap'

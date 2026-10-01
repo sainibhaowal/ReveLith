@@ -6,7 +6,10 @@ import {
 } from './markdown/roundtripSerializer'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ImageViewer, useAutoSavePref } from '@revelith/ui'
-import { pollUntilReady, runHeadlessRendererExport } from '@revelith/electron-utils/headless-export'
+import {
+  pollUntilReady,
+  runHeadlessRendererExport,
+} from '@revelith/electron-utils/headless-export'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { FindPanel, type FindFocusRequest, type FindPanelStrings } from '@revelith/ui'
 import type { Editor } from '@tiptap/core'

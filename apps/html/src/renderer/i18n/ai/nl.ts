@@ -4,8 +4,7 @@ export const nl = {
   aiCollapsePanel: 'Paneel inklappen',
   aiComposerPlaceholder: 'Vraag AI te schrijven of bewerken…',
   aiCopyReplyTitle: 'Antwoord kopiëren',
-  aiCreditsExhausted:
-    'Credits op — controleer de facturering van je AI-provider en probeer het opnieuw',
+  aiCreditsExhausted: 'Credits op — waardeer op via revelith.ai',
   aiEmptyTitle: 'Ontwerp een pagina met AI',
   aiEmptyBody:
     'Landingspagina, rapport, poster: zeg waarvoor en voor wie; de AI stelt eerst een briefing voor en bouwt daarna de pagina',

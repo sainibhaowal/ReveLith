@@ -1,4 +1,4 @@
-﻿// Contract between the update window renderer (update.html) and the shell
+// Contract between the update window renderer (update.html) and the shell
 // main process. Update-dialog IPC surface:
 // get-state / download / install / later + a state-changed push event.
 
@@ -12,11 +12,9 @@ export const UPDATE_CHANNELS = {
 } as const
 
 /** 'manual' = automatic updating is not working for this version (repeated
- * failures, e.g. a signing-identity change the installed app refuses) : the
- * dialog guides the user to download the installer from the releases page.
- * 'up-to-date' = a manual "Check for Updates" found nothing newer : the card
- * confirms the current version instead of offering a download. */
-export type UpdatePhase = 'available' | 'downloading' | 'downloaded' | 'error' | 'manual' | 'up-to-date'
+ * failures, e.g. a signing-identity change the installed app refuses) — the
+ * dialog guides the user to download the installer from the releases page */
+export type UpdatePhase = 'available' | 'downloading' | 'downloaded' | 'error' | 'manual'
 
 /** window copy is localized in the main process (owner of UI language) */
 export interface UpdateUiStrings {
@@ -31,9 +29,6 @@ export interface UpdateUiStrings {
   retry: string
   manualDesc: string
   openDownload: string
-  upToDateHeadline: string
-  upToDateDesc: string
-  close: string
 }
 
 export interface UpdateUiState {

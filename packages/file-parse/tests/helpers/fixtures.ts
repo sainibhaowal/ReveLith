@@ -7,7 +7,7 @@ import JSZip from 'jszip'
 export const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
-export const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
+const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
 
 let fixtureDir: string | undefined
 
@@ -74,7 +74,7 @@ export async function buildDocxFixture(): Promise<Uint8Array> {
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
 }
 
-export function slideXml(paragraphs: string[][]): string {
+function slideXml(paragraphs: string[][]): string {
   const paras = paragraphs
     .map(
       (runs) =>

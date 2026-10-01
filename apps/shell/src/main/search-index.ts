@@ -453,6 +453,7 @@ async function getExtractors(): Promise<Map<string, (filePath: string) => Promis
   // PDF text extraction
   let pdfParse: any = null
   try {
+    // @ts-ignore
     pdfParse = (await import('pdf-parse')).default
   } catch {
     // pdf-parse not available, will use fallback
@@ -467,6 +468,7 @@ async function getExtractors(): Promise<Map<string, (filePath: string) => Promis
 
   // DOCX text extraction
   try {
+    // @ts-ignore
     const mammoth = await import('mammoth')
     extractors.set('docx', async (filePath: string) => {
       const result = await mammoth.extractRawText({ path: filePath })
@@ -477,6 +479,7 @@ async function getExtractors(): Promise<Map<string, (filePath: string) => Promis
 
   // XLSX text extraction
   try {
+    // @ts-ignore
     const XLSX = await import('xlsx')
     extractors.set('xlsx', async (filePath: string) => {
       const workbook = XLSX.readFile(filePath)

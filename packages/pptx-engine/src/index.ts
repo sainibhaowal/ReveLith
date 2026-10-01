@@ -31,7 +31,6 @@ import {
   patchElementStroke,
   patchElementXfrm,
   patchPictureSrcRect,
-  patchBodyPrVert,
   patchSlideAdvanceTimeXml,
   patchSlideBackgroundXml,
   patchSlideHiddenXml,
@@ -145,8 +144,6 @@ export {
   patchParagraphPPrXml,
   patchElementStroke,
   patchBodyPrAutofit,
-  patchBodyPrVert,
-  patchElementEffects,
   patchPictureSrcRect,
   patchSlideAdvanceTimeXml,
   patchSlideBackgroundXml,
@@ -165,8 +162,6 @@ export {
   type BackgroundImagePatch,
   type SlideTransitionKind,
   type StrokePatch,
-  type ElementEffectsPatch,
-  generateRunXml,
 } from './generate'
 export {
   addElement,
@@ -260,14 +255,13 @@ export {
   type MasterTextStyles,
 } from './placeholder'
 export { resolveFontRef } from './theme'
-export { resolveColorNode, applyColorMods, PRESET_COLORS, resolveFillRefColor } from './color'
+export { resolveColorNode, applyColorMods } from './color'
 export {
   parseChartXml,
   type ChartModel,
   type ChartSeries,
   type ChartKind,
   type ChartAxisStyle,
-  type ManualLayoutBox,
 } from './chart'
 export { parseChartExXml } from './chartex'
 export { getSlideNotes, setSlideNotes, notesPathForSlide, unescapeXml } from './notes'
@@ -3302,12 +3296,6 @@ export interface ParagraphFormatPatch {
   align?: Paragraph['align']
   /** Paragraph base direction (a:pPr rtl); false writes an explicit rtl="0" */
   rtl?: boolean
-  /**
-   * Base direction by name: 'rtl' writes rtl="1", 'ltr' clears the attribute
-   * (the "no more tools"-style direction toggle used by the RTL ops). Takes
-   * precedence over the boolean `rtl` above.
-   */
-  direction?: 'ltr' | 'rtl'
   /** Indent level delta (multi-level list Tab/⇧Tab; clamp 0..8) */
   indentDelta?: 1 | -1
 }
@@ -3443,14 +3431,9 @@ export function applyParagraphFormat(
       mark('align')
       dirty.align = true
     }
-    // direction is the by-name form and wins over the boolean rtl: 'ltr' drops
-    // the attribute (inheritance applies again), rtl=false pins an explicit "0"
-    const rtl = patch.direction != null ? patch.direction === 'rtl' : patch.rtl
-    if (rtl != null) {
-      p.rtl = rtl
-      mark('rtl')
+    if (patch.rtl != null) {
+      p.rtl = patch.rtl
       dirty.rtl = true
-      if (patch.direction === 'ltr') dirty.rtlRemove = true
     }
     if (patch.indentDelta) {
       const lvl = Math.max(0, Math.min(8, (p.level ?? 0) + patch.indentDelta))
@@ -4670,158 +4653,6 @@ export function setGroupChildShapeCustomGeometry(
   })
   if (!ok || written == null) return false
   applyCustomGeometryModel(child as TextElement, written)
-  slide.structureDirty = true
-  return true
-}
-
-// ReveLith-only functions (from HEAD)
-
-/**
- * Sanitize a deck for PowerPoint compatibility:
- * - Drops empty paragraphs that crash strict parsers
- * - Collapses duplicate r:embed attributes
- * - De-duplicates relationship Ids
- * Returns count of fixes and notes.
- */
-export function sanitizeDeckForPowerPoint(
-  slideXmlByPath: Map<string, string>,
-  relsByPath: Map<string, string>,
-): { fixed: number; notes: string[] } {
-  let fixed = 0
-  const notes: string[] = []
-  for (const [path, xml] of slideXmlByPath) {
-    let out = xml
-    // Drop empty paragraphs that crash strict parsers
-    const before = out.length
-    out = out.replace(/<a:p>\s*<a:pPr[^/]*\/>\s*<\/a:p>/g, '')
-    // Collapse duplicate rId attributes keeping first
-    out = out.replace(/(r:embed="[^"]+")(\s+r:embed="[^"]+")+/g, '$1')
-    if (out.length !== before) {
-      fixed += 1
-      notes.push(`${path}: cleaned empty/duplicate nodes`)
-    }
-    slideXmlByPath.set(path, out)
-  }
-  for (const [path, rels] of relsByPath) {
-    const ids = [...rels.matchAll(/Id="([^"]+)"/g)].map((m) => m[1])
-    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i)
-    if (dupes.length > 0) {
-      let n = 0
-      const seen = new Set<string>()
-      const cleaned = rels.replace(/Id="([^"]+)"/g, (m, id: string) => {
-        if (!seen.has(id)) {
-          seen.add(id)
-          return m
-        }
-        n += 1
-        return `${id}_fix${n}`
-      })
-      relsByPath.set(path, cleaned)
-      fixed += n
-      notes.push(`${path}: de-duplicated ${n} relationship Ids`)
-    }
-  }
-  return { fixed, notes }
-}
-
-/**
- * Set table RTL direction (a:tblPr rtl="1"). Byte surgery baked into originalXml.
- * Returns whether the element was found and updated.
- */
-export function setTableRtl(slide: Slide, elementId: string, rtl: boolean): boolean {
-  const el = slide.elements.find((e) => e.id === elementId)
-  if (!el || el.type !== 'table') return false
-  const table = el as TableElement
-  let xml = el.anchor.originalXml
-  const open = /<a:tblPr\b([^>]*?)(\/?)>/.exec(xml)
-  if (!open) {
-    // no tblPr: insert after <a:tbl>
-    if (!/<a:tbl\b[^>]*>/.test(xml)) return false
-    xml = xml.replace(/<a:tbl\b[^>]*>/, (m) => (rtl ? `${m}<a:tblPr rtl="1"/>` : `${m}<a:tblPr/>`))
-  } else if (open[2] === '/') {
-    const attrs = `${open[1] ?? ''}`.replace(/\srtl="[^"]*"/, '')
-    const tag = rtl ? `<a:tblPr${attrs} rtl="1">` : `<a:tblPr${attrs}>`
-    xml = xml.slice(0, open.index) + tag + '</a:tblPr>' + xml.slice(open.index + open[0].length)
-  } else {
-    const tag = open[0].replace(/\srtl="[^"]*"/, '')
-    xml =
-      xml.slice(0, open.index) +
-      (rtl ? tag.replace(/^<a:tblPr/, '<a:tblPr rtl="1"') : tag) +
-      xml.slice(open.index + open[0].length)
-  }
-  el.anchor.originalXml = xml
-  if (rtl) table.rtl = true
-  else delete table.rtl
-  slide.structureDirty = true
-  return true
-}
-
-/**
- * Text-frame column direction toggle (surgical <a:bodyPr rtlCol> patch):
- * sets or clears rtlCol="1" on the element's txBody bodyPr open tag, creating
- * bodyPr when absent. anchor.originalXml is patched directly;
- * structureDirty=true triggers the save rebuild. PowerPoint pairs this with
- * RTL paragraphs for fully right-to-left text frames.
- */
-export function setBodyPrRtlCol(slide: Slide, elementId: string, rtl: boolean): boolean {
-  const el = slide.elements.find((e) => e.id === elementId)
-  if (!el || (el.type !== 'text' && el.type !== 'shape')) return false
-  const xml = el.anchor.originalXml
-  const txBody = /<p:txBody>[\s\S]*?<\/p:txBody>/.exec(xml)
-  if (!txBody) return false
-  const body = txBody[0]
-  const open = /<a:bodyPr\b([^>]*?)(\/?)>/.exec(body)
-  let patched: string
-  if (!open) {
-    if (!/<p:txBody>/.test(body)) return false
-    patched = body.replace(
-      /<p:txBody>/,
-      rtl ? '<p:txBody><a:bodyPr rtlCol="1"/>' : '<p:txBody><a:bodyPr/>',
-    )
-  } else if (open[2] === '/') {
-    const attrs = `${open[1] ?? ''}`.replace(/\srtlCol="[^"]*"/, '')
-    const tag = rtl ? `<a:bodyPr${attrs} rtlCol="1">` : `<a:bodyPr${attrs}>`
-    patched =
-      body.slice(0, open.index) + tag + '</a:bodyPr>' + body.slice(open.index + open[0].length)
-  } else {
-    const tag = open[0].replace(/\srtlCol="[^"]*"/, '')
-    patched =
-      body.slice(0, open.index) +
-      (rtl ? tag.replace(/^<a:bodyPr/, '<a:bodyPr rtlCol="1"') : tag) +
-      body.slice(open.index + open[0].length)
-  }
-  el.anchor.originalXml =
-    xml.slice(0, txBody.index) + patched + xml.slice(txBody.index + body.length)
-  const text = (el as TextElement).text
-  if (text) {
-    if (rtl) text.rtlCol = true
-    else delete text.rtlCol
-  }
-  slide.structureDirty = true
-  return true
-}
-
-/**
- * Set vertical text writing mode on a text/shape element (<a:bodyPr vert="...">).
- * vert: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null
- */
-export function setBodyPrVert(
-  slide: Slide,
-  elementId: string,
-  vert: 'eaVert' | 'vert' | 'vert270' | 'wordArtVert' | 'horz' | null,
-): boolean {
-  const el = slide.elements.find((e) => e.id === elementId)
-  if (!el || (el.type !== 'text' && el.type !== 'shape')) return false
-  const patchedXml = patchBodyPrVert(el.anchor.originalXml, vert)
-  el.anchor.originalXml = patchedXml
-  const text = (el as TextElement).text
-  if (text) {
-    if (vert && vert !== 'horz') {
-      text.vert = vert
-    } else {
-      delete text.vert
-    }
-  }
   slide.structureDirty = true
   return true
 }

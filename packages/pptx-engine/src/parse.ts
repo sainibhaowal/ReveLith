@@ -3531,10 +3531,6 @@ function parseTextBody(
     ...(lnSpcReduction != null ? { lnSpcReduction } : {}),
     wrap: bodyPr['@_wrap'] !== 'none',
     ...(vert ? { vert } : {}),
-    // <a:bodyPr rtlCol>: right-to-left column order for vertical text
-    ...(bodyPr['@_rtlCol'] != null
-      ? { rtlCol: String(bodyPr['@_rtlCol']) === '1' || String(bodyPr['@_rtlCol']) === 'true' }
-      : {}),
     ...(intOr(bodyPr['@_numCol'], 1) > 1
       ? { numCol: intOr(bodyPr['@_numCol'], 1), spcCol: intOr(bodyPr['@_spcCol'], 0) }
       : {}),
@@ -4042,8 +4038,6 @@ function parseRun(r: any, ctx: ParseContext, dflt?: LevelTextStyle): TextRun {
     ...(rPr['@_spc'] ? { letterSpacing: parseInt(rPr['@_spc'], 10) / 100 } : {}),
     ...(rPr['@_kern'] != null ? { kern: (parseInt(rPr['@_kern'], 10) || 0) / 100 } : {}),
     ...(rPr['@_baseline'] ? { baseline: parseInt(rPr['@_baseline'], 10) / 1000 } : {}),
-    // <a:rPr><a:rtl/>: run-level complex-script direction override
-    ...(rPr['a:rtl'] != null ? { rtl: rPr['a:rtl']['@_val'] !== '0' } : {}),
     fontFamily,
     ...(latinFamily ? { latinFamily } : {}),
     ...(fontScriptHint != null ? { fontScriptHint } : {}),

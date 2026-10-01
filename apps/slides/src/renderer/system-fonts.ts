@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { FONT_FAMILIES } from './components/ribbon-shared'
 
@@ -30,7 +30,7 @@ function loadSystemFontFamilies(): Promise<readonly string[]> {
   return pending
 }
 
-/// Empty until load() runs : call it from the picker's open click so the
+/// Empty until load() runs — call it from the picker's open click so the
 /// Local Font Access API sees user activation; cached for the page lifetime,
 /// and on failure the picker just keeps the built-in list.
 export function useSystemFontFamilies(): {

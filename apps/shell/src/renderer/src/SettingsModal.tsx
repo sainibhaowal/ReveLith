@@ -1,111 +1,41 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import {
+  AI_CUSTOM_FONT_MAX_PX,
+  AI_CUSTOM_FONT_MIN_PX,
+  DEFAULT_AI_PANEL_PREFS,
+  Dropdown,
+  aiPanelFontPx,
+  clampAiCustomFontSize,
+} from '@revelith/ui'
+import type { AiFontSize, AiPanelPrefs, AiPanelSide } from '@revelith/ui'
+import type { DefaultAppStatus, FileSearchSettings, JevEndpoint } from '../../shared/home-api'
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  MAX_MAX_OUTPUT_TOKENS,
+  MIN_MAX_OUTPUT_TOKENS,
+  clampMaxOutputTokens,
+} from '@revelith/ai-provider/browser'
+import type {
+  AiMediaProviderId,
+  AiMediaProviderMeta,
+  AiMediaSettings,
+  AiSearchProviderMeta,
+  AiSearchSettings,
+  AiSettings,
+} from '@revelith/ai-provider'
 import { useI18n } from './locale'
-import type { StringKey } from './locale'
-import type { UiTheme } from '../../shared/home-api'
+import type { StringKey, TFunc } from './locale'
+import type { AccountStatus, AiCatalogEntry, UiTheme } from '../../shared/home-api'
+import { ProviderLogo } from './provider-logos'
+import { IntegrationsPane, skillUpdateDue } from './IntegrationsPane'
 import './settings.css'
-
-interface CustomSelectOption<T extends string> {
-  value: T
-  label: string
-}
-
-function CustomSelect<T extends string>({
-  value,
-  options,
-  onChange,
-  id,
-}: {
-  value: T
-  options: readonly CustomSelectOption<T>[]
-  onChange: (val: T) => void
-  id?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
-
-  const selectedOption = options.find((o) => o.value === value)
-
-  return (
-    <div className="custom-select-wrap" ref={wrapRef} id={id}>
-      <button
-        type="button"
-        className={`custom-select-trigger${open ? ' open' : ''}`}
-        onClick={() => setOpen((prev) => !prev)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="custom-select-value">{selectedOption?.label ?? value}</span>
-        <svg
-          className="custom-select-chevron"
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M2.5 4.5L6 8L9.5 4.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
-      {open && (
-        <div className="custom-select-dropdown" role="listbox">
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                className={`custom-select-item${isSelected ? ' selected' : ''}`}
-                role="option"
-                aria-selected={isSelected}
-                onClick={() => {
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-              >
-                <span className="custom-select-item-label">{opt.label}</span>
-                {isSelected && (
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path
-                      d="M3.5 8.5L6.5 11.5L12.5 4.5"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── Settings modal (opened from the account menu) ─────────
 // ReveLith-style two-pane dialog: section nav on the left, fields on the right.
 // All values go through the existing home IPC; nothing is stored locally.
 
-// sorted by ISO 639 language code : native-script labels have no natural
+// sorted by ISO 639 language code — native-script labels have no natural
 // shared alphabet, so the code is the ordering key
 const LANG_OPTIONS = [
   { value: 'ar', label: 'العربية' },
@@ -131,36 +61,108 @@ const LANG_OPTIONS = [
   { value: 'zh-TW', label: '繁體中文' },
 ] as const
 
-// ReveLith's option order: follow-system first, then the manual picks
+// ReveMail's option order: follow-system first, then the manual picks
 const THEME_OPTIONS = [
   { value: 'system', labelKey: 'themeSystem' },
   { value: 'light', labelKey: 'themeLight' },
   { value: 'dark', labelKey: 'themeDark' },
 ] as const satisfies readonly { value: UiTheme; labelKey: StringKey }[]
 
-const _CHANNEL_OPTIONS = [
+const AI_FONT_SIZE_OPTIONS = [
+  { value: 'default', labelKey: 'aiFontSizeDefault' },
+  { value: 'large', labelKey: 'aiFontSizeLarge' },
+  { value: 'xlarge', labelKey: 'aiFontSizeXLarge' },
+  { value: 'custom', labelKey: 'aiFontSizeCustom' },
+] as const satisfies readonly { value: AiFontSize; labelKey: StringKey }[]
+
+const CHANNEL_OPTIONS = [
   { value: 'stable', labelKey: 'channelStable' },
   { value: 'beta', labelKey: 'channelBeta' },
 ] as const satisfies readonly { value: 'stable' | 'beta'; labelKey: StringKey }[]
 
-type SectionId = 'account' | 'ai' | 'media' | 'general' | 'integrations' | 'about'
+/** GitHub-style abbreviated stargazer count (2591 → "2.6k") — the number is
+ * social proof, not a metric; the cached/exact value would only look stale */
+function formatStars(n: number): string {
+  if (n < 1000) return String(n)
+  const k = n / 1000
+  return `${k >= 100 ? Math.round(k) : (Math.round(k * 10) / 10).toString().replace(/\.0$/, '')}k`
+}
 
-const SECTIONS: readonly { id: SectionId; label: string }[] = [
-  { id: 'account', label: 'Account' },
-  { id: 'ai', label: 'AI & Models' },
-  { id: 'media', label: 'AI Media & Search' },
-  { id: 'general', label: 'General' },
-  { id: 'integrations', label: 'Integrations' },
-  { id: 'about', label: 'About' },
+/** px stepper for the custom AI panel text size; in-range values apply live,
+ * out-of-range or partial input is clamped on blur */
+function CustomFontSizeInput({
+  value,
+  label,
+  onCommit,
+}: {
+  value: number
+  label: string
+  onCommit: (px: number) => void
+}) {
+  const [draft, setDraft] = useState(String(value))
+  const [editing, setEditing] = useState(false)
+  const shown = editing ? draft : String(value)
+  const commit = (raw: string) => {
+    const px = clampAiCustomFontSize(raw)
+    if (px !== null && px !== value) onCommit(px)
+  }
+  return (
+    <label className="set-num">
+      <input
+        type="number"
+        className="set-input set-num-input"
+        aria-label={label}
+        min={AI_CUSTOM_FONT_MIN_PX}
+        max={AI_CUSTOM_FONT_MAX_PX}
+        step={1}
+        value={shown}
+        onFocus={() => {
+          setDraft(String(value))
+          setEditing(true)
+        }}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          const n = Number(e.target.value)
+          if (Number.isInteger(n) && n >= AI_CUSTOM_FONT_MIN_PX && n <= AI_CUSTOM_FONT_MAX_PX) {
+            onCommit(n)
+          }
+        }}
+        onBlur={() => {
+          commit(draft)
+          setEditing(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+        }}
+      />
+      <span className="set-num-unit">px</span>
+    </label>
+  )
+}
+
+export type SectionId = 'account' | 'aiModel' | 'aiMedia' | 'general' | 'integrations' | 'about'
+
+const SECTIONS: readonly { id: SectionId; labelKey: StringKey }[] = [
+  { id: 'account', labelKey: 'setSecAccount' },
+  { id: 'aiModel', labelKey: 'setSecAiModel' },
+  { id: 'aiMedia', labelKey: 'setSecAiMedia' },
+  { id: 'general', labelKey: 'setSecGeneral' },
+  { id: 'integrations', labelKey: 'setSecIntegrations' },
+  { id: 'about', labelKey: 'setSecAbout' },
 ]
 
 function SectionIcon({ id }: { id: SectionId }) {
-  if (id === 'account') {
+  if (id === 'aiModel') {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <circle cx="8" cy="5.2" r="2.6" stroke="currentColor" strokeWidth="1.3" />
         <path
-          d="M2.5 13.5c.6-2.6 2.8-4 5.5-4s4.9 1.4 5.5 4"
+          d="M8 1.8 9.5 6l4.2 1.5L9.5 9 8 13.2 6.5 9 2.3 7.5 6.5 6 8 1.8Z"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12.8 11.2v3M11.3 12.7h3"
           stroke="currentColor"
           strokeWidth="1.3"
           strokeLinecap="round"
@@ -168,26 +170,31 @@ function SectionIcon({ id }: { id: SectionId }) {
       </svg>
     )
   }
-  if (id === 'media') {
+  if (id === 'aiMedia') {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <rect
-          x="1.8"
-          y="3"
-          width="12.4"
-          height="8.6"
-          rx="1.5"
-          stroke="currentColor"
-          strokeWidth="1.3"
-        />
-        <circle cx="5.2" cy="6.4" r="1.1" fill="currentColor" />
+        <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
         <path
-          d="M3 10.4l3-3 2.4 2.4 2-2 2.8 2.8"
+          d="M2.5 11.5 6 8l2.5 2.5L10.5 9l3 2.8"
           stroke="currentColor"
           strokeWidth="1.3"
+          strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path d="M6 13.6h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        <circle cx="10.5" cy="6" r="1.1" fill="currentColor" />
+      </svg>
+    )
+  }
+  if (id === 'account') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="5.2" r="2.9" stroke="currentColor" strokeWidth="1.3" />
+        <path
+          d="M2.7 13.6a5.5 5.5 0 0 1 10.6 0"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
       </svg>
     )
   }
@@ -195,32 +202,12 @@ function SectionIcon({ id }: { id: SectionId }) {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path
-          d="M6.5 2v3M9.5 2v3M5 5h6v2.5a3 3 0 0 1-6 0V5z"
+          d="M5.5 2v3M10.5 2v3M4 5h8v2.5a4 4 0 0 1-8 0V5ZM8 11.5V14"
           stroke="currentColor"
           strokeWidth="1.3"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path d="M8 10.5V14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      </svg>
-    )
-  }
-  if (id === 'ai') {
-    return (
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" />
-        <path d="M12 6a6 6 0 0 0-6 6c0 2.5 1.5 4.5 3.5 5.5" />
-        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
       </svg>
     )
   }
@@ -247,2147 +234,7 @@ function SectionIcon({ id }: { id: SectionId }) {
   )
 }
 
-function ProviderIcon({ id }: { id: string }) {
-  if (id === 'ollama') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M12 2C8.5 2 7 4.5 7 7v4H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1v1h2v-1h6v1h2v-1h1a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V7c0-2.5-1.5-5-5-5z"
-          fill="#F3F4F6"
-        />
-        <circle cx="9.5" cy="13.5" r="1.5" fill="#111827" />
-        <circle cx="14.5" cy="13.5" r="1.5" fill="#111827" />
-        <path d="M10 6.5h4M10 8.5h4" stroke="#111827" strokeWidth="1.2" strokeLinecap="round" />
-        <circle cx="12" cy="16.5" r="1" fill="#111827" />
-      </svg>
-    )
-  }
-  if (id === 'lmstudio') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <rect width="24" height="24" rx="6" fill="#1E293B" />
-        <path
-          d="M5 6.5C5 5.67 5.67 5 6.5 5h11c.83 0 1.5.67 1.5 1.5v8c0 .83-.67 1.5-1.5 1.5h-11C5.67 16 5 15.33 5 14.5v-8z"
-          fill="#0284C7"
-        />
-        <rect x="7" y="7" width="10" height="7" rx="1" fill="#38BDF8" />
-        <path d="M10 18.5h4M12 16v2.5" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    )
-  }
-  if (id === 'openai') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M22.28 9.37a5.98 5.98 0 0 0-.52-4.95 6.07 6.07 0 0 0-6.52-2.73 6.08 6.08 0 0 0-4.73-2.39 6.07 6.07 0 0 0-5.8 4.3 6.08 6.08 0 0 0-3.9 2.83 6.07 6.07 0 0 0 .74 7.07 6.08 6.08 0 0 0 .52 4.95 6.07 6.07 0 0 0 6.52 2.73 6.08 6.08 0 0 0 4.73 2.39 6.07 6.07 0 0 0 5.8-4.3 6.08 6.08 0 0 0 3.9-2.83 6.07 6.07 0 0 0-.74-7.07zm-8.86 11.45a3.86 3.86 0 0 1-2.28-.73l3.65-2.11a1.1 1.1 0 0 0 .56-.96v-5.14l1.55.9a.1.1 0 0 1 .05.08v4.22a3.88 3.88 0 0 1-3.53 3.74zm-8.15-3.48a3.86 3.86 0 0 1-.5-2.35l3.65 2.1a1.1 1.1 0 0 0 1.11 0l4.45-2.57v1.79a.1.1 0 0 1-.04.09l-3.65 2.11a3.88 3.88 0 0 1-5.02-1.17zm-1.84-8.73a3.86 3.86 0 0 1 1.78-1.62v4.22a1.1 1.1 0 0 0 .55.96l4.45 2.57-1.55.9a.1.1 0 0 1-.1 0l-3.65-2.11a3.88 3.88 0 0 1-1.48-4.92zm14.19 3.02l-4.45-2.57 1.55-.9a.1.1 0 0 1 .1 0l3.65 2.11a3.88 3.88 0 0 1 1.48 4.92 3.86 3.86 0 0 1-1.78 1.62v-4.22a1.1 1.1 0 0 0-.55-.96zm2.35 5.83a3.86 3.86 0 0 1 .5 2.35l-3.65-2.1a1.1 1.1 0 0 0-1.11 0l-4.45 2.57v-1.79a.1.1 0 0 1 .04-.09l3.65-2.11a3.88 3.88 0 0 1 5.02 1.17zM10.57 13.5l-1.55-.9a.1.1 0 0 1-.05-.08V8.3a3.88 3.88 0 0 1 5.81-3.01l-3.65 2.11a1.1 1.1 0 0 0-.56.96v5.14zm1.18-1.92l2.03-1.17 2.03 1.17v2.34l-2.03 1.17-2.03-1.17v-2.34z"
-          fill="#10A37F"
-        />
-      </svg>
-    )
-  }
-  if (id === 'anthropic') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M14.5 3H18L24 21h-3.6l-1.8-4.2h-6.2l-1.8 4.2H7L14.5 3zm2.5 9.8l-1.8-4.3-1.8 4.3H17zM0 21L7.5 3h3.6L3.6 21H0z"
-          fill="#D97706"
-        />
-      </svg>
-    )
-  }
-  if (id === 'gemini') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <defs>
-          <linearGradient id="geminiGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#1BA1E3" />
-            <stop offset="35%" stopColor="#5470FF" />
-            <stop offset="70%" stopColor="#8E55EA" />
-            <stop offset="100%" stopColor="#EA4335" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M12 0C12 6.627 17.373 12 24 12C17.373 12 12 17.373 12 24C12 17.373 6.627 12 0 12C6.627 12 12 6.627 12 0Z"
-          fill="url(#geminiGrad2)"
-        />
-      </svg>
-    )
-  }
-  if (id === 'deepseek') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="11" fill="#1D4ED8" />
-        <path
-          d="M5.5 13.5C7.2 9.5 11 8.5 15.5 10C17.5 10.7 18.5 12.2 18.5 14C18.5 16 16.8 17.5 14.5 17.5C11.5 17.5 9.5 16 8.5 14.5"
-          stroke="#FFFFFF"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <circle cx="10" cy="11.5" r="1.3" fill="#FFFFFF" />
-        <circle cx="15.5" cy="12" r="1.3" fill="#FFFFFF" />
-      </svg>
-    )
-  }
-  if (id === 'opencode-zen') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-label="OpenCode Zen">
-        <rect width="24" height="24" fill="#0B0B0B" />
-        <path d="M7 5H17V19H7V5ZM10 8V16H14V8H10Z" fill="#FFFFFF" fillRule="evenodd" />
-      </svg>
-    )
-  }
-  if (id === 'opper') {
-    return (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-label="Opper">
-        <rect width="24" height="24" rx="6" fill="#6366F1" />
-        <circle cx="12" cy="12" r="5" fill="#FFFFFF" />
-      </svg>
-    )
-  }
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="11" fill="#F59E0B" fillOpacity="0.15" />
-      <polygon points="13 3 4 14 12 14 11 21 20 10 12 10 13 3" fill="#F59E0B" />
-    </svg>
-  )
-}
-
-const PROVIDER_METAS = [
-  {
-    id: 'ollama',
-    label: 'Ollama (Local)',
-    defaultUrl: 'http://localhost:11434/v1',
-    defaultModel: 'llama3.2',
-    desc: '100% Offline Local LLM Runner',
-  },
-  {
-    id: 'lmstudio',
-    label: 'LM Studio (Local)',
-    defaultUrl: 'http://localhost:1234/v1',
-    defaultModel: 'local-model',
-    desc: 'Local Desktop Model Server',
-  },
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    defaultUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4.1-mini',
-    desc: 'Direct OpenAI API (gpt-6-astra, GPT-4o, Mini)',
-  },
-  {
-    id: 'opencode-zen',
-    label: 'OpenCode Zen',
-    defaultUrl: 'https://opencode.ai/zen/v1',
-    defaultModel: 'deepseek-v4-pro',
-    desc: 'OpenCode curated AI gateway',
-  },
-  {
-    id: 'anthropic',
-    label: 'Claude',
-    defaultUrl: 'https://api.anthropic.com',
-    defaultModel: 'claude-sonnet-4-6',
-    desc: 'Direct Anthropic API (Claude)',
-  },
-  {
-    id: 'gemini',
-    label: 'Google Gemini',
-    defaultUrl: 'https://generativelanguage.googleapis.com',
-    defaultModel: 'gemini-2.5-flash',
-    desc: 'Direct Google Gemini API',
-  },
-  {
-    id: 'deepseek',
-    label: 'DeepSeek',
-    defaultUrl: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-v4.1-flash',
-    desc: 'DeepSeek V4.1 Flash / V3 / R1 Reasoner',
-  },
-  {
-    id: 'codex-app-server',
-    label: 'Codex App Server',
-    defaultUrl: 'http://localhost:8765/v1',
-    defaultModel: 'codex-1',
-    desc: 'Local / Remote Codex App Server',
-  },
-  {
-    id: 'opper',
-    label: 'Opper',
-    defaultUrl: 'https://api.opper.ai/v1',
-    defaultModel: 'opper-default',
-    desc: 'Opper AI Gateway & Orchestration',
-  },
-  {
-    id: 'custom',
-    label: 'Custom Server',
-    defaultUrl: 'http://localhost:8080/v1',
-    defaultModel: 'custom-model',
-    desc: 'Custom OpenAI-compatible Endpoint',
-  },
-] as const
-
-/** Agents with a real one-click SKILL.md install target (see skill-install.ts). */
-const KNOWN_SKILL_AGENTS = ['claude-code', 'codex', 'opencode'] as const
-
-function agentDisplayName(agent: string): string {
-  if (agent === 'claude-code') return 'Claude Code'
-  if (agent === 'codex') return 'Codex'
-  if (agent === 'opencode') return 'OpenCode'
-  return agent
-}
-
-function IntegrationsSection() {
-  const [skillStatus, setSkillStatus] = useState<string>('')
-  const [busy, setBusy] = useState(false)
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const [agentRows, setAgentRows] = useState<
-    Array<{ agent: string; dir: string; hostDetected: boolean; installed: boolean }>
-  >([])
-  const [agentsBusy, setAgentsBusy] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<
-    'claude-code' | 'claude-desktop' | 'cursor' | 'in-app' | 'cli'
-  >('claude-code')
-
-  const refreshAgentRows = async () => {
-    try {
-      const detected = ((await window.revelithApp?.detectSkills?.()) ?? []) as string[]
-      setAgentRows((prev) => {
-        const prevByAgent = new Map(prev.map((r) => [r.agent, r]))
-        const rows: Array<{
-          agent: string
-          dir: string
-          hostDetected: boolean
-          installed: boolean
-        }> = KNOWN_SKILL_AGENTS.map((agent) => ({
-          agent,
-          dir: prevByAgent.get(agent)?.dir ?? '',
-          hostDetected: detected.includes(agent),
-          installed: prevByAgent.get(agent)?.installed ?? false,
-        }))
-        for (const agent of detected) {
-          if (!rows.some((r) => r.agent === agent)) {
-            rows.push({ agent, dir: '', hostDetected: true, installed: false })
-          }
-        }
-        return rows
-      })
-    } catch {}
-  }
-
-  useEffect(() => {
-    void refreshAgentRows()
-  }, [])
-
-  const installOneSkill = async (agent: string) => {
-    setAgentsBusy(agent)
-    try {
-      const res = (await window.revelithApp?.installSkill?.(agent)) ?? []
-      const ok = res.some((r) => r.agent === agent && r.ok)
-      const path = res.find((r) => r.agent === agent)?.path ?? ''
-      setAgentRows((prev) =>
-        prev.map((r) =>
-          r.agent === agent ? { ...r, installed: ok || r.installed, dir: path || r.dir } : r,
-        ),
-      )
-      setSkillStatus(
-        res
-          .map((r) => `${r.agent}: ${r.ok ? '✓ installed (' + r.path + ')' : 'skipped'}`)
-          .join('\n') || 'Done',
-      )
-    } catch (e: unknown) {
-      setSkillStatus(e instanceof Error ? e.message : String(e))
-    } finally {
-      setAgentsBusy(null)
-    }
-  }
-
-  const copyToClipboard = (text: string, key: string) => {
-    void navigator.clipboard.writeText(text)
-    setCopiedKey(key)
-    setTimeout(() => setCopiedKey(null), 2000)
-  }
-
-  const claudeCodeCmd = `claude mcp add revelith -- npx revelith mcp`
-  const claudeDesktopConfig = `{
-  "mcpServers": {
-    "revelith": {
-      "command": "revelith",
-      "args": ["mcp"]
-    }
-  }
-}`
-  const cursorConfig = `{
-  "mcpServers": {
-    "revelith": {
-      "command": "revelith",
-      "args": ["mcp"]
-    }
-  }
-}`
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h3 className="set-pane-title" style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 600 }}>
-          Integrations & Agent Protocol (MCP)
-        </h3>
-        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }}>
-          Connect AI coding agents to ReveLith via the <strong>Model Context Protocol (MCP)</strong>
-          . Agents can inspect, generate, and edit presentations, spreadsheets, and Word documents
-          in real time.
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 6,
-          borderBottom: '1px solid var(--border-subtle)',
-          paddingBottom: 6,
-        }}
-      >
-        {[
-          { id: 'claude-code', label: 'Claude Code' },
-          { id: 'claude-desktop', label: 'Claude Desktop' },
-          { id: 'cursor', label: 'Cursor IDE' },
-          { id: 'in-app', label: 'In-App Live MCP' },
-          { id: 'cli', label: 'CLI & Skills' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className="btn-chip"
-            onClick={() => setActiveTab(tab.id as any)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border:
-                activeTab === tab.id ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
-              background:
-                activeTab === tab.id
-                  ? 'var(--accent-subtle, rgba(99, 102, 241, 0.1))'
-                  : 'transparent',
-              color: activeTab === tab.id ? 'var(--accent)' : 'var(--text-secondary)',
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              fontSize: 12,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Active Tab Content */}
-      <div
-        style={{
-          background: 'var(--surface-sunken)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 10,
-          padding: 18,
-        }}
-      >
-        {activeTab === 'claude-code' && (
-          <div>
-            <h4
-              style={{
-                margin: '0 0 8px',
-                fontSize: 14,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span>⚡</span> Claude Code One-Line Setup
-            </h4>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-              Run this single command in your terminal to register the ReveLith MCP tools with
-              Claude Code. Works even when ReveLith is not running.
-            </p>
-            <div style={{ position: 'relative' }}>
-              <pre
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '12px 14px',
-                  fontFamily: 'monospace',
-                  fontSize: 12.5,
-                  margin: 0,
-                  overflowX: 'auto',
-                }}
-              >
-                <code>{claudeCodeCmd}</code>
-              </pre>
-              <button
-                type="button"
-                className="btn-chip"
-                onClick={() => copyToClipboard(claudeCodeCmd, 'claude-code')}
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: 8,
-                  padding: '4px 10px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  color: copiedKey === 'claude-code' ? '#22c55e' : 'var(--text-primary)',
-                }}
-              >
-                {copiedKey === 'claude-code' ? '✓ Copied' : 'Copy Command'}
-              </button>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
-              💡 Example prompt in Claude Code:{' '}
-              <code>"Build an 8-slide pitch deck on Renewable Energy trends using revelith"</code>
-            </p>
-          </div>
-        )}
-
-        {activeTab === 'claude-desktop' && (
-          <div>
-            <h4
-              style={{
-                margin: '0 0 8px',
-                fontSize: 14,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span>🖥️</span> Claude Desktop Configuration
-            </h4>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-              Add ReveLith to your <code>claude_desktop_config.json</code> under{' '}
-              <code>mcpServers</code>:
-            </p>
-            <div style={{ position: 'relative' }}>
-              <pre
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '12px 14px',
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  margin: 0,
-                  overflowX: 'auto',
-                }}
-              >
-                <code>{claudeDesktopConfig}</code>
-              </pre>
-              <button
-                type="button"
-                className="btn-chip"
-                onClick={() => copyToClipboard(claudeDesktopConfig, 'claude-desktop')}
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: 8,
-                  padding: '4px 10px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  color: copiedKey === 'claude-desktop' ? '#22c55e' : 'var(--text-primary)',
-                }}
-              >
-                {copiedKey === 'claude-desktop' ? '✓ Copied' : 'Copy Config'}
-              </button>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, marginBottom: 0 }}>
-              Location on Windows: <code>%APPDATA%\Claude\claude_desktop_config.json</code>
-            </p>
-          </div>
-        )}
-
-        {activeTab === 'cursor' && (
-          <div>
-            <h4
-              style={{
-                margin: '0 0 8px',
-                fontSize: 14,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span>🖱️</span> Cursor IDE MCP Integration
-            </h4>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-              Configure Cursor Settings → Features → MCP or add to <code>.cursor/mcp.json</code> in
-              your project:
-            </p>
-            <div style={{ position: 'relative' }}>
-              <pre
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '12px 14px',
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  margin: 0,
-                  overflowX: 'auto',
-                }}
-              >
-                <code>{cursorConfig}</code>
-              </pre>
-              <button
-                type="button"
-                className="btn-chip"
-                onClick={() => copyToClipboard(cursorConfig, 'cursor')}
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: 8,
-                  padding: '4px 10px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  color: copiedKey === 'cursor' ? '#22c55e' : 'var(--text-primary)',
-                }}
-              >
-                {copiedKey === 'cursor' ? '✓ Copied' : 'Copy Config'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'in-app' && (
-          <div>
-            <h4
-              style={{
-                margin: '0 0 8px',
-                fontSize: 14,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span>🔴</span> Local In-App Live Editor Server
-            </h4>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-              When ReveLith is open, the built-in local MCP server allows AI agents to inspect and
-              edit your open Word documents, spreadsheets, and presentation slides live in real
-              time.
-            </p>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '10px 14px',
-                background: 'var(--surface)',
-                borderRadius: 6,
-                border: '1px solid var(--border-subtle)',
-                marginBottom: 12,
-              }}
-            >
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#22c55e',
-                }}
-              />
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>Endpoint:</span>
-              <code style={{ fontSize: 12, color: 'var(--accent)' }}>
-                http://127.0.0.1:3928/mcp
-              </code>
-              <button
-                type="button"
-                className="btn-chip"
-                onClick={() => copyToClipboard('http://127.0.0.1:3928/mcp', 'in-app-url')}
-                style={{
-                  marginLeft: 'auto',
-                  padding: '3px 8px',
-                  fontSize: 11,
-                  background: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  color: copiedKey === 'in-app-url' ? '#22c55e' : 'var(--text-primary)',
-                }}
-              >
-                {copiedKey === 'in-app-url' ? '✓ Copied' : 'Copy URL'}
-              </button>
-            </div>
-            <ul
-              style={{
-                margin: 0,
-                paddingLeft: 18,
-                fontSize: 12,
-                color: 'var(--text-muted)',
-                lineHeight: 1.6,
-              }}
-            >
-              <li>Real-time bidirectional document tree inspection and node patching</li>
-              <li>Live paragraph, table, cell, and slide manipulation without file reload</li>
-              <li>Protected by local-loopback only binding (127.0.0.1)</li>
-            </ul>
-          </div>
-        )}
-
-        {activeTab === 'cli' && (
-          <div>
-            <h4
-              style={{
-                margin: '0 0 8px',
-                fontSize: 14,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span>📦</span> ReveLith CLI & Agent Skills
-            </h4>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-              One-click installer for local coding agents (Claude Code, Codex, OpenCode). Installs
-              the native ReveLith skill definitions into agent config directories.
-            </p>
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                marginBottom: 14,
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-                lineHeight: 1.5,
-              }}
-            >
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: 11,
-                }}
-              >
-                1
-              </span>
-              <span style={{ flex: 1 }}>
-                <strong style={{ color: 'var(--text-primary)' }}>Pick a route:</strong> CLI if your
-                assistant can run terminal commands, MCP if it cannot.
-              </span>
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: 11,
-                }}
-              >
-                2
-              </span>
-              <span style={{ flex: 1 }}>
-                <strong style={{ color: 'var(--text-primary)' }}>Follow that section below</strong>—
-                usually a single click.
-              </span>
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: 'var(--surface-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: 11,
-                }}
-              >
-                3
-              </span>
-              <span style={{ flex: 1 }}>
-                <strong style={{ color: 'var(--text-primary)' }}>Start a new chat</strong> and just
-                ask.
-              </span>
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                marginBottom: 6,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              Install the skill into your assistant
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-              {agentRows.map((row) => (
-                <div
-                  key={row.agent}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '8px 12px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 6,
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>
-                      {agentDisplayName(row.agent)}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-                      {row.installed
-                        ? `Skill installed (${row.dir})`
-                        : row.hostDetected
-                          ? 'Skill not installed'
-                          : 'Assistant not detected on this computer'}
-                    </div>
-                  </div>
-                  {row.installed ? (
-                    <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
-                      ✓ Installed
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="set-btn"
-                      disabled={agentsBusy !== null}
-                      onClick={() => void installOneSkill(row.agent)}
-                    >
-                      {agentsBusy === row.agent ? 'Installing…' : 'Install'}
-                    </button>
-                  )}
-                </div>
-              ))}
-              {agentRows.length === 0 && (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Detecting assistants on this computer…
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <button
-                type="button"
-                className="set-btn primary"
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true)
-                  setSkillStatus('Installing skills…')
-                  void (
-                    window as unknown as {
-                      revelithApp?: {
-                        installSkill?: () => Promise<
-                          Array<{ agent: string; ok: boolean; path: string }>
-                        >
-                      }
-                    }
-                  ).revelithApp
-                    ?.installSkill?.()
-                    .then((res) =>
-                      setSkillStatus(
-                        res
-                          ?.map(
-                            (r) =>
-                              `${r.agent}: ${r.ok ? '✓ installed (' + r.path + ')' : 'skipped'}`,
-                          )
-                          .join('\n') || 'Done',
-                      ),
-                    )
-                    .catch((e: unknown) =>
-                      setSkillStatus(e instanceof Error ? e.message : String(e)),
-                    )
-                    .finally(() => setBusy(false))
-                }}
-                style={{ height: 32, padding: '0 16px', fontSize: 13, fontWeight: 600 }}
-              >
-                {busy ? 'Installing…' : '⚡ Install ReveLith Skills'}
-              </button>
-            </div>
-            {skillStatus && (
-              <pre
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '10px 12px',
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  margin: '0 0 12px',
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {skillStatus}
-              </pre>
-            )}
-            <div style={{ marginTop: 12 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  marginBottom: 6,
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                Try it
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
-                Once installed, open a new chat in your assistant and ask in plain words, for
-                example:
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-                {[
-                  'Turn ~/Downloads/report.md into a Word document',
-                  'Make a 6-slide deck about our Q3 results',
-                  'Convert budget.xlsx to PDF and open it in ReveLith',
-                ].map((prompt) => (
-                  <div
-                    key={prompt}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '8px 12px',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 6,
-                    }}
-                  >
-                    <span style={{ flex: 1, fontSize: 12.5 }}>&ldquo;{prompt}&rdquo;</span>
-                    <button
-                      type="button"
-                      className="set-btn"
-                      onClick={() => copyToClipboard(prompt, `try-${prompt}`)}
-                    >
-                      {copiedKey === `try-${prompt}` ? '✓ Copied' : 'Copy'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' }}>
-                The assistant runs the revelith command line itself; you never have to type it.
-              </p>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  marginBottom: 6,
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                My assistant is not listed
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
-                Any MCP-capable assistant can drive ReveLith over stdio (nothing to switch on here),
-                or over Streamable HTTP for remote agents and sandboxes:
-              </p>
-              <pre
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '10px 12px',
-                  fontFamily: 'monospace',
-                  fontSize: 11.5,
-                  margin: '0 0 14px',
-                  lineHeight: 1.6,
-                }}
-              >
-                {`revelith mcp                             # stdio (Claude Desktop, Cursor, …)
-revelith mcp --http 3928 --token <secret>  # Streamable HTTP + PUT /files/<name> upload`}
-              </pre>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  marginBottom: 6,
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                Advanced: revelith command line
-              </div>
-              <pre
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '10px 12px',
-                  fontFamily: 'monospace',
-                  fontSize: 11.5,
-                  margin: 0,
-                  lineHeight: 1.6,
-                }}
-              >
-                {`revelith mcp                               # Start standard MCP server
-revelith docs apply doc.docx --spec spec.json  # Apply document styles & content
-revelith sheet apply sheet.xlsx --spec spec.json # Apply formulas & conditional formats
-revelith slides apply deck.pptx --spec spec.json # Apply slide templates & shapes
-revelith deck build --spec spec.json --out out.pptx # Build deck from spec
-revelith open deck.pptx --slide 3            # Point editor at slide / range / page
-revelith check file.docx [--json]            # Quality & validation check`}
-              </pre>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function AiSettingsSection() {
-  const [settings, setSettings] = useState<any>(null)
-  const [selectedId, setSelectedId] = useState<string>('ollama')
-  const [showKey, setShowKey] = useState(false)
-  const [testStatus, setTestStatus] = useState<{
-    state: 'idle' | 'testing' | 'success' | 'error'
-    message?: string
-  }>({ state: 'idle' })
-  const [discoveredModels, setDiscoveredModels] = useState<string[]>([])
-  const [fetchingModels, setFetchingModels] = useState(false)
-  const [discoveryError, setDiscoveryError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-
-  const handleSaveAndApply = () => {
-    const next = { ...settings, provider: selectedId }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-    } catch {}
-    void window.revelithApp?.setAiSettings?.(next)
-    window.dispatchEvent(new Event('ai-settings-changed'))
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)
-  }
-
-  useEffect(() => {
-    let alive = true
-    void (async () => {
-      let s = await window.revelithApp?.getAiSettings?.()
-      if (!s) {
-        try {
-          const stored = localStorage.getItem('revelith.aiSettings')
-          if (stored) s = JSON.parse(stored)
-        } catch {}
-      }
-      if (!s) {
-        s = {
-          provider: 'ollama',
-          providers: {
-            ollama: { apiKey: '', model: 'llama3.2', baseUrl: 'http://127.0.0.1:11434/v1' },
-            lmstudio: { apiKey: '', model: 'local-model', baseUrl: 'http://127.0.0.1:1234/v1' },
-            openai: { apiKey: '', model: 'gpt-4o-mini' },
-            anthropic: { apiKey: '', model: 'claude-sonnet-4-6' },
-          },
-        }
-      }
-      if (alive && s) {
-        setSettings(s)
-        const validSelected = PROVIDER_METAS.some((p) => p.id === s.provider)
-          ? s.provider
-          : 'ollama'
-        setSelectedId(validSelected)
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  // the AI page mirrors the General page's panel preferences so a change made
-  // here is visible in both; both write through the main process
-  const [aiFontSize, setAiFontSizeState] = useState('14px')
-  const [aiSpellcheck, setAiSpellcheckState] = useState(true)
-  const setAiFontSize = (fontSize: string) => {
-    setAiFontSizeState(fontSize)
-    void window.revelithApp?.setAiPanelPrefs?.({ fontSize })
-  }
-  const setAiSpellcheck = (spellcheck: boolean) => {
-    setAiSpellcheckState(spellcheck)
-    void window.revelithApp?.setAiPanelPrefs?.({ spellcheck })
-  }
-
-  const activeProvider = PROVIDER_METAS.some((p) => p.id === settings?.provider)
-    ? settings.provider
-    : 'ollama'
-  const currentMeta = PROVIDER_METAS.find((p) => p.id === selectedId) || PROVIDER_METAS[0]
-  const currentConfig = settings?.providers?.[selectedId] || {
-    apiKey: '',
-    model: currentMeta.defaultModel,
-    baseUrl: currentMeta.defaultUrl,
-  }
-
-  useEffect(() => {
-    if (!settings) return
-    if (currentConfig.discoveredModels && currentConfig.discoveredModels.length > 0) {
-      setDiscoveredModels(currentConfig.discoveredModels)
-    } else {
-      setDiscoveredModels([])
-    }
-  }, [selectedId, settings, currentConfig.discoveredModels])
-
-  if (!settings) return <div style={{ padding: 20 }}>Loading AI settings...</div>
-
-  const updateConfig = (key: string, val: string) => {
-    const next = {
-      ...settings,
-      providers: {
-        ...settings.providers,
-        [selectedId]: {
-          ...(settings.providers?.[selectedId] || {}),
-          [key]: val,
-        },
-      },
-    }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-    } catch {}
-    void window.revelithApp?.setAiSettings?.(next)
-  }
-
-  const updateByok = (key: 'webSearchKey' | 'imageGenKey' | 'mediaAnalysisKey', val: string) => {
-    const next = {
-      ...settings,
-      byok: {
-        ...(settings.byok || {}),
-        [key]: val,
-      },
-    }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-    } catch {}
-    void window.revelithApp?.setAiSettings?.(next)
-  }
-
-  const setActiveProvider = (id: string) => {
-    const next = { ...settings, provider: id }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-    } catch {}
-    void window.revelithApp?.setAiSettings?.(next)
-  }
-
-  const handleTestConnection = async () => {
-    setTestStatus({ state: 'testing', message: 'Testing connection to endpoint...' })
-    try {
-      const url = currentConfig.baseUrl || currentMeta.defaultUrl
-      const apiKey = currentConfig.apiKey || ''
-      if (!url) {
-        setTestStatus({ state: 'error', message: 'Missing Base URL' })
-        return
-      }
-
-      if (
-        (selectedId === 'openai' ||
-          selectedId === 'opencode-zen' ||
-          selectedId === 'anthropic' ||
-          selectedId === 'gemini' ||
-          selectedId === 'deepseek') &&
-        !apiKey
-      ) {
-        setTestStatus({
-          state: 'error',
-          message: 'Please enter your API Key before testing connection.',
-        })
-        return
-      }
-
-      let ok = false
-      let status = 0
-      if (typeof window.revelithApp?.discoverAiModels === 'function') {
-        const models = await window.revelithApp.discoverAiModels(selectedId, url, apiKey)
-        if (models.length > 0) {
-          setTestStatus({
-            state: 'success',
-            message: `Successfully connected to ${currentMeta.label}`,
-          })
-          return
-        }
-        ok = false
-      } else {
-        const proxyUrl = `/api/proxy-models?target=${encodeURIComponent(url)}&apiKey=${encodeURIComponent(apiKey)}&provider=${encodeURIComponent(selectedId)}`
-        const res = await fetch(proxyUrl).catch(() => null)
-        status = res?.status ?? 0
-        ok = !!res?.ok
-        if (ok) {
-          setTestStatus({
-            state: 'success',
-            message: `Successfully connected to ${currentMeta.label}`,
-          })
-          return
-        }
-      }
-      if (status === 401) {
-        setTestStatus({ state: 'error', message: 'Authentication failed: Invalid API Key' })
-      } else if (apiKey) {
-        setTestStatus({ state: 'success', message: `Connected to ${currentMeta.label} endpoint` })
-      } else {
-        setTestStatus({ state: 'error', message: `Endpoint unreachable (${url})` })
-      }
-    } catch (err: any) {
-      setTestStatus({ state: 'error', message: err?.message || 'Connection error' })
-    }
-  }
-
-  const handleDiscoverModels = async () => {
-    if (selectedId === 'revelith') return
-    setFetchingModels(true)
-    setDiscoveryError(null)
-    setDiscoveredModels([])
-    try {
-      const baseUrl = currentConfig.baseUrl || currentMeta.defaultUrl
-      const apiKey = currentConfig.apiKey || ''
-
-      let foundList: string[] = []
-      let discoveryErr: string | null = null
-
-      // 1. Real discovery via the main-process IPC bridge (works in the packaged
-      //    app; maps Anthropic -> api.anthropic.com/v1/models, Gemini ->
-      //    generativelanguage.googleapis.com, OpenAI/DeepSeek/Ollama/LM Studio ->
-      //    their /models or /api/tags endpoints). Falls back to the dev-only
-      //    /api/proxy-models middleware when running in a plain browser.
-      const discoverInMain = window.revelithApp?.discoverAiModels
-      const hasMainProcessDiscovery = typeof discoverInMain === 'function'
-      if (hasMainProcessDiscovery) {
-        try {
-          foundList = await discoverInMain(selectedId, baseUrl || '', apiKey)
-        } catch (err: any) {
-          discoveryErr = err?.message || 'Discovery failed in the main process.'
-        }
-      }
-
-      // This relative route exists only in browser/dev mode. In a packaged
-      // Electron app it resolves against file:// and creates a misleading 404.
-      if (foundList.length === 0 && !discoveryErr && !hasMainProcessDiscovery) {
-        const proxyUrl = `/api/proxy-models?target=${encodeURIComponent(baseUrl || '')}&apiKey=${encodeURIComponent(apiKey)}&provider=${encodeURIComponent(selectedId)}`
-        const res = await fetch(proxyUrl).catch(() => null)
-        if (res && res.ok) {
-          const json = await res.json().catch(() => null)
-          if (json) {
-            if (Array.isArray(json.data)) {
-              foundList = json.data
-                .map((m: any) => {
-                  const id = m.id || m.name || m.model
-                  return typeof id === 'string' ? id.replace(/^models\//, '') : String(m)
-                })
-                .filter(Boolean)
-            } else if (Array.isArray(json.models)) {
-              foundList = json.models
-                .map((m: any) => {
-                  const id = m.name || m.model || m.id
-                  return typeof id === 'string' ? id.replace(/^models\//, '') : String(m)
-                })
-                .filter(Boolean)
-            } else if (Array.isArray(json)) {
-              foundList = json
-                .map((m: any) => {
-                  if (typeof m === 'string') return m
-                  const id = m.id || m.name || m.model
-                  return typeof id === 'string' ? id.replace(/^models\//, '') : String(m)
-                })
-                .filter(Boolean)
-            }
-          }
-        } else if (res && res.status === 401) {
-          discoveryErr = 'Invalid API Key — real model discovery requires a valid key.'
-        } else if (res && res.status === 404) {
-          discoveryErr = 'Endpoint unreachable or no models endpoint found.'
-        }
-      }
-
-      // 2. Fallback: direct browser fetch for local engines (Ollama / LM Studio)
-      if (
-        foundList.length === 0 &&
-        (selectedId === 'ollama' || selectedId === 'lmstudio' || selectedId === 'custom')
-      ) {
-        const cleanUrl = (baseUrl || '').replace(/\/$/, '')
-        const rootUrl = cleanUrl.replace(/\/v1$/, '')
-        const headers: Record<string, string> = { Accept: 'application/json' }
-        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
-
-        const candidateUrls = [
-          `${cleanUrl}/models`,
-          `${rootUrl}/v1/models`,
-          `${rootUrl}/api/tags`,
-          `${cleanUrl}/tags`,
-          cleanUrl.includes('localhost')
-            ? cleanUrl.replace('localhost', '127.0.0.1') + '/models'
-            : null,
-          cleanUrl.includes('127.0.0.1')
-            ? cleanUrl.replace('127.0.0.1', 'localhost') + '/models'
-            : null,
-        ].filter(Boolean) as string[]
-
-        for (const url of candidateUrls) {
-          try {
-            const resp = await fetch(url, { method: 'GET', headers }).catch(() => null)
-            if (resp && resp.ok) {
-              const json = await resp.json().catch(() => null)
-              if (json) {
-                if (Array.isArray(json.data)) {
-                  foundList = json.data.map((m: any) => m.id || m.name || String(m)).filter(Boolean)
-                } else if (Array.isArray(json.models)) {
-                  foundList = json.models
-                    .map((m: any) => m.name || m.model || m.id || String(m))
-                    .filter(Boolean)
-                } else if (Array.isArray(json)) {
-                  foundList = json
-                    .map((m: any) => (typeof m === 'string' ? m : m.id || m.name || String(m)))
-                    .filter(Boolean)
-                }
-                if (foundList.length > 0) break
-              }
-            }
-          } catch {}
-        }
-      }
-
-      // 3. Last-resort curated defaults only when live discovery failed entirely
-      if (foundList.length === 0) {
-        if (selectedId === 'anthropic') {
-          foundList = [
-            'claude-3-7-sonnet-20250219',
-            'claude-3-5-sonnet-20241022',
-            'claude-3-5-haiku-20241022',
-            'claude-3-opus-20240229',
-          ]
-        } else if (selectedId === 'openai') {
-          foundList = ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4-turbo']
-        } else if (selectedId === 'gemini') {
-          foundList = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro']
-        } else if (selectedId === 'deepseek') {
-          foundList = ['deepseek-chat', 'deepseek-reasoner']
-        }
-      }
-
-      if (foundList.length > 0) {
-        const uniqueList = Array.from(new Set(foundList))
-        setDiscoveredModels(uniqueList)
-        const next = {
-          ...settings,
-          providers: {
-            ...settings.providers,
-            [selectedId]: {
-              ...(settings.providers?.[selectedId] || {}),
-              discoveredModels: uniqueList,
-              ...(!currentConfig.model || currentConfig.model === currentMeta.defaultModel
-                ? { model: uniqueList[0] }
-                : {}),
-            },
-          },
-        }
-        setSettings(next)
-        void window.revelithApp.setAiSettings?.(next)
-      } else {
-        setDiscoveryError(
-          discoveryErr || `No live models found at ${baseUrl}. Ensure server is active.`,
-        )
-      }
-    } catch (err: any) {
-      setDiscoveryError(err?.message || 'Failed to connect to server endpoint.')
-    } finally {
-      setFetchingModels(false)
-    }
-  }
-
-  return (
-    <div className="ai-settings-container">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 className="set-pane-title" style={{ margin: 0 }}>
-          AI & Provider Settings
-        </h3>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Active Engine:{' '}
-          <strong style={{ color: 'var(--color-btn-primary)' }}>
-            {PROVIDER_METAS.find((p) => p.id === activeProvider)?.label}
-          </strong>
-        </span>
-      </div>
-
-      <div className="ai-provider-layout">
-        {/* Left Provider Selector List */}
-        <div className="ai-provider-list">
-          {PROVIDER_METAS.map((meta) => {
-            const isCurrentActive = activeProvider === meta.id
-            const isSelected = selectedId === meta.id
-            return (
-              <button
-                key={meta.id}
-                className={`ai-provider-card${isSelected ? ' active' : ''}`}
-                onClick={() => {
-                  setSelectedId(meta.id)
-                  setTestStatus({ state: 'idle' })
-                  setDiscoveredModels([])
-                  setDiscoveryError(null)
-                }}
-              >
-                <span
-                  className="ai-provider-card-icon"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <ProviderIcon id={meta.id} />
-                </span>
-                <span
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {meta.label}
-                </span>
-                {isCurrentActive && <span className="ai-provider-card-badge">Active</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Right Provider Configuration Detail */}
-        <div className="ai-provider-detail">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              borderBottom: '1px solid var(--border-subtle)',
-              paddingBottom: 10,
-            }}
-          >
-            <div>
-              <h4
-                style={{ margin: 0, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center' }}>
-                  <ProviderIcon id={currentMeta.id} />
-                </span>{' '}
-                {currentMeta.label}
-              </h4>
-              <div className="ai-form-desc">{currentMeta.desc}</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {activeProvider === selectedId ? (
-                <span
-                  className="ai-provider-card-badge"
-                  style={{ padding: '4px 10px', fontSize: 12 }}
-                >
-                  ✓ Current Active Engine
-                </span>
-              ) : (
-                <button className="set-btn primary" onClick={() => setActiveProvider(selectedId)}>
-                  Set as Active Engine
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Base URL Input */}
-          {selectedId !== 'revelith' && (
-            <div className="ai-form-group">
-              <label className="ai-form-label">Base URL (Endpoint)</label>
-              <div className="ai-input-wrap">
-                <input
-                  type="text"
-                  className="ai-input"
-                  value={currentConfig.baseUrl ?? currentMeta.defaultUrl}
-                  placeholder={currentMeta.defaultUrl}
-                  onChange={(e) => updateConfig('baseUrl', e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* API Key Input */}
-          {selectedId !== 'ollama' && selectedId !== 'lmstudio' && selectedId !== 'revelith' && (
-            <div className="ai-form-group">
-              <label className="ai-form-label">API Key / Access Token</label>
-              <div className="ai-input-wrap">
-                <input
-                  type={showKey ? 'text' : 'password'}
-                  className="ai-input"
-                  style={{ paddingRight: 50 }}
-                  value={currentConfig.apiKey || ''}
-                  placeholder="Enter your API Key..."
-                  onChange={(e) => updateConfig('apiKey', e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="ai-input-toggle"
-                  onClick={() => setShowKey(!showKey)}
-                >
-                  {showKey ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Real Model Discovery & Selection */}
-          <div className="ai-form-group">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <label className="ai-form-label">Model Selection</label>
-              {selectedId !== 'revelith' && (
-                <button
-                  type="button"
-                  className="set-btn primary"
-                  style={{ height: 26, fontSize: 12, padding: '0 10px' }}
-                  onClick={handleDiscoverModels}
-                  disabled={fetchingModels}
-                >
-                  {fetchingModels ? '⟳ Querying Server...' : '🔍 Fetch Real Live Models'}
-                </button>
-              )}
-            </div>
-
-            {/* Unified Clean Model Selector */}
-            <div style={{ marginTop: 8 }}>
-              {discoveredModels.length > 0 ? (
-                <div>
-                  <div
-                    className="ai-input-wrap"
-                    style={{ display: 'flex', gap: 8, alignItems: 'center' }}
-                  >
-                    <select
-                      className="ai-input"
-                      style={{ cursor: 'pointer', flex: 1 }}
-                      value={currentConfig.model || discoveredModels[0]}
-                      onChange={(e) => updateConfig('model', e.target.value)}
-                    >
-                      {discoveredModels.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                      Quick Pick from Live Models ({discoveredModels.length}):
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 6,
-                        maxHeight: 110,
-                        overflowY: 'auto',
-                        padding: 6,
-                        background: 'var(--bg-content)',
-                        borderRadius: 8,
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      {discoveredModels.map((m) => {
-                        const isSelected = (currentConfig.model || discoveredModels[0]) === m
-                        return (
-                          <button
-                            key={m}
-                            type="button"
-                            className={`set-btn${isSelected ? ' primary' : ''}`}
-                            style={{
-                              height: 26,
-                              fontSize: 12,
-                              padding: '0 10px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                            }}
-                            onClick={() => updateConfig('model', m)}
-                          >
-                            {isSelected && <span>✓</span>}
-                            <span>{m}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="ai-input-wrap">
-                  <input
-                    type="text"
-                    className="ai-input"
-                    value={currentConfig.model || ''}
-                    placeholder={`e.g. ${currentMeta.defaultModel}`}
-                    onChange={(e) => updateConfig('model', e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-
-            {discoveryError && (
-              <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 6 }}>
-                ⚠️ {discoveryError}
-              </div>
-            )}
-          </div>
-
-          {/* Test & Save Action Bar */}
-          <div
-            className="ai-test-bar"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 10,
-              marginTop: 16,
-              paddingTop: 14,
-              borderTop: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                className="set-btn"
-                onClick={handleTestConnection}
-                disabled={testStatus.state === 'testing'}
-              >
-                {testStatus.state === 'testing' ? 'Testing...' : 'Test Connection'}
-              </button>
-              {testStatus.state === 'success' && (
-                <span className="ai-status-badge success">✓ {testStatus.message}</span>
-              )}
-              {testStatus.state === 'error' && (
-                <span className="ai-status-badge error">✕ {testStatus.message}</span>
-              )}
-              {testStatus.state === 'testing' && (
-                <span className="ai-status-badge checking">⟳ {testStatus.message}</span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {saveSuccess && (
-                <span style={{ color: '#22c55e', fontSize: 13, fontWeight: 500 }}>
-                  ✓ Configuration Updated & Saved!
-                </span>
-              )}
-              <button
-                type="button"
-                className="set-btn primary"
-                style={{
-                  height: 32,
-                  padding: '0 16px',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)',
-                }}
-                onClick={handleSaveAndApply}
-              >
-                💾 Update & Set Model
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* BYOK Keys Section */}
-      <div
-        style={{
-          marginTop: 20,
-          padding: 16,
-          borderRadius: 8,
-          background: 'var(--surface-sunken)',
-          border: '1px solid var(--border-subtle)',
-        }}
-      >
-        <h4
-          style={{
-            margin: '0 0 10px',
-            fontSize: 14,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span>🔑</span> Dedicated BYOK Keys (Search, Image & Media)
-        </h4>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: 12,
-                fontWeight: 500,
-                marginBottom: 4,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              Web Search API Key (Serper / Google)
-            </label>
-            <input
-              type="password"
-              className="ai-input"
-              value={settings?.byok?.webSearchKey || ''}
-              placeholder="Search API Key..."
-              onChange={(e) => updateByok('webSearchKey', e.target.value)}
-            />
-          </div>
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: 12,
-                fontWeight: 500,
-                marginBottom: 4,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              Image Generation Key (OpenAI / Image)
-            </label>
-            <input
-              type="password"
-              className="ai-input"
-              value={settings?.byok?.imageGenKey || ''}
-              placeholder="Image API Key..."
-              onChange={(e) => updateByok('imageGenKey', e.target.value)}
-            />
-          </div>
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: 12,
-                fontWeight: 500,
-                marginBottom: 4,
-                color: 'var(--text-secondary)',
-              }}
-            >
-              Media Analysis Key (Vision / Multimodal)
-            </label>
-            <input
-              type="password"
-              className="ai-input"
-              value={settings?.byok?.mediaAnalysisKey || ''}
-              placeholder="Vision API Key..."
-              onChange={(e) => updateByok('mediaAnalysisKey', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* AI Panel Preferences */}
-      <div
-        style={{
-          marginTop: 14,
-          padding: 16,
-          borderRadius: 8,
-          background: 'var(--surface-sunken)',
-          border: '1px solid var(--border-subtle)',
-        }}
-      >
-        <h4
-          style={{
-            margin: '0 0 10px',
-            fontSize: 14,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span>🎨</span> AI Panel Preferences
-        </h4>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 16,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Panel Font Size:</label>
-            <select
-              className="ai-input"
-              style={{ width: 130, height: 32 }}
-              value={aiFontSize}
-              onChange={(e) => setAiFontSize(e.target.value)}
-            >
-              <option value="12px">Small (12px)</option>
-              <option value="14px">Normal (14px)</option>
-              <option value="16px">Large (16px)</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={aiSpellcheck}
-                onChange={(e) => setAiSpellcheck(e.target.checked)}
-              />
-              Enable Spellcheck in AI Composer
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /** label-over-value field row with an optional right-aligned action */
-const DEFAULT_MEDIA_SEARCH = {
-  webSearch: { provider: 'duckduckgo', apiKey: '' },
-  imageGen: { provider: '', model: '', apiKey: '', baseUrl: '' },
-  imageAnalysis: { provider: '', model: '' },
-  videoAnalysis: { provider: '' },
-} as const
-
-type MediaSearchState = {
-  webSearch: { provider: string; apiKey: string }
-  imageGen: { provider: string; model: string; apiKey: string; baseUrl: string }
-  imageAnalysis: { provider: string; model: string }
-  videoAnalysis: { provider: string }
-}
-
-function mergeMediaSearch(raw: any): MediaSearchState {
-  const s = raw?.mediaSearch ?? {}
-  return {
-    webSearch: { ...DEFAULT_MEDIA_SEARCH.webSearch, ...(s.webSearch ?? {}) },
-    imageGen: { ...DEFAULT_MEDIA_SEARCH.imageGen, ...(s.imageGen ?? {}) },
-    imageAnalysis: { ...DEFAULT_MEDIA_SEARCH.imageAnalysis, ...(s.imageAnalysis ?? {}) },
-    videoAnalysis: { ...DEFAULT_MEDIA_SEARCH.videoAnalysis, ...(s.videoAnalysis ?? {}) },
-  }
-}
-
-function MediaSearchSection() {
-  const [settings, setSettings] = useState<any>(null)
-  const [showKeys, setShowKeys] = useState(false)
-  const [savedTick, setSavedTick] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    void (async () => {
-      let s: any
-      try {
-        s = (await window.revelithApp?.getAiSettings?.()) ?? null
-      } catch {
-        /* fall through to localStorage below */
-      }
-      if (!s) {
-        try {
-          const stored = localStorage.getItem('revelith.aiSettings')
-          if (stored) s = JSON.parse(stored)
-        } catch {}
-      }
-      if (alive) setSettings(s ?? { provider: 'lmstudio', providers: {}, byok: {} })
-    })()
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  if (!settings) return <div style={{ padding: 20 }}>Loading media & search settings...</div>
-  const media = mergeMediaSearch(settings)
-
-  const persist = (nextMedia: MediaSearchState) => {
-    const next = { ...settings, mediaSearch: nextMedia }
-    // Keep the legacy BYOK search key in sync so older readers still find it.
-    next.byok = { ...(settings.byok || {}), webSearchKey: nextMedia.webSearch.apiKey }
-    setSettings(next)
-    try {
-      localStorage.setItem('revelith.aiSettings', JSON.stringify(next))
-    } catch {}
-    try {
-      void window.revelithApp?.setAiSettings?.(next)
-    } catch {}
-    window.dispatchEvent(new Event('ai-settings-changed'))
-    setSavedTick(true)
-    setTimeout(() => setSavedTick(false), 1500)
-  }
-
-  const setMedia = <K extends keyof MediaSearchState>(
-    section: K,
-    patch: Partial<MediaSearchState[K]>,
-  ) => {
-    persist({ ...media, [section]: { ...media[section], ...patch } })
-  }
-
-  const imageProviderOptions = [
-    { value: '', label: 'Use active chat provider' },
-    ...PROVIDER_METAS.map((p) => ({ value: p.id, label: p.label })),
-  ]
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: 12,
-    fontWeight: 500,
-    marginBottom: 4,
-    color: 'var(--text-secondary)',
-  }
-  const hintStyle: React.CSSProperties = {
-    fontSize: 12,
-    color: 'var(--text-secondary)',
-    margin: '8px 0 0',
-  }
-  const cardStyle: React.CSSProperties = {
-    padding: 16,
-    borderRadius: 8,
-    background: 'var(--surface-sunken)',
-    border: '1px solid var(--border-subtle)',
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div>
-        <h3 className="set-pane-title" style={{ margin: '0 0 6px' }}>
-          AI Media & Search
-        </h3>
-        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }}>
-          A vendor&apos;s key and base URL are shared across capabilities; enter them once.
-          Everything below is stored only on this device.
-          {savedTick && <span style={{ color: '#22c55e', marginLeft: 8 }}>✓ Saved</span>}
-        </p>
-      </div>
-
-      <div style={cardStyle}>
-        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Web search</h4>
-        <div style={{ marginBottom: 10 }}>
-          <label style={labelStyle}>Provider</label>
-          <CustomSelect
-            value={media.webSearch.provider}
-            options={[
-              { value: 'serper', label: 'Serper (Google results, needs key)' },
-              { value: 'duckduckgo', label: 'DuckDuckGo (free, no key)' },
-            ]}
-            onChange={(val) => setMedia('webSearch', { provider: val })}
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>API Key</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type={showKeys ? 'text' : 'password'}
-              className="ai-input"
-              value={media.webSearch.apiKey}
-              placeholder="tvly-..."
-              onChange={(e) => setMedia('webSearch', { apiKey: e.target.value })}
-            />
-            <button type="button" className="set-btn" onClick={() => setShowKeys((v) => !v)}>
-              {showKeys ? 'Hide' : 'Show'}
-            </button>
-          </div>
-        </div>
-        <p style={hintStyle}>
-          {media.webSearch.provider === 'serper'
-            ? media.webSearch.apiKey
-              ? 'Serper serves web search with your key; image search falls back to free sources when its quota is exhausted.'
-              : 'Add your Serper key to enable Google results; until then the free fallback answers.'
-            : 'Web and image search use the free DuckDuckGo fallback; add a Serper key above for Google results.'}
-        </p>
-      </div>
-
-      <div style={cardStyle}>
-        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Image generation</h4>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Provider</label>
-            <CustomSelect
-              value={media.imageGen.provider}
-              options={imageProviderOptions}
-              onChange={(val) => setMedia('imageGen', { provider: val })}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Model</label>
-            <input
-              type="text"
-              className="ai-input"
-              value={media.imageGen.model}
-              placeholder="model-id"
-              onChange={(e) => setMedia('imageGen', { model: e.target.value })}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>API Key</label>
-            <input
-              type={showKeys ? 'text' : 'password'}
-              className="ai-input"
-              value={media.imageGen.apiKey}
-              placeholder="API Key"
-              onChange={(e) => setMedia('imageGen', { apiKey: e.target.value })}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Base URL</label>
-            <input
-              type="text"
-              className="ai-input"
-              value={media.imageGen.baseUrl}
-              placeholder="https://.../v1"
-              onChange={(e) => setMedia('imageGen', { baseUrl: e.target.value })}
-            />
-          </div>
-        </div>
-        <p style={hintStyle}>
-          Any OpenAI-compatible endpoint: /images/generations and /chat/completions. Empty provider
-          means slides, sheets and PDF generate with the active chat provider.
-        </p>
-      </div>
-
-      <div style={cardStyle}>
-        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Image analysis</h4>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Provider</label>
-            <CustomSelect
-              value={media.imageAnalysis.provider}
-              options={imageProviderOptions}
-              onChange={(val) => setMedia('imageAnalysis', { provider: val })}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Model</label>
-            <input
-              type="text"
-              className="ai-input"
-              value={media.imageAnalysis.model}
-              placeholder="vision model-id"
-              onChange={(e) => setMedia('imageAnalysis', { model: e.target.value })}
-            />
-          </div>
-        </div>
-        <p style={hintStyle}>
-          Vision-capable chat model used to describe images and media for the AI tools.
-        </p>
-      </div>
-
-      <div style={cardStyle}>
-        <h4 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600 }}>Video analysis</h4>
-        <div>
-          <label style={labelStyle}>Provider</label>
-          <CustomSelect
-            value={media.videoAnalysis.provider}
-            options={imageProviderOptions}
-            onChange={(val) => setMedia('videoAnalysis', { provider: val })}
-          />
-        </div>
-        <p style={hintStyle}>
-          Provider used when the AI tools analyze attached video via the media pipeline.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function AccountSection() {
-  const [displayName, setDisplayName] = useState('')
-  const [email, setEmail] = useState('')
-  const [loaded, setLoaded] = useState(false)
-  const [savedTick, setSavedTick] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    void (async () => {
-      let profile: { displayName?: string; email?: string } | null
-      try {
-        profile = (await window.revelithApp?.getProfile?.()) ?? null
-      } catch {
-        profile = null
-      }
-      if (!profile) {
-        try {
-          const stored = localStorage.getItem('revelith.profile')
-          if (stored) profile = JSON.parse(stored)
-        } catch {}
-      }
-      if (alive) {
-        setDisplayName(profile?.displayName ?? '')
-        setEmail(profile?.email ?? '')
-        setLoaded(true)
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  const handleSave = () => {
-    const next = { displayName: displayName.trim(), email: email.trim() }
-    try {
-      localStorage.setItem('revelith.profile', JSON.stringify(next))
-    } catch {}
-    try {
-      void window.revelithApp?.setProfile?.(next)
-    } catch {}
-    setSavedTick(true)
-    setTimeout(() => setSavedTick(false), 2000)
-  }
-
-  const initial = (displayName.trim()[0] ?? email.trim()[0] ?? 'R').toUpperCase()
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h3 className="set-pane-title" style={{ margin: 0 }}>
-        Account
-      </h3>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-          padding: 16,
-          borderRadius: 8,
-          background: 'var(--surface-sunken)',
-          border: '1px solid var(--border-subtle)',
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: '50%',
-            background: 'var(--color-btn-primary)',
-            color: 'var(--color-btn-primary-text)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 20,
-            fontWeight: 700,
-            flexShrink: 0,
-          }}
-        >
-          {initial}
-        </div>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>{displayName || 'ReveLith Account'}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            {email || 'Local device profile — nothing leaves this computer.'}
-          </div>
-        </div>
-      </div>
-      <div
-        style={{
-          padding: 16,
-          borderRadius: 8,
-          background: 'var(--surface-sunken)',
-          border: '1px solid var(--border-subtle)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-        }}
-      >
-        <div>
-          <label
-            htmlFor="acct-name"
-            style={{
-              display: 'block',
-              fontSize: 12,
-              fontWeight: 500,
-              marginBottom: 4,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            Display name
-          </label>
-          <input
-            id="acct-name"
-            type="text"
-            className="ai-input"
-            value={displayName}
-            placeholder="Your name"
-            disabled={!loaded}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="acct-email"
-            style={{
-              display: 'block',
-              fontSize: 12,
-              fontWeight: 500,
-              marginBottom: 4,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            Email
-          </label>
-          <input
-            id="acct-email"
-            type="email"
-            className="ai-input"
-            value={email}
-            placeholder="you@example.com"
-            disabled={!loaded}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" className="set-btn primary" onClick={handleSave} disabled={!loaded}>
-            Save profile
-          </button>
-          {savedTick && (
-            <span style={{ color: '#22c55e', fontSize: 13 }}>✓ Saved on this device</span>
-          )}
-        </div>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
-          Stored only on this device. There is no cloud account: your documents, keys and settings
-          never leave this computer.
-        </p>
-      </div>
-    </div>
-  )
-}
-
 function Field({
   label,
   value,
@@ -2412,117 +259,1038 @@ function Field({
   )
 }
 
-export interface SettingsModalProps {
-  status?: { loggedIn: boolean; email?: string } | null
-  loggingOut?: boolean
-  /** browser sign-in in progress (spinner shows on the account entry) */
-  loginWaiting?: boolean
-  /** device auth URL while waiting : rescue actions when the browser did not auto-open */
-  loginUrl?: string | null
-  urlCopied?: boolean
-  onOpenLoginUrl?: () => void
-  onCopyLoginUrl?: () => void
-  onClose: () => void
-  /** closes the modal and launches the ReveLith login flow (progress shows on the account entry) */
-  onLogin?: () => void
-  onLogout?: () => void
+/**
+ * Long enough that typing an address does not fire a request per keystroke,
+ * short enough that the picker is populated by the time the eye reaches it.
+ */
+const CUSTOM_MODELS_DEBOUNCE_MS = 400
+
+/** replace one catalog entry's model list, leaving every other entry untouched */
+function foldModels(providerId: string, models: string[]) {
+  return (current: AiCatalogEntry[]): AiCatalogEntry[] =>
+    current.map((entry) =>
+      entry.id === providerId ? { ...entry, models, defaultModel: '' } : entry,
+    )
 }
 
-export function SettingsModal({
-  status,
-  loggingOut: _loggingOut = false,
-  loginWaiting: _loginWaiting = false,
-  loginUrl: _loginUrl,
-  urlCopied: _urlCopied = false,
-  onOpenLoginUrl: _onOpenLoginUrl,
-  onCopyLoginUrl: _onCopyLoginUrl,
-  onClose,
-  onLogin: _onLogin,
-  onLogout: _onLogout,
-}: SettingsModalProps) {
-  const i18n = useI18n()
-  const { t, lang, setLang } = i18n
-  const [section, setSection] = useState<SectionId>('ai')
-  const [theme, setTheme] = useState<UiTheme>('system')
-  const [saveDir, setSaveDir] = useState('')
-  const [_channel, setChannel] = useState<'stable' | 'beta'>('stable')
-  const [appVersion, setAppVersion] = useState('')
+/** AI model pane: provider / model / key / base URL, saved to userData/ai-settings.json */
+function AiModelPane({ t }: { t: TFunc }) {
+  const [catalog, setCatalog] = useState<AiCatalogEntry[]>(
+    () => window.aiOffice.getAiProviders?.() ?? [],
+  )
+  const [settings, setSettings] = useState<AiSettings | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  /** free-typed value of the output-cap field; committed (and clamped) on blur */
+  const [maxTokensDraft, setMaxTokensDraft] = useState<string | null>(null)
 
-  // The editor tabs live in their own WebContents, so these preferences are
-  // owned by the main process: reading a localStorage key here would show a
-  // value the editors never see.
-  const [autoSave, setAutoSaveState] = useState(false)
-  const [autoSaveInterval, setAutoSaveInterval] = useState(60)
-  const [aiDock, setAiDockState] = useState<'left' | 'right'>('right')
-  const [aiFontSize, setAiFontSizeState] = useState('14px')
-  const [aiSpellcheck, setAiSpellcheckState] = useState(true)
-  const setAutoSave = (on: boolean) => {
-    setAutoSaveState(on)
-    void window.revelithApp?.setAutoSaveDefault?.({ on })
-  }
-  const setAiDock = (side: 'left' | 'right') => {
-    setAiDockState(side)
-    void window.revelithApp?.setAiPanelPrefs?.({ side })
-  }
-  const setAiFontSize = (fontSize: string) => {
-    setAiFontSizeState(fontSize)
-    void window.revelithApp?.setAiPanelPrefs?.({ fontSize })
-  }
-  const setAiSpellcheck = (spellcheck: boolean) => {
-    setAiSpellcheckState(spellcheck)
-    void window.revelithApp?.setAiPanelPrefs?.({ spellcheck })
-  }
-  const [usageStats, setUsageStats] = useState(false)
+  const refreshCodexModels = useCallback(async (cliPath = '', selectedModel = '') => {
+    if (!window.aiOffice.getCodexModels) return
+    const live = await window.aiOffice.getCodexModels(cliPath)
+    setCatalog((current) =>
+      current.map((entry) => {
+        if (entry.id !== 'codex') return entry
+        const models =
+          selectedModel && !live.models.includes(selectedModel)
+            ? [selectedModel, ...live.models]
+            : live.models
+        return { ...entry, models, defaultModel: live.defaultModel }
+      }),
+    )
+  }, [])
 
-  // the auto-save interval is this window's own preference: the editors take the
-  // on/off default from the main process and pace themselves with it
-  const changeAutoSaveInterval = (interval: number) => {
-    setAutoSaveInterval(interval)
+  useEffect(() => {
+    let alive = true
+    void window.aiOffice.getAiSettings?.().then((s) => {
+      if (!alive || !s) return
+      // The switch is disabled with revelith, so never present it stranded
+      // off. Display-only: s.provider may be the activeProvider fallback for
+      // a half-configured BYOK selection, so writing anything back here would
+      // clobber the stored choice — the main process heals a genuine legacy
+      // revelith+off file itself, judged on the raw stored provider.
+      if (s.provider === 'revelith' && s.gskToolsEnabled === false) {
+        s = { ...s, gskToolsEnabled: true }
+      }
+      setSettings(s)
+      const codex = s.providers.codex
+      if (codex) {
+        void refreshCodexModels(codex.cliPath ?? '', codex.model).catch(() => undefined)
+      }
+    })
+    return () => {
+      alive = false
+    }
+  }, [refreshCodexModels])
+
+  // A user-hosted endpoint gets the same live model list as Codex, asked of the
+  // endpoint itself. Keyed on the catalog's `needsBaseUrl` flag rather than on
+  // the literal 'custom' id, so it follows the slot rather than the name, and
+  // stays a no-op while any other provider is selected — a local server saved
+  // months ago is never contacted while ReveLith is in use.
+  const endpointProvider = catalog.find(
+    (entry) => entry.id === settings?.provider && entry.needsBaseUrl,
+  )?.id
+  const endpointConfig = settings ? settings.providers[settings.provider] : undefined
+  const endpointBaseUrl = (endpointConfig?.baseUrl ?? '').trim()
+  const endpointApiKey = endpointConfig?.apiKey ?? ''
+  // The stored model decides where the pin goes below, but changing it must not
+  // send another request, so it is read when the reply lands rather than keyed on.
+  const selectedModelRef = useRef('')
+  useEffect(() => {
+    selectedModelRef.current = endpointConfig?.model ?? ''
+  })
+  /** the address that produced the list currently folded in; '' when none is */
+  const listedForRef = useRef('')
+
+  useEffect(() => {
+    if (!endpointProvider) return
+    // A list belonging to a different server — or to no server, once the address
+    // is cleared — is misinformation, so it goes the moment the address changes:
+    // the free-text box is the honest thing to show while the answer is unknown.
+    if (listedForRef.current && listedForRef.current !== endpointBaseUrl) {
+      listedForRef.current = ''
+      setCatalog(foldModels(endpointProvider, []))
+    }
+    if (!endpointBaseUrl || !window.aiOffice.getCustomModels) return
+    let cancelled = false
+    const timer = setTimeout(() => {
+      void window.aiOffice
+        .getCustomModels(endpointBaseUrl, endpointApiKey)
+        .then((live) => {
+          // A server that will not answer leaves the current list alone: a blip
+          // must not wipe a picker mid-use.
+          if (cancelled || !live || live.models.length === 0) return
+          // A hand-typed id is pinned to the top so it never vanishes from the
+          // picker. The catalog is the only thing written — writing settings
+          // here would revert whatever the user typed while the probe was in
+          // flight, since `updateConfig` rebuilds them from its own render.
+          const selected = selectedModelRef.current.trim()
+          const models =
+            selected && !live.models.includes(selected) ? [selected, ...live.models] : live.models
+          listedForRef.current = endpointBaseUrl
+          setCatalog(foldModels(endpointProvider, models))
+        })
+        .catch(() => undefined)
+    }, CUSTOM_MODELS_DEBOUNCE_MS)
+    // React's own cleanup drops a superseded reply, so a slow answer from the
+    // previous address can never overwrite a fast one from the current address.
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [endpointProvider, endpointBaseUrl, endpointApiKey])
+
+  if (!settings) return null
+  const provider = settings.provider
+  const meta = catalog.find((c) => c.id === provider)
+  const config = settings.providers[provider] ?? {
+    apiKey: '',
+    model: meta?.defaultModel ?? '',
+    baseUrl: undefined,
+    cliPath: undefined,
+  }
+  const isReveLith = provider === 'revelith'
+  const isCodex = provider === 'codex'
+
+  const touch = () => {
+    setDirty(true)
+    setSaved(false)
+    setTestResult(null)
+  }
+  const updateConfig = (patch: Partial<typeof config>) => {
+    setSettings({
+      ...settings,
+      providers: { ...settings.providers, [provider]: { ...config, ...patch } },
+    })
+    touch()
+  }
+  /** Commit the output-cap input: clamp what was typed and drop a no-op edit */
+  const commitMaxTokens = () => {
+    if (maxTokensDraft === null) return
+    setMaxTokensDraft(null)
+    const next = clampMaxOutputTokens(Number.parseInt(maxTokensDraft, 10))
+    if (next === (settings.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)) return
+    setSettings({ ...settings, maxOutputTokens: next })
+    touch()
+  }
+  const selectProvider = (id: AiSettings['provider']) => {
+    // cloud tools cannot be off with revelith (chat runs through gsk anyway)
+    setSettings({
+      ...settings,
+      provider: id,
+      ...(id === 'revelith' ? { gskToolsEnabled: true } : {}),
+    })
+    touch()
+  }
+  const save = () => {
+    window.aiOffice
+      .setAiSettings?.(settings)
+      .then(() => {
+        setDirty(false)
+        setSaved(true)
+      })
+      .catch((error) => {
+        window.alert(error instanceof Error ? error.message : String(error))
+      })
+  }
+  const test = () => {
+    setTesting(true)
+    setTestResult(null)
+    window.aiOffice
+      .testAiSettings?.(settings)
+      .then((r) => {
+        setTestResult(r ?? { ok: false })
+        if (r?.ok && isCodex) {
+          void refreshCodexModels(config.cliPath ?? '', config.model).catch(() => undefined)
+        }
+      })
+      .catch((error) =>
+        setTestResult({ ok: false, error: error instanceof Error ? error.message : String(error) }),
+      )
+      .finally(() => setTesting(false))
   }
 
-  const toggleUsageStats = (val: boolean) => {
-    setUsageStats(val)
-    try {
-      localStorage.setItem('revelith.usageStats', String(val))
-    } catch {}
-    try {
-      void window.revelithApp?.setUsageStats?.(val)
-    } catch {}
+  return (
+    <>
+      <div className="set-pane-head">
+        <h3 className="set-pane-title">{t('setSecAiModel')}</h3>
+        <div className="set-pane-actions">
+          <AiStatusPill
+            status={
+              testing
+                ? { kind: 'testing', text: t('setAiTesting') }
+                : testResult
+                  ? testResult.ok
+                    ? { kind: 'ok', text: t('setAiTestOk') }
+                    : { kind: 'err', text: testResult.error || t('setAiTestFail') }
+                  : saved
+                    ? { kind: 'ok', text: t('setAiSaved') }
+                    : null
+            }
+          />
+          <button className="set-btn" disabled={testing} onClick={test}>
+            {t('setAiTest')}
+          </button>
+          <button className="set-btn primary" disabled={!dirty} onClick={save}>
+            {t('setAiSave')}
+          </button>
+        </div>
+      </div>
+      <div className="set-field">
+        <div className="set-field-text">
+          <label className="set-field-label">{t('setAiProvider')}</label>
+        </div>
+        <Dropdown
+          className="set-dd"
+          value={provider}
+          ariaLabel={t('setAiProvider')}
+          options={catalog.map((c) => ({
+            value: c.id,
+            label: c.label,
+            render: (
+              <>
+                <ProviderLogo id={c.id} />
+                {c.label}
+              </>
+            ),
+          }))}
+          onPick={(v) => selectProvider(v as AiSettings['provider'])}
+        />
+      </div>
+      <div className="set-field-desc set-ai-note">
+        {isReveLith ? t('setAiReveLithHint') : isCodex ? t('setAiCodexHint') : t('setAiByokNote')}
+      </div>
+      <div className="set-field">
+        <div className="set-field-text">
+          <label className="set-field-label">{t('setAiModelId')}</label>
+        </div>
+        {meta && meta.models.length > 0 ? (
+          <Dropdown
+            className="set-dd"
+            value={config.model || meta.defaultModel}
+            ariaLabel={t('setAiModelId')}
+            options={meta.models.map((m) => ({ value: m, label: m }))}
+            onPick={(m) => updateConfig({ model: m })}
+          />
+        ) : (
+          <input
+            id="set-ai-model"
+            className="set-input"
+            type="text"
+            value={config.model}
+            placeholder="model-id"
+            spellCheck={false}
+            onChange={(e) => updateConfig({ model: e.target.value })}
+          />
+        )}
+      </div>
+      {isCodex ? (
+        <div className="set-field">
+          <div className="set-field-text">
+            <div className="set-field-stack">
+              <label className="set-field-label" htmlFor="set-ai-cli-path">
+                {t('setAiCodexPath')}
+              </label>
+              <div className="set-field-desc">{t('setAiCodexPathHint')}</div>
+            </div>
+          </div>
+          <input
+            id="set-ai-cli-path"
+            className="set-input"
+            type="text"
+            value={config.cliPath ?? ''}
+            placeholder={t('setAiCodexAutoPlaceholder')}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(e) => updateConfig({ cliPath: e.target.value.trim() })}
+            onBlur={(e) => {
+              const cliPath = e.target.value.trim()
+              void refreshCodexModels(cliPath, config.model).catch(() => undefined)
+            }}
+          />
+        </div>
+      ) : !isReveLith ? (
+        <>
+          <div className="set-field">
+            <div className="set-field-text">
+              <div className="set-field-stack">
+                <label className="set-field-label" htmlFor="set-ai-key">
+                  {t('setAiApiKey')}
+                </label>
+                <div className="set-field-desc">{t('setAiKeyHint')}</div>
+              </div>
+            </div>
+            <input
+              id="set-ai-key"
+              className="set-input"
+              type="password"
+              value={config.apiKey}
+              placeholder={meta?.keyPlaceholder ?? 'API Key'}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(e) => updateConfig({ apiKey: e.target.value.trim() })}
+            />
+          </div>
+          <div className="set-field">
+            <div className="set-field-text">
+              <div className="set-field-stack">
+                <label className="set-field-label" htmlFor="set-ai-base-url">
+                  {t('setAiBaseUrl')}
+                </label>
+                {!meta?.needsBaseUrl && (
+                  <div className="set-field-desc">{t('setAiBaseUrlHint')}</div>
+                )}
+              </div>
+            </div>
+            <input
+              id="set-ai-base-url"
+              className="set-input"
+              type="text"
+              value={config.baseUrl ?? ''}
+              placeholder={meta?.needsBaseUrl ? 'https://…/v1' : meta?.defaultBaseUrl}
+              spellCheck={false}
+              onChange={(e) => updateConfig({ baseUrl: e.target.value.trim() })}
+            />
+          </div>
+        </>
+      ) : null}
+      <div className="set-field">
+        <div className="set-field-text">
+          <div className="set-field-stack">
+            <label className="set-field-label" htmlFor="set-ai-max-tokens">
+              {t('setAiMaxTokens')}
+            </label>
+            <div className="set-field-desc">{t('setAiMaxTokensDesc')}</div>
+          </div>
+        </div>
+        <input
+          id="set-ai-max-tokens"
+          className="set-input"
+          type="number"
+          min={MIN_MAX_OUTPUT_TOKENS}
+          max={MAX_MAX_OUTPUT_TOKENS}
+          step={1024}
+          value={maxTokensDraft ?? String(settings.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)}
+          onChange={(e) => setMaxTokensDraft(e.target.value)}
+          onBlur={commitMaxTokens}
+        />
+      </div>
+      <div className="set-field">
+        <div className="set-field-text">
+          <div className="set-field-stack">
+            <div className="set-field-label">{t('setAiGskTools')}</div>
+            <div className="set-field-desc">{t('setAiGskToolsDesc')}</div>
+          </div>
+        </div>
+        {/* locked on with the revelith provider — chat runs through gsk anyway */}
+        <button
+          className="set-switch"
+          role="switch"
+          aria-checked={settings.gskToolsEnabled !== false}
+          aria-label={t('setAiGskTools')}
+          disabled={isReveLith}
+          onClick={() => {
+            setSettings({ ...settings, gskToolsEnabled: settings.gskToolsEnabled === false })
+            touch()
+          }}
+        />
+      </div>
+    </>
+  )
+}
+
+type Capability = 'image' | 'analysis' | 'video' | 'search'
+/** a tested block: the four capabilities plus the Jev reranker of the local file search */
+type TestedBlock = Capability | 'rerank'
+/** where an outside entry point (e.g. the home list's Jev button) lands when it opens the modal */
+export interface SettingsTarget {
+  section: SectionId
+  block?: TestedBlock
+}
+type TestResult = { ok: boolean; error?: string }
+
+const JEV_ENDPOINTS: { value: JevEndpoint; label: string }[] = [
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'direct', label: 'TypeSafe' },
+]
+
+/**
+ * AI media & search pane, one block per capability — web search, image
+ * generation, image analysis, video analysis — each with the same
+ * provider / model / key / base URL rows as the AI Model pane. A vendor's key
+ * and base URL are stored once and shared by every block that picks it.
+ * Saved into the same ai-settings.json as the chat provider.
+ */
+function AiMediaPane({
+  t,
+  onFileSearchChange,
+  focusBlock,
+}: {
+  t: TFunc
+  onFileSearchChange?: () => void
+  focusBlock?: TestedBlock
+}) {
+  const [mediaCatalog] = useState<AiMediaProviderMeta[]>(
+    () => window.aiOffice.getAiMediaProviders?.() ?? [],
+  )
+  const [searchCatalog] = useState<AiSearchProviderMeta[]>(
+    () => window.aiOffice.getAiSearchProviders?.() ?? [],
+  )
+  const [settings, setSettings] = useState<AiSettings | null>(null)
+  const [fileSearch, setFileSearchState] = useState<FileSearchSettings | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResults, setTestResults] = useState<Partial<Record<TestedBlock, TestResult>> | null>(
+    null,
+  )
+  const focused = useRef(false)
+  const scrollToFocused = (el: HTMLDivElement | null) => {
+    if (!el || focused.current) return
+    focused.current = true
+    el.scrollIntoView({ block: 'start' })
   }
 
   useEffect(() => {
     let alive = true
-    void window.revelithApp?.getTheme?.().then((th) => {
-      if (alive && th) setTheme(th)
+    void window.aiOffice.getAiSettings?.().then((s) => {
+      if (alive && s) setSettings(s)
     })
-    void window.revelithApp?.getDefaultSaveDir?.().then((dir) => {
+    void window.aiOffice.getFileSearchSettings?.().then((v) => {
+      if (alive && v) setFileSearchState(v)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  if (!settings?.media || !settings.search) return null
+  const media: AiMediaSettings = settings.media
+  const search: AiSearchSettings = settings.search
+
+  const touch = () => {
+    setDirty(true)
+    setSaved(false)
+    setTestResults(null)
+  }
+  const setMedia = (next: AiMediaSettings) => {
+    setSettings({ ...settings, media: next })
+    touch()
+  }
+  const setSearch = (next: AiSearchSettings) => {
+    setSettings({ ...settings, search: next })
+    touch()
+  }
+  const setFileSearch = (next: FileSearchSettings) => {
+    setFileSearchState(next)
+    touch()
+  }
+  const mediaConfigOf = (id: AiMediaProviderId) => {
+    const meta = mediaCatalog.find((m) => m.id === id)
+    return (
+      media.providers[id] ?? {
+        apiKey: '',
+        imageModel: meta?.defaultImageModel ?? '',
+        analysisModel: meta?.defaultAnalysisModel ?? '',
+      }
+    )
+  }
+  const updateMediaConfig = (
+    id: AiMediaProviderId,
+    patch: Partial<AiMediaSettings['providers'][AiMediaProviderId]>,
+  ) =>
+    setMedia({
+      ...media,
+      providers: { ...media.providers, [id]: { ...mediaConfigOf(id), ...patch } },
+    })
+
+  const save = () => {
+    Promise.all([
+      window.aiOffice.setAiSettings?.(settings),
+      fileSearch ? window.aiOffice.setFileSearchSettings?.(fileSearch) : undefined,
+    ])
+      .then(() => {
+        setDirty(false)
+        setSaved(true)
+        onFileSearchChange?.()
+      })
+      .catch((error) => {
+        window.alert(error instanceof Error ? error.message : String(error))
+      })
+  }
+  // every block reports its own verdict; blocks sharing a vendor share that vendor's one check
+  const test = async () => {
+    setTesting(true)
+    setTestResults(null)
+    const results: Partial<Record<TestedBlock, TestResult>> = {}
+    const fallback: TestResult = { ok: true }
+    const vendorChecks = new Map<AiMediaProviderId, Promise<TestResult>>()
+    const vendorCheck = (id: AiMediaProviderId) => {
+      let pending = vendorChecks.get(id)
+      if (!pending) {
+        pending =
+          window.aiOffice.testAiMediaSettings?.({ provider: id, config: mediaConfigOf(id) }) ??
+          Promise.resolve(fallback)
+        vendorChecks.set(id, pending)
+      }
+      return pending
+    }
+    const blocks: [TestedBlock, () => Promise<TestResult>][] = [
+      [
+        'search',
+        () =>
+          window.aiOffice.testAiSearchSettings?.({
+            provider: search.provider,
+            apiKey:
+              search.provider === 'revelith'
+                ? ''
+                : (search.providers[search.provider]?.apiKey ?? ''),
+          }) ?? Promise.resolve(fallback),
+      ],
+      ['image', () => vendorCheck(media.imageProvider)],
+      ['analysis', () => vendorCheck(media.analysisProvider)],
+      ['video', () => vendorCheck(media.videoAnalysisProvider)],
+    ]
+    if (fileSearch?.rerank) {
+      blocks.push([
+        'rerank',
+        () =>
+          window.aiOffice.testFileSearchRerank?.({
+            endpoint: fileSearch.jevEndpoint,
+            apiKey: fileSearch.jevKeys[fileSearch.jevEndpoint],
+          }) ?? Promise.resolve(fallback),
+      ])
+    }
+    await Promise.all(
+      blocks.map(async ([block, run]) => {
+        try {
+          results[block] = await run()
+        } catch (error) {
+          results[block] = {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        }
+      }),
+    )
+    setTestResults(results)
+    setTesting(false)
+  }
+
+  const blockLabel = (block: TestedBlock) =>
+    block === 'search'
+      ? t('setAiCapSearch')
+      : block === 'image'
+        ? t('setAiCapImage')
+        : block === 'analysis'
+          ? t('setAiCapAnalysis')
+          : block === 'video'
+            ? t('setAiCapVideo')
+            : t('setAiCapFileSearch')
+  const blockProvider = (block: TestedBlock) => {
+    if (block === 'rerank')
+      return JEV_ENDPOINTS.find((e) => e.value === fileSearch?.jevEndpoint)?.label ?? ''
+    if (block === 'search')
+      return searchCatalog.find((m) => m.id === search.provider)?.label ?? search.provider
+    const id =
+      block === 'image'
+        ? media.imageProvider
+        : block === 'video'
+          ? media.videoAnalysisProvider
+          : media.analysisProvider
+    return mediaCatalog.find((m) => m.id === id)?.label ?? id
+  }
+  const blockStatus = (block: TestedBlock): AiStatus | null => {
+    if (testing) return { kind: 'testing', text: t('setAiTesting') }
+    const r = testResults?.[block]
+    if (!r) return null
+    return r.ok
+      ? { kind: 'ok', text: t('setAiTestOk') }
+      : { kind: 'err', text: r.error || t('setAiTestFail') }
+  }
+  const subhead = (block: TestedBlock, title: string) => (
+    <div className="set-pane-subhead" ref={block === focusBlock ? scrollToFocused : undefined}>
+      <h4 className="set-pane-subtitle">{title}</h4>
+      <AiStatusPill status={blockStatus(block)} />
+    </div>
+  )
+  const failed = testResults
+    ? (Object.keys(testResults) as TestedBlock[]).filter((b) => !testResults[b]?.ok)
+    : []
+  const headStatus: AiStatus | null = testing
+    ? { kind: 'testing', text: t('setAiTesting') }
+    : testResults
+      ? failed.length === 0
+        ? { kind: 'ok', text: t('setAiTestOk') }
+        : {
+            kind: 'err',
+            text: `${blockLabel(failed[0]!)} · ${blockProvider(failed[0]!)}: ${testResults[failed[0]!]?.error || t('setAiTestFail')}`,
+          }
+      : saved
+        ? { kind: 'ok', text: t('setAiSaved') }
+        : null
+
+  const providerRow = (
+    label: string,
+    value: string,
+    options: { id: string; label: string }[],
+    onPick: (id: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <label className="set-field-label">{t('setAiProvider')}</label>
+      </div>
+      <Dropdown
+        className="set-dd"
+        value={value}
+        ariaLabel={label}
+        options={options.map((c) => ({
+          value: c.id,
+          label: c.label,
+          render: (
+            <>
+              <ProviderLogo id={c.id} />
+              {c.label}
+            </>
+          ),
+        }))}
+        onPick={onPick}
+      />
+    </div>
+  )
+
+  const modelRow = (
+    id: string,
+    models: string[],
+    fallback: string,
+    value: string,
+    onChange: (v: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <label className="set-field-label" htmlFor={id}>
+          {t('setAiModelId')}
+        </label>
+      </div>
+      {models.length > 0 ? (
+        <Dropdown
+          className="set-dd"
+          value={value || fallback}
+          ariaLabel={t('setAiModelId')}
+          options={models.map((m) => ({ value: m, label: m }))}
+          onPick={onChange}
+        />
+      ) : (
+        <input
+          id={id}
+          className="set-input"
+          type="text"
+          value={value}
+          placeholder="model-id"
+          spellCheck={false}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  )
+
+  const keyRow = (
+    id: string,
+    value: string,
+    placeholder: string,
+    onChange: (v: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <div className="set-field-stack">
+          <label className="set-field-label" htmlFor={id}>
+            {t('setAiApiKey')}
+          </label>
+          <div className="set-field-desc">{t('setAiKeyHint')}</div>
+        </div>
+      </div>
+      <input
+        id={id}
+        className="set-input"
+        type="password"
+        value={value}
+        placeholder={placeholder}
+        spellCheck={false}
+        autoComplete="off"
+        onChange={(e) => onChange(e.target.value.trim())}
+      />
+    </div>
+  )
+
+  const baseUrlRow = (
+    id: string,
+    meta: AiMediaProviderMeta,
+    value: string,
+    onChange: (v: string) => void,
+  ) => (
+    <div className="set-field">
+      <div className="set-field-text">
+        <div className="set-field-stack">
+          <label className="set-field-label" htmlFor={id}>
+            {t('setAiBaseUrl')}
+          </label>
+          {!meta.needsBaseUrl && <div className="set-field-desc">{t('setAiBaseUrlHint')}</div>}
+        </div>
+      </div>
+      <input
+        id={id}
+        className="set-input"
+        type="text"
+        value={value}
+        placeholder={meta.needsBaseUrl ? 'https://…/v1' : meta.defaultBaseUrl}
+        spellCheck={false}
+        onChange={(e) => onChange(e.target.value.trim())}
+      />
+    </div>
+  )
+
+  /** one media block: provider → model → key → base URL (key/base URL shared per vendor) */
+  const mediaBlock = (cap: Exclude<Capability, 'search'>) => {
+    const title =
+      cap === 'image'
+        ? t('setAiCapImage')
+        : cap === 'analysis'
+          ? t('setAiCapAnalysis')
+          : t('setAiCapVideo')
+    const options = mediaCatalog.filter((m) =>
+      cap === 'image'
+        ? !!m.imageProtocol
+        : cap === 'video'
+          ? !!m.analysisProtocol && m.videoAnalysis
+          : !!m.analysisProtocol,
+    )
+    const current =
+      cap === 'image'
+        ? media.imageProvider
+        : cap === 'video'
+          ? media.videoAnalysisProvider
+          : media.analysisProvider
+    const meta = options.find((m) => m.id === current) ?? options[0]!
+    const id = meta.id
+    const config = mediaConfigOf(id)
+    const pick = (next: string) => {
+      const p = next as AiMediaProviderId
+      setMedia(
+        cap === 'image'
+          ? { ...media, imageProvider: p }
+          : cap === 'video'
+            ? { ...media, videoAnalysisProvider: p }
+            : { ...media, analysisProvider: p },
+      )
+    }
+    const modelField = cap === 'image' ? 'imageModel' : 'analysisModel'
+    return (
+      <section key={cap}>
+        {subhead(cap, title)}
+        {providerRow(title, id, options, pick)}
+        <div className="set-field-desc set-ai-note">
+          {id === 'revelith' ? t('setAiMediaReveLithHint') : meta.description}
+        </div>
+        {id !== 'revelith' && (
+          <>
+            {modelRow(
+              `set-ai-${cap}-model`,
+              cap === 'image' ? meta.imageModels : meta.analysisModels,
+              cap === 'image' ? meta.defaultImageModel : meta.defaultAnalysisModel,
+              config[modelField],
+              (m) => updateMediaConfig(id, { [modelField]: m }),
+            )}
+            {keyRow(`set-ai-${cap}-key`, config.apiKey, meta.keyPlaceholder, (v) =>
+              updateMediaConfig(id, { apiKey: v }),
+            )}
+            {baseUrlRow(`set-ai-${cap}-base-url`, meta, config.baseUrl ?? '', (v) =>
+              updateMediaConfig(id, { baseUrl: v }),
+            )}
+          </>
+        )}
+      </section>
+    )
+  }
+
+  const searchMeta = searchCatalog.find((m) => m.id === search.provider)
+  const searchKey =
+    search.provider === 'revelith' ? '' : (search.providers[search.provider]?.apiKey ?? '')
+
+  return (
+    <>
+      <div className="set-pane-head">
+        <h3 className="set-pane-title">{t('setSecAiMedia')}</h3>
+        <div className="set-pane-actions">
+          <AiStatusPill status={headStatus} />
+          <button className="set-btn" disabled={testing} onClick={() => void test()}>
+            {t('setAiTest')}
+          </button>
+          <button className="set-btn primary" disabled={!dirty} onClick={save}>
+            {t('setAiSave')}
+          </button>
+        </div>
+      </div>
+      <div className="set-field-desc set-ai-note">{t('setAiSharedKeyHint')}</div>
+      <section>
+        {subhead('search', t('setAiCapSearch'))}
+        {providerRow(t('setAiCapSearch'), search.provider, searchCatalog, (v) =>
+          setSearch({ ...search, provider: v as AiSearchSettings['provider'] }),
+        )}
+        <div className="set-field-desc set-ai-note">
+          {search.provider === 'revelith'
+            ? t('setAiSearchReveLithHint')
+            : search.provider === 'parallel'
+              ? t('setAiSearchParallelHint')
+              : search.provider === 'serply'
+                ? t('setAiSearchSerplyHint')
+                : searchMeta?.imageSearch
+                  ? t('setAiSearchSerperHint')
+                  : t('setAiSearchTavilyHint')}
+        </div>
+        {search.provider !== 'revelith' &&
+          keyRow('set-ai-search-key', searchKey, searchMeta?.keyPlaceholder ?? 'API Key', (v) =>
+            setSearch({
+              ...search,
+              providers: { ...search.providers, [search.provider]: { apiKey: v } },
+            }),
+          )}
+      </section>
+      {fileSearch && (
+        <section>
+          {subhead('rerank', t('setAiCapFileSearch'))}
+          <div className="set-field">
+            <div className="set-field-text">
+              <div className="set-field-stack">
+                <div className="set-field-label">{t('setSearchRerank')}</div>
+                <div className="set-field-desc">{t('setSearchRerankDesc')}</div>
+              </div>
+            </div>
+            <button
+              className="set-switch"
+              role="switch"
+              aria-checked={fileSearch.rerank}
+              aria-label={t('setSearchRerank')}
+              onClick={() => setFileSearch({ ...fileSearch, rerank: !fileSearch.rerank })}
+            />
+          </div>
+          {fileSearch.rerank && (
+            <>
+              <div className="set-field">
+                <div className="set-field-text">
+                  <label className="set-field-label">{t('setSearchRerankEndpoint')}</label>
+                </div>
+                <Dropdown
+                  className="set-dd"
+                  value={fileSearch.jevEndpoint}
+                  ariaLabel={t('setSearchRerankEndpoint')}
+                  options={JEV_ENDPOINTS}
+                  onPick={(v) =>
+                    setFileSearch({
+                      ...fileSearch,
+                      jevEndpoint: v === 'direct' ? 'direct' : 'openrouter',
+                    })
+                  }
+                />
+              </div>
+              {keyRow(
+                'set-search-jev-key',
+                fileSearch.jevKeys[fileSearch.jevEndpoint],
+                fileSearch.jevEndpoint === 'openrouter' ? 'sk-or-…' : 'API Key',
+                (v) =>
+                  setFileSearch({
+                    ...fileSearch,
+                    jevKeys: { ...fileSearch.jevKeys, [fileSearch.jevEndpoint]: v },
+                  }),
+              )}
+            </>
+          )}
+        </section>
+      )}
+      {mediaBlock('image')}
+      {mediaBlock('analysis')}
+      {mediaBlock('video')}
+    </>
+  )
+}
+
+interface AiStatus {
+  kind: 'testing' | 'ok' | 'err'
+  text: string
+}
+
+/** colored feedback pill in the AI pane header: spinner while testing, then success/error */
+function AiStatusPill({ status }: { status: AiStatus | null }) {
+  if (!status) return null
+  return (
+    <span
+      className={`set-ai-status ${status.kind}`}
+      role="status"
+      // error text (HTTP body, network message) can be long — full text via native tooltip
+      title={status.kind === 'err' ? status.text : undefined}
+    >
+      {status.kind === 'testing' ? (
+        <span className="set-ai-spin" aria-hidden="true" />
+      ) : status.kind === 'ok' ? (
+        <svg
+          className="set-ai-status-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          aria-hidden="true"
+        >
+          <circle cx="7" cy="7" r="6.3" fill="currentColor" opacity="0.16" />
+          <path
+            d="M4.2 7.3l1.9 1.9 3.7-4.3"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
+      ) : (
+        <svg
+          className="set-ai-status-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          aria-hidden="true"
+        >
+          <circle cx="7" cy="7" r="6.3" fill="currentColor" opacity="0.16" />
+          <path d="M7 3.8v3.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="7" cy="10.1" r="1" fill="currentColor" />
+        </svg>
+      )}
+      <span className="set-ai-status-text">{status.text}</span>
+    </span>
+  )
+}
+
+export interface SettingsModalProps {
+  status: AccountStatus | null
+  loggingOut: boolean
+  /** browser sign-in in progress (spinner shows on the account entry) */
+  loginWaiting: boolean
+  /** device auth URL while waiting — rescue actions when the browser did not auto-open */
+  loginUrl: string | null
+  urlCopied: boolean
+  onOpenLoginUrl: () => void
+  onCopyLoginUrl: () => void
+  onClose: () => void
+  /** the Jev search settings were saved; the home search re-judges or drops its current order */
+  onFileSearchChange?: () => void
+  /** closes the modal and launches the ReveLith login flow (progress shows on the account entry) */
+  onLogin: () => void
+  onLogout: () => void
+  /** an installed skill is older than the bundled one: dot on the Integrations entry */
+  skillUpdateDue?: boolean
+  onSkillUpdateDue?: (due: boolean) => void
+  /** open on this section / block instead of the account page */
+  target?: SettingsTarget | null
+}
+
+export function SettingsModal({
+  status,
+  loggingOut,
+  loginWaiting,
+  loginUrl,
+  urlCopied,
+  onOpenLoginUrl,
+  onCopyLoginUrl,
+  onClose,
+  onFileSearchChange,
+  onLogin,
+  onLogout,
+  skillUpdateDue: updateDue = false,
+  onSkillUpdateDue,
+  target,
+}: SettingsModalProps) {
+  const { lang, setLang, t } = useI18n()
+  const [section, setSection] = useState<SectionId>(target?.section ?? 'account')
+  const [theme, setTheme] = useState<UiTheme>('system')
+  const [saveDir, setSaveDir] = useState('')
+  const [analyticsOn, setAnalyticsOn] = useState(true)
+  const [analyticsSaving, setAnalyticsSaving] = useState(false)
+  const [autoSaveOn, setAutoSaveOn] = useState(false)
+  const [defaultApp, setDefaultApp] = useState<DefaultAppStatus | null>(null)
+  const [defaultAppBusy, setDefaultAppBusy] = useState(false)
+  const [defaultAppFailed, setDefaultAppFailed] = useState(false)
+  const [aiPrefs, setAiPrefs] = useState<AiPanelPrefs>(DEFAULT_AI_PANEL_PREFS)
+  const [channel, setChannel] = useState<'stable' | 'beta'>('stable')
+  const [appVersion, setAppVersion] = useState('')
+  const [githubStars, setGithubStars] = useState<number | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void window.aiOffice.getTheme?.().then((th) => {
+      if (alive) setTheme(th)
+    })
+    void window.aiOffice.getDefaultSaveDir?.().then((dir) => {
       if (alive && dir) setSaveDir(dir)
     })
-    void window.revelithApp?.getUpdateChannel?.().then((ch) => {
-      if (alive && ch) setChannel(ch)
+    void window.aiOffice.getAnalyticsEnabled?.().then((on) => {
+      if (alive) setAnalyticsOn(on !== false)
     })
-    void window.revelithApp?.getAppVersion?.().then((v) => {
+    void window.aiOffice.getAutoSaveDefault?.().then((v) => {
+      if (alive) setAutoSaveOn(v.on)
+    })
+    void window.aiOffice.getDefaultAppStatus?.().then((st) => {
+      if (alive) setDefaultApp(st)
+    })
+    void window.aiOffice.getAiPanelPrefs?.().then((prefs) => {
+      if (alive) setAiPrefs(prefs)
+    })
+    void window.aiOffice.getUpdateChannel?.().then((ch) => {
+      if (alive) setChannel(ch)
+    })
+    void window.aiOffice.getAppVersion?.().then((v) => {
       if (alive && v) setAppVersion(v)
     })
-    void window.revelithApp?.getAutoSaveDefault?.().then((d) => {
-      if (alive && d) setAutoSaveState(d.on === true)
+    void window.aiOffice.githubStars?.().then((n) => {
+      if (alive && n !== null) setGithubStars(n)
     })
-    void window.revelithApp?.getAiPanelPrefs?.().then((p) => {
-      if (!alive || !p) return
-      setAiDockState(p.side === 'left' ? 'left' : 'right')
-      setAiFontSizeState(p.fontSize || '14px')
-      setAiSpellcheckState(p.spellcheck !== false)
-    })
-    void (async () => {
-      try {
-        const enabled = await window.revelithApp?.getUsageStats?.()
-        if (alive) setUsageStats(enabled === true)
-      } catch {
-        try {
-          if (alive) setUsageStats(localStorage.getItem('revelith.usageStats') === 'true')
-        } catch {}
-      }
-    })()
     return () => {
       alive = false
     }
@@ -2538,29 +1306,56 @@ export function SettingsModal({
 
   const applyTheme = (next: UiTheme) => {
     setTheme(next)
-    try {
-      localStorage.setItem('revelith.theme', next)
-    } catch {}
-    void window.revelithApp?.setTheme?.(next)
+    void window.aiOffice.setTheme(next)
     if (next === 'system') document.documentElement.removeAttribute('data-theme')
     else document.documentElement.setAttribute('data-theme', next)
-    // Broadcast to any active editor iframes
-    const iframes = document.querySelectorAll('iframe')
-    iframes.forEach((f) => {
-      try {
-        f.contentWindow?.postMessage({ type: 'theme-change', theme: next }, '*')
-      } catch {}
-    })
+  }
+
+  const updateAiPrefs = (patch: Partial<AiPanelPrefs>) => {
+    setAiPrefs((prev) => ({ ...prev, ...patch }))
+    void window.aiOffice.setAiPanelPrefs(patch).then(setAiPrefs)
   }
 
   const changeSaveDir = () => {
-    void window.revelithApp.pickDefaultSaveDir?.().then((dir) => {
+    void window.aiOffice.pickDefaultSaveDir?.().then((dir) => {
       if (dir) setSaveDir(dir)
     })
   }
 
-  const _loggedIn = status?.loggedIn ?? false
-  const _email = status?.email ?? ''
+  // Windows only opens the system page; re-read ownership when the user comes back
+  useEffect(() => {
+    if (!defaultApp?.manualOnly) return
+    const refresh = () => {
+      void window.aiOffice.getDefaultAppStatus?.().then(setDefaultApp)
+    }
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [defaultApp?.manualOnly])
+
+  const claimDefaultApp = () => {
+    setDefaultAppBusy(true)
+    setDefaultAppFailed(false)
+    void window.aiOffice
+      .setDefaultApp()
+      .then((st) => {
+        setDefaultApp(st)
+        if (!st.manualOnly && st.state !== 'default') setDefaultAppFailed(true)
+      })
+      .catch(() => setDefaultAppFailed(true))
+      .finally(() => setDefaultAppBusy(false))
+  }
+
+  const defaultAppDesc = (() => {
+    if (!defaultApp) return ''
+    if (defaultAppFailed) return t('setDefaultAppFailed')
+    if (defaultApp.state === 'default') return t('setDefaultAppIs')
+    if (defaultApp.state === 'other' && defaultApp.others.length > 0)
+      return t('setDefaultAppOther', { app: defaultApp.others.join(', ') })
+    return t('setDefaultAppDesc')
+  })()
+
+  const loggedIn = status?.loggedIn ?? false
+  const email = status?.email ?? ''
 
   return (
     <div
@@ -2593,99 +1388,182 @@ export function SettingsModal({
                 onClick={() => setSection(s.id)}
               >
                 <SectionIcon id={s.id} />
-                {s.label}
+                {t(s.labelKey)}
+                {s.id === 'integrations' && updateDue && (
+                  <span className="set-nav-dot" role="img" aria-label={t('intgUpdateDue')} />
+                )}
               </button>
             ))}
           </nav>
           <div className="set-pane">
-            {section === 'account' && <AccountSection />}
-            {section === 'ai' && <AiSettingsSection />}
-            {section === 'media' && <MediaSearchSection />}
-            {section === 'integrations' && <IntegrationsSection />}
+            {section === 'account' && (
+              <>
+                <h3 className="set-pane-title">{t('setSecAccount')}</h3>
+                <Field label={t('setEmail')} value={loggedIn ? email : t('setNotLoggedIn')} />
+                {loggedIn && (
+                  <Field
+                    label={t('credits')}
+                    value={
+                      status?.creditBalance === undefined
+                        ? '—'
+                        : Math.floor(status.creditBalance).toLocaleString('en-US')
+                    }
+                    action={
+                      <button
+                        className="set-btn"
+                        data-tip={t('creditsTip')}
+                        onClick={() => void window.aiOffice.openCreditUsage?.()}
+                      >
+                        {t('setViewUsage')}
+                      </button>
+                    }
+                  />
+                )}
+                <div className="set-pane-footer">
+                  {loggedIn ? (
+                    <button className="set-btn danger" disabled={loggingOut} onClick={onLogout}>
+                      {loggingOut ? t('loggingOut') : t('logout')}
+                    </button>
+                  ) : (
+                    <>
+                      {loginWaiting && loginUrl && (
+                        <>
+                          <button className="set-btn" onClick={onOpenLoginUrl}>
+                            {t('loginOpenManually')}
+                          </button>
+                          <button className="set-btn" onClick={onCopyLoginUrl}>
+                            {urlCopied ? t('loginCopied') : t('loginCopyUrl')}
+                          </button>
+                        </>
+                      )}
+                      <button className="set-btn primary" onClick={onLogin}>
+                        {loginWaiting ? t('waitingShort') : t('loginReveLith')}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+            {section === 'aiModel' && <AiModelPane t={t} />}
+            {section === 'aiMedia' && (
+              <AiMediaPane
+                t={t}
+                onFileSearchChange={onFileSearchChange}
+                focusBlock={target?.block}
+              />
+            )}
             {section === 'general' && (
               <>
                 <h3 className="set-pane-title">{t('setSecGeneral')}</h3>
                 <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-lang">
-                      {t('language')}
-                    </label>
+                    <label className="set-field-label">{t('language')}</label>
                   </div>
-                  <CustomSelect
-                    id="set-lang"
+                  <Dropdown
+                    className="set-dd"
                     value={lang}
-                    options={LANG_OPTIONS}
-                    onChange={(val) => setLang(val)}
+                    ariaLabel={t('language')}
+                    options={LANG_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+                    onPick={(v) => setLang(v as typeof lang)}
                   />
                 </div>
                 <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-theme">
-                      {t('theme')}
-                    </label>
+                    <label className="set-field-label">{t('theme')}</label>
                   </div>
-                  <CustomSelect
-                    id="set-theme"
+                  <Dropdown
+                    className="set-dd"
                     value={theme}
+                    ariaLabel={t('theme')}
                     options={THEME_OPTIONS.map((opt) => ({
                       value: opt.value,
                       label: t(opt.labelKey),
                     }))}
-                    onChange={(val) => applyTheme(val)}
+                    onPick={(v) => applyTheme(v as UiTheme)}
                   />
                 </div>
                 <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-ai-font">
-                      AI panel text size
-                    </label>
+                    <label className="set-field-label">{t('setAiPanelSide')}</label>
                   </div>
-                  <CustomSelect
-                    id="set-ai-font"
-                    value={aiFontSize}
+                  <Dropdown
+                    className="set-dd"
+                    value={aiPrefs.side}
+                    ariaLabel={t('setAiPanelSide')}
                     options={[
-                      { value: '12px', label: 'Small (12px)' },
-                      { value: '14px', label: 'Normal (14px)' },
-                      { value: '16px', label: 'Large (16px)' },
+                      { value: 'left', label: t('aiPanelSideLeft') },
+                      { value: 'right', label: t('aiPanelSideRight') },
                     ]}
-                    onChange={(val) => setAiFontSize(val)}
+                    onPick={(side) => updateAiPrefs({ side: side as AiPanelSide })}
                   />
                 </div>
                 <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-ai-spell">
-                      Spell check in AI chat
-                    </label>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      Underline misspelled words while typing in the AI chat input.
+                    <label className="set-field-label">{t('setAiFontSize')}</label>
+                  </div>
+                  {aiPrefs.fontSize === 'custom' && (
+                    <CustomFontSizeInput
+                      value={aiPrefs.customFontSize}
+                      label={t('aiFontSizeCustom')}
+                      onCommit={(px) => updateAiPrefs({ customFontSize: px })}
+                    />
+                  )}
+                  <Dropdown
+                    className="set-dd"
+                    value={aiPrefs.fontSize}
+                    ariaLabel={t('setAiFontSize')}
+                    options={AI_FONT_SIZE_OPTIONS.map((opt) => ({
+                      value: opt.value,
+                      label: t(opt.labelKey),
+                    }))}
+                    onPick={(v) => {
+                      const fontSize = v as AiFontSize
+                      // start the custom size from the preset being left so nothing jumps
+                      updateAiPrefs(
+                        fontSize === 'custom' && aiPrefs.fontSize !== 'custom'
+                          ? { fontSize, customFontSize: aiPanelFontPx(aiPrefs) }
+                          : { fontSize },
+                      )
+                    }}
+                  />
+                </div>
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <div className="set-field-stack">
+                      <div className="set-field-label">{t('setAiSpellcheck')}</div>
+                      <div className="set-field-desc">{t('setAiSpellcheckDesc')}</div>
                     </div>
                   </div>
-                  <input
-                    id="set-ai-spell"
-                    type="checkbox"
-                    checked={aiSpellcheck}
-                    onChange={(e) => setAiSpellcheck(e.target.checked)}
+                  <button
+                    className="set-switch"
+                    role="switch"
+                    aria-checked={aiPrefs.spellcheck}
+                    aria-label={t('setAiSpellcheck')}
+                    onClick={() => updateAiPrefs({ spellcheck: !aiPrefs.spellcheck })}
                   />
                 </div>
-                <div className="set-field">
-                  <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-ai-dock">
-                      AI Panel Position
-                    </label>
+                {defaultApp && defaultApp.state !== 'unsupported' && (
+                  <div className="set-field">
+                    <div className="set-field-text">
+                      <div className="set-field-stack">
+                        <div className="set-field-label">{t('setDefaultApp')}</div>
+                        <div className="set-field-desc">{defaultAppDesc}</div>
+                      </div>
+                    </div>
+                    <button
+                      className="set-btn"
+                      disabled={defaultAppBusy || defaultApp.state === 'default'}
+                      onClick={claimDefaultApp}
+                    >
+                      {defaultApp.manualOnly
+                        ? t('setDefaultAppOpenSettings')
+                        : t('setDefaultAppSet')}
+                    </button>
                   </div>
-                  <CustomSelect
-                    id="set-ai-dock"
-                    value={aiDock}
-                    options={[
-                      { value: 'left', label: 'Left Side' },
-                      { value: 'right', label: 'Right Side' },
-                    ]}
-                    onChange={(val) => setAiDock(val as 'left' | 'right')}
-                  />
-                </div>
+                )}
                 <Field
                   label={t('saveLocation')}
-                  value={saveDir || ':'}
+                  value={saveDir || '—'}
                   valueTitle={saveDir}
                   action={
                     <button className="set-btn" onClick={changeSaveDir}>
@@ -2693,70 +1571,95 @@ export function SettingsModal({
                     </button>
                   }
                 />
-                <div className="set-field" style={{ marginTop: 14 }}>
+                <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label">Global AutoSave</label>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      Automatically save changes periodically across all editors
+                    <div className="set-field-stack">
+                      <div className="set-field-label">{t('setAutoSave')}</div>
+                      <div className="set-field-desc">{t('setAutoSaveDesc')}</div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        fontSize: 13,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={autoSave}
-                        onChange={(e) => setAutoSave(e.target.checked)}
-                      />
-                      Enabled
-                    </label>
-                    {autoSave && (
-                      <select
-                        className="ai-input"
-                        style={{ width: 110, height: 32 }}
-                        value={autoSaveInterval}
-                        onChange={(e) => changeAutoSaveInterval(Number(e.target.value))}
-                      >
-                        <option value={30}>Every 30s</option>
-                        <option value={60}>Every 1m</option>
-                        <option value={120}>Every 2m</option>
-                        <option value={300}>Every 5m</option>
-                      </select>
-                    )}
-                  </div>
+                  <button
+                    className="set-switch"
+                    role="switch"
+                    aria-checked={autoSaveOn}
+                    aria-label={t('setAutoSave')}
+                    onClick={() => {
+                      const next = !autoSaveOn
+                      setAutoSaveOn(next)
+                      void window.aiOffice.setAutoSaveDefault?.(next).catch(() => {})
+                    }}
+                  />
                 </div>
-                <div className="set-field" style={{ marginTop: 14 }}>
+                <div className="set-field">
                   <div className="set-field-text">
-                    <label className="set-field-label" htmlFor="set-usage-stats">
-                      Send anonymous usage statistics
-                    </label>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      Helps improve ReveLith. No document contents or file names are ever collected,
-                      and nothing is uploaded while this is off.
+                    <div className="set-field-stack">
+                      <div className="set-field-label">{t('setAnalytics')}</div>
+                      <div className="set-field-desc">{t('setAnalyticsDesc')}</div>
                     </div>
                   </div>
-                  <input
-                    id="set-usage-stats"
-                    type="checkbox"
-                    checked={usageStats}
-                    onChange={(e) => toggleUsageStats(e.target.checked)}
+                  <button
+                    className="set-switch"
+                    role="switch"
+                    aria-checked={analyticsOn}
+                    aria-label={t('setAnalytics')}
+                    disabled={analyticsSaving}
+                    onClick={() => {
+                      const next = !analyticsOn
+                      setAnalyticsSaving(true)
+                      void window.aiOffice
+                        .setAnalyticsEnabled(next)
+                        .then((persisted) => {
+                          if (persisted) setAnalyticsOn(next)
+                        })
+                        .catch(() => {})
+                        .finally(() => setAnalyticsSaving(false))
+                    }}
                   />
                 </div>
               </>
             )}
+            {section === 'integrations' && (
+              <IntegrationsPane t={t} onStatus={(st) => onSkillUpdateDue?.(skillUpdateDue(st))} />
+            )}
             {section === 'about' && (
               <>
                 <h3 className="set-pane-title">{t('setSecAbout')}</h3>
-                <Field label={t('versionLabel')} value={appVersion || '0.10.100'} />
-                <Field label="Edition" value="ReveLith AI Desktop" />
-                <Field label="License" value="Apache-2.0 Open Source" />
+                <Field label={t('versionLabel')} value={appVersion || '—'} />
+                <div className="set-field">
+                  <div className="set-field-text">
+                    <label className="set-field-label">{t('updateChannel')}</label>
+                  </div>
+                  <Dropdown
+                    className="set-dd"
+                    value={channel}
+                    ariaLabel={t('updateChannel')}
+                    options={CHANNEL_OPTIONS.map((opt) => ({
+                      value: opt.value,
+                      label: t(opt.labelKey),
+                    }))}
+                    onPick={(v) => {
+                      const next = v === 'beta' ? 'beta' : 'stable'
+                      setChannel(next)
+                      void window.aiOffice.setUpdateChannel(next)
+                    }}
+                  />
+                </div>
+                <Field
+                  label={t('setGithub')}
+                  value={
+                    githubStars === null
+                      ? 'github.com/revelith-ai/revelith'
+                      : `github.com/revelith-ai/revelith · ★ ${formatStars(githubStars)}`
+                  }
+                  action={
+                    <button
+                      className="set-btn"
+                      onClick={() => void window.aiOffice.openGitHubRepo?.()}
+                    >
+                      {t('starOnGitHub')}
+                    </button>
+                  }
+                />
               </>
             )}
           </div>

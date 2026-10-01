@@ -4,8 +4,7 @@ export const de = {
   aiCollapsePanel: 'Panel einklappen',
   aiComposerPlaceholder: 'KI schreiben oder bearbeiten lassen…',
   aiCopyReplyTitle: 'Antwort kopieren',
-  aiCreditsExhausted:
-    'Guthaben aufgebraucht — prüfe die Abrechnung deines KI-Anbieters und versuche es erneut',
+  aiCreditsExhausted: 'Guthaben aufgebraucht — bei revelith.ai aufladen',
   aiEmptyTitle: 'Eine Seite mit KI gestalten',
   aiEmptyBody:
     'Landingpage, Bericht, Poster – nennen Sie Zweck und Zielgruppe; die KI schlägt zuerst ein Briefing vor und baut dann die Seite',

@@ -1,4 +1,4 @@
-﻿import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -10,11 +10,11 @@ function themeAttr(page: Page): Promise<string | null> {
 
 function hasHomeApi(page: Page): Promise<boolean> {
   return page
-    .evaluate(() => Boolean((window as unknown as { revelithApp?: unknown }).revelithApp))
+    .evaluate(() => Boolean((window as unknown as { aiOffice?: unknown }).aiOffice))
     .catch(() => false)
 }
 
-/** firstWindow() order differs between platforms : find the shell page by its API */
+/** firstWindow() order differs between platforms — find the shell page by its API */
 async function findShellPage(app: ElectronApplication, timeoutMs = 15_000): Promise<Page> {
   const deadline = Date.now() + timeoutMs
   for (;;) {
@@ -22,15 +22,14 @@ async function findShellPage(app: ElectronApplication, timeoutMs = 15_000): Prom
       if (await hasHomeApi(candidate)) return candidate
     }
     const remaining = deadline - Date.now()
-    if (remaining <= 0) throw new Error('No window exposing window.revelithApp')
+    if (remaining <= 0) throw new Error('No window exposing window.aiOffice')
     await app.waitForEvent('window', { timeout: Math.min(remaining, 1_000) }).catch(() => {})
   }
 }
 
 function setTheme(page: Page, theme: 'light' | 'dark' | 'system'): Promise<void> {
   return page.evaluate((t) => {
-    const api = (window as unknown as { revelithApp: { setTheme(v: string): Promise<void> } })
-      .revelithApp
+    const api = (window as unknown as { aiOffice: { setTheme(v: string): Promise<void> } }).aiOffice
     return api.setTheme(t)
   }, theme)
 }
@@ -49,7 +48,7 @@ test.describe('theme pipeline', () => {
     const { app } = launched
     try {
       const shellPage = await findShellPage(app)
-      const editorPage = await waitForPageWithUrl(app, 'markdown/out')
+      const editorPage = await waitForPageWithUrl(app, '://markdown/')
       await expect(editorPage.locator('.doc-editor')).toBeVisible()
       expect(await themeAttr(shellPage)).toBeNull()
       expect(await themeAttr(editorPage)).toBeNull()
@@ -72,7 +71,7 @@ test.describe('theme pipeline', () => {
     }
 
     // relaunch with the same userData: the persisted theme applies before first
-    // paint (no onboardingSeen : that option rewrites app-settings.json wholesale)
+    // paint (no onboardingSeen — that option rewrites app-settings.json wholesale)
     const relaunched = await launchShell({
       userDataDir: launched.userDataDir,
       videoDir: 'theme-pipeline-relaunch',

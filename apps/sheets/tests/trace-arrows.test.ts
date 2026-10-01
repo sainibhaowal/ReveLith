@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { collectDependents, collectPrecedents } from '../src/renderer/trace-arrows'
 import type { DependentsSource } from '../src/renderer/trace-arrows'
@@ -55,7 +55,7 @@ describe('collectDependents', () => {
         },
       },
     },
-    // Real IWorkbookData cells also carry v/s etc.; the type only declares f : cast to skip excess-property checks
+    // Real IWorkbookData cells also carry v/s etc.; the type only declares f — cast to skip excess-property checks
   } as DependentsSource
 
   it('finds same-sheet dependents, including range hits', () => {

@@ -1,5 +1,5 @@
-﻿// Regression: the stage's fit-to-window follow (ResizeObserver on .stage-wrap)
-// must survive an editor remount : switching to reading/sorter view and back
+// Regression: the stage's fit-to-window follow (ResizeObserver on .stage-wrap)
+// must survive an editor remount — switching to reading/sorter view and back
 // replaces the .stage-wrap element, and the observer has to re-bind to the new
 // node or window resizes stop re-fitting the canvas (slide overflows the pane).
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -37,6 +37,9 @@ class FakeResizeObserver {
   }
   observe(el: Element) {
     this.targets.add(el)
+    // Real ResizeObserver delivers an initial entry on observe; the stage
+    // follow relies on it to baseline the container's border-box size.
+    this.cb([{ target: el } as ResizeObserverEntry], this as unknown as ResizeObserver)
   }
   unobserve(el: Element) {
     this.targets.delete(el)
@@ -53,8 +56,16 @@ class FakeResizeObserver {
   }
 }
 
-/** The size fitZoom() sees; fitZoom subtracts 56px (w) / 72px (h) padding. */
+/** The size fitZoom() sees (content box); fitZoom subtracts 56px (w) / 72px (h) padding. */
 let stageSize = { w: 1336, h: 800 } // avail 1280x728 → fit zoom 1 for the blank 1280x720 deck
+/** Border box of .stage-wrap: unlike the content box, scrollbars never shrink it. */
+let outerSize = { w: 1336, h: 800 }
+
+/** A real window/pane resize: content box and border box change together. */
+function resizeStage(w: number, h: number) {
+  stageSize = { w, h }
+  outerSize = { w, h }
+}
 
 const blankSlide = () => ({
   widthPx: 1280,
@@ -105,7 +116,7 @@ async function settle() {
 }
 
 /** Zoom buttons go through the shared preview path: the CSS transform lands on the next
- * rAF and the React commit after a 150ms debounce : flush both before asserting. */
+ * rAF and the React commit after a 150ms debounce — flush both before asserting. */
 async function flushZoomPreview() {
   await act(async () => {
     await new Promise((r) => requestAnimationFrame(() => r(null)))
@@ -149,7 +160,7 @@ beforeAll(() => {
   Element.prototype.scrollTo ??= () => {}
   Element.prototype.scrollIntoView ??= () => {}
   // fitZoom measures the stage container; jsdom has no layout, so feed it a
-  // controllable size (all elements share it : only the stage wrap is measured)
+  // controllable size (all elements share it — only the stage wrap is measured)
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
     configurable: true,
     get: () => stageSize.w,
@@ -157,6 +168,20 @@ beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
     configurable: true,
     get: () => stageSize.h,
+  })
+  // Border-box size, mocked only for the stage wrap (other elements keep jsdom's
+  // 0 so the zoom-preview transform math stays on its offsetWidth-less path)
+  Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.classList.contains('stage-wrap') ? outerSize.w : 0
+    },
+  })
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.classList.contains('stage-wrap') ? outerSize.h : 0
+    },
   })
   ;(window as unknown as { slidesApi: unknown }).slidesApi = makeSlidesApi()
 })
@@ -171,7 +196,7 @@ afterEach(() => {
 
 /** Mount the App and boot into a blank deck at fit zoom 1 (1336x800 container). */
 async function bootApp(): Promise<HTMLElement> {
-  stageSize = { w: 1336, h: 800 }
+  resizeStage(1336, 800)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -197,7 +222,7 @@ describe('stage fit-to-window follow', () => {
 
     // Growing the viewport makes the unchanged manual zoom fit again. The
     // ResizeObserver must refresh the class even though it does not change zoom.
-    stageSize = { w: 1500, h: 900 }
+    resizeStage(1500, 900)
     await act(async () => FakeResizeObserver.fire(wrap))
     expect(stageZoom(container!)).toBeCloseTo(1.1, 5)
     expect(wrap.classList.contains('stage-fits-viewport')).toBe(true)
@@ -207,7 +232,7 @@ describe('stage fit-to-window follow', () => {
     const wrap = await bootApp()
 
     // sanity: the follow works before any view-mode round trip
-    stageSize = { w: 696, h: 800 } // avail 640 → fit 0.5
+    resizeStage(696, 800) // avail 640 → fit 0.5
     await act(async () => FakeResizeObserver.fire(wrap!))
     expect(stageZoom(container!)).toBeCloseTo(0.5, 5)
 
@@ -224,7 +249,7 @@ describe('stage fit-to-window follow', () => {
     expect(wrap2).not.toBe(wrap)
 
     // shrink again: the observer must follow the NEW stage-wrap
-    stageSize = { w: 376, h: 800 } // avail 320 → fit 0.25
+    resizeStage(376, 800) // avail 320 → fit 0.25
     await act(async () => FakeResizeObserver.fire(wrap2!))
     expect(stageZoom(container!)).toBeCloseTo(0.25, 5)
   })
@@ -239,12 +264,12 @@ describe('stage fit-to-window follow', () => {
     expect(stageZoom(container!)).toBeCloseTo(1.1, 5)
 
     // container shrinks: 1.1 no longer fits → clamp down to the new fit
-    stageSize = { w: 696, h: 800 } // avail 640 → fit 0.5
+    resizeStage(696, 800) // avail 640 → fit 0.5
     await act(async () => FakeResizeObserver.fire(wrap))
     expect(stageZoom(container!)).toBeCloseTo(0.5, 5)
 
     // and fit mode is re-entered: the next resize follows again
-    stageSize = { w: 376, h: 800 } // avail 320 → fit 0.25
+    resizeStage(376, 800) // avail 320 → fit 0.25
     await act(async () => FakeResizeObserver.fire(wrap))
     expect(stageZoom(container!)).toBeCloseTo(0.25, 5)
   })
@@ -267,24 +292,47 @@ describe('stage fit-to-window follow', () => {
     const wrap = await bootApp()
 
     // container big enough for 200%: uncapped fit ≈ 2.07, fitZoom caps at 1.5
-    stageSize = { w: 2700, h: 1600 }
+    resizeStage(2700, 1600)
     await act(async () => FakeResizeObserver.fire(wrap))
     expect(stageZoom(container!)).toBeCloseTo(1.5, 5) // fit-mode follow, capped
 
-    // manual zoom to 2.0 : still fits geometrically
+    // manual zoom to 2.0 — still fits geometrically
     const plus = [...container!.querySelectorAll<HTMLButtonElement>('.zoom-btn')].at(-1)!
     for (let i = 0; i < 5; i++) act(() => plus.click())
     await flushZoomPreview()
     expect(stageZoom(container!)).toBeCloseTo(2.0, 5)
 
     // a resize that still fits 200% must NOT wipe the manual zoom down to 1.5
-    stageSize = { w: 2680, h: 1590 }
+    resizeStage(2680, 1590)
     await act(async () => FakeResizeObserver.fire(wrap))
     expect(stageZoom(container!)).toBeCloseTo(2.0, 5)
 
     // but a real overflow still clamps back to fit
-    stageSize = { w: 1336, h: 800 } // uncapped fit 1
+    resizeStage(1336, 800) // uncapped fit 1
     await act(async () => FakeResizeObserver.fire(wrap))
     expect(stageZoom(container!)).toBeCloseTo(1, 5)
+  })
+
+  it('keeps a manual zoom when scrollbars appear without a real container resize', async () => {
+    const wrap = await bootApp()
+
+    // zoom above fit: the slide overflows and classic scrollbars appear
+    const plus = [...container!.querySelectorAll<HTMLButtonElement>('.zoom-btn')].at(-1)!
+    act(() => plus.click())
+    await flushZoomPreview()
+    expect(stageZoom(container!)).toBeCloseTo(1.1, 5)
+
+    // The scrollbars shrink the observed content box, but the border box is
+    // unchanged — no real window/pane resize happened, so the manual zoom
+    // must NOT snap back to fit (regression: zooming past fit bounced back).
+    stageSize = { w: 1321, h: 785 }
+    await act(async () => FakeResizeObserver.fire(wrap))
+    expect(stageZoom(container!)).toBeCloseTo(1.1, 5)
+    expect(wrap.classList.contains('stage-fits-viewport')).toBe(false)
+
+    // A real shrink afterwards still clamps back down to the fit value
+    resizeStage(696, 800) // avail 640 → fit 0.5
+    await act(async () => FakeResizeObserver.fire(wrap))
+    expect(stageZoom(container!)).toBeCloseTo(0.5, 5)
   })
 })

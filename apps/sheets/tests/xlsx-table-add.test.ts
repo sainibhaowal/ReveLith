@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   createBufferEntrySource,
@@ -59,7 +59,7 @@ describe('table additions', () => {
 
     const worksheet = plan.replaced.get('xl/worksheets/sheet1.xml')
     expect(worksheet).toContain('<tableParts count="1"><tablePart r:id="rId1"/></tableParts>')
-    // The fixture worksheet has no xmlns:r : the table hookup must add it.
+    // The fixture worksheet has no xmlns:r — the table hookup must add it.
     expect(worksheet).toContain(
       'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"',
     )

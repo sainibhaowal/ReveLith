@@ -126,9 +126,7 @@ const corpus = execFileSync('git', ['ls-files', '-z', '*.md'], { cwd: root, enco
   .filter(Boolean)
 describe('tracked repository Markdown corpus', () => {
   it('includes README variants and a nonempty corpus', () => {
-    // the corpus is whatever the repository tracks; the point of the bound is
-    // that the round-trip below covers a real spread of documents, not one or two
-    expect(corpus.length).toBeGreaterThan(20)
+    expect(corpus.length).toBeGreaterThan(50)
     expect(corpus.some((path) => /README.*\.md$/.test(path))).toBe(true)
   })
   it.each(corpus)('opens and preserves every byte of %s', (path) => {

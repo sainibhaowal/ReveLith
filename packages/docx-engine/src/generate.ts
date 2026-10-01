@@ -2222,39 +2222,7 @@ export function generateTableModelXml(model: TableModel, originalTableXml?: stri
         ? 'right'
         : 'left'
       : model.floatSide
-  if (model.floatSide === null) {
-    tblPr = setTblPrChild(tblPr, 'w:tblpPr', null)
-    tblPr = setTblPrChild(tblPr, 'w:tblOverlap', null)
-  } else if (model.floating) {
-    // ReveLith TableModel.floating: keep keyword alignment (w:tblpXSpec /
-    // w:tblpYSpec) and the declared w:tblOverlap value instead of collapsing
-    // to the absolute offsets the floatPos writer emits.
-    const f = model.floating
-    const distance = (name: string, value: number | undefined) =>
-      value == null ? '' : ` w:${name}="${Math.max(0, Math.round(value))}"`
-    const offset = (name: string, value: number | undefined) =>
-      value == null ? '' : ` w:${name}="${Math.round(value)}"`
-    const keyword = (name: string, value: string | undefined) =>
-      value === undefined ? '' : ` w:${name}="${value}"`
-    const tag =
-      `<w:tblpPr${distance('leftFromText', f.leftFromTextTwips)}` +
-      `${distance('rightFromText', f.rightFromTextTwips)}` +
-      `${distance('topFromText', f.topFromTextTwips)}` +
-      `${distance('bottomFromText', f.bottomFromTextTwips)}` +
-      `${keyword('horzAnchor', f.horizAnchor)}` +
-      `${keyword('tblpXSpec', f.xSpec)}` +
-      `${offset('tblpX', f.xTwips)}` +
-      `${keyword('vertAnchor', f.vertAnchor)}` +
-      `${keyword('tblpYSpec', f.ySpec)}` +
-      `${offset('tblpY', f.yTwips)}` +
-      `/>`
-    tblPr = setTblPrChild(tblPr, 'w:tblpPr', tag)
-    tblPr = setTblPrChild(
-      tblPr,
-      'w:tblOverlap',
-      f.overlap !== undefined ? `<w:tblOverlap w:val="${f.overlap}"/>` : null,
-    )
-  } else if (requestedFloatSide !== undefined || (!originalTblPr && model.floatPos)) {
+  if (requestedFloatSide !== undefined || (!originalTblPr && model.floatPos)) {
     if (!requestedFloatSide) {
       tblPr = setTblPrChild(tblPr, 'w:tblpPr', null)
       tblPr = setTblPrChild(tblPr, 'w:tblOverlap', null)

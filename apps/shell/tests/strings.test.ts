@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { strings } from '../src/renderer/src/strings'
 
 /**
@@ -40,7 +40,7 @@ describe('home-screen locale tables', () => {
       const zhPlaceholders = placeholdersOf((strings.zh as Record<string, string>)[key])
       // Singular-count keys ("...One") may drop the numeral entirely in
       // languages that express "one" grammatically (e.g. ar/he), so a
-      // missing placeholder is fine there : an extra one is not.
+      // missing placeholder is fine there — an extra one is not.
       if (key.endsWith('One')) {
         return localePlaceholders.some((p) => !zhPlaceholders.includes(p))
       }

@@ -1,32 +1,30 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 
 /**
- * Dependency-free markdown renderer for chat bubbles:
- * paragraphs, lists (ul/ol), headings, tables, fenced code blocks,
- * bold/italic/inline code, and RTL-aware text orientation.
- * Tolerates streaming/partial input gracefully.
+ * Minimal dependency-free markdown for chat bubbles: paragraphs, ul/ol,
+ * headings, pipe tables, fenced code, **bold**, *italic*, `inline code`.
+ * Tolerates partial (streaming) input — anything unrecognized renders as
+ * plain text.
+ *
+ * Markdown links stay literal text unless the host passes `nav` and the href
+ * carries its scheme — then they become in-app navigation links. External
+ * URLs never turn into clickable links here.
  */
 
-const INLINE_RE = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|\*[^*\n]+?\*|\[[^\]\n]+\]\([^)\s]+\))/g
-
-/**
- * Link interception for in-answer citations. A model is told to cite a document
- * region as `[label](<scheme>…)`; the host resolves the href and performs the
- * navigation, so the renderer never has to know the scheme.
- */
 export interface MarkdownNav {
-  /** href prefix the model uses for citations, e.g. `htmlnav://` */
+  /** href prefix that renders as an in-app navigation link (e.g. 'docnav://') */
   scheme: string
-  /** called with the raw href; the host decides what to do with it */
   onNavigate: (href: string) => void
 }
-const RTL_REGEX = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/
 
-export function isRtlText(text: string): boolean {
-  return RTL_REGEX.test(text)
-}
-
-const LINK_RE = /^\[([^\]]*)\]\(([^)\s]+)\)$/
+// Hrefs may carry one level of balanced parens (sheet names like `Data (2)`
+// arrive as sheetnav://Data%20(2)!B2), so the href cannot simply stop at ')'.
+const HREF = /(?:[^\s()]|\([^\s()]*\))+/.source
+const INLINE_RE = new RegExp(
+  `(\`[^\`\\n]+\`|\\*\\*[^*\\n]+?\\*\\*|\\*[^*\\n]+?\\*|\\[[^\\]\\n]+\\]\\(${HREF}\\))`,
+  'g',
+)
+const LINK_RE = new RegExp(`^\\[([^\\]]+)\\]\\((${HREF})\\)$`)
 
 function renderInline(text: string, nav?: MarkdownNav): ReactNode[] {
   const out: ReactNode[] = []
@@ -38,44 +36,83 @@ function renderInline(text: string, nav?: MarkdownNav): ReactNode[] {
     const tok = m[0] ?? ''
     if (tok.startsWith('`')) out.push(<code key={key++}>{tok.slice(1, -1)}</code>)
     else if (tok.startsWith('**')) out.push(<strong key={key++}>{tok.slice(2, -2)}</strong>)
-    else if (tok.startsWith('*')) out.push(<em key={key++}>{tok.slice(1, -1)}</em>)
-    else {
-      // a link is only clickable when the host owns that scheme; anything else
-      // (or nothing) renders as plain text so a model-invented URL stays inert
+    else if (tok.startsWith('[')) {
       const link = LINK_RE.exec(tok)
       const href = link?.[2] ?? ''
-      const label = link?.[1] ?? tok
-      if (nav && href.startsWith(nav.scheme)) {
+      if (link && nav && href.startsWith(nav.scheme)) {
         out.push(
           <a
             key={key++}
-            href="#"
             className="ai-md-nav"
+            href={href}
             onClick={(e) => {
               e.preventDefault()
               nav.onNavigate(href)
             }}
           >
-            {label}
+            {link[1]}
           </a>,
         )
       } else {
-        out.push(label)
+        out.push(tok) // non-nav links keep today's literal rendering
       }
-    }
+    } else out.push(<em key={key++}>{tok.slice(1, -1)}</em>)
     last = i + tok.length
   }
   if (last < text.length) out.push(text.slice(last))
   return out
 }
 
+type CellAlign = 'left' | 'center' | 'right' | undefined
+
 type MdBlock =
   | { kind: 'p'; lines: string[] }
   | { kind: 'ul'; items: string[] }
   | { kind: 'ol'; items: string[] }
   | { kind: 'h'; text: string }
-  | { kind: 'code'; lang?: string | undefined; content: string }
-  | { kind: 'table'; headers: string[]; rows: string[][] }
+  | { kind: 'table'; align: CellAlign[]; head: string[]; rows: string[][] }
+  | { kind: 'code'; lines: string[] }
+
+const FENCE_RE = /^\s*(`{3,}|~{3,})/
+const DELIM_CELL_RE = /^\s*:?-+:?\s*$/
+
+/** Splits a table row on pipes that are neither escaped nor inside inline code. */
+function splitCells(line: string): string[] {
+  const cells: string[] = []
+  let cur = ''
+  let inCode = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '\\' && line[i + 1] === '|') {
+      cur += '|'
+      i++
+    } else if (ch === '`') {
+      inCode = !inCode
+      cur += ch
+    } else if (ch === '|' && !inCode) {
+      cells.push(cur)
+      cur = ''
+    } else cur += ch
+  }
+  cells.push(cur)
+  if (cells.length && !cells[0]?.trim()) cells.shift()
+  if (cells.length && !cells[cells.length - 1]?.trim()) cells.pop()
+  return cells.map((c) => c.trim())
+}
+
+function parseDelimiterRow(line: string): CellAlign[] | null {
+  if (!line.includes('-')) return null
+  const cells = splitCells(line)
+  if (!cells.length || !cells.every((c) => DELIM_CELL_RE.test(c))) return null
+  return cells.map((c) => {
+    const l = c.startsWith(':')
+    const r = c.endsWith(':')
+    if (l && r) return 'center'
+    if (r) return 'right'
+    if (l) return 'left'
+    return undefined
+  })
+}
 
 function parseBlocks(text: string): MdBlock[] {
   const blocks: MdBlock[] = []
@@ -86,101 +123,52 @@ function parseBlocks(text: string): MdBlock[] {
       cur = null
     }
   }
-
   const lines = text.split('\n')
-  let inCode = false
-  let codeLang = ''
-  let codeLines: string[] = []
-
-  let inTable = false
-  let tableHeaders: string[] = []
-  let tableRows: string[][] = []
-
-  const isTableRow = (line: string): boolean => {
-    const trimmed = line.trim()
-    return trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.includes('|')
-  }
-
-  const isTableSeparator = (line: string): boolean => {
-    const trimmed = line.trim()
-    return /^\|(\s*:?-+:?\s*\|)+$/.test(trimmed)
-  }
-
-  const parseCells = (line: string): string[] => {
-    const trimmed = line.trim()
-    const inner = trimmed.slice(1, -1)
-    return inner.split('|').map((c) => c.trim())
-  }
-
   for (let idx = 0; idx < lines.length; idx++) {
-    const raw = lines[idx]!
+    const raw = lines[idx] ?? ''
     const line = raw.trimEnd()
-
-    // Handle code fence
-    if (line.trim().startsWith('```')) {
-      if (inCode) {
-        // Close code block
-        blocks.push({ kind: 'code', lang: codeLang, content: codeLines.join('\n') })
-        inCode = false
-        codeLang = ''
-        codeLines = []
-        continue
-      } else {
-        flush()
-        if (inTable) {
-          blocks.push({ kind: 'table', headers: tableHeaders, rows: tableRows })
-          inTable = false
-          tableHeaders = []
-          tableRows = []
-        }
-        inCode = true
-        codeLang = line.trim().slice(3).trim()
-        codeLines = []
-        continue
-      }
-    }
-
-    if (inCode) {
-      codeLines.push(raw)
+    if (cur?.kind === 'code') {
+      if (FENCE_RE.test(line)) flush()
+      else cur.lines.push(raw)
       continue
     }
-
-    // Handle tables
-    if (isTableRow(line)) {
-      if (!inTable) {
-        // Peek ahead to check for separator
-        const next = lines[idx + 1] ? lines[idx + 1]!.trimEnd() : ''
-        if (isTableSeparator(next)) {
-          flush()
-          inTable = true
-          tableHeaders = parseCells(line)
-          tableRows = []
-          idx++ // skip separator line
-          continue
-        }
-      } else {
-        tableRows.push(parseCells(line))
-        continue
-      }
-    } else if (inTable) {
-      blocks.push({ kind: 'table', headers: tableHeaders, rows: tableRows })
-      inTable = false
-      tableHeaders = []
-      tableRows = []
-    }
-
     if (!line.trim()) {
       flush()
       continue
     }
-
+    if (FENCE_RE.test(line)) {
+      flush()
+      cur = { kind: 'code', lines: [] }
+      continue
+    }
+    if (cur?.kind === 'table') {
+      if (line.includes('|')) {
+        const width = cur.head.length
+        const cells = splitCells(line).slice(0, width)
+        while (cells.length < width) cells.push('')
+        cur.rows.push(cells)
+        continue
+      }
+      flush()
+    }
+    if (line.includes('|')) {
+      const align = parseDelimiterRow(lines[idx + 1] ?? '')
+      if (align) {
+        const head = splitCells(line)
+        if (head.length === align.length) {
+          flush()
+          cur = { kind: 'table', align, head, rows: [] }
+          idx++
+          continue
+        }
+      }
+    }
     const h = /^#{1,6}\s+(.*)$/.exec(line)
     if (h) {
       flush()
       blocks.push({ kind: 'h', text: h[1] ?? '' })
       continue
     }
-
     const ul = /^\s*[-*•]\s+(.*)$/.exec(line)
     if (ul) {
       if (cur?.kind !== 'ul') {
@@ -190,7 +178,6 @@ function parseBlocks(text: string): MdBlock[] {
       cur.items.push(ul[1] ?? '')
       continue
     }
-
     const ol = /^\s*\d+[.、)]\s+(.*)$/.exec(line)
     if (ol) {
       if (cur?.kind !== 'ol') {
@@ -200,191 +187,70 @@ function parseBlocks(text: string): MdBlock[] {
       cur.items.push(ol[1] ?? '')
       continue
     }
-
     if (cur?.kind !== 'p') {
       flush()
       cur = { kind: 'p', lines: [] }
     }
     cur.lines.push(line)
   }
-
-  if (inCode) {
-    // Streaming unclosed code block
-    blocks.push({ kind: 'code', lang: codeLang, content: codeLines.join('\n') })
-  } else if (inTable) {
-    blocks.push({ kind: 'table', headers: tableHeaders, rows: tableRows })
-  }
   flush()
   return blocks
 }
 
-function CodeBlock({
-  lang,
-  content,
-}: {
-  lang?: string | undefined
-  content: string
-}): React.JSX.Element {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = () => {
-    void navigator.clipboard.writeText(content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
+export function Markdown({ text, nav }: { text: string; nav?: MarkdownNav }): React.JSX.Element {
   return (
-    <div
-      className="ai-md-code-block"
-      style={{
-        margin: '8px 0',
-        borderRadius: 6,
-        overflow: 'hidden',
-        border: '1px solid var(--border-subtle, rgba(255,255,255,0.1))',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '4px 10px',
-          background: 'var(--panel-bg-subtle, rgba(0,0,0,0.25))',
-          fontSize: 11,
-          fontFamily: 'monospace',
-          color: 'var(--text-dim, #888)',
-        }}
-      >
-        <span>{lang || 'code'}</span>
-        <button
-          onClick={handleCopy}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'inherit',
-            cursor: 'pointer',
-            fontSize: 11,
-            padding: '2px 6px',
-            borderRadius: 4,
-          }}
-        >
-          {copied ? 'Copied!' : 'Copy'}
-        </button>
-      </div>
-      <pre
-        style={{
-          margin: 0,
-          padding: '10px 12px',
-          overflowX: 'auto',
-          background: 'var(--code-bg, rgba(0,0,0,0.15))',
-          fontSize: 12,
-          lineHeight: 1.45,
-          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-        }}
-      >
-        <code>{content}</code>
-      </pre>
-    </div>
-  )
-}
-
-function TableBlock({
-  headers,
-  rows,
-  nav,
-}: {
-  headers: string[]
-  rows: string[][]
-  nav?: MarkdownNav | undefined
-}): React.JSX.Element {
-  return (
-    <div className="ai-md-table-wrap" style={{ overflowX: 'auto', margin: '8px 0' }}>
-      <table
-        className="ai-md-table"
-        style={{
-          borderCollapse: 'collapse',
-          width: '100%',
-          fontSize: 12,
-          border: '1px solid var(--border-subtle, rgba(255,255,255,0.15))',
-        }}
-      >
-        {headers.length > 0 && (
-          <thead>
-            <tr style={{ background: 'var(--table-header-bg, rgba(255,255,255,0.06))' }}>
-              {headers.map((h, i) => (
-                <th
-                  key={i}
-                  style={{
-                    padding: '6px 10px',
-                    textAlign: 'left',
-                    fontWeight: 600,
-                    borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.2))',
-                  }}
-                >
-                  {renderInline(h, nav)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-        )}
-        <tbody>
-          {rows.map((row, i) => (
-            <tr
-              key={i}
-              style={{ borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.08))' }}
-            >
-              {row.map((cell, j) => (
-                <td key={j} style={{ padding: '6px 10px' }}>
-                  {renderInline(cell, nav)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-export function Markdown({
-  text,
-  nav,
-}: {
-  text: string
-  /** enables clickable citation links; without it, links render as text */
-  nav?: MarkdownNav | undefined
-}): React.JSX.Element {
-  const isRtl = isRtlText(text)
-  return (
-    <div className={`ai-md ${isRtl ? 'ai-md-rtl' : ''}`} dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="ai-md">
       {parseBlocks(text).map((b, i) => {
-        if (b.kind === 'code') {
-          return <CodeBlock key={i} lang={b.lang} content={b.content} />
-        }
-        if (b.kind === 'table') {
-          return <TableBlock key={i} headers={b.headers} rows={b.rows} nav={nav} />
-        }
         if (b.kind === 'h') {
           return (
-            <p key={i} className="ai-md-h" style={{ fontWeight: 600, margin: '8px 0 4px' }}>
+            <p key={i} className="ai-md-h">
               {renderInline(b.text, nav)}
             </p>
           )
         }
         if (b.kind === 'ul' || b.kind === 'ol') {
           const items = b.items.map((it, j) => <li key={j}>{renderInline(it, nav)}</li>)
-          return b.kind === 'ul' ? (
-            <ul key={i} style={{ paddingLeft: 20, margin: '4px 0' }}>
-              {items}
-            </ul>
-          ) : (
-            <ol key={i} style={{ paddingLeft: 20, margin: '4px 0' }}>
-              {items}
-            </ol>
+          return b.kind === 'ul' ? <ul key={i}>{items}</ul> : <ol key={i}>{items}</ol>
+        }
+        if (b.kind === 'code') {
+          return (
+            <pre key={i} className="ai-md-pre">
+              <code>{b.lines.join('\n')}</code>
+            </pre>
+          )
+        }
+        if (b.kind === 'table') {
+          const cellStyle = (j: number): React.CSSProperties | undefined =>
+            b.align[j] ? { textAlign: b.align[j] } : undefined
+          return (
+            <div key={i} className="ai-md-table-wrap">
+              <table className="ai-md-table">
+                <thead>
+                  <tr>
+                    {b.head.map((c, j) => (
+                      <th key={j} style={cellStyle(j)}>
+                        {renderInline(c, nav)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((row, r) => (
+                    <tr key={r}>
+                      {row.map((c, j) => (
+                        <td key={j} style={cellStyle(j)}>
+                          {renderInline(c, nav)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )
         }
         return (
-          <p key={i} style={{ margin: '4px 0' }}>
+          <p key={i}>
             {b.lines.map((ln, j) => (
               <Fragment key={j}>
                 {j > 0 && <br />}

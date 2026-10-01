@@ -1,59 +1,140 @@
-/**
- * Atomic file write (main process only): write to a sibling temp file, flush
- * it to disk, then rename over the target. rename(2) within a directory is
- * atomic on every supported platform, so a reader (or a crash) never observes a
- * half-written document, and the original file keeps its bytes if the write
- * fails.
- */
-import { copyFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { randomBytes } from 'node:crypto'
+import {
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { open, rename, unlink, writeFile } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 
-export interface AtomicWriteOptions {
-  /** keep the temp file if the rename fails (debugging); default false */
-  keepTempOnError?: boolean
+/** Transient Windows codes: antivirus/indexer briefly locks the rename target. */
+const RETRYABLE_RENAME_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const RENAME_RETRY_DELAYS_MS = [50, 100, 200, 400]
+
+/**
+ * Codes a refused fsync may surface with inside cloud-sync folders, under AV
+ * locks or on filesystems without fsync. The bytes are already written, so a
+ * refused flush only weakens power-loss durability and must not fail the save.
+ */
+const TOLERATED_SYNC_CODES = new Set(['EPERM', 'EACCES', 'EBUSY', 'EINVAL', 'ENOSYS'])
+
+const errorCode = (error: unknown) => (error as NodeJS.ErrnoException).code ?? ''
+const isRetryableRename = (error: unknown) => RETRYABLE_RENAME_CODES.has(errorCode(error))
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const sleepSync = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+
+const tempPathBeside = (filePath: string) =>
+  join(dirname(filePath), `.${basename(filePath)}.${randomBytes(6).toString('hex')}.tmp`)
+
+async function syncFileBestEffort(path: string): Promise<void> {
+  let handle
+  try {
+    handle = await open(path, 'r+')
+  } catch (error) {
+    if (TOLERATED_SYNC_CODES.has(errorCode(error))) return
+    throw error
+  }
+  try {
+    await handle.sync()
+  } catch (error) {
+    if (!TOLERATED_SYNC_CODES.has(errorCode(error))) throw error
+  } finally {
+    await handle.close()
+  }
+}
+
+function syncFileBestEffortSync(path: string): void {
+  let descriptor: number
+  try {
+    descriptor = openSync(path, 'r+')
+  } catch (error) {
+    if (TOLERATED_SYNC_CODES.has(errorCode(error))) return
+    throw error
+  }
+  try {
+    fsyncSync(descriptor)
+  } catch (error) {
+    if (!TOLERATED_SYNC_CODES.has(errorCode(error))) throw error
+  } finally {
+    closeSync(descriptor)
+  }
 }
 
 /**
- * Replace `path` with `data` atomically. Throws like writeFileSync would; the
- * original file is untouched on any failure.
+ * Same-dir temp file, best-effort fsync, then rename, so neither a crash
+ * mid-write nor a power loss right after the rename can leave the target
+ * truncated. Rename-over-existing fails transiently on Windows under
+ * Defender/indexer locks: retry with backoff, then fall back to an in-place
+ * write — losing atomicity for that one save beats failing a save the previous
+ * plain writeFileSync would have completed.
  */
-export function atomicWriteFile(
-  path: string,
-  data: string | Uint8Array,
-  options: AtomicWriteOptions = {},
-): void {
-  const dir = dirname(path)
-  const temp = join(dir, `.${basenameOf(path)}.${process.pid}.${Date.now()}.tmp`)
+export async function atomicWriteFile(filePath: string, data: Buffer): Promise<void> {
+  const tmp = tempPathBeside(filePath)
   try {
-    writeFileSync(temp, data)
-    renameSync(temp, path)
-  } catch (err) {
-    if (!options.keepTempOnError) {
+    await writeFile(tmp, data)
+    await syncFileBestEffort(tmp)
+    for (let attempt = 0; ; attempt += 1) {
       try {
-        unlinkSync(temp)
-      } catch {
-        /* the temp may not exist; the original error is what matters */
+        await rename(tmp, filePath)
+        return
+      } catch (error) {
+        if (!isRetryableRename(error) || attempt >= RENAME_RETRY_DELAYS_MS.length) throw error
+        await sleep(RENAME_RETRY_DELAYS_MS[attempt] ?? 0)
       }
     }
-    throw err
+  } catch (error) {
+    if (isRetryableRename(error)) {
+      // Keep the completed temp until the fallback lands: if that write fails
+      // or the process dies, the new bytes still exist somewhere on disk.
+      await writeFile(filePath, data)
+      await unlink(tmp).catch(() => {})
+      return
+    }
+    await unlink(tmp).catch(() => {})
+    throw error
   }
 }
 
 /**
- * Same guarantee for a file that another process may hold open (Windows keeps
- * a rename target locked): copy over it instead, which the OS performs as a
- * single write transaction in practice.
+ * Atomic replacement for small userData JSON state files (recents, stars, AI
+ * settings). Same retry + in-place fallback as atomicWriteFile; the retry
+ * sleeps block the caller, which is acceptable for a few KB under a transient
+ * Windows lock.
  */
-export function atomicReplaceFile(source: string, target: string): void {
-  copyFileSync(source, target)
-  try {
-    unlinkSync(source)
-  } catch {
-    /* the copy landed; the leftover temp is harmless */
+export function writeJsonAtomic(filePath: string, value: unknown): void {
+  mkdirSync(dirname(filePath), { recursive: true })
+  const json = JSON.stringify(value, null, 2)
+  const tmp = tempPathBeside(filePath)
+  const removeTemp = () => {
+    try {
+      unlinkSync(tmp)
+    } catch {
+      /* temp never created */
+    }
   }
-}
-
-function basenameOf(path: string): string {
-  const idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  return idx === -1 ? path : path.slice(idx + 1)
+  try {
+    writeFileSync(tmp, json, { encoding: 'utf8', flag: 'wx' })
+    syncFileBestEffortSync(tmp)
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        renameSync(tmp, filePath)
+        return
+      } catch (error) {
+        if (!isRetryableRename(error) || attempt >= RENAME_RETRY_DELAYS_MS.length) throw error
+        sleepSync(RENAME_RETRY_DELAYS_MS[attempt] ?? 0)
+      }
+    }
+  } catch (error) {
+    if (isRetryableRename(error)) {
+      writeFileSync(filePath, json, 'utf8')
+      removeTemp()
+      return
+    }
+    removeTemp()
+    throw error
+  }
 }

@@ -4,7 +4,10 @@ import {
   allowedByValueFilter,
   matchesLabelFilter,
 } from '@revelith/xlsx-gateway/domain/pivot-filters'
-import { growPivotDefinition, recomputePivotData } from '@revelith/xlsx-gateway/domain/pivot-engine'
+import {
+  growPivotDefinition,
+  recomputePivotData,
+} from '@revelith/xlsx-gateway/domain/pivot-engine'
 import { parsePivotDefinition } from '@revelith/xlsx-gateway/gateway/xlsx-pivot'
 
 describe('pivot filter primitives', () => {

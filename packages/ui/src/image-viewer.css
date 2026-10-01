@@ -1,68 +1,83 @@
-/* Full-window image viewer: a floating toolbar over a checkerboard stage, so a
- * picture with transparency reads correctly and the zoom state stays legible. */
-
-.image-viewer {
+.gs-imgview-mask {
   position: fixed;
   inset: 0;
-  z-index: 400;
-  display: flex;
-  flex-direction: column;
-  background: rgb(0 0 0 / 78%);
-}
-
-.image-viewer-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 8px;
-  border-bottom: 1px solid rgb(255 255 255 / 12%);
-}
-
-.image-viewer-btn {
-  min-width: 28px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  border-radius: 4px;
-  background: transparent;
-  color: #f2f2f2;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.image-viewer-btn:hover {
-  background: rgb(255 255 255 / 12%);
-}
-
-.image-viewer-btn[data-active='true'] {
-  border-color: #ffffff;
-  background: rgb(255 255 255 / 18%);
-}
-
-.image-viewer-zoom {
-  min-width: 48px;
-  color: #d8d8d8;
-  font-size: 12px;
-  text-align: center;
-}
-
-.image-viewer-stage {
-  flex: 1;
+  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  /* checkerboard so transparent regions read as transparent, not black */
-  background: repeating-conic-gradient(#2f2f2f 0% 25%, #3a3a3a 0% 50%) 0 0 / 20px 20px;
-  touch-action: none;
+  background: var(--color-bg-overlay);
+  -webkit-app-region: no-drag;
 }
 
-.image-viewer-img {
+.gs-imgview-img {
+  flex: none;
   max-width: none;
-  /* the stage centers the image, so the transform origin is its middle */
   transform-origin: center center;
+  cursor: grab;
   user-select: none;
-  -webkit-user-drag: none;
+  box-shadow: var(--shadow-menu);
+}
+
+.gs-imgview-img.dragging {
+  cursor: grabbing;
+}
+
+.gs-imgview-bar {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-menu);
+}
+
+.gs-imgview-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.gs-imgview-btn:hover {
+  background: var(--hover);
+}
+
+.gs-imgview-btn.active {
+  color: var(--accent);
+}
+
+.gs-imgview-11 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.gs-imgview-zoom {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.gs-imgview-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
 }

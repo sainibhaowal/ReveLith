@@ -1,6 +1,5 @@
 import { decompressionStream, streamBytes } from './byte-stream'
 import { convertEmfToDataUrl, convertWmfToDataUrl } from './vendor/emf-converter/index.mjs'
-import { extractEmfBitmapDataUrl } from './metafile-bitmap'
 
 const EMF_MIMES = new Set(['image/emf', 'image/x-emf'])
 // localized GDI facenames mapped to their CSS-resolvable names
@@ -79,24 +78,13 @@ function looksLikeWmf(bytes: Uint8Array): boolean {
 
 /**
  * Render EMF/WMF (or gzipped EMZ/WMZ) bytes to a PNG data URL via the vendored
- * emf-converter. When that fails on an EMF file, fall back to the native
- * embedded-bitmap extractor (many Office EMFs wrap a DIB): a BMP data URL still
- * displays. Returns null only when nothing drawable was found, so callers keep
- * their existing empty-frame degrade. Failures are logged instead of silently
- * swallowed.
+ * emf-converter. Returns null on parse failure or when no canvas API exists
+ * (non-renderer environments), so callers keep their existing empty-frame
+ * degrade. Failures are logged instead of silently swallowed.
  */
 export interface MetafileRasterOptions {
   /** Longest raster side in device px; the converter scales down preserving the aspect ratio */
   maxSidePx?: number
-}
-
-/** Native BMP extraction for an EMF wrapping a DIB; null when none is drawable. */
-function embeddedBitmapFallback(raw: Uint8Array): string | null {
-  try {
-    return extractEmfBitmapDataUrl(raw)
-  } catch {
-    return null
-  }
 }
 
 export async function metafileToDataUrl(
@@ -104,7 +92,6 @@ export async function metafileToDataUrl(
   mime: string,
   raster: MetafileRasterOptions = {},
 ): Promise<string | null> {
-  let isEmf: boolean | undefined
   try {
     let u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
     if (isGzip(u8)) u8 = await gunzip(u8)
@@ -112,6 +99,7 @@ export async function metafileToDataUrl(
     if (!isMetafileMime(mime)) return null
     // signature beats the declared mime: HWP-exported docx ship EMF bytes
     // under .wmf part names; mime only decides indeterminate bytes
+    let isEmf: boolean
     if (looksLikeEmf(u8)) isEmf = true
     else if (looksLikeWmf(u8)) isEmf = false
     else isEmf = EMF_MIMES.has(mime) || EMZ_MIMES.has(mime)
@@ -124,19 +112,10 @@ export async function metafileToDataUrl(
       ? await convertEmfToDataUrl(buffer, opts)
       : await convertWmfToDataUrl(buffer, opts)
     if (result === null) {
-      if (isEmf) {
-        const fallback = embeddedBitmapFallback(u8)
-        if (fallback) return fallback
-      }
       console.warn(`metafileToDataUrl: converter returned null (${mime}, ${u8.byteLength} bytes)`)
     }
     return result
   } catch (err) {
-    if (isEmf) {
-      const raw = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-      const fallback = embeddedBitmapFallback(raw)
-      if (fallback) return fallback
-    }
     console.warn(`metafileToDataUrl: conversion failed (${mime}):`, err)
     return null
   }

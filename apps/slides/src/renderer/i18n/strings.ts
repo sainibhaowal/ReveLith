@@ -18,21 +18,22 @@ export const strings = {
   pt: { ...appStrings.pt, ...ribbonStrings.pt, ...paneStrings.pt, ...aiStrings.pt },
   it: { ...appStrings.it, ...ribbonStrings.it, ...paneStrings.it, ...aiStrings.it },
   pl: { ...appStrings.pl, ...ribbonStrings.pl, ...paneStrings.pl, ...aiStrings.pl },
+  cs: { ...appStrings.cs, ...ribbonStrings.cs, ...paneStrings.cs, ...aiStrings.cs },
   nl: { ...appStrings.nl, ...ribbonStrings.nl, ...paneStrings.nl, ...aiStrings.nl },
   ms: { ...appStrings.ms, ...ribbonStrings.ms, ...paneStrings.ms, ...aiStrings.ms },
   he: { ...appStrings.he, ...ribbonStrings.he, ...paneStrings.he, ...aiStrings.he },
   hi: { ...appStrings.hi, ...ribbonStrings.hi, ...paneStrings.hi, ...aiStrings.hi },
+
+  vi: {
+    ...appStrings.vi,
+    ...ribbonStrings.vi,
+    ...paneStrings.vi,
+    ...aiStrings.vi,
+  },
   'zh-TW': {
     ...appStrings['zh-TW'],
     ...ribbonStrings['zh-TW'],
     ...paneStrings['zh-TW'],
     ...aiStrings['zh-TW'],
   },
-  cs: {
-    ...(appStrings.cs ?? appStrings.en),
-    ...(ribbonStrings.cs ?? ribbonStrings.en),
-    ...(paneStrings.cs ?? paneStrings.en),
-    ...(aiStrings.cs ?? aiStrings.en),
-  },
 }
-

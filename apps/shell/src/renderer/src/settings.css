@@ -1,5 +1,5 @@
 /* Settings modal (opened from the account menu): two-pane dialog matched to
-   ReveLith's settings window — borderless
+   ReveMail's settings window (values read from its packaged CSS) — borderless
    header/nav, label-left / control-right rows with hairline dividers.
    Chrome colors use semantic tokens only (see CLAUDE.md theming rules). */
 
@@ -12,22 +12,7 @@
   justify-content: center;
   padding: 5vh 24px;
   background: var(--color-bg-overlay);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: setOverlayFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes setOverlayFadeIn {
-  from {
-    opacity: 0;
-    backdrop-filter: blur(0px);
-    -webkit-backdrop-filter: blur(0px);
-  }
-  to {
-    opacity: 1;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
+  backdrop-filter: blur(6px);
 }
 
 .set-dialog {
@@ -40,19 +25,6 @@
   color: var(--text-primary);
   box-shadow: var(--shadow-modal-strong);
   overflow: hidden;
-  animation: setDialogPopIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity;
-}
-
-@keyframes setDialogPopIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
 }
 
 .set-header {
@@ -81,17 +53,11 @@
   background: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .set-close:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  transform: scale(1.08);
-}
-
-.set-close:active {
-  transform: scale(0.92);
 }
 
 .set-body {
@@ -144,21 +110,72 @@
   color: var(--text-primary);
 }
 
+.set-nav-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
 .set-pane {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 8px 28px 24px;
+  padding: 0 28px 24px;
   overflow-y: auto;
+  /* height of the sticky title row, so focus/scroll-into-view lands below it */
+  scroll-padding-top: 49px;
+}
+
+/* the pane scrolls, so rows must keep their natural height: .set-field's
+   explicit min-height would otherwise let flex shrink collapse tall rows
+   (multi-line stacks) below their content and overlap the next row */
+.set-pane > * {
+  flex-shrink: 0;
 }
 
 .set-pane-title {
-  margin: 0 0 18px;
+  margin: 8px 0 18px;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.2;
+}
+
+/* title row pinned to the top of the scrolling pane so the test/save actions
+   and their result pill stay in view however long the form is */
+.set-pane-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 -28px 12px;
+  padding: 8px 28px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface);
+}
+
+.set-pane-head .set-pane-title {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.set-pane-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.set-pane-actions .set-ai-status {
+  margin-right: 0;
 }
 
 .set-field {
@@ -198,142 +215,242 @@
   word-break: break-all;
 }
 
-/* Select pill: the visible layer is just the current value +
-   chevron (width hugs the content); the real <select> sits on top invisibly
-   and only supplies the click target and the native popup. */
-/* ── Custom Select (Rounded Square Design) ───────────────── */
-.custom-select-wrap {
-  position: relative;
-  flex-shrink: 0;
-  display: inline-block;
-  user-select: none;
-}
-
-.custom-select-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.custom-select-trigger:hover {
-  background: var(--bg-active, rgba(0, 0, 0, 0.07));
-  border-color: var(--border-strong, rgba(0, 0, 0, 0.18));
-}
-
-.custom-select-trigger.open {
-  border-color: var(--color-btn-primary, #3b82f6);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-
-.custom-select-value {
-  white-space: nowrap;
-}
-
-.custom-select-chevron {
-  flex-shrink: 0;
-  color: var(--text-secondary, #6b7280);
-  transition: transform 0.15s ease;
-}
-
-.custom-select-trigger.open .custom-select-chevron {
-  transform: rotate(180deg);
-}
-
-.custom-select-dropdown {
-  position: absolute;
-  top: calc(100% + 5px);
-  right: 0;
-  min-width: 160px;
-  max-height: 260px;
-  overflow-y: auto;
-  background: var(--surface, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.1));
-  border-radius: 10px;
-  padding: 5px;
-  box-shadow: var(--shadow-dropdown);
-  z-index: 1100;
+/* stacked label + secondary description (analytics toggle row) */
+.set-field-stack {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  animation: selectMenuAppear 0.14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  scrollbar-width: thin;
+  gap: 3px;
+  min-width: 0;
 }
 
-@keyframes selectMenuAppear {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.set-field-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
 
-.custom-select-item {
-  width: 100%;
+/* MCP service row: the label + description + status stack reads better with the
+   switch aligned to the label line instead of centered against three lines */
+.set-field-top {
+  align-items: flex-start;
+}
+
+.set-field-top .set-switch {
+  margin-top: 2px;
+}
+
+/* MCP pane: running/stopped line with a status dot */
+.set-mcp-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.set-status-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.set-status-dot.running {
+  background: var(--success);
+}
+
+.set-status-dot.error {
+  background: var(--danger);
+}
+
+/* MCP pane: client config example — heading row with the copy button, then the
+   snippet on its own full-width row (a side-by-side flex row squeezes the
+   tall snippet against the button) */
+.set-config-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-config-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 7px 10px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
+  gap: 20px;
+}
+
+/* MCP pane: compact action group in a config/log head row */
+.set-btn-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/* MCP pane: copyable config snippet */
+.set-code {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 450;
+  overflow-x: auto;
+  white-space: pre;
+  user-select: text;
+}
+
+/* MCP pane: in-pane log viewer — fixed height, scrolls, follows the tail */
+.set-log {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.set-log-empty {
+  color: var(--text-tertiary);
+}
+
+/* on/off switch (analytics toggle) */
+.set-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 11px;
+  background: var(--bg-hover-strong);
   cursor: pointer;
-  text-align: left;
-  transition: background 0.1s ease;
+  transition: background 0.15s ease;
 }
 
-.custom-select-item:hover {
-  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+.set-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-modal-strong);
+  transition: left 0.15s ease;
 }
 
-.custom-select-item.selected {
-  background: rgba(59, 130, 246, 0.12);
-  color: var(--color-btn-primary, #2563eb);
-  font-weight: 600;
+.set-switch[aria-checked='true'] {
+  background: var(--color-btn-primary);
 }
 
-.custom-select-item.selected svg {
-  stroke: currentColor;
+.set-switch[aria-checked='true']::after {
+  left: 20px;
+}
+
+.set-switch:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ReveMail-style select pill: the visible layer is just the current value +
+   chevron (width hugs the content); the real <select> sits on top invisibly
+   and only supplies the click target and the native popup. */
+.set-select-wrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.set-select-wrap:hover,
+.set-select-wrap:focus-within {
+  background: var(--bg-hover);
+}
+
+.set-select-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.set-select-wrap::after {
+  content: '';
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin-top: -4px;
+  border-right: 1.5px solid var(--text-primary);
+  border-bottom: 1.5px solid var(--text-primary);
+  transform: rotate(45deg);
+}
+
+.set-select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  font: inherit;
+  cursor: pointer;
+  /* the element is invisible, but the OS popup that opens on click reads its
+     computed color/background to render the option list */
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.set-select option {
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+/* Shared dropdown (@revelith/ui gs-dd) in settings rows: borderless text
+ * trigger matching the old .set-select-wrap look */
+.set-dd {
   flex-shrink: 0;
 }
 
-[data-theme='dark'] .custom-select-trigger {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
+.set-dd .gs-dd-btn {
+  height: auto;
+  gap: 6px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
-[data-theme='dark'] .custom-select-trigger:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.2);
+.set-dd .gs-dd-btn:hover,
+.set-dd .gs-dd-btn:focus-visible {
+  background: var(--bg-hover);
 }
 
-[data-theme='dark'] .custom-select-dropdown {
-  background: #232326;
-  border-color: rgba(255, 255, 255, 0.12);
+.set-dd .gs-dd-pop {
+  min-width: 180px;
 }
 
-[data-theme='dark'] .custom-select-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+.set-dd .gs-dd-item {
+  font-size: 13px;
 }
 
-[data-theme='dark'] .custom-select-item.selected {
-  background: rgba(59, 130, 246, 0.22);
-  color: #60a5fa;
+/* brand mark in the AI provider dropdown (trigger value + option rows are
+   flex containers from gs-dd); monochrome marks follow the text color */
+.set-provider-logo {
+  flex-shrink: 0;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  color: var(--text-primary);
+}
+
+.set-provider-logo svg {
+  width: 100%;
+  height: 100%;
 }
 
 .set-btn {
@@ -380,168 +497,372 @@
   margin-top: auto;
   padding-top: 20px;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }
 
-/* AI Provider & ReveLithAI settings styles */
-.ai-settings-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  height: 100%;
-}
+/* ── AI model pane ── */
 
-.ai-provider-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 16px;
-  min-height: 380px;
-}
-
-.ai-provider-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: var(--bg-content);
-  padding: 8px;
-  border-radius: 10px;
-  overflow-y: auto;
-}
-
-.ai-provider-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: none;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.15s ease;
-}
-
-.ai-provider-card:hover {
-  background: var(--bg-hover);
-}
-
-.ai-provider-card.active {
-  background: var(--surface);
-  border-color: var(--color-btn-primary);
-  font-weight: 600;
-  box-shadow: var(--shadow-card);
-}
-
-.ai-provider-card-icon {
-  font-size: 16px;
+.set-input {
   flex-shrink: 0;
-}
-
-.ai-provider-card-badge {
-  margin-left: auto;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 10px;
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-}
-
-.ai-provider-card.active .ai-provider-card-badge {
-  background: var(--color-btn-primary);
-  color: #fff;
-}
-
-.ai-provider-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  background: var(--surface);
-  padding: 16px;
-  border-radius: 10px;
+  width: 46%;
+  min-width: 200px;
+  padding: 6px 10px;
   border: 1px solid var(--border-subtle);
-}
-
-.ai-form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ai-form-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.ai-form-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.ai-input-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.ai-input {
-  width: 100%;
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-content);
-  color: var(--text-primary);
+  border-radius: 6px;
   font: inherit;
   font-size: 13px;
-  outline: none;
+  color: var(--text-primary);
+  background: var(--surface);
 }
 
-.ai-input:focus {
-  border-color: var(--color-btn-primary);
-}
-
-.ai-input-toggle {
-  position: absolute;
-  right: 8px;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.ai-test-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.ai-status-badge {
+.set-num {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.set-num-input {
+  width: 64px;
+  min-width: 0;
+  text-align: right;
+}
+
+.set-input:focus {
+  outline: none;
+  border-color: var(--accent, var(--text-primary));
+}
+
+.set-input::placeholder {
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
+.set-ai-note {
+  padding: 8px 0 2px;
+  line-height: 1.5;
+}
+
+/* feedback pill: spinner while testing, green on success/saved, red on failure */
+.set-ai-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-right: auto; /* status hugs the left edge, action buttons stay right */
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
   font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
 }
 
-.ai-status-badge.success {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+.set-ai-status.ok {
+  color: var(--success);
+  border-color: var(--success-border);
+  background: var(--success-bg);
 }
 
-.ai-status-badge.error {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+.set-ai-status.err {
+  color: var(--danger);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
 }
 
-.ai-status-badge.checking {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+.set-ai-status-icon {
+  flex-shrink: 0;
+}
+
+.set-ai-status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-ai-spin {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--text-secondary);
+  border-radius: 50%;
+  animation: set-ai-spin 0.8s linear infinite;
+}
+
+@keyframes set-ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.set-pane-subtitle {
+  margin: 28px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.set-pane-subhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 28px 0 4px;
+}
+
+.set-pane-subhead .set-pane-subtitle {
+  margin: 0;
+}
+
+.set-pane-subhead .set-ai-status {
+  margin-right: 0;
+  padding: 2px 8px 2px 6px;
+  font-size: 12px;
+}
+
+/* ── Integrations pane ── */
+
+.set-intg-hero {
+  margin: 8px 0 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-subtle);
+}
+
+.set-intg-hero-title {
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.set-intg-hero-steps {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: intg-step;
+}
+
+.set-intg-hero-steps li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-primary);
+  counter-increment: intg-step;
+}
+
+.set-intg-hero-steps li::before,
+.set-intg-step-no {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-btn-primary);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-btn-primary-text);
+}
+
+.set-intg-hero-steps li::before {
+  content: counter(intg-step);
+}
+
+.set-intg-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-intg-version {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.set-intg-lead {
+  padding: 4px 0 8px;
+}
+
+.set-intg-warn {
+  padding: 0 0 8px;
+  color: var(--danger);
+}
+
+.set-intg-row {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-intg-row .set-field {
+  border-bottom: none;
+}
+
+.set-intg-row[data-state='installed'] .set-intg-state {
+  color: var(--success);
+}
+
+.set-intg-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-intg-details {
+  margin-top: 10px;
+}
+
+.set-intg-details > summary {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.set-intg-details > summary:hover {
+  color: var(--text);
+}
+
+.set-intg-cli {
+  margin-top: 24px;
+}
+
+/* the two routes (CLI, MCP) as numbered parts with a rule between them */
+.set-intg-part {
+  margin-top: 8px;
+}
+
+.set-intg-part + .set-intg-part {
+  margin-top: 28px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.set-intg-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 22px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.set-intg-mcp-http {
+  margin-top: 8px;
+}
+
+.set-mcp-advanced {
+  margin-top: 16px;
+}
+
+.set-intg-code-block {
+  align-items: flex-start;
+}
+
+.set-intg-code-block code {
+  white-space: pre;
+  word-break: normal;
+  overflow-x: auto;
+}
+
+.set-intg-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.set-intg-option:last-of-type {
+  border-bottom: none;
+}
+
+.set-intg-option .set-field-stack {
+  flex: 1;
+}
+
+.set-intg-option-letter {
+  flex-shrink: 0;
+  width: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.set-intg-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 6px 6px 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+}
+
+.set-intg-code code {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text);
+  user-select: text;
+  word-break: break-all;
+}
+
+.set-intg-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.set-intg-example {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.set-intg-example-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  user-select: text;
+}
+
+/* the path about to be written, shown before any write happens */
+.set-intg-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+}
+
+.set-intg-confirm .set-field-desc {
+  word-break: break-all;
+}
+
+.set-intg-notice {
+  padding: 0 0 10px;
+}
+
+.set-intg-path {
+  text-align: left;
 }

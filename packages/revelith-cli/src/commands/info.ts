@@ -1,88 +1,69 @@
-/**
- * `revelith info` — what kind of document is this, and what is in it.
- *
- * The cheapest way to find out whether a file is the one an agent was told
- * about, and to size a job before committing to it. Read-only: opens the
- * package, counts what matters, and never writes.
- */
 import { statSync } from 'node:fs'
 import { parseDocx } from '@revelith/docx-engine'
 import { openPptx } from '@revelith/pptx-engine'
-import { extension, readInput, requireFile } from '../fs.js'
-import { CliError, EXIT } from '../result.js'
-import type { CommandDef } from '../registry.js'
+import { flagString } from '../args'
+import { csvInfo } from '../formats/csv'
+import { pdfInfo } from '../formats/pdf'
+import { workbookSummary } from '../formats/xlsx'
+import { extension, readInput, resolveInput } from '../fs'
+import type { CommandDef } from '../registry'
+import { CliError, EXIT } from '../result'
 
-/** English Metric Units per inch; slide sizes are stored in EMU. */
 const EMU_PER_INCH = 914400
-
-/** Formats this command can describe today, with the ones it cannot. */
-const TEXT_FORMATS = new Set(['md', 'markdown', 'html', 'htm', 'txt'])
-/** Spreadsheet formats arrive with the xlsx-gateway package. */
-const PENDING = new Set(['xlsx', 'xlsm', 'xls', 'xlsb', 'ods', 'pdf'])
 
 export const infoCommand: CommandDef = {
   name: 'info',
   summary: 'Print metadata and a structure summary of a document.',
-  usage: 'info <file>',
+  usage: 'info <file> [--password <pw>]',
+  options: [{ name: 'password', value: 'pw', description: 'password for an encrypted PDF' }],
   async run(args, ctx) {
-    const path = requireFile(args.positionals[0], ctx)
+    const path = resolveInput(args.positionals[0], ctx)
     const ext = extension(path)
     const stat = statSync(path)
-    const described = await describe(path, ext)
-    return {
-      summary: `${ext} — ${described.headline}`,
-      detail: {
-        path,
-        format: ext,
-        size_bytes: stat.size,
-        modified: stat.mtime.toISOString(),
-        ...described.fields,
-      },
-    }
+    const base = { path, format: ext, size_bytes: stat.size, modified: stat.mtime.toISOString() }
+    const detail = await describe(path, ext, flagString(args, 'password'))
+    return { summary: `${ext} · ${detail.headline}`, detail: { ...base, ...detail.fields } }
   },
 }
 
 interface Description {
-  /** One line a person reads; the fields carry the machine-readable detail. */
   headline: string
   fields: Record<string, unknown>
 }
 
-async function describe(path: string, ext: string): Promise<Description> {
-  if (ext === 'docx') return describeDocx(path)
-  if (ext === 'pptx') return describePptx(path)
-  if (ext === 'csv') return describeCsv(path)
-  if (TEXT_FORMATS.has(ext)) return describeText(path, ext)
-  if (PENDING.has(ext)) {
-    // Deliberately not silently approximated. A wrong sheet count is worse
-    // than an honest refusal, because an agent will plan around it.
-    throw new CliError(
-      EXIT.usage,
-      `info does not support .${ext} yet`,
-      { format: ext },
-      {
+async function describe(path: string, ext: string, password?: string): Promise<Description> {
+  switch (ext) {
+    case 'docx':
+      return describeDocx(path)
+    case 'pptx':
+      return describePptx(path)
+    case 'xlsx':
+    case 'xlsm':
+    case 'xls':
+    case 'xlsb':
+    case 'ods':
+      return describeWorkbook(path)
+    case 'pdf':
+      return describePdf(path, password)
+    case 'csv':
+      return describeCsv(path)
+    case 'md':
+    case 'markdown':
+    case 'html':
+    case 'htm':
+    case 'txt':
+      return describeText(path, ext)
+    default:
+      throw new CliError(EXIT.usage, `unsupported file type: .${ext}`, undefined, {
         reason: 'unsupported',
-        suggestion: 'docx, pptx, csv, md, html and txt are supported',
-      },
-    )
+      })
   }
-  throw new CliError(
-    EXIT.usage,
-    `unsupported file type: .${ext || '(none)'}`,
-    { format: ext },
-    {
-      reason: 'unsupported',
-      suggestion: 'pass a .docx, .pptx, .csv, .md, .html or .txt file',
-    },
-  )
 }
 
 async function describeDocx(path: string): Promise<Description> {
   const parsed = await parseDocx(readInput(path))
   const counts: Record<string, number> = {}
   for (const b of parsed.blocks) counts[b.type] = (counts[b.type] ?? 0) + 1
-  // Headings are capped: a long report would otherwise dump a hundred lines of
-  // outline into the agent's context for no decision it can act on.
   const headings = parsed.blocks
     .filter((b) => b.type === 'heading')
     .slice(0, 20)
@@ -123,80 +104,35 @@ async function describePptx(path: string): Promise<Description> {
   }
 }
 
-/**
- * Delimiter sniffed from the header row rather than assumed, because a CSV
- * exported from a European locale is semicolon- or tab-separated and reading it
- * as commas yields one enormous column.
- */
-function describeCsv(path: string): Description {
-  const text = Buffer.from(readInput(path)).toString('utf8')
-  const lines = splitLines(text)
-  const header = lines[0] ?? ''
-  const delimiter = sniffDelimiter(header)
+async function describeWorkbook(path: string): Promise<Description> {
+  const wb = await workbookSummary(path)
   return {
-    headline: `${lines.length} rows — ${lines.length ? columnCount(header, delimiter) : 0} columns`,
-    fields: {
-      rows: lines.length,
-      columns: lines.length ? columnCount(header, delimiter) : 0,
-      delimiter,
-    },
+    headline: `${wb.sheets.length} sheets`,
+    fields: { sheets: wb.sheets, active_sheet: wb.activeSheet, defined_names: wb.definedNames },
   }
 }
 
-const CANDIDATE_DELIMITERS = [',', ';', '\t', '|']
-
-function sniffDelimiter(header: string): string {
-  let best = ','
-  let bestCount = 0
-  for (const d of CANDIDATE_DELIMITERS) {
-    const n = countOutsideQuotes(header, d)
-    if (n > bestCount) {
-      best = d
-      bestCount = n
-    }
+async function describePdf(path: string, password?: string): Promise<Description> {
+  const info = await pdfInfo(readInput(path), password)
+  return {
+    headline: info.pages === null ? 'encrypted (password required)' : `${info.pages} pages`,
+    fields: { ...info },
   }
-  return best
 }
 
-/**
- * Columns are delimiters *plus one*: a two-column header contains a single
- * separator. An empty header has no columns, not one.
- */
-function columnCount(header: string, delimiter: string): number {
-  if (header.length === 0) return 0
-  return countOutsideQuotes(header, delimiter) + 1
-}
-
-/** Split on any newline convention, dropping the empty tail a final newline leaves. */
-function splitLines(text: string): string[] {
-  if (text.length === 0) return []
-  const lines = text.split(/\r?\n/)
-  if (lines[lines.length - 1] === '') lines.pop()
-  return lines
-}
-
-/** Delimiters inside a quoted field are data, and "" is an escaped quote. */
-function countOutsideQuotes(line: string, ch: string): number {
-  let n = 0
-  let quoted = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (c === '"') {
-      if (quoted && line[i + 1] === '"') i++
-      else quoted = !quoted
-    } else if (c === ch && !quoted) {
-      n++
-    }
+function describeCsv(path: string): Description {
+  const info = csvInfo(readInput(path))
+  return {
+    headline: `${info.rows} rows × ${info.columns} columns`,
+    fields: { rows: info.rows, columns: info.columns, delimiter: info.delimiter },
   }
-  return n
 }
 
 function describeText(path: string, ext: string): Description {
-  const text = Buffer.from(readInput(path)).toString('utf8')
-  const lines = splitLines(text)
+  const text = Buffer.from(readInput(path)).toString('utf-8')
+  const lines = text.split(/\r?\n/)
   const fields: Record<string, unknown> = { lines: lines.length, characters: text.length }
   if (ext === 'md' || ext === 'markdown') {
-    // ATX headings only; setext (=== / ---) is rare enough not to count
     fields.headings = lines.filter((l) => /^#{1,6}\s/.test(l)).length
   }
   return { headline: `${lines.length} lines`, fields }

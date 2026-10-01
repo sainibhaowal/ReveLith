@@ -154,7 +154,7 @@ export const strings = {
     aiTimeoutError: 'AI 响应超时',
     aiOverloadedError: 'AI 服务当前繁忙，请稍后重试',
     aiNetworkError: '网络有问题，无法连接 AI 服务。请检查网络后重试',
-    aiCreditsExhausted: '积分不足，请检查 AI 提供商的账单后重试',
+    aiCreditsExhausted: '积分不足，请前往 revelith.ai 充值',
     aiOpenAssistant: '打开 AI 助手',
     aiSummarizeBtn: 'AI 总结',
     aiSummarizePrompt: '总结这篇文档的主要内容和要点',
@@ -361,7 +361,7 @@ export const strings = {
     aiOverloadedError: 'The AI service is busy right now — please try again in a moment',
     aiNetworkError:
       'Network problem: could not reach the AI service. Check your connection and try again',
-    aiCreditsExhausted: 'Out of credits — check your AI provider billing, then try again',
+    aiCreditsExhausted: 'Out of credits — top up at revelith.ai',
     aiOpenAssistant: 'Open AI assistant',
     aiSummarizeBtn: 'AI Summarize',
     aiSummarizePrompt: 'Summarize the main content and key points of this document',
@@ -483,6 +483,7 @@ export const strings = {
     savedOk: 'Đã lưu',
     saveFailed: 'Lưu thất bại',
     imageNeedsSavedDocument: 'Vui lòng lưu tài liệu trước, sau đó mới dán hình ảnh',
+    imageTooLarge: 'Hình ảnh lớn hơn {mb} MB và không thể chèn',
     viewImage: 'Xem hình ảnh',
     saveImageAs: 'Lưu hình ảnh dưới dạng…',
     imageActualSize: 'Kích thước thực tế',
@@ -515,6 +516,7 @@ export const strings = {
     replaceAll: 'Thay thế tất cả',
     findTip: 'Tìm kiếm và Thay thế (⌘F)',
     ribbonCollapse: 'Thu gọn Ribbon',
+    ribbonPin: 'Ghim Ribbon',
     ribbonExpand: 'Mở rộng Ribbon',
     autoSaveTip: 'Tự động lưu (mỗi 30 giây và khi cửa sổ mất tiêu điểm)',
     bold: 'In đậm',
@@ -566,7 +568,7 @@ export const strings = {
     aiTimeoutError: 'Phản hồi từ AI đã hết thời gian chờ',
     aiOverloadedError: 'Dịch vụ AI hiện đang bận — vui lòng thử lại sau giây lát',
     aiNetworkError: 'Sự cố mạng: không thể kết nối với dịch vụ AI. Kiểm tra kết nối và thử lại',
-    aiCreditsExhausted: 'Đã hết tín dụng — hãy kiểm tra thanh toán của nhà cung cấp AI rồi thử lại',
+    aiCreditsExhausted: 'Đã hết tín dụng — nạp thêm tại revelith.ai',
     aiOpenAssistant: 'Mở trợ lý AI',
     aiSummarizeBtn: 'AI Tóm tắt',
     aiSummarizePrompt: 'Tóm tắt nội dung chính và các điểm quan trọng của tài liệu này',
@@ -772,7 +774,7 @@ export const strings = {
     aiOverloadedError: 'AI サービスが混み合っています。しばらくしてからもう一度お試しください',
     aiNetworkError:
       'ネットワークに問題があり、AI サービスに接続できません。接続を確認して再試行してください',
-    aiCreditsExhausted: 'クレジット不足です。AIプロバイダーの請求を確認してから再試行してください',
+    aiCreditsExhausted: 'クレジット不足です。revelith.ai でチャージしてください',
     aiOpenAssistant: 'AI アシスタントを開く',
     aiSummarizeBtn: 'AI 要約',
     aiSummarizePrompt: 'この文書の主な内容と要点を要約してください',
@@ -979,7 +981,7 @@ export const strings = {
     aiOverloadedError: 'AI 서비스가 혼잡합니다. 잠시 후 다시 시도해 주세요',
     aiNetworkError:
       '네트워크에 문제가 있어 AI 서비스에 연결할 수 없습니다. 연결을 확인한 후 다시 시도해 주세요',
-    aiCreditsExhausted: '크레딧이 부족합니다. AI 제공업체의 결제를 확인한 후 다시 시도하세요',
+    aiCreditsExhausted: '크레딧이 부족합니다. revelith.ai에서 충전하세요',
     aiOpenAssistant: 'AI 어시스턴트 열기',
     aiSummarizeBtn: 'AI 요약',
     aiSummarizePrompt: '이 문서의 주요 내용과 핵심 사항을 요약해 주세요',
@@ -1189,8 +1191,7 @@ export const strings = {
     aiOverloadedError: "Le service d'IA est actuellement surchargé — réessayez dans un instant",
     aiNetworkError:
       'Problème réseau : impossible de joindre le service IA. Vérifiez votre connexion et réessayez',
-    aiCreditsExhausted:
-      'Crédits épuisés — vérifiez la facturation de votre fournisseur IA, puis réessayez',
+    aiCreditsExhausted: 'Crédits épuisés — rechargez sur revelith.ai',
     aiOpenAssistant: "Ouvrir l'assistant IA",
     aiSummarizeBtn: 'Résumé IA',
     aiSummarizePrompt: 'Résumez le contenu principal et les points clés de ce document',
@@ -1402,8 +1403,7 @@ export const strings = {
     aiOverloadedError: 'Der KI-Dienst ist derzeit überlastet — bitte gleich erneut versuchen',
     aiNetworkError:
       'Netzwerkproblem: Der KI-Dienst ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut',
-    aiCreditsExhausted:
-      'Guthaben aufgebraucht — prüfe die Abrechnung deines KI-Anbieters und versuche es erneut',
+    aiCreditsExhausted: 'Guthaben aufgebraucht — bei revelith.ai aufladen',
     aiOpenAssistant: 'KI-Assistent öffnen',
     aiSummarizeBtn: 'KI-Zusammenfassung',
     aiSummarizePrompt: 'Fasse den Hauptinhalt und die Kernpunkte dieses Dokuments zusammen',
@@ -1614,8 +1614,7 @@ export const strings = {
       'El servicio de IA está saturado en este momento; inténtalo de nuevo en unos instantes',
     aiNetworkError:
       'Problema de red: no se pudo conectar con el servicio de IA. Comprueba tu conexión e inténtalo de nuevo',
-    aiCreditsExhausted:
-      'Sin créditos — revisa la facturación de tu proveedor de IA e inténtalo de nuevo',
+    aiCreditsExhausted: 'Sin créditos — recarga en revelith.ai',
     aiOpenAssistant: 'Abrir asistente de IA',
     aiSummarizeBtn: 'Resumen IA',
     aiSummarizePrompt: 'Resume el contenido principal y los puntos clave de este documento',
@@ -1821,7 +1820,7 @@ export const strings = {
     aiOverloadedError: 'บริการ AI มีผู้ใช้งานจำนวนมากในขณะนี้ โปรดลองอีกครั้งในอีกสักครู่',
     aiNetworkError:
       'เครือข่ายมีปัญหา ไม่สามารถเชื่อมต่อบริการ AI ได้ โปรดตรวจสอบการเชื่อมต่อแล้วลองใหม่',
-    aiCreditsExhausted: 'เครดิตหมด — ตรวจสอบการเรียกเก็บเงินของผู้ให้บริการ AI แล้วลองใหม่',
+    aiCreditsExhausted: 'เครดิตหมด — เติมได้ที่ revelith.ai',
     aiOpenAssistant: 'เปิดผู้ช่วย AI',
     aiSummarizeBtn: 'สรุปด้วย AI',
     aiSummarizePrompt: 'สรุปเนื้อหาหลักและประเด็นสำคัญของเอกสารนี้',
@@ -2028,7 +2027,7 @@ export const strings = {
     aiOverloadedError: 'Layanan AI sedang sibuk — silakan coba lagi sebentar lagi',
     aiNetworkError:
       'Masalah jaringan: tidak dapat terhubung ke layanan AI. Periksa koneksi Anda lalu coba lagi',
-    aiCreditsExhausted: 'Kredit habis — periksa penagihan penyedia AI Anda, lalu coba lagi',
+    aiCreditsExhausted: 'Kredit habis — isi ulang di revelith.ai',
     aiOpenAssistant: 'Buka asisten AI',
     aiSummarizeBtn: 'Ringkasan AI',
     aiSummarizePrompt: 'Ringkas isi utama dan poin-poin penting dokumen ini',
@@ -2236,8 +2235,7 @@ export const strings = {
     aiOverloadedError: 'Сервис ИИ сейчас перегружен — повторите попытку чуть позже',
     aiNetworkError:
       'Проблема с сетью: не удалось подключиться к сервису ИИ. Проверьте подключение и повторите попытку',
-    aiCreditsExhausted:
-      'Кредиты закончились — проверьте оплату вашего ИИ-провайдера и попробуйте снова',
+    aiCreditsExhausted: 'Кредиты закончились — пополните на revelith.ai',
     aiOpenAssistant: 'Открыть ИИ-ассистента',
     aiSummarizeBtn: 'ИИ-резюме',
     aiSummarizePrompt: 'Кратко изложите основное содержание и ключевые моменты этого документа',
@@ -2441,7 +2439,7 @@ export const strings = {
     aiOverloadedError: 'خدمة الذكاء الاصطناعي مشغولة حاليًا — يرجى المحاولة مرة أخرى بعد قليل',
     aiNetworkError:
       'مشكلة في الشبكة: تعذّر الوصول إلى خدمة الذكاء الاصطناعي. تحقق من الاتصال وحاول مجددًا',
-    aiCreditsExhausted: 'نفدت الأرصدة — تحقق من فوترة مزود الذكاء الاصطناعي ثم حاول مجددًا',
+    aiCreditsExhausted: 'نفدت الأرصدة — أعد الشحن على revelith.ai',
     aiOpenAssistant: 'فتح مساعد الذكاء الاصطناعي',
     aiSummarizeBtn: 'تلخيص AI',
     aiSummarizePrompt: 'لخّص المحتوى الرئيسي والنقاط الأساسية لهذا المستند',
@@ -2651,8 +2649,7 @@ export const strings = {
       'O serviço de IA está sobrecarregado no momento — tente novamente em instantes',
     aiNetworkError:
       'Problema de rede: não foi possível conectar ao serviço de IA. Verifique sua conexão e tente novamente',
-    aiCreditsExhausted:
-      'Créditos esgotados — verifique a cobrança do seu provedor de IA e tente novamente',
+    aiCreditsExhausted: 'Créditos esgotados — recarregue em revelith.ai',
     aiOpenAssistant: 'Abrir assistente de IA',
     aiSummarizeBtn: 'Resumo IA',
     aiSummarizePrompt: 'Resuma o conteúdo principal e os pontos-chave deste documento',
@@ -2861,8 +2858,7 @@ export const strings = {
     aiOverloadedError: 'Il servizio IA è momentaneamente sovraccarico — riprova tra poco',
     aiNetworkError:
       'Problema di rete: impossibile raggiungere il servizio IA. Controlla la connessione e riprova',
-    aiCreditsExhausted:
-      'Crediti esauriti — controlla la fatturazione del tuo provider IA e riprova',
+    aiCreditsExhausted: 'Crediti esauriti — ricarica su revelith.ai',
     aiOpenAssistant: 'Apri assistente IA',
     aiSummarizeBtn: 'Riassunto IA',
     aiSummarizePrompt: 'Riassumi il contenuto principale e i punti chiave di questo documento',
@@ -3071,8 +3067,7 @@ export const strings = {
     aiOverloadedError: 'Usługa AI jest obecnie przeciążona — spróbuj ponownie za chwilę',
     aiNetworkError:
       'Problem z siecią: nie można połączyć się z usługą AI. Sprawdź połączenie i spróbuj ponownie',
-    aiCreditsExhausted:
-      'Brak kredytów — sprawdź rozliczenia swojego dostawcy AI i spróbuj ponownie',
+    aiCreditsExhausted: 'Brak kredytów — doładuj na revelith.ai',
     aiOpenAssistant: 'Otwórz asystenta AI',
     aiSummarizeBtn: 'Podsumowanie AI',
     aiSummarizePrompt: 'Podsumuj główną treść i kluczowe punkty tego dokumentu',
@@ -3265,8 +3260,7 @@ export const strings = {
     aiOverloadedError: 'Služba AI je právě zaneprázdněna – zkuste to za chvíli znovu',
     aiNetworkError:
       'Problém se sítí: službu AI se nepodařilo kontaktovat. Zkontrolujte připojení a zkuste to znovu',
-    aiCreditsExhausted:
-      'Došly kredity — zkontrolujte fakturaci svého poskytovatele AI a zkuste to znovu',
+    aiCreditsExhausted: 'Došly kredity – dobijte je na revelith.ai',
     aiOpenAssistant: 'Otevřít asistenta AI',
     aiSummarizeBtn: 'Shrnout pomocí AI',
     aiSummarizePrompt: 'Shrň hlavní obsah a klíčové body tohoto dokumentu',
@@ -3489,8 +3483,7 @@ export const strings = {
     aiOverloadedError: 'De AI-service is momenteel overbelast — probeer het zo opnieuw',
     aiNetworkError:
       'Netwerkprobleem: kan de AI-service niet bereiken. Controleer je verbinding en probeer het opnieuw',
-    aiCreditsExhausted:
-      'Credits op — controleer de facturering van je AI-provider en probeer het opnieuw',
+    aiCreditsExhausted: 'Credits op — waardeer op via revelith.ai',
     aiOpenAssistant: 'AI-assistent openen',
     aiSummarizeBtn: 'AI-samenvatting',
     aiSummarizePrompt: 'Vat de hoofdinhoud en kernpunten van dit document samen',
@@ -3697,7 +3690,7 @@ export const strings = {
     aiOverloadedError: 'Perkhidmatan AI sedang sibuk — sila cuba lagi sebentar lagi',
     aiNetworkError:
       'Masalah rangkaian: tidak dapat menghubungi perkhidmatan AI. Semak sambungan anda dan cuba lagi',
-    aiCreditsExhausted: 'Kredit habis — periksa penagihan penyedia AI Anda, lalu coba lagi',
+    aiCreditsExhausted: 'Kredit habis — tambah nilai di revelith.ai',
     aiOpenAssistant: 'Buka pembantu AI',
     aiSummarizeBtn: 'Ringkasan AI',
     aiSummarizePrompt: 'Ringkaskan kandungan utama dan perkara penting dokumen ini',
@@ -3900,7 +3893,7 @@ export const strings = {
     aiTimeoutError: 'תגובת ה-AI חרגה מהזמן',
     aiOverloadedError: 'שירות ה-AI עמוס כרגע — נסו שוב בעוד רגע',
     aiNetworkError: 'בעיית רשת: לא ניתן להתחבר לשירות ה-AI. בדוק את החיבור ונסה שוב',
-    aiCreditsExhausted: 'נגמרו הקרדיטים — בדקו את החיוב אצל ספק ה-AI ונסו שוב',
+    aiCreditsExhausted: 'נגמרו הקרדיטים — טענו ב-revelith.ai',
     aiOpenAssistant: 'פתחו את עוזר ה-AI',
     aiSummarizeBtn: 'סיכום AI',
     aiSummarizePrompt: 'סכם את התוכן העיקרי ואת הנקודות המרכזיות של מסמך זה',
@@ -4107,7 +4100,7 @@ export const strings = {
     aiOverloadedError: 'AI सेवा अभी व्यस्त है — कृपया थोड़ी देर बाद फिर से प्रयास करें',
     aiNetworkError:
       'नेटवर्क समस्या: AI सेवा से कनेक्ट नहीं हो सका। कनेक्शन जांचें और फिर से प्रयास करें',
-    aiCreditsExhausted: 'क्रेडिट समाप्त — अपने AI प्रदाता की बिलिंग जाँचें, फिर पुनः प्रयास करें',
+    aiCreditsExhausted: 'क्रेडिट समाप्त — revelith.ai पर रिचार्ज करें',
     aiOpenAssistant: 'AI सहायक खोलें',
     aiSummarizeBtn: 'AI सारांश',
     aiSummarizePrompt: 'इस दस्तावेज़ की मुख्य सामग्री और प्रमुख बिंदुओं का सारांश दें',
@@ -4310,7 +4303,7 @@ export const strings = {
     aiTimeoutError: 'AI 回應逾時',
     aiOverloadedError: 'AI 服務目前繁忙，請稍後重試',
     aiNetworkError: '網路有問題，無法連接 AI 服務。請檢查網路後重試',
-    aiCreditsExhausted: '點數不足，請檢查 AI 提供商的帳單後重試',
+    aiCreditsExhausted: '點數不足，請前往 revelith.ai 儲值',
     aiOpenAssistant: '開啟 AI 助手',
     aiSummarizeBtn: 'AI 總結',
     aiSummarizePrompt: '總結這篇文件的主要內容和要點',

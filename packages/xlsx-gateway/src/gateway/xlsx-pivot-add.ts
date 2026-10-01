@@ -910,8 +910,8 @@ function buildGroupingExtLst(addition: PivotAddition): string {
   const groupings = addition.groupings ?? []
   if (groupings.length === 0) return ''
   return (
-    '<extLst><ext uri="{REVELITH-PIVOT-GROUPINGS}" xmlns:rvl="urn:revelith:pivot">' +
-    `<rvl:revelithPivotGroupings v="${escapeAttribute(JSON.stringify(groupings))}"/>` +
+    '<extLst><ext uri="{AIO-PIVOT-GROUPINGS}" xmlns:aio="urn:aioffice:pivot">' +
+    `<aio:aioPivotGroupings v="${escapeAttribute(JSON.stringify(groupings))}"/>` +
     '</ext></extLst>'
   )
 }

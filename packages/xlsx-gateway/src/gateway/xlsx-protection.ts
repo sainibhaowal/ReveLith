@@ -1,11 +1,8 @@
-﻿/**
- * Protection controls: the per-sheet toggle, the workbook structure lock, and
- * allow-edit ranges.
- *
- * No password support anywhere. Every path that would have to *discard* a
- * password or permission hash fails closed rather than writing a file whose
- * protection quietly differs from what the file claimed.
- */
+/// Worksheet protection toggle: adds or removes `<sheetProtection>` (no
+/// password support — unprotecting a password-protected sheet fails closed).
+/// Also: workbook structure protection (`<workbookProtection>`) and
+/// allow-edit ranges (`<protectedRanges>`), same no-password rules.
+
 export class SheetProtectionError extends Error {}
 
 const ELEMENT_PATTERN = /<sheetProtection\b[^>]*\/>|<sheetProtection\b[^>]*>\s*<\/sheetProtection>/
@@ -14,11 +11,9 @@ export function applySheetProtection(worksheetXml: string, protect: boolean): st
   const existing = ELEMENT_PATTERN.exec(worksheetXml)
   if (!protect) {
     if (!existing) return worksheetXml
-    // The hash cannot be recovered, so removing protection would leave a sheet
-    // the file still describes as locked.
     if (/\b(?:password|hashValue)="/.test(existing[0])) {
       throw new SheetProtectionError(
-        'This sheet is protected with a password — removing its protection is not supported.',
+        'This sheet is protected with a password — removing its protection is not ' + 'supported.',
       )
     }
     return worksheetXml.replace(existing[0], '')
@@ -44,38 +39,40 @@ export function applySheetProtection(worksheetXml: string, protect: boolean): st
 const WORKBOOK_PROTECTION_PATTERN =
   /<workbookProtection\b[^>]*\/>|<workbookProtection\b[^>]*>\s*<\/workbookProtection>/
 
-/**
- * Workbook structure lock in `workbook.xml`: prevents adding, renaming or
- * removing sheets and hiding them. Unlocking a password-protected structure
- * fails closed; the other `workbookProtection` attributes are left verbatim,
- * since this is one attribute among several and the rest are not ours to drop.
- */
+/// Workbook structure lock in workbook.xml. Unlocking a password-protected
+/// structure fails closed; other workbookProtection attributes stay verbatim.
 export function applyWorkbookProtection(workbookXml: string, lockStructure: boolean): string {
   const existing = WORKBOOK_PROTECTION_PATTERN.exec(workbookXml)
-  const replace = (text: string, from: number, to: string): string =>
-    text.slice(0, from) + to + text.slice(from + existing![0].length)
-
   if (!lockStructure) {
     if (!existing) return workbookXml
     if (/\bworkbook(?:Password|HashValue)="/.test(existing[0])) {
       throw new SheetProtectionError(
-        'The workbook structure is protected with a password — removing its protection is not supported.',
+        'The workbook structure is protected with a password — removing its protection ' +
+          'is not supported.',
       )
     }
     const stripped = existing[0].replace(/\s+lockStructure="[^"]*"/, '')
-    // an element left with no attributes at all is noise; drop it entirely
+    // Drop the element entirely once no protection attribute remains.
     const empty = /^<workbookProtection\s*(?:\/>|>\s*<\/workbookProtection>)$/.test(stripped)
-    return replace(workbookXml, existing.index, empty ? '' : stripped)
+    return (
+      workbookXml.slice(0, existing.index) +
+      (empty ? '' : stripped) +
+      workbookXml.slice(existing.index + existing[0].length)
+    )
   }
   if (existing) {
     if (/\blockStructure="(?:1|true)"/.test(existing[0])) return workbookXml
     const updated = /\slockStructure="/.test(existing[0])
       ? existing[0].replace(/(\s+lockStructure=)"[^"]*"/, '$1"1"')
       : existing[0].replace(/<workbookProtection\b/, '<workbookProtection lockStructure="1"')
-    return replace(workbookXml, existing.index, updated)
+    return (
+      workbookXml.slice(0, existing.index) +
+      updated +
+      workbookXml.slice(existing.index + existing[0].length)
+    )
   }
-  // Schema order: workbookProtection follows fileVersion / fileSharing /
-  // workbookPr / alternateContent, and precedes bookViews and sheets.
+  // Schema order: workbookProtection follows fileVersion/fileSharing/
+  // workbookPr/alternateContent and precedes bookViews/sheets.
   const element = '<workbookProtection lockStructure="1"/>'
   const anchor = /<bookViews\b|<sheets\b/.exec(workbookXml)
   if (!anchor) throw new SheetProtectionError('Workbook has no sheets element.')
@@ -98,26 +95,20 @@ function escapeAttr(value: string): string {
     .replaceAll('"', '&quot;')
 }
 
-/**
- * Replace the sheet's allow-edit ranges with the session's snapshot. An empty
- * set removes the element.
- *
- * The set is replaced wholesale rather than merged, which is what makes a
- * removed range actually stop being editable. Password- and
- * permission-protected ranges are refused rather than rewritten: their hashes
- * and per-user descriptors cannot survive a name+sqref rewrite, and dropping
- * them would silently *widen* who can edit the sheet.
- */
+/// Replaces the sheet's allow-edit ranges with the session's snapshot; an
+/// empty set removes the element. Replacing password-protected ranges fails
+/// closed (their hashes cannot be preserved through the rewrite).
 export function applyProtectedRanges(
   worksheetXml: string,
   ranges: readonly ProtectedRangeState[],
 ): string {
   const existing = PROTECTED_RANGES_PATTERN.exec(worksheetXml)
-  // securityDescriptor carries per-user permissions, as an attribute or a child
-  // element; rewriting only name and sqref would fail open.
+  // securityDescriptor carries per-user permissions (attribute or child
+  // element form); rewriting name+sqref only would silently fail open.
   if (existing && /\b(?:password|hashValue)="|securityDescriptor/.test(existing[0])) {
     throw new SheetProtectionError(
-      'This sheet has password- or permission-protected edit ranges — editing them is not supported.',
+      'This sheet has password- or permission-protected edit ranges — editing them is not ' +
+        'supported.',
     )
   }
   const stripped = existing
@@ -132,8 +123,8 @@ export function applyProtectedRanges(
     )
     .join('')
   const element = `<protectedRanges>${body}</protectedRanges>`
-  // Schema order: protectedRanges follows sheetProtection (or sheetCalcPr /
-  // sheetData when absent) and precedes scenarios / autoFilter.
+  // Schema order: protectedRanges follows sheetProtection (or sheetCalcPr/
+  // sheetData when absent) and precedes scenarios/autoFilter.
   const anchor =
     /<sheetProtection\b[^>]*\/?>/.exec(stripped) ??
     /<sheetCalcPr\b[^>]*\/?>/.exec(stripped) ??

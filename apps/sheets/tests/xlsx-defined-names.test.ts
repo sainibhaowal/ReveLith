@@ -38,6 +38,22 @@ describe('applyDefinedNamesState', () => {
     )
   })
 
+  it('fills a self-closing <definedNames/> rather than appending after it', () => {
+    const exported =
+      '<workbook><sheets><sheet name="D" sheetId="1" r:id="rId1"/></sheets>' +
+      '<definedNames/><calcPr/></workbook>'
+    const xml = applyDefinedNamesState(exported, {
+      names: [{ name: 'N', formula: 'D!$A$1' }],
+      preserveNames: [],
+    })
+    expect(xml.match(/<definedNames\b/g)).toHaveLength(1)
+    expect(xml).toBe(
+      '<workbook><sheets><sheet name="D" sheetId="1" r:id="rId1"/></sheets>' +
+        '<definedNames><definedName name="N">D!$A$1</definedName></definedNames>' +
+        '<calcPr/></workbook>',
+    )
+  })
+
   it('creates the section after sheets when absent, stripping a leading =', () => {
     const bare = '<workbook><sheets><sheet name="D"/></sheets><calcPr/></workbook>'
     expect(
@@ -58,6 +74,22 @@ describe('applyDefinedNamesState', () => {
       preserveNames: [],
     })
     expect(xml).toContain('<definedName name="Cmp">IF(A1&lt;5,"a &amp; b","c")</definedName>')
+  })
+
+  it('accepts Unicode names the way Excel does', () => {
+    // Create from Selection derives names from localized headers (like the
+    // CJK header below); rejecting them here would fail the whole workbook save.
+    const xml = applyDefinedNamesState(WORKBOOK, {
+      names: [
+        { name: '销售额', formula: 'Data!$B$2:$B$9' },
+        { name: 'Umsätze_2024', formula: 'Data!$C$2:$C$9' },
+        { name: '_売上', formula: 'Data!$D$2:$D$9' },
+      ],
+      preserveNames: [],
+    })
+    expect(xml).toContain('<definedName name="销售额">Data!$B$2:$B$9</definedName>')
+    expect(xml).toContain('<definedName name="Umsätze_2024">Data!$C$2:$C$9</definedName>')
+    expect(xml).toContain('<definedName name="_売上">Data!$D$2:$D$9</definedName>')
   })
 
   it('fails closed on invalid, reserved, duplicate, or conflicting names', () => {

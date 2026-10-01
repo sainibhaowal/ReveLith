@@ -1,3 +1,4 @@
+import { CellValueType } from '@univerjs/core'
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
@@ -8,6 +9,7 @@ import {
   type CellEdit,
 } from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
 import { blankXlsxBuffer } from '@revelith/xlsx-gateway/gateway/csv-import'
+import { createEditJournal, recordSetRangeValues, toSaveEdits } from '../src/renderer/edit-journal'
 import { buildEditFixture } from './fixture-builder'
 
 describe('toA1Address', () => {
@@ -41,6 +43,39 @@ describe('applyCellEditsToXlsx', () => {
     expect(after.get('xl/sharedStrings.xml')).toBe(before.get('xl/sharedStrings.xml'))
     expect(after.get('customXml/item1.xml')).toBe(before.get('customXml/item1.xml'))
     expect(after.get('xl/charts/chart1.xml')).toBe(before.get('xl/charts/chart1.xml'))
+  })
+
+  it('keeps inferred row and cell addresses unique after a structural save', async () => {
+    const zip = await JSZip.loadAsync(await buildEditFixture())
+    zip.file(
+      'xl/worksheets/sheet1.xml',
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' +
+        '<row><c r="A1"><v>1</v></c><c><v>2</v></c></row>' +
+        '<row><c r="A2"><v>3</v></c><c><v>4</v></c></row>' +
+        '</sheetData></worksheet>',
+    )
+    const mutation = await applyCellEditsToXlsx(
+      await zip.generateAsync({ type: 'nodebuffer' }),
+      [],
+      [
+        {
+          sheetName: 'Data',
+          ops: [
+            { kind: 'insert-cols', index: 0, count: 1 },
+            { kind: 'set-row-size', start: 0, end: 0, size: 20 },
+          ],
+        },
+      ],
+    )
+    const worksheet = await entryText(mutation.buffer, 'xl/worksheets/sheet1.xml')
+    expect(worksheet).toContain(
+      '<row r="1" ht="20" customHeight="1"><c r="B1"><v>1</v></c><c r="C1"><v>2</v></c></row>',
+    )
+    expect(worksheet).toContain('<row r="2"><c r="B2"><v>3</v></c><c r="C2"><v>4</v></c></row>')
+    const addresses = [...worksheet.matchAll(/<c\b[^>]*\br="([A-Z]+[0-9]+)"/g)].map(
+      (match) => match[1],
+    )
+    expect(new Set(addresses).size).toBe(addresses.length)
   })
 
   it('inserts a new cell in column order within an existing row', async () => {
@@ -98,6 +133,16 @@ describe('applyCellEditsToXlsx', () => {
     expect(worksheet).toContain('<c r="B10"><v>3.5</v></c>')
   })
 
+  it('saves a journaled copy of a TRUE cell as t="b", not the number 1', async () => {
+    // The copy_range write reaches the journal as Univer's {v: 1, t: BOOLEAN}.
+    const journal = createEditJournal()
+    recordSetRangeValues(journal, 'sheet-1', { 0: { 1: { v: 1, t: CellValueType.BOOLEAN } } })
+    const [saved] = toSaveEdits(journal)
+    if (!saved) throw new Error('no journal entry')
+    const worksheet = await editedWorksheet([edit(saved.row, saved.column, { value: saved.value })])
+    expect(worksheet).toContain('<c r="B1" t="b"><v>1</v></c>')
+  })
+
   it('fails closed when the sheet does not exist', async () => {
     await expect(
       applyCellEditsToXlsx(await buildEditFixture(), [
@@ -109,7 +154,26 @@ describe('applyCellEditsToXlsx', () => {
 
 describe('applyCellEditsToXlsx style edits', () => {
   it('creates and registers a stylesheet when the workbook has none', async () => {
-    const mutation = await applyCellEditsToXlsx(await blankXlsxBuffer(), [
+    // blankXlsxBuffer ships a stylesheet now (the sidecar's formula engine
+    // refuses to import a workbook without one), so strip it to reach the
+    // "workbook has no stylesheet" state this test is about.
+    const stripped = await (async () => {
+      const zip = await JSZip.loadAsync(await blankXlsxBuffer())
+      zip.remove('xl/styles.xml')
+      const rels = await zip.file('xl/_rels/workbook.xml.rels')!.async('string')
+      zip.file(
+        'xl/_rels/workbook.xml.rels',
+        rels.replace(/<Relationship[^>]*relationships\/styles"[^>]*\/>/, ''),
+      )
+      const types = await zip.file('[Content_Types].xml')!.async('string')
+      zip.file(
+        '[Content_Types].xml',
+        types.replace(/<Override PartName="\/xl\/styles\.xml"[^>]*\/>/, ''),
+      )
+      return zip.generateAsync({ type: 'nodebuffer' })
+    })()
+
+    const mutation = await applyCellEditsToXlsx(stripped, [
       {
         sheetName: 'Sheet1',
         row: 0,
@@ -159,6 +223,56 @@ describe('applyCellEditsToXlsx style edits', () => {
         )
       }
     }
+  })
+
+  it('repairs an understated dimension from the real used range when growing it', async () => {
+    // Minimal writers ship refs like A1:A1 over a populated sheet. An edit
+    // beyond the stated ref must not shrink-wrap the dimension to just the
+    // mutation set — pre-existing cells past both would drop out of the
+    // streamed viewport on reopen.
+    const zip = await JSZip.loadAsync(await buildEditFixture())
+    zip.file(
+      'xl/worksheets/sheet1.xml',
+      `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:A1"/>
+  <sheetData>
+    <row r="1"><c r="A1"><v>1</v></c></row>
+    <row r="3"><c r="C3"><v>9</v></c></row>
+  </sheetData>
+</worksheet>`,
+    )
+    const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+    const mutation = await applyCellEditsToXlsx(buffer as Buffer, [
+      { sheetName: 'Data', row: 1, column: 1, writeValue: true, cell: { value: 'x' } },
+    ])
+    const worksheet = await entryText(mutation.buffer, 'xl/worksheets/sheet1.xml')
+    expect(worksheet).toContain('<dimension ref="A1:C3"/>')
+  })
+
+  it('grows a paired-empty-tag dimension without orphaning its closing tag', async () => {
+    // Some producers write <dimension ref="..."></dimension> instead of the
+    // self-closing form; replacing only the opening tag leaves a stray
+    // </dimension> behind and the sheet XML no longer parses.
+    const zip = await JSZip.loadAsync(await buildEditFixture())
+    zip.file(
+      'xl/worksheets/sheet1.xml',
+      `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:A1"></dimension>
+  <sheetData>
+    <row r="1"><c r="A1"><v>1</v></c></row>
+    <row r="3"><c r="C3"><v>9</v></c></row>
+  </sheetData>
+</worksheet>`,
+    )
+    const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+    const mutation = await applyCellEditsToXlsx(buffer as Buffer, [
+      { sheetName: 'Data', row: 1, column: 1, writeValue: true, cell: { value: 'x' } },
+    ])
+    const worksheet = await entryText(mutation.buffer, 'xl/worksheets/sheet1.xml')
+    expect(worksheet).toContain('<dimension ref="A1:C3"/>')
+    expect(worksheet).not.toContain('</dimension>')
   })
 
   it('bolds a styled cell via a new deduped xf without touching its content', async () => {
@@ -401,6 +515,51 @@ describe('style reset (Clear Formats / Clear All)', () => {
     ])
     expect(worksheet).toContain('<c r="A1" s="0"/>')
   })
+})
+
+describe('large edit batches', () => {
+  // Bulk actions (paste, sort, move-range) journal every affected cell, so a
+  // single save can carry hundreds of thousands of edits. The save path must
+  // stay a single pass over the worksheet — a per-edit whole-XML rewrite
+  // would take hours at this scale.
+  it('applies 100k inserts and 100k overwrites in one save each', async () => {
+    const rowCount = 2_000
+    const columnCount = 50
+    const inserts: CellEdit[] = []
+    for (let row = 0; row < rowCount; row += 1) {
+      for (let column = 0; column < columnCount; column += 1) {
+        inserts.push({
+          sheetName: 'Sheet1',
+          row,
+          column,
+          writeValue: true,
+          cell: { value: row * columnCount + column },
+        })
+      }
+    }
+    const started = performance.now()
+    const insertMutation = await applyCellEditsToXlsx(await blankXlsxBuffer(), inserts)
+    const worksheet = await entryText(insertMutation.buffer, 'xl/worksheets/sheet1.xml')
+    expect(worksheet).toContain('<dimension ref="A1:AX2000"/>')
+    expect(worksheet).toContain('<c r="A1"><v>0</v></c>')
+    expect(worksheet).toContain(`<c r="AX2000"><v>${rowCount * columnCount - 1}</v></c>`)
+    expect([...worksheet.matchAll(/<row /g)]).toHaveLength(rowCount)
+
+    const overwrites: CellEdit[] = inserts.map((edit) => ({
+      ...edit,
+      cell: { value: `text ${edit.row}:${edit.column}` },
+    }))
+    const overwriteMutation = await applyCellEditsToXlsx(insertMutation.buffer, overwrites)
+    const rewritten = await entryText(overwriteMutation.buffer, 'xl/worksheets/sheet1.xml')
+    expect(rewritten).toContain('<t xml:space="preserve">text 0:0</t>')
+    expect(rewritten).toContain(
+      `<t xml:space="preserve">text ${rowCount - 1}:${columnCount - 1}</t>`,
+    )
+    expect(rewritten).not.toContain('<v>0</v>')
+
+    // Generous CI budget; the quadratic path this guards against took hours.
+    expect(performance.now() - started).toBeLessThan(30_000)
+  }, 60_000)
 })
 
 describe('text rotation and double underline save', () => {

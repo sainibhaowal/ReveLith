@@ -4,8 +4,7 @@ export const es = {
   aiCollapsePanel: 'Contraer panel',
   aiComposerPlaceholder: 'Pide a la IA escribir o editar…',
   aiCopyReplyTitle: 'Copiar respuesta',
-  aiCreditsExhausted:
-    'Sin créditos — revisa la facturación de tu proveedor de IA e inténtalo de nuevo',
+  aiCreditsExhausted: 'Sin créditos — recarga en revelith.ai',
   aiEmptyTitle: 'Diseña una página con IA',
   aiEmptyBody:
     'Landing, informe, cartel: di para qué es y para quién; la IA propone primero un brief y luego construye la página',

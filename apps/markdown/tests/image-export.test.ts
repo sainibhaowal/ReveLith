@@ -56,7 +56,7 @@ it('disposes only the closing renderer’s unfinished export', async () => {
   await expect(sessions.write(1, id, 1, png)).rejects.toThrow(/authorized/)
   await sessions.write(2, other, 1, png)
   const dir = await sessions.finish(2, other, true)
-  expect(dir!.replace(/\\/g, '/').startsWith(root.replace(/\\/g, '/') + '/')).toBe(true)
+  expect(dir!.startsWith(root + '/')).toBe(true)
   expect(await readdir(dir!)).toEqual(['page-01.png'])
 })
 

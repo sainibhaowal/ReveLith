@@ -13,7 +13,6 @@ import type {
   ChartElement,
   PassthroughElement,
   ArrowEnd,
-  TextBody,
 } from '@revelith/pptx-engine'
 // Subpath import: the renderer bundles this package, so pulling the engine's index
 // (Node-only imports like node:crypto) would break the browser build
@@ -677,7 +676,7 @@ function buildGroup(
  * is often stale). Row height is a minimum in PPT: rows whose wrapped cell text needs
  * more space grow to fit it, and the node box grows with the total so nothing is clipped.
  */
-export function buildTable(
+function buildTable(
   el: TableElement,
   box: PlacedBox,
   vp: Viewport,
@@ -689,8 +688,8 @@ export function buildTable(
   // just like rows ignore a stale cy below. Group placement bakes ext/chExt scaling into
   // the box, so recover that factor from box vs the element's own ext (1 outside groups,
   // where box comes from the same ext — a stale ext still cancels out).
-  const extWpx = emuToPx(el.transform?.offset?.cx ?? 0, vp.scale)
-  const extHpx = emuToPx(el.transform?.offset?.cy ?? 0, vp.scale)
+  const extWpx = emuToPx(el.transform?.offset.cx ?? 0, vp.scale)
+  const extHpx = emuToPx(el.transform?.offset.cy ?? 0, vp.scale)
   const groupScaleX = extWpx > 0 ? box.w / extWpx : 1
   const groupScaleY = extHpx > 0 ? box.h / extHpx : 1
   const colPx = el.colWidths.map((w) => emuToPx(w, vp.scale) * groupScaleX)
@@ -779,17 +778,8 @@ export function buildTable(
       }
       if (Object.keys(borders).length) out.borders = borders
       if (cell.text && cell.text.paragraphs.length) {
-        // A right-to-left table right-aligns its cell text by default (PowerPoint
-        // does not wait for an explicit pPr rtl on every paragraph); an explicit
-        // align on the paragraph still wins
-        const body: TextBody = el.rtl
-          ? {
-              ...cell.text,
-              paragraphs: cell.text.paragraphs.map((p) => (p.rtl ? p : { ...p, rtl: true })),
-            }
-          : cell.text
         out.text = layoutText({
-          body,
+          body: cell.text,
           boxWidthPx: w,
           boxHeightPx: h,
           metrics,
@@ -816,32 +806,26 @@ export function buildTable(
   }
 }
 
-/** ChartModel → style summary echoed to the Ribbon (kind maps to EditChartOp semantics;
- *  ReveLith keeps the dialog's fine-grained subdivisions — percent-stacked, horizontal
- *  bar, pie-of-pie — plus the 3D cards (bar3D/pie3D) and unknown for funnel/sunburst. */
-export function chartStyleInfo(m: ChartElement['chart']): import('./render-tree').ChartStyleInfo {
-  type StyleKind = import('./render-tree').ChartStyleInfo['kind']
-  const pseudo3D = (m as { pseudo3D?: boolean }).pseudo3D
-  const kind: StyleKind =
+/** ChartModel → style summary echoed to the Ribbon (kind maps to EditChartOp semantics; horizontal bars count as bar). */
+function chartStyleInfo(m: ChartElement['chart']): import('./render-tree').ChartStyleInfo {
+  const kind =
     m.kind === 'bar'
       ? m.series.some((s) => s.plotKind === 'line')
         ? 'comboBarLine'
-        : m.grouping === 'percentStacked'
-          ? 'barPercentStacked'
-          : m.grouping === 'stacked'
-            ? 'barStacked'
-            : pseudo3D
-              ? 'bar3D'
-              : m.barDir === 'bar'
-                ? 'barH'
-                : 'bar'
+        : m.grouping === 'stacked' || m.grouping === 'percentStacked'
+          ? 'barStacked'
+          : m.pseudo3D
+            ? 'bar3D'
+            : 'bar'
       : m.kind === 'pie'
         ? (m.holePct ?? 0) > 0
           ? 'doughnut'
-          : pseudo3D
+          : m.pseudo3D
             ? 'pie3D'
             : 'pie'
-        : (m.kind as StyleKind)
+        : m.kind === 'funnel' || m.kind === 'sunburst'
+          ? 'unknown'
+          : m.kind
   return {
     kind,
     legendPos: m.legendPos == null ? 'none' : m.legendPos === 'tr' ? 'r' : m.legendPos,

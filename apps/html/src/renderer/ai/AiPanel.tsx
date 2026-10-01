@@ -827,9 +827,7 @@ export function AiPanel({
               output: tool.output ? tool.output.slice(0, TOOL_OUTPUT_MAX_CHARS) : undefined,
             })),
             attachments: restoredAtts(m),
-            // a stored scope always has a label (it was required at send time);
-            // a legacy line without one still renders, just untitled
-            ...(m.scope ? { scope: { ...m.scope, label: m.scope.label ?? '' } } : {}),
+            ...(m.scope ? { scope: m.scope } : {}),
           }))
         })
         if (applied && !loopRef.current?.busy) {

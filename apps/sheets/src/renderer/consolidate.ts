@@ -1,4 +1,4 @@
-﻿/// Data → Consolidate: aggregates several source areas into a target range,
+/// Data → Consolidate: aggregates several source areas into a target range,
 /// either by position or by left-column labels. Output cells are live
 /// formulas referencing the sources, so they journal and save like any edit.
 
@@ -24,7 +24,7 @@ export interface ConsolidateArea {
 const REFERENCE_PATTERN =
   /^(?:('(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_.]*)!)?(\$?[A-Za-z]{1,3}\$?[0-9]+(?::\$?[A-Za-z]{1,3}\$?[0-9]+)?)$/
 
-/// "B2:D9", "Sheet2!A1:C4", or "'My Sheet'!A1" : qualifier optional.
+/// "B2:D9", "Sheet2!A1:C4", or "'My Sheet'!A1" — qualifier optional.
 export function parseConsolidateReference(
   text: string,
 ): { sheetName: string | null; range: ReturnType<typeof parseRange> } | null {

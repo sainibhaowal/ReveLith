@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
-/** Some locales already end the label with an ellipsis : normalize to exactly one. */
+/** Some locales already end the label with an ellipsis — normalize to exactly one. */
 function withEllipsis(label: string): string {
   return `${label.replace(/(?:…|\.{3})+$/u, '')}…`
 }

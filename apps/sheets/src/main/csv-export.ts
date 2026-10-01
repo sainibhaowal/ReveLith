@@ -26,7 +26,7 @@ export async function exportCsv(
 
   // Prefix UTF-8 BOM (\ufeff) if not already present so Microsoft Excel opens it correctly
   const bom = '\ufeff'
-  const content = request.csv.startsWith(bom) ? request.csv : `${bom}${request.csv}`
+  const content = request.content.startsWith(bom) ? request.content : `${bom}${request.content}`
 
   await writeFile(filePath, content, 'utf8')
   return { canceled: false, path: filePath }

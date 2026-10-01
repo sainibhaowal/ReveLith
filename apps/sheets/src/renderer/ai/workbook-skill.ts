@@ -1,12 +1,12 @@
-﻿import type { AgentSkill } from '@revelith/agent-core'
+import type { AgentSkill } from '@revelith/agent-core'
 import basePrompt from './prompts/base.md?raw'
+import { verifySheetsResponse } from './response-verify'
 import {
   WORKBOOK_TOOLS,
   buildWorkbookContext,
   executeWorkbookTool,
   type SheetsSkillDeps,
 } from './tools'
-import { verifySheetsResponse } from './response-verify'
 
 /**
  * The workbook DSL as an AgentSkill: mirrors createDocsSkill's shape
@@ -14,7 +14,7 @@ import { verifySheetsResponse } from './response-verify'
  * same packages/agent-core AgentLoop docx uses.
  *
  * Prompt layout: the always-loaded base prompt (prompts/base.md) stays small
- * : workflow, op catalog, cross-cutting discipline : while per-domain field
+ * — workflow, op catalog, cross-cutting discipline — while per-domain field
  * definitions and conventions live in prompts/guides/*.md, loaded on demand
  * via load_guide.
  */
@@ -25,6 +25,6 @@ export function createWorkbookSkill(deps: SheetsSkillDeps): AgentSkill {
     tools: WORKBOOK_TOOLS,
     buildContext: () => buildWorkbookContext(deps),
     executeTool: (call) => executeWorkbookTool(call, deps),
-    verifyResponse: (finalText, executed) => verifySheetsResponse(finalText, executed),
+    verifyResponse: verifySheetsResponse,
   }
 }

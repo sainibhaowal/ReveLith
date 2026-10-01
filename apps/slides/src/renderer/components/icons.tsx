@@ -136,6 +136,24 @@ export function IconAlignLeft(props: IconProps) {
   )
 }
 
+export function IconDirLtr(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 4.53 5.78 h 14.94 M 4.53 9.51 h 9.96 M 4.53 16.98 h 10.65" />
+      <path d="M 14.7 14.1 l 4.35 2.88 -4.35 2.88 z" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
+export function IconDirRtl(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 4.53 5.78 h 14.94 M 9.51 9.51 h 9.96 M 8.82 16.98 h 10.65" />
+      <path d="M 9.3 14.1 l -4.35 2.88 4.35 2.88 z" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
 export function IconAlignCenter(props: IconProps) {
   return (
     <Svg {...props}>
@@ -160,33 +178,6 @@ export function IconAlignJustify(props: IconProps) {
   )
 }
 
-export function IconTextDirectionLtr(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <path d="M 4.53 5.78 h 9.96 M 4.53 9.51 h 14.94 M 4.53 13.25 h 9.96 M 4.53 16.98 h 14.94" />
-      <path d="M 16.5 4.2 l 3.4 3.1 -3.4 3.1 z" fill="currentColor" stroke="none" />
-    </Svg>
-  )
-}
-
-export function IconTextDirectionRtl(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <path d="M 9.51 5.78 h 9.96 M 4.53 9.51 h 14.94 M 9.51 13.25 h 9.96 M 4.53 16.98 h 14.94" />
-      <path d="M 7.5 4.2 l -3.4 3.1 3.4 3.1 z" fill="currentColor" stroke="none" />
-    </Svg>
-  )
-}
-
-export function IconTextDirectionVertical(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <path d="M 6 4.53 v 9.96 M 10 4.53 v 14.94 M 14 4.53 v 9.96 M 18 4.53 v 14.94" />
-      <path d="M 4.2 16.5 l 3.1 3.4 3.1 -3.4 z" fill="currentColor" stroke="none" />
-    </Svg>
-  )
-}
-
 export function IconLineSpacing(props: IconProps) {
   return (
     <Svg {...props}>
@@ -205,15 +196,8 @@ export function IconClearFormat(props: IconProps) {
       <path d="M4.35 8.85l1.8-1.8" />
       {/* compact diagonal eraser at the lower right (the old diamond's spot), outline only, band facing the A */}
       <g transform="rotate(45 17.4 17.4)">
-        <rect
-          x="13.65"
-          y="14.7"
-          width="7.5"
-          height="5.4"
-          rx="0.75"
-          stroke="var(--ribbon-accent-2, #A33FB5)"
-        />
-        <path d="M15.75 14.7v5.4" stroke="var(--ribbon-accent-2, #A33FB5)" />
+        <rect x="13.05" y="14.25" width="8.7" height="6.3" rx="0.9" />
+        <path d="M15.6 14.25v6.3" />
       </g>
     </Svg>
   )
@@ -237,6 +221,26 @@ export function IconShrinkFont(props: IconProps) {
   )
 }
 
+/* Fluent-style sub/superscript: lowercase-x strokes + a stroked digit 2 in the
+   corner (replaces the old HTML x<sub>2</sub> text glyphs) */
+export function IconSuperscript(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4.05 9.9 12.45 19.5M12.45 9.9 4.05 19.5" />
+      <path d="M15.9 7.05a2.25 2.25 0 0 1 4.5 0c0 1.35-1.28 2.4-4.5 4.65h4.73" />
+    </Svg>
+  )
+}
+
+export function IconSubscript(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4.05 6.9 12.45 16.5M12.45 6.9 4.05 16.5" />
+      <path d="M15.9 14.85a2.25 2.25 0 0 1 4.5 0c0 1.35-1.28 2.4-4.5 4.65h4.73" />
+    </Svg>
+  )
+}
+
 /** Character spacing (MS-style): AV above a double-headed arrow */
 export function IconCharSpacing(props: IconProps) {
   return (
@@ -244,10 +248,7 @@ export function IconCharSpacing(props: IconProps) {
       <TextGlyph x={4} y={13.5} s={13}>
         AV
       </TextGlyph>
-      <path
-        d="M4.5 18.75 h15 M7.2 16.05 4.5 18.75 l2.7 2.7 M16.8 16.05 19.5 18.75 l-2.7 2.7"
-        stroke="var(--ribbon-accent, #2B7CD3)"
-      />
+      <path d="M4.5 18.75 h15 M7.2 16.05 4.5 18.75 l2.7 2.7 M16.8 16.05 19.5 18.75 l-2.7 2.7" />
     </Svg>
   )
 }
@@ -347,11 +348,48 @@ export function IconCopy(props: IconProps) {
   )
 }
 
+/** Shape style gallery: two offset rounded rects (context-menu quick bar) */
+export function IconShapeStyle(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="5" width="11" height="9" rx="1.5" />
+      <rect x="9.5" y="10.5" width="10.5" height="8.5" rx="1.5" fill="var(--surface)" />
+    </Svg>
+  )
+}
+
+/** Paint bucket + drop (context-menu quick bar fill entry) */
+export function IconFillColor(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 7.6 10.4 12.6 5.4 l 5.6 5.6 -6.3 6.3 a 1.4 1.4 0 0 1 -2 0 L 5.6 13 a 1.4 1.4 0 0 1 0 -2 z" />
+      <path d="M 12.6 5.4 10.9 3.7" />
+      <path
+        d="M 19.7 15.4 c 0.9 1.2 1.5 2.2 1.5 3 a 1.5 1.5 0 0 1 -3 0 c 0 -0.8 0.6 -1.8 1.5 -3 z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </Svg>
+  )
+}
+
+/** Concentric squares suggesting an outline ring (context-menu quick bar outline entry) */
+export function IconOutlineColor(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4.5" y="4.5" width="15" height="15" rx="2" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </Svg>
+  )
+}
+
 export function IconFormatPainter(props: IconProps) {
   return (
     <Svg {...props}>
-      <path d="M 16.5 4 H 3.97 V 10.71 H 16.5 Z" />
-      <path d="M 16.51 7.13 H 20.53 V 14.33 L 9.79 15.72 V 21" />
+      <rect x="10.65" y="4.05" width="2.7" height="5.1" rx="1.35" />
+      <rect x="4.5" y="9.15" width="15" height="10.8" rx="1.5" />
+      <path d="M 4.5 13.35 H 19.5" />
+      <path d="M 9.3 16.35 V 18.15 M 14.7 16.35 V 18.15" />
     </Svg>
   )
 }
@@ -584,11 +622,23 @@ export function IconOrientation(props: IconProps) {
   )
 }
 
+/* landscape slide with a diagonal resize arrow — PowerPoint's Slide Size glyph */
 export function IconPageSize(props: IconProps) {
   return (
     <Svg {...props}>
-      <rect x="6.23" y="4.49" width="11.55" height="15.02" rx="0.92" />
-      <path d="M 9.11 12 h 5.78 M 12 9.11 v 5.78 M 10.5 10.5 9.11 9.11 m 5.78 0 -1.39 1.39 m 0 3 1.39 1.39 m -5.78 0 1.39 -1.39" />
+      <rect x="4.1" y="6.25" width="15.8" height="11.5" rx="0.92" />
+      <path d="M 8.8 8.8 L 15.2 15.2 M 11.4 8.8 h -2.6 v 2.6 M 12.6 15.2 h 2.6 v -2.6" />
+    </Svg>
+  )
+}
+
+/* stacked slides with a check on the front one — applied across the deck */
+export function IconApplyAll(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="9.1" y="5.25" width="10.2" height="7" rx="0.92" />
+      <rect x="4.7" y="9.15" width="12.2" height="9.6" rx="0.92" fill="var(--surface, #fff)" />
+      <path d="M 8 14.15 l 2.3 2.3 l 4.6 -4.6" />
     </Svg>
   )
 }
@@ -877,11 +927,17 @@ export function IconPageWidth(props: IconProps) {
   )
 }
 
-export function IconWholePage(props: IconProps) {
+/** View tab fit-to-window, mirroring Fluent's zoom-fit: a small content rect
+ *  framed by four edge chevrons. Deliberately arrow-free — inward/outward
+ *  arrows read as fullscreen, and the original page-with-plus as "new page". */
+export function IconFitWindow(props: IconProps) {
   return (
     <Svg {...props}>
-      <rect x="6.23" y="4.49" width="11.55" height="15.02" rx="0.92" />
-      <path d="M 9.11 12 h 5.78 M 12 9.11 v 5.78" />
+      <rect x="8.5" y="8.5" width="7" height="7" rx="1.5" />
+      <path d="M5.2 9.3 3.4 12l1.8 2.7" />
+      <path d="M18.8 9.3 20.6 12l-1.8 2.7" />
+      <path d="M9.3 5.2 12 3.4l2.7 1.8" />
+      <path d="M9.3 18.8 12 20.6l2.7-1.8" />
     </Svg>
   )
 }
@@ -1066,7 +1122,7 @@ export function IconGear(props: IconProps) {
 }
 
 /** collapse the right sidebar: panel outline + arrow pushing into it */
-/** Collapse glyph for RIGHT-docked panes (Format/Animation/Comments) : exact mirror of
+/** Collapse glyph for RIGHT-docked panes (Format/Animation/Comments) — exact mirror of
  *  IconSidebarCollapseLeft so both sides share the Sheets-parity look (16-canvas,
  *  1.2/1.3 stroke), self-contained for the same pinned-stroke reason. */
 export function IconSidebarCollapse({ size = 24 }: IconProps) {
@@ -1161,10 +1217,9 @@ function SvgRatio({ size = 24, children }: IconProps & { children: ReactNode }) 
 export function IconSave(props: IconProps) {
   return (
     <SvgRatio {...props}>
-      <path d="M3 4.5C3 3.67158 3.67158 3 4.5 3H17.1407L21 6.60325V19.5C21 20.3285 20.3285 21 19.5 21H4.5C3.67158 21 3 20.3285 3 19.5V4.5Z" />
-      <path d="M12.0042 3L12 6.6923C12 6.86225 11.7761 7 11.5 7H7.5C7.22385 7 7 6.86225 7 6.6923V3H12.0042Z" />
-      <path d="M7 13H17" />
-      <path d="M7 17H12.0042" />
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <path d="M17 21v-8H7v8" />
+      <path d="M7 3v5h8V3" />
     </SvgRatio>
   )
 }
@@ -1289,7 +1344,7 @@ export function IconEllipse(props: IconProps) {
 }
 
 /** Slide show: from beginning (slide open at the bottom-right, its bottom edge
- * running out as an arrow into a play triangle : loop back to slide 1 and play) */
+ * running out as an arrow into a play triangle — loop back to slide 1 and play) */
 export function IconPlayFromStart(props: IconProps) {
   return (
     <Svg {...props}>
@@ -1307,6 +1362,29 @@ export function IconPlayCurrent(props: IconProps) {
       <rect x="4.49" y="5.65" width="15.02" height="10.4" rx="0.92" />
       <path d="M 10.27 8.3 v 5.08 l 4.39 -2.54 z" fill="currentColor" stroke="none" />
       <path d="M 12 16.04 v 2.31 M 9.11 18.35 h 5.78" />
+    </Svg>
+  )
+}
+
+/** Status-bar play: solid triangle in a rounded square. The frame is nearly
+ *  the full viewBox — the monitor-and-stand ribbon glyph reads too small at
+ *  status-bar sizes */
+export function IconPlayBoxed(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4.2" y="4.2" width="15.6" height="15.6" rx="2" />
+      <path d="M 9.9 8.3 v 7.4 l 6.2 -3.7 z" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
+/** Status-bar notes toggle: a note page with text lines (near-full viewBox,
+ *  same rationale as IconPlayBoxed at status-bar sizes) */
+export function IconNotes(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4.2" y="4.2" width="15.6" height="15.6" rx="2" />
+      <path d="M8 9.3h8M8 12.3h8M8 15.3h5" />
     </Svg>
   )
 }
@@ -1787,6 +1865,25 @@ const ANIM_EFFECT_BODIES: Record<AnimEffectKind, ReactNode> = {
       <path d="M18.9 10.9 l0.5 5.4 -5.4 -0.6" />
     </>
   ),
+  // media
+  mediaPlay: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M10 8.5 L15.5 12 L10 15.5 Z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  mediaPause: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.6 8.5 V15.5 M14.4 8.5 V15.5" strokeWidth="2.2" />
+    </>
+  ),
+  mediaStop: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <rect x="9" y="9" width="6" height="6" rx="0.8" fill="currentColor" stroke="none" />
+    </>
+  ),
 }
 
 export function AnimEffectIcon({ kind, size }: { kind: AnimEffectKind; size?: number }) {
@@ -2047,25 +2144,52 @@ export function IconAiImage(props: IconProps) {
   )
 }
 
-/** ReveLith AI brand mark (orbital glyph) */
-export function ReveLithAiMark({ size = 30 }: { size?: number }) {
+/** ReveLith brand mark (rounded-square sparkle badge), inline so it renders
+ * crisply at device resolution instead of going through <img> rasterization */
+export function ReveLithMark({ size = 30 }: { size?: number }) {
   return (
     <svg
       className="revelith-mark"
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 130 130.025"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <circle cx="16" cy="16" r="2.2" fill="#38bdf8" />
-      <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#38bdf8" strokeWidth="2" transform="rotate(0 16 16)" />
-      <circle cx="28" cy="16" r="2" fill="#67e8f9" />
-      <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#60a5fa" strokeWidth="2" transform="rotate(60 16 16)" />
-      <circle cx="10" cy="5.6" r="2" fill="#93c5fd" />
-      <ellipse cx="16" cy="16" rx="13" ry="5.5" stroke="#818cf8" strokeWidth="2" transform="rotate(120 16 16)" />
-      <circle cx="10" cy="26.4" r="2" fill="#c7d2fe" />
+      <path
+        d="M105.115 0H24.6428C11.0443 0 0 11.0686 0 24.6915V105.334C0 118.981 11.0199 130.025 24.6428 130.025H105.115C118.714 130.025 129.758 118.957 129.758 105.334V24.6915C129.758 11.0443 118.714 0 105.115 0ZM71.5201 35.2735C85.5078 33.1571 86.7729 31.9164 88.865 17.88C88.938 17.4421 89.3028 17.1259 89.7407 17.1259C90.1786 17.1259 90.5435 17.4421 90.6164 17.88C92.7328 31.8921 93.9735 33.1571 107.961 35.2735C108.399 35.3465 108.715 35.7114 108.715 36.1493C108.715 36.5871 108.399 36.952 107.961 37.025C93.9249 39.1414 92.7085 40.4064 90.5677 54.6131C90.5191 54.9537 90.2516 55.197 89.911 55.197C89.5704 55.197 89.3028 54.9537 89.2542 54.6131C87.1134 40.4064 85.5565 39.1658 71.4958 37.025C71.0579 36.952 70.7417 36.5871 70.7417 36.1493C70.7417 35.7114 71.0579 35.3465 71.4958 35.2735H71.5201ZM101.758 78.5261C101.758 78.8181 101.563 79.037 101.271 79.0856C92.3193 80.4236 91.5652 81.2264 90.2029 90.2759C90.1786 90.4948 89.9839 90.6408 89.7893 90.6408C89.5703 90.6408 89.4001 90.4948 89.3758 90.2759C88.0135 81.2507 87.0161 80.4479 78.0883 79.0856C77.7964 79.037 77.6017 78.7937 77.6017 78.5261C77.6017 78.2342 77.7964 78.0153 78.0883 77.9666C86.9918 76.6287 87.7703 75.8259 89.1326 66.898C89.1812 66.6061 89.4244 66.4115 89.692 66.4115C89.9839 66.4115 90.2028 66.6061 90.2515 66.898C91.5894 75.8259 92.3923 76.6043 101.296 77.9666C101.588 78.0153 101.782 78.2585 101.782 78.5261H101.758ZM16.5178 54.8077C16.5178 54.1023 17.0286 53.4941 17.7341 53.3968C40.1388 50.0154 42.1093 47.9963 45.4907 25.5672C45.588 24.8861 46.1961 24.3509 46.9016 24.3509C47.6071 24.3509 48.191 24.8617 48.3126 25.5672C51.694 47.9963 53.6887 50.0154 76.0691 53.3968C76.7503 53.4941 77.2855 54.1023 77.2855 54.8077C77.2855 55.5132 76.7746 56.1214 76.0691 56.2187C53.5914 59.6244 51.6696 61.6192 48.2639 84.3645C48.1909 84.8754 47.7287 85.2889 47.2179 85.2889C46.707 85.2889 46.2448 84.8997 46.1718 84.3645C42.7418 61.6435 40.2604 59.6244 17.7584 56.2187C17.0772 56.1214 16.542 55.5132 16.542 54.8077H16.5178ZM112.097 109.591C112.097 111.416 110.613 112.9 108.813 112.9H21.2614C19.4369 112.9 17.9774 111.416 17.9774 109.591V102.658C17.9774 100.834 19.4612 99.3497 21.2614 99.3497H108.813C110.637 99.3497 112.097 100.834 112.097 102.658V109.591Z"
+        fill="currentColor"
+      />
     </svg>
+  )
+}
+
+export function IconRotateRight(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 18.6 9.3 a 6.9 6.9 0 1 0 0.9 4.95" />
+      <path d="M 19.05 4.8 v 4.5 h -4.5" />
+    </Svg>
+  )
+}
+
+export function IconRotateLeft(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 5.4 9.3 a 6.9 6.9 0 1 1 -0.9 4.95" />
+      <path d="M 4.95 4.8 v 4.5 h 4.5" />
+    </Svg>
+  )
+}
+
+export function IconReplacePicture(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4.3" y="9.05" width="10.67" height="9.48" rx="0.95" />
+      <circle cx="7.38" cy="12" r="1.07" />
+      <path d="M 4.89 17.69 l 3.2 -3.2 2.25 2.25 1.67 -1.67 2.13 2.13" />
+      <path d="M 13.79 5.6 h 5.44 m 0 0 -2.01 -1.89 m 2.01 1.89 -2.01 1.89" />
+    </Svg>
   )
 }

@@ -15,7 +15,7 @@ function plan(prompt: string) {
   const batch = workbookCommandBatchSchema.parse(
     planPrompt(prompt, { revision: 0, sheetId: 'sheet-1' }),
   )
-  return buildLazyChangePlan(batch, readCell, 'Data')
+  return buildLazyChangePlan(batch, readCell, () => 'Data')
 }
 
 describe('buildLazyChangePlan', () => {
@@ -70,7 +70,7 @@ describe('buildLazyChangePlan: DSL v2 operations', () => {
       summary: 'v2 ops',
       operations,
     })
-    return buildLazyChangePlan(batch, readCell, 'Data')
+    return buildLazyChangePlan(batch, readCell, () => 'Data')
   }
 
   it('expands set_range against live before-states', () => {
@@ -142,13 +142,71 @@ describe('buildLazyChangePlan: DSL v2 operations', () => {
         ],
       }),
       (address) => cells[address] ?? { value: null },
-      'Data',
+      () => 'Data',
     )
     expect(result.cellChanges.map((c) => [c.address, c.before.value, c.after.value])).toEqual([
       ['A1', 30, 10],
       ['A2', 10, 20],
       ['A3', 20, 30],
     ])
+  })
+
+  it('keeps a large sort_range range-level instead of expanding per cell', () => {
+    const reads: string[] = []
+    const result = buildLazyChangePlan(
+      workbookCommandBatchSchema.parse({
+        dslVersion: 1,
+        transactionId: 'tx-sort-big',
+        baseRevision: 0,
+        summary: 'sort big',
+        operations: [
+          { op: 'sort_range', sheetId: 'sheet-1', range: 'A1:B2000', byColumn: 'A', order: 'desc' },
+        ],
+      }),
+      (address) => {
+        reads.push(address)
+        return { value: null }
+      },
+      () => 'Data',
+    )
+    expect(result.cellChanges).toEqual([])
+    expect(result.structuralChanges).toEqual([
+      {
+        op: {
+          op: 'sort_range',
+          sheetId: 'sheet-1',
+          range: 'A1:B2000',
+          byColumn: 'A',
+          order: 'desc',
+        },
+        label: 'Sort A1:B2000 by A descending',
+      },
+    ])
+    expect(reads).toEqual([])
+  })
+
+  it('rejects sort_range beyond the range-op cell cap', () => {
+    expect(() =>
+      buildLazyChangePlan(
+        workbookCommandBatchSchema.parse({
+          dslVersion: 1,
+          transactionId: 'tx-sort-huge',
+          baseRevision: 0,
+          summary: 'sort huge',
+          operations: [
+            {
+              op: 'sort_range',
+              sheetId: 'sheet-1',
+              range: 'A1:J20001',
+              byColumn: 'A',
+              order: 'asc',
+            },
+          ],
+        }),
+        () => ({ value: null }),
+        () => 'Data',
+      ),
+    ).toThrow(/sort_range covers more than 200,000 cells/)
   })
 
   it('previews layout operations as labeled entries', () => {
@@ -189,6 +247,33 @@ describe('buildLazyChangePlan: DSL v2 operations', () => {
   })
 })
 
+describe('buildLazyChangePlan: cross-sheet routing', () => {
+  it("reads before-states and sheet names from each operation's own sheet", () => {
+    const grids: Record<string, Record<string, CellState>> = {
+      'sheet-1': { A1: { value: 'active' } },
+      'sheet-2': { A1: { value: 'other' } },
+    }
+    const result = buildLazyChangePlan(
+      workbookCommandBatchSchema.parse({
+        dslVersion: 1,
+        transactionId: 'tx-cross',
+        baseRevision: 0,
+        summary: 'cross-sheet batch',
+        operations: [
+          { op: 'set_cell', sheetId: 'sheet-2', address: 'A1', value: 'new' },
+          { op: 'rename_sheet', sheetId: 'sheet-2', name: 'Renamed' },
+        ],
+      }),
+      (address, sheetId) => grids[sheetId]?.[address] ?? { value: null },
+      (sheetId) => (sheetId === 'sheet-2' ? 'Other' : 'Data'),
+    )
+    expect(result.cellChanges).toEqual([
+      { sheetId: 'sheet-2', address: 'A1', before: { value: 'other' }, after: { value: 'new' } },
+    ])
+    expect(result.sheetRenames).toEqual([{ sheetId: 'sheet-2', before: 'Other', after: 'Renamed' }])
+  })
+})
+
 describe('planStillMatches', () => {
   it('accepts when previewed cells are unchanged and rejects drift', () => {
     const result = plan('set B2 to 4242')
@@ -200,5 +285,29 @@ describe('planStillMatches', () => {
     const result = plan('formula C3 = MAX(A1:A9)')
     expect(planStillMatches(result, readCell)).toBe(true)
     expect(planStillMatches(result, () => ({ value: null, formula: '=SUM(A1:A3)' }))).toBe(false)
+  })
+
+  it("checks drift against each change's own sheet", () => {
+    const result = buildLazyChangePlan(
+      workbookCommandBatchSchema.parse({
+        dslVersion: 1,
+        transactionId: 'tx-cross-drift',
+        baseRevision: 0,
+        summary: 'cross-sheet drift',
+        operations: [{ op: 'set_cell', sheetId: 'sheet-2', address: 'A1', value: 'new' }],
+      }),
+      (_address, sheetId) => (sheetId === 'sheet-2' ? { value: 'other' } : { value: 'active' }),
+      () => 'Other',
+    )
+    expect(
+      planStillMatches(result, (_address, sheetId) =>
+        sheetId === 'sheet-2' ? { value: 'other' } : { value: 'changed' },
+      ),
+    ).toBe(true)
+    expect(
+      planStillMatches(result, (_address, sheetId) =>
+        sheetId === 'sheet-2' ? { value: 'changed' } : { value: 'active' },
+      ),
+    ).toBe(false)
   })
 })

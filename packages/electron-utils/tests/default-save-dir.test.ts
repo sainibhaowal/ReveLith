@@ -59,7 +59,6 @@ describe('resolveDefaultSaveDir', () => {
   })
 
   it('degrades to the fallback when the configured folder is not writable', () => {
-    if (process.platform === 'win32') return // chmod on Windows directory does not revoke write permissions
     const readOnly = join(root, 'read-only')
     mkdirSync(readOnly)
     chmodSync(readOnly, 0o500)
@@ -69,6 +68,12 @@ describe('resolveDefaultSaveDir', () => {
     } finally {
       chmodSync(readOnly, 0o700)
     }
+  })
+
+  it('throws a descriptive error when the fallback itself is unusable', () => {
+    const blocker = join(root, 'blocker')
+    writeFileSync(blocker, 'x')
+    expect(() => resolveDefaultSaveDir(null, blocker)).toThrow(/default save dir not usable/)
   })
 })
 

@@ -3,21 +3,17 @@
  * OOXML schema gate for .pptx files.
  *
  * Every PresentationML / DrawingML part is run through Markup Compatibility
- * preprocessing — no extension namespace is treated as understood, so
- * ignorable attributes and elements are dropped and each mc:AlternateContent
- * collapses to its mc:Fallback — and then validated with xmllint against the
- * ISO/IEC 29500-4 Transitional schemas in ./schemas.
+ * preprocessing (no extension namespace is "understood": ignorable
+ * attributes/elements are dropped, mc:AlternateContent collapses to its
+ * Fallback) and validated with xmllint against the ISO/IEC 29500-4
+ * Transitional schemas in ./schemas. python-pptx and well-formedness checks
+ * cannot see child-order or value-range violations; PowerPoint can, and
+ * answers with a repair prompt.
  *
- * This catches what a well-formedness check cannot: child-order violations
- * (a second fill child in an a:rPr, an a:ln after a:effectLst) and value-range
- * violations (sz="50"). PowerPoint does see them, and answers with a repair
- * prompt that silently drops shapes.
- *
- * Usage:
  *   node tools/ooxml-validate/validate-pptx.mjs [--base ORIGINAL.pptx] [--json] FILE.pptx...
  *
- * With --base only problems absent from the original are reported, so a foreign
- * deck's pre-existing quirks do not mask what an edit introduced.
+ * With --base only problems absent from the original are reported, so a
+ * foreign deck's pre-existing quirks do not mask what an edit introduced.
  */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -29,7 +25,6 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom'
 
 const MC = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
 const SCHEMA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'schemas')
-/** ZIP part path pattern -> the schema that describes it */
 const PART_SCHEMA = [
   [
     /^ppt\/(slides|slideLayouts|slideMasters|notesSlides|notesMasters|handoutMasters|comments)\/[^/]+\.xml$/,
@@ -45,12 +40,10 @@ export function xmllintAvailable() {
   return spawnSync('xmllint', ['--version'], { encoding: 'utf8' }).status === 0
 }
 
-/** Markup Compatibility preprocessing against the base schema. */
+/** Markup Compatibility preprocessing against the base schema (no extension namespace understood). */
 export function mcePreprocess(xml) {
   const doc = new DOMParser().parseFromString(xml, 'text/xml')
   const walk = (el, inherited) => {
-    // namespaces named by this element's mc:Ignorable, plus everything the
-    // ancestors already declared: an ignorable declaration is inherited
     const ignorable = new Set(inherited)
     const ign = el.getAttributeNS(MC, 'Ignorable')
     if (ign) {
@@ -87,17 +80,15 @@ export function mcePreprocess(xml) {
   return new XMLSerializer().serializeToString(doc)
 }
 
-/** Validate every schema-mapped part; resolves to [{ part, message }]. */
+/** Validate every schema-mapped part; returns [{ part, message }] (empty when the deck is clean). */
 export async function validatePptx(input) {
   const bytes = typeof input === 'string' ? fs.readFileSync(input) : input
   const zip = await JSZip.loadAsync(bytes)
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'revelith-ooxml-validate-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ooxml-validate-'))
   try {
     const problems = []
-    // Well-formedness runs on the RAW bytes of every XML part first. The DOM
-    // used for MCE preprocessing repairs unbalanced tags silently, so it must
-    // never be what xmllint is handed: that would hide exactly the malformation
-    // this first pass exists to find.
+    // Well-formedness on the raw bytes of every XML part first: the DOM used for MCE
+    // preprocessing silently repairs unbalanced tags, so it must never be what xmllint sees.
     const raw = []
     for (const name of Object.keys(zip.files)) {
       if (!/\.(xml|rels)$/.test(name) || zip.files[name].dir) continue
@@ -136,8 +127,6 @@ export async function validatePptx(input) {
       )
       if (r.error) throw r.error
       for (const line of r.stderr.split('\n')) {
-        // xmllint ends each file's verdict with "<file> validates"; that is a
-        // result, not a problem
         if (!line || / validates$/.test(line) || / fails to validate$/.test(line)) continue
         const m = /^(.*?):(\d+): (.*)$/.exec(line)
         const part = m ? (parts.find((p) => p.file === m[1])?.name ?? m[1]) : parts[0]?.name
@@ -151,10 +140,9 @@ export async function validatePptx(input) {
 }
 
 /**
- * Problems of `edited` not already present in `base`: a multiset difference on
- * (part, message), so a repeated violation is not double-charged. A part the
- * base did not have at all (a duplicated slide carries its source's quirks under
- * a new part name) only reports messages the base never produced anywhere.
+ * Problems of `edited` not already present in `base`: a multiset difference on (part, message).
+ * Parts the base did not have (a duplicated slide carries its source's quirks under a new part
+ * name) only report messages the base never produced anywhere.
  */
 export function newProblems(base, edited) {
   const byPart = new Map()
@@ -179,7 +167,7 @@ async function main(argv) {
   const files = []
   let base = null
   let json = false
-  for (let i = 0; i < argv.length; i += 1) {
+  for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--base') base = argv[++i]
     else if (argv[i] === '--json') json = true
     else files.push(argv[i])
@@ -189,7 +177,7 @@ async function main(argv) {
     return 2
   }
   if (!xmllintAvailable()) {
-    console.error('xmllint not found on PATH (macOS ships it; Debian/Ubuntu: libxml2-utils)')
+    console.error('xmllint not found on PATH (install libxml2-utils)')
     return 2
   }
   const baseProblems = base ? await validatePptx(base) : []

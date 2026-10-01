@@ -1,6 +1,6 @@
-﻿/// Convergence wrapper for the close guard. A save that raced with typing writes
+/// Convergence wrapper for the close guard. A save that raced with typing writes
 /// a snapshot that is already one step behind, and reporting that as success lets
-/// the window close over unpersisted edits : so keep saving until the file caught
+/// the window close over unpersisted edits — so keep saving until the file caught
 /// up with the editor.
 
 export interface SaveUntilPersistedDeps {
@@ -10,7 +10,7 @@ export interface SaveUntilPersistedDeps {
   wasIncomplete: () => boolean
   /**
    * False for a document with no path yet: that save goes through the Save As
-   * dialog, so retrying would prompt again : and a modal dialog means the user
+   * dialog, so retrying would prompt again — and a modal dialog means the user
    * was not typing anyway.
    */
   hasPath: () => boolean
@@ -32,7 +32,7 @@ export function createSaveSerializer(): (
   let tail: Promise<boolean> | null = null
   return (runSave, canReuse) => {
     // Strict FIFO chaining: every caller queues behind the current tail, so two
-    // save passes can never run concurrently : the old "wait then re-check a
+    // save passes can never run concurrently — the old "wait then re-check a
     // shared inFlight slot" let several waiters observe the cleared slot together
     // and start overlapping passes.
     const prior = tail
@@ -55,7 +55,7 @@ export function createSaveSerializer(): (
 
 /**
  * True only when the document is fully on disk. False means the caller must not
- * treat the save as complete : for the close guard, keep the window open.
+ * treat the save as complete — for the close guard, keep the window open.
  */
 export async function saveUntilPersisted(deps: SaveUntilPersistedDeps): Promise<boolean> {
   const { save, wasIncomplete, hasPath, maxPasses = 3 } = deps

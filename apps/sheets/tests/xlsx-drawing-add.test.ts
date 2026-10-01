@@ -213,7 +213,12 @@ describe('visual additions: pictures', () => {
 })
 
 describe('visual additions: sheet with an existing drawing', () => {
-  async function buildDrawingFixture(): Promise<Buffer> {
+  const EMPTY_SELF_CLOSED_DRAWING =
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"' +
+    ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"/>'
+
+  async function buildDrawingFixture(drawingXml?: string): Promise<Buffer> {
     const zip = await JSZip.loadAsync(await buildEditFixture())
     const worksheet = await zip.file('xl/worksheets/sheet1.xml')!.async('string')
     zip.file(
@@ -234,10 +239,12 @@ describe('visual additions: sheet with an existing drawing', () => {
     )
     zip.file(
       'xl/drawings/drawing1.xml',
-      '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing">' +
-        '<xdr:twoCellAnchor><xdr:graphicFrame><xdr:nvGraphicFramePr>' +
-        '<xdr:cNvPr id="3" name="Chart 3"/></xdr:nvGraphicFramePr></xdr:graphicFrame></xdr:twoCellAnchor>' +
-        '</xdr:wsDr>',
+      drawingXml ??
+        '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"' +
+          ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+          '<xdr:twoCellAnchor><xdr:graphicFrame><xdr:nvGraphicFramePr>' +
+          '<xdr:cNvPr id="3" name="Chart 3"/></xdr:nvGraphicFramePr></xdr:graphicFrame></xdr:twoCellAnchor>' +
+          '</xdr:wsDr>',
     )
     zip.file(
       'xl/drawings/_rels/drawing1.xml.rels',
@@ -266,6 +273,31 @@ describe('visual additions: sheet with an existing drawing', () => {
     // worksheet keeps its single existing <drawing> element
     const worksheet = plan.replaced.get('xl/worksheets/sheet1.xml')
     expect(worksheet ?? '').not.toContain('rId10')
+  })
+
+  it('expands a self-closed empty wsDr root (Google Sheets exports)', async () => {
+    const plan = await planWith(
+      [chartAddition()],
+      await buildDrawingFixture(EMPTY_SELF_CLOSED_DRAWING),
+    )
+    const drawingXml = plan.replaced.get('xl/drawings/drawing1.xml')
+    expect(drawingXml).toContain('<xdr:twoCellAnchor>')
+    expect(drawingXml).toMatch(/<\/xdr:wsDr>$/)
+    expect(drawingXml).not.toContain('/><xdr:twoCellAnchor>')
+    expect(drawingXml).toContain('<xdr:graphicFrame')
+  })
+
+  it('declares missing namespaces on the inserted anchor', async () => {
+    const drawing =
+      '<wsDr xmlns="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"/>'
+    const plan = await planWith([chartAddition()], await buildDrawingFixture(drawing))
+    const drawingXml = plan.replaced.get('xl/drawings/drawing1.xml')
+    expect(drawingXml).toContain(
+      '<xdr:twoCellAnchor' +
+        ' xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"' +
+        ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">',
+    )
+    expect(drawingXml).toMatch(/<\/wsDr>$/)
   })
 })
 

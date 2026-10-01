@@ -158,11 +158,11 @@ describe('docx export', () => {
   })
 
   it('links survive as hyperlink runs', async () => {
-    const parsed = await exportAndParse('Visit [ReveLith](https://example.com/revelith) now.')
+    const parsed = await exportAndParse('Visit [ReveLith](https://revelith.com) now.')
     const para = parsed.blocks.find((b) => b.type === 'paragraph')
     const link = para?.runs?.find((r) => r.link)
     expect(link?.text).toBe('ReveLith')
-    expect(link?.link?.href).toBe('https://example.com/revelith')
+    expect(link?.link?.href).toBe('https://revelith.com')
   })
 
   it('unresolvable images fall back to alt text', async () => {

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactElement } from 'react'
 import type { TabsApi, TabSummary } from '../../shared/tabs-api'
+import { notifyFilesChanged } from './file-events'
 import { useI18n } from './locale'
 
 declare global {
   interface Window {
-    revelithAppTabs: TabsApi
+    aiOfficeTabs: TabsApi
   }
 }
 
@@ -44,6 +45,8 @@ function PdfIcon() {
     </svg>
   )
 }
+
+const IS_MAC = navigator.platform.toLowerCase().includes('mac')
 
 function HomeIcon() {
   return (
@@ -102,10 +105,13 @@ function MarkdownIcon() {
 function HtmlIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 240 240" fill="none" aria-hidden="true">
-      <rect width="240" height="240" rx="48" fill="#F43F5E" />
+      <rect width="240" height="240" rx="48" fill="#0FA3A3" />
       <path
-        d="M60 70L75 170L120 185L165 170L180 70H60ZM152 100H120V120H149L145 150L120 157V157L95 150L93 135H110L111 140L120 143L129 140L130 130H85L80 90H160L152 100Z"
-        fill="#fff"
+        d="M92 72L44 120L92 168M148 72L196 120L148 168"
+        stroke="#fff"
+        strokeWidth="20"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   )
@@ -121,11 +127,50 @@ const KIND_ICON: Record<TabSummary['kind'], ReactElement> = {
   html: <HtmlIcon />,
 }
 
+/**
+ * Extension of a path's last segment, without the dot ('' when it has none).
+ * Read off the basename: a dot in a directory name is not an extension, and
+ * taking 'v2\Notes' from C:\Users\me.v2\Notes built a rename target that
+ * renameFile could not resolve.
+ */
+export function fileExtension(filePath: string): string {
+  const name = filePath.slice(Math.max(filePath.lastIndexOf('\\'), filePath.lastIndexOf('/')) + 1)
+  const dot = name.lastIndexOf('.')
+  return dot > -1 ? name.slice(dot + 1) : ''
+}
+
 export function TabBar() {
   const { t } = useI18n()
   const [tabs, setTabs] = useState<TabSummary[]>([])
-  const [closingId, setClosingId] = useState<string | null>(null)
   const stripRef = useRef<HTMLDivElement>(null)
+
+  // Double-click a file tab to rename the underlying file inline (Home's row
+  // rename, one tab over): the input prefills the base name, Enter/blur commits
+  // through the same renameFile IPC (title syncs via tabManager.renameTabFile),
+  // Escape cancels. Home tabs and untitled documents cannot be renamed.
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null)
+  const renamingRef = useRef(renaming)
+  renamingRef.current = renaming
+  const tabsRef = useRef(tabs)
+  tabsRef.current = tabs
+  const commitRename = () => {
+    const r = renamingRef.current
+    renamingRef.current = null
+    setRenaming(null)
+    if (!r) return
+    const tab = tabsRef.current.find((tb) => tb.id === r.id)
+    const value = r.value.trim()
+    if (!tab?.filePath || !value) return
+    const ext = fileExtension(tab.filePath)
+    const newName = ext ? `${value}.${ext}` : value
+    if (newName === tab.title) return
+    void window.aiOffice.renameFile(tab.filePath, newName).then((result) => {
+      if (!result.ok) window.alert(result.error ?? t('renameFailed'))
+      // Home shares this renderer and only re-pulls on window focus, which the
+      // rename input already holds: tell it the recents / folder rows moved.
+      else notifyFilesChanged()
+    })
+  }
 
   // Chrome-style drag-to-reorder: the grabbed tab tracks the pointer 1:1 while
   // its neighbours slide aside live; the final order is committed on release.
@@ -148,32 +193,6 @@ export function TabBar() {
     target: number
     width: number
   } | null>(null)
-  const [newMenuOpen, setNewMenuOpen] = useState(false)
-  const [menuAlignRight, setMenuAlignRight] = useState(false)
-  const newMenuRef = useRef<HTMLDivElement>(null)
-
-  const handlePlusClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (window.revelithAppTabs?.showNewMenu) {
-      const rect = event.currentTarget.getBoundingClientRect()
-      void window.revelithAppTabs.showNewMenu(Math.round(rect.left), Math.round(rect.bottom))
-    } else {
-      const rect = event.currentTarget.getBoundingClientRect()
-      // If menu (min 150px wide) would overflow window right edge, align to right of the button
-      setMenuAlignRight(rect.left + 150 > window.innerWidth)
-      setNewMenuOpen((v) => !v)
-    }
-  }
-
-  useEffect(() => {
-    if (!newMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (newMenuRef.current && !newMenuRef.current.contains(e.target as Node)) {
-        setNewMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [newMenuOpen])
 
   const finishDrag = (pointerId: number, commit: boolean) => {
     const drag = dragRef.current
@@ -192,7 +211,7 @@ export function TabBar() {
       // optimistic local reorder so clearing the transforms causes no flash;
       // the main-process broadcast arrives with the identical order
       setTabs((prev) => {
-        // look the tab up by id : the list may have changed mid-drag (e.g.
+        // look the tab up by id — the list may have changed mid-drag (e.g.
         // Cmd+W), which would make the indices captured at pointer-down stale
         const fromIdx = prev.findIndex((tb) => tb.id === drag.id)
         if (fromIdx < 0) return prev
@@ -201,28 +220,28 @@ export function TabBar() {
         next.splice(Math.min(Math.max(drag.target, 1), next.length), 0, moved)
         return next
       })
-      void window.revelithAppTabs.reorder(drag.id, drag.target)
+      void window.aiOfficeTabs?.reorder?.(drag.id, drag.target)
     }
   }
 
   useEffect(() => {
-    void window.revelithAppTabs.list().then(setTabs)
-    return window.revelithAppTabs.onChanged((nextTabs) => {
-      setClosingId(null)
-      setTabs(nextTabs)
-    })
+    if (window.aiOfficeTabs?.list) {
+      void window.aiOfficeTabs.list().then(setTabs).catch(() => {})
+      return window.aiOfficeTabs.onChanged?.(setTabs)
+    }
+    return undefined
   }, [])
 
   // document tabs are sibling WebContentsViews: they see neither this press
   // nor a focus change, so relay it for them to dismiss open popovers
   useEffect(() => {
-    const notify = (): void => window.revelithAppTabs.notifyChromePressed?.()
+    const notify = (): void => window.aiOfficeTabs?.notifyChromePressed?.()
     document.addEventListener('pointerdown', notify, true)
     return () => document.removeEventListener('pointerdown', notify, true)
   }, [])
 
   // if the dragged tab is closed mid-drag (e.g. Cmd+W) its element unmounts
-  // and pointerup/pointercancel never fire : clear the drag state ourselves
+  // and pointerup/pointercancel never fire — clear the drag state ourselves
   useEffect(() => {
     const drag = dragRef.current
     if (drag && !tabs.some((t) => t.id === drag.id)) {
@@ -247,10 +266,10 @@ export function TabBar() {
     return () => strip.removeEventListener('wheel', onWheel)
   }, [])
 
-  // keep the active tab in view : new tabs open at the far end of the strip
+  // keep the active tab in view — new tabs open at the far end of the strip
   const activeId = tabs.find((tab) => tab.active)?.id
   useEffect(() => {
-    // pointer-down activation runs while the user is pressing that tab : it is
+    // pointer-down activation runs while the user is pressing that tab — it is
     // already visible, and scrolling the strip mid-press would invalidate the
     // drag geometry sampled at pointer-down
     if (dragRef.current) return
@@ -262,6 +281,26 @@ export function TabBar() {
   return (
     <div className="tab-bar">
       <div className="tab-bar-drag-spacer" />
+      {!IS_MAC && (
+        <button
+          className="tab-app-menu-btn"
+          title={t('appMenu')}
+          aria-label={t('appMenu')}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            void window.aiOfficeTabs.showAppMenu(Math.round(rect.left), Math.round(rect.bottom))
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
       <div className={dragVisual ? 'tab-strip dragging' : 'tab-strip'} ref={stripRef}>
         {tabs.map((tab, index) => {
           // live transforms: the grabbed tab tracks the pointer; tabs between
@@ -279,14 +318,39 @@ export function TabBar() {
           return (
             <div
               key={tab.id}
-              className={`tab-item ${tab.kind === 'home' ? 'tab-home' : ''} ${tab.active ? 'active' : ''} ${dragVisual?.id === tab.id ? 'drag-source' : ''} ${closingId === tab.id ? 'closing' : ''}`}
+              className={`tab-item ${tab.kind === 'home' ? 'tab-home' : ''} ${tab.active ? 'active' : ''} ${dragVisual?.id === tab.id ? 'drag-source' : ''}`}
+              // long file names ellipsize in the strip — hover reveals the
+              // full title (the close button's own tooltip still wins there)
+              title={tab.title}
               style={dragStyle}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                if (tab.id === 'home') return
+                void window.aiOfficeTabs.showTabMenu(
+                  tab.id,
+                  Math.round(event.clientX),
+                  Math.round(event.clientY),
+                )
+              }}
+              onDoubleClick={(event) => {
+                if (tab.id === 'home' || !tab.filePath) return
+                if ((event.target as HTMLElement).closest('.tab-close')) return
+                if ((event.target as HTMLElement).closest('.tab-rename-input')) return
+                const ext = fileExtension(tab.filePath)
+                const base =
+                  ext && tab.title.toLowerCase().endsWith(`.${ext.toLowerCase()}`)
+                    ? tab.title.slice(0, -(ext.length + 1))
+                    : tab.title
+                setRenaming({ id: tab.id, value: base })
+              }}
+
               onPointerDown={(event) => {
                 if (event.button !== 0) return
                 if ((event.target as HTMLElement).closest('.tab-close')) return
+                if ((event.target as HTMLElement).closest('.tab-rename-input')) return
                 // Chrome-style: pressing a tab activates it immediately, so
                 // activation never depends on the click that a drag would eat
-                if (!tab.active) void window.revelithAppTabs.activate(tab.id)
+                if (!tab.active) void window.aiOfficeTabs.activate(tab.id)
                 if (tab.id === 'home') return
                 const strip = stripRef.current
                 if (!strip) return
@@ -303,6 +367,8 @@ export function TabBar() {
                   target: index,
                   started: false,
                 }
+                // pointer capture prevents dblclick from firing — skip while renaming
+                if (renaming?.id === tab.id) return
                 event.currentTarget.setPointerCapture(event.pointerId)
               }}
               onPointerMove={(event) => {
@@ -312,7 +378,7 @@ export function TabBar() {
                 // 4px dead zone so plain clicks never wiggle the tab
                 if (!drag.started) {
                   if (Math.abs(dx) < 4) return
-                  // re-sample geometry the moment the drag really starts : the
+                  // re-sample geometry the moment the drag really starts — the
                   // pointer-down activation re-renders and could have moved tabs
                   const strip = stripRef.current
                   if (strip) {
@@ -365,51 +431,58 @@ export function TabBar() {
               onPointerCancel={(event) => finishDrag(event.pointerId, false)}
               onLostPointerCapture={(event) => finishDrag(event.pointerId, false)}
             >
-              {/* highlight plate behind the content : hover capsule / active white body */}
+              {/* highlight plate behind the content — hover capsule / active white body */}
               <span className="tab-plate" aria-hidden="true" />
               <span className="tab-icon">{KIND_ICON[tab.kind]}</span>
-              <span className="tab-title">{tab.title}</span>
+              {renaming?.id === tab.id ? (
+                <input
+                  className="tab-rename-input"
+                  autoFocus
+                  value={renaming.value}
+                  aria-label={t('rename')}
+                  spellCheck={false}
+                  onClick={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onChange={(event) => setRenaming({ id: tab.id, value: event.target.value })}
+                  onKeyDown={(event) => {
+                    // Enter that confirms an IME candidate is not a commit (Home's rename does the same)
+                    if (event.nativeEvent.isComposing) return
+                    if (event.key === 'Enter') commitRename()
+                    else if (event.key === 'Escape') {
+                      renamingRef.current = null
+                      setRenaming(null)
+                    }
+                  }}
+                  onBlur={commitRename}
+                />
+              ) : (
+                <span className="tab-title">{tab.title}</span>
+              )}
               {tab.closable && (
                 <button
-                  type="button"
                   className="tab-close"
-                  data-tip={t('closeTab')}
+                  title={t('closeTab')}
                   aria-label={t('closeTab')}
                   onClick={(event) => {
                     event.stopPropagation()
-                    const tid = tab.id
-                    setClosingId(tid)
-                    setTimeout(() => {
-                      void window.revelithAppTabs.close(tid).finally(() => {
-                        setClosingId((curr) => (curr === tid ? null : curr))
-                      })
-                    }, 175)
+                    void window.aiOfficeTabs.close(tab.id)
                   }}
                 >
-                  <svg
-                    width="9"
-                    height="9"
-                    viewBox="0 0 10 10"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
-                  </svg>
+                  ×
                 </button>
               )}
             </div>
           )
         })}
-      </div>
-      <div className="tab-new-wrap">
         <button
           className="tab-new-btn"
-          data-tip={t('newTab')}
+          title={t('newTab')}
           aria-label={t('newTab')}
-          onClick={handlePlusClick}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            void window.aiOfficeTabs.showNewMenu(Math.round(rect.left), Math.round(rect.bottom))
+          }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -422,110 +495,14 @@ export function TabBar() {
             />
           </svg>
         </button>
-        {newMenuOpen && (
-          <div
-            className={`tab-new-menu${menuAlignRight ? ' align-right' : ''}`}
-            role="menu"
-            ref={newMenuRef}
-          >
-            <div className="tab-new-menu-header">New</div>
-            <button
-              type="button"
-              className="tab-new-menu-item"
-              onClick={() => {
-                setNewMenuOpen(false)
-                void window.revelithApp?.newDoc?.()
-              }}
-            >
-              <span className="tab-new-menu-icon">
-                <DocIcon />
-              </span>
-              <span className="tab-new-menu-label">AI Docs</span>
-            </button>
-            <button
-              type="button"
-              className="tab-new-menu-item"
-              onClick={() => {
-                setNewMenuOpen(false)
-                void window.revelithApp?.newSheet?.()
-              }}
-            >
-              <span className="tab-new-menu-icon">
-                <SheetIcon />
-              </span>
-              <span className="tab-new-menu-label">AI Sheets</span>
-            </button>
-            <button
-              type="button"
-              className="tab-new-menu-item"
-              onClick={() => {
-                setNewMenuOpen(false)
-                void window.revelithApp?.newSlide?.()
-              }}
-            >
-              <span className="tab-new-menu-icon">
-                <SlideIcon />
-              </span>
-              <span className="tab-new-menu-label">AI Slides</span>
-            </button>
-            <button
-              type="button"
-              className="tab-new-menu-item"
-              onClick={() => {
-                setNewMenuOpen(false)
-                void window.revelithApp?.newMarkdown?.()
-              }}
-            >
-              <span className="tab-new-menu-icon">
-                <MarkdownIcon />
-              </span>
-              <span className="tab-new-menu-label">AI Markdown</span>
-            </button>
-            <div className="tab-new-menu-divider" />
-            <button
-              type="button"
-              className="tab-new-menu-item tab-new-menu-open"
-              onClick={() => {
-                setNewMenuOpen(false)
-                void window.revelithApp?.browse?.()
-              }}
-            >
-              <span className="tab-new-menu-label">Open…</span>
-            </button>
-          </div>
-        )}
       </div>
-      <div style={{ flex: 1 }} />
-      <button
-        className="tab-overflow-btn tab-settings-btn"
-        data-tip="AI & Provider Settings"
-        aria-label="AI & Provider Settings"
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent('open-ai-settings'))
-        }}
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-      </button>
       <button
         className="tab-overflow-btn"
-        data-tip={t('tabList')}
+        title={t('tabList')}
         aria-label={t('tabList')}
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect()
-          void window.revelithAppTabs.showMenu(Math.round(rect.left), Math.round(rect.bottom))
+          void window.aiOfficeTabs.showMenu(Math.round(rect.left), Math.round(rect.bottom))
         }}
       >
         {/* window-with-tab-bar glyph: slanted tab cells above a full-width
@@ -546,6 +523,7 @@ export function TabBar() {
           />
         </svg>
       </button>
+      <div className="tab-bar-caption-spacer" />
     </div>
   )
 }

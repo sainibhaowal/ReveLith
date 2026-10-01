@@ -423,8 +423,8 @@ export interface RedactionInput {
   rect: [number, number, number, number]
 }
 
-/** One OCR line: normalized top-left boxes relative to the submitted image
-    ([x0,y0,x1,y1], 0..1, y down), with optional character-level boxes. */
+/** One OCR line from the system engine: normalized bottom-left boxes relative to
+    the submitted image ([x0,y0,x1,y1], 0..1), with optional word-level char boxes. */
 export interface PdfOcrLine {
   text: string
   confidence: number
@@ -674,6 +674,7 @@ export type ExportImagesResult =
 /** AI channels are app-wide shared ipcMain handlers (shell registers via docs-main registerAiIpc); pass-through only */
 export const AI_CHANNELS = {
   getSettings: 'ai:get-settings',
+  gskStatus: 'ai:gsk-status',
   stream: 'ai:stream',
   streamChunk: 'ai:stream-chunk',
   streamCancel: 'ai:stream-cancel',
@@ -757,7 +758,7 @@ export interface PdfApi {
   imageSearch(query: string, maxResults?: number): Promise<ImageSearchResponse>
   /** Download an image URL in the main process (SSRF-guarded, avoids CORS); null on failure */
   fetchImage(url: string): Promise<{ base64: string; mime: string } | null>
-  /** AI image generation via the configured provider; returns a downloadable URL or an error message */
+  /** AI image generation via ReveLith (gsk); returns a downloadable URL or an error message */
   generateImage(op: { prompt: string; aspectRatio?: string }): Promise<{
     url?: string
     error?: string
@@ -796,6 +797,8 @@ export interface PdfApi {
    *  clicks produce no DOM event here) — dismiss open popovers */
   onChromePressed(handler: () => void): () => void
   getAiSettings(): Promise<AiSettings>
+  /** ReveLith login state (gsk); gates the cloud-only generate_image tool */
+  gskStatus(): Promise<{ loggedIn: boolean }>
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
