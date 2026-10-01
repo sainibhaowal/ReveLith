@@ -21,17 +21,14 @@ describe('provider registry', () => {
     expect(Object.keys(AI_PROVIDER_ADAPTERS).sort()).toEqual(AI_PROVIDERS.map((m) => m.id).sort())
   })
 
-  it('routes revelith by model id prefix onto the two proxy endpoints', () => {
-    const resolve = (model: string) => AI_PROVIDER_ADAPTERS.revelith.resolveEndpoint(config(model))
-    expect(resolve('claude-opus-4-7')).toEqual({
-      protocol: 'anthropic',
-      baseUrl: REVELITH_LLM_BASE_URLS.anthropic,
-    })
-    // gpt-5.x fixes sampling, so the proxy's OpenAI route also drops temperature
-    expect(resolve('gpt-5.2')).toEqual({
+  it('routes local providers to their default endpoints', () => {
+    expect(AI_PROVIDER_ADAPTERS.lmstudio.resolveEndpoint(config('local-model'))).toEqual({
       protocol: 'openai-compatible',
-      baseUrl: REVELITH_LLM_BASE_URLS.openai,
-      omitTemperature: true,
+      baseUrl: 'http://127.0.0.1:1234/v1',
+    })
+    expect(AI_PROVIDER_ADAPTERS.ollama.resolveEndpoint(config('llama3.3'))).toEqual({
+      protocol: 'openai-compatible',
+      baseUrl: 'http://127.0.0.1:11434/v1',
     })
   })
 
@@ -249,10 +246,10 @@ describe('provider registry', () => {
     ).toBe('https://mirror/v1')
   })
 
-  it('only revelith authenticates through the gsk login', () => {
+  it('direct vendors authenticate through api-key while codex uses codex-chatgpt', () => {
     for (const [id, adapter] of Object.entries(AI_PROVIDER_ADAPTERS)) {
       expect(adapter.capabilities.auth).toBe(
-        id === 'revelith' ? 'gsk-login' : id === 'codex' ? 'codex-chatgpt' : 'api-key',
+        id === 'codex' ? 'codex-chatgpt' : 'api-key',
       )
     }
   })

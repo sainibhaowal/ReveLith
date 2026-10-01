@@ -82,6 +82,7 @@ export interface RawFormAnnotation {
   options?: { exportValue?: unknown; displayValue?: unknown }[]
   contents?: string
   contentsObj?: { str?: string }
+  revelithFormField?: string
   genOfficeFormField?: string
 }
 
@@ -258,7 +259,8 @@ export async function buildFormCatalog(doc: PDFDocumentProxy): Promise<FormCatal
 }
 
 function visualSignatureFieldName(annotation: RawFormAnnotation): string | null {
-  if (annotation.genOfficeFormField) return annotation.genOfficeFormField
+  const name = annotation.revelithFormField ?? annotation.genOfficeFormField
+  if (name) return name
   const contents = annotation.contentsObj?.str ?? annotation.contents
   return contents?.startsWith(VISUAL_SIGNATURE_CONTENT_PREFIX)
     ? contents.slice(VISUAL_SIGNATURE_CONTENT_PREFIX.length)

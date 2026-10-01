@@ -31,7 +31,7 @@
     "dev:browser": "concurrently -k -n docs,sheets,slides,pdf,markdown,shell -c blue,green,yellow,red,cyan,magenta \"npm run dev:renderer -w @revelith/docs\" \"npm run dev:renderer -w @revelith/sheets\" \"npm run dev:renderer -w @revelith/slides\" \"npm run dev:renderer -w @revelith/pdf\" \"npm run dev:renderer -w @revelith/markdown\" \"npm run dev:renderer -w @revelith/shell\"",
     "dev:docs": "npm run dev -w @revelith/docs",
     "build": "npm run build -w @revelith/docs",
-    "build:all": "npm run build -w @revelith/docs && npm run build -w @revelith/sheets && npm run build -w @revelith/slides && npm run build -w @revelith/pdf && npm run build -w @revelith/markdown && npm run build -w @revelith/html && npm run build -w @revelith/shell",
+    "build:all": "npm run build -w @revelith/docs && npm run build -w @revelith/sheets && npm run build -w @revelith/slides && npm run build -w @revelith/pdf && npm run build -w @revelith/markdown && npm run build -w @revelith/html && npm run build -w @revelith/cli && npm run build -w @revelith/shell",
     "shell": "npm run build:all && electron apps/shell",
     "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "notices": "node tools/gen-third-party-notices.mjs",
@@ -71,7 +71,17 @@
     ],
     "tagFormat": "v${version}",
     "plugins": [
-      "@semantic-release/commit-analyzer",
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "preset": "angular",
+          "releaseRules": [
+            {
+              "release": "patch"
+            }
+          ]
+        }
+      ],
       "@semantic-release/release-notes-generator",
       [
         "@semantic-release/github",

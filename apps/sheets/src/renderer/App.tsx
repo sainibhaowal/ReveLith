@@ -1337,22 +1337,6 @@ export function App({
             }
             return next
           })
-          // Signed-out failures get an inline sign-in button; detected via
-          // gsk status rather than matching the localized error text
-          void window.desktopApi
-            .aiGskStatus()
-            .then((status) => {
-              if (status.loggedIn) return
-              setChat((previous) => {
-                const next = [...previous]
-                const last = next.at(-1)
-                if (last?.role === 'assistant' && last.isError) {
-                  next[next.length - 1] = { ...last, loginRequired: true }
-                }
-                return next
-              })
-            })
-            .catch(() => {})
           setAiRunScope(undefined)
           void autoSaveCompletedAiRun().finally(() => setAiBusy(false))
         },
@@ -1364,11 +1348,15 @@ export function App({
     const settings = aiSettingsRef.current
     if (!settings) return false
     const config = settings.providers[settings.provider]
-    if (!config?.model) return false
-    // ReveLith's key never lands in the settings file; the main process injects
-    // it from the gsk login state. When logged out, requests return an error
-    // guiding sign-in — not intercepted here.
-    return settings.provider === 'revelith' || !!config.apiKey
+    if (!config) return false
+    if (
+      settings.provider === 'codex' ||
+      settings.provider === 'lmstudio' ||
+      settings.provider === 'ollama'
+    )
+      return true
+    if (config.baseUrl) return true
+    return !!config.apiKey?.trim()
   }
 
   /** Image attachments read as base64 and sent multimodal with this user message

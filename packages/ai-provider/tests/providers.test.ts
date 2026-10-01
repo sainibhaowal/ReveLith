@@ -16,7 +16,7 @@ import type { AiProviderId } from '../src/types'
 describe('defaultAiSettings', () => {
   it('gives every provider its default model and an empty key by default', () => {
     const settings = defaultAiSettings()
-    expect(settings.provider).toBe('revelith')
+    expect(settings.provider).toBe('openai')
     for (const meta of AI_PROVIDERS) {
       expect(settings.providers[meta.id].apiKey).toBe('')
       expect(settings.providers[meta.id].model).toBe(meta.defaultModel)
@@ -35,23 +35,7 @@ describe('defaultAiSettings', () => {
 })
 
 describe('provider model catalog', () => {
-  it('offers DeepSeek V4.1 Flash directly under the same versioned name as the pool', () => {
-    const revelith = AI_PROVIDERS.find((provider) => provider.id === 'revelith')!
-    const deepseek = AI_PROVIDERS.find((provider) => provider.id === 'deepseek')!
 
-    expect(deepseek.models).toContain('deep-seek-v4.1-flash')
-    expect(deepseek.models).not.toContain('deepseek-flash')
-    expect(deepseek.models).not.toContain('deepseek-v4-flash')
-    expect(deepseek.models).not.toContain('deepseek-v4-flash-vision-exp')
-    expect(revelith.models).not.toContain('deep-seek-v4-flash')
-    expect(revelith.models).not.toContain('deep-seek-v4-flash-vision-exp-openrouter')
-  })
-
-  it('serves DeepSeek V4.1 Flash through the ReveLith proxy under its hyphenated pool id', () => {
-    const revelith = AI_PROVIDERS.find((provider) => provider.id === 'revelith')!
-    expect(revelith.models).toContain('deep-seek-v4.1-flash')
-    expect(revelith.models).not.toContain('deep-seek-v4-pro')
-  })
 
   it('keeps Responses-only models out of the OpenCode tiers (no such protocol yet)', () => {
     for (const id of ['opencode-zen', 'opencode-go'] as const) {
@@ -111,7 +95,7 @@ describe('resolveAiSettings', () => {
         defaults,
       )
       expect(resolved.providers.anthropic).toEqual(defaults.providers.anthropic)
-      expect(activeProvider(resolved)).toBe('revelith')
+      expect(activeProvider(resolved)).toBe('openai')
     }
   })
 
@@ -180,27 +164,7 @@ describe('resolveAiSettings', () => {
     }
   })
 
-  it('rewrites revelith model ids the proxy no longer serves', () => {
-    const resolved = resolveAiSettings(
-      {
-        providers: {
-          revelith: { apiKey: '', model: 'gemini-3.7-flash' },
-        } as never,
-      },
-      defaultAiSettings(),
-    )
-    expect(resolved.providers.revelith.model).toBe('claude-opus-4-7')
 
-    const gpt = resolveAiSettings(
-      {
-        providers: {
-          revelith: { apiKey: '', model: 'gpt-5.6' },
-        } as never,
-      },
-      defaultAiSettings(),
-    )
-    expect(gpt.providers.revelith.model).toBe('gpt-5.6-terra')
-  })
 
   it('leaves a still-supported model id alone', () => {
     const resolved = resolveAiSettings(
@@ -303,12 +267,12 @@ describe('clampMaxOutputTokens', () => {
 })
 
 describe('activeProvider', () => {
-  it('honors a configured BYOK provider and falls back to revelith otherwise', () => {
+  it('honors a configured BYOK provider and falls back to openai otherwise', () => {
     const settings = defaultAiSettings()
-    expect(activeProvider(settings)).toBe('revelith')
+    expect(activeProvider(settings)).toBe('openai')
 
     settings.provider = 'kimi'
-    expect(activeProvider(settings)).toBe('revelith') // no key yet
+    expect(activeProvider(settings)).toBe('openai') // no key yet
     settings.providers.kimi.apiKey = 'sk-user'
     expect(activeProvider(settings)).toBe('kimi')
   })
@@ -317,9 +281,9 @@ describe('activeProvider', () => {
     const settings = defaultAiSettings()
     settings.provider = 'custom'
     settings.providers.custom.apiKey = 'k'
-    expect(activeProvider(settings)).toBe('revelith')
+    expect(activeProvider(settings)).toBe('openai')
     settings.providers.custom.baseUrl = 'http://localhost:1234/v1'
-    expect(activeProvider(settings)).toBe('revelith') // custom's default model is empty
+    expect(activeProvider(settings)).toBe('openai') // custom's default model is empty
     settings.providers.custom.model = 'my-model'
     expect(activeProvider(settings)).toBe('custom')
   })
@@ -352,10 +316,10 @@ describe('activeProvider', () => {
     const settings = defaultAiSettings()
     settings.provider = 'kimi'
     settings.providers.kimi.apiKey = '   '
-    expect(activeProvider(settings)).toBe('revelith')
+    expect(activeProvider(settings)).toBe('openai')
     settings.providers.kimi.apiKey = 'sk-user'
     settings.providers.kimi.model = '  '
-    expect(activeProvider(settings)).toBe('revelith')
+    expect(activeProvider(settings)).toBe('openai')
     settings.providers.kimi.model = 'kimi-k2'
     expect(activeProvider(settings)).toBe('kimi')
 
@@ -363,19 +327,22 @@ describe('activeProvider', () => {
     custom.provider = 'custom'
     custom.providers.custom.baseUrl = '   '
     custom.providers.custom.model = 'my-model'
-    expect(activeProvider(custom)).toBe('revelith')
+    expect(activeProvider(custom)).toBe('openai')
   })
 
-  it('falls back to revelith for unknown ids from a hand-edited settings file', () => {
+  it('falls back to openai for unknown ids from a hand-edited settings file', () => {
     const settings = defaultAiSettings()
     settings.provider = 'nonsense' as AiProviderId
-    expect(activeProvider(settings)).toBe('revelith')
+    expect(activeProvider(settings)).toBe('openai')
   })
 
-  it('revelith never requires a key (injected from the gsk login at request time)', () => {
+  it('local providers (lmstudio, ollama) do not require an api key when baseUrl is set', () => {
     const settings = defaultAiSettings()
-    settings.provider = 'revelith'
-    expect(activeProvider(settings)).toBe('revelith')
+    settings.provider = 'lmstudio'
+    settings.providers.lmstudio.model = 'local-model'
+    expect(activeProvider(settings)).toBe('lmstudio')
+    settings.provider = 'ollama'
+    expect(activeProvider(settings)).toBe('ollama')
   })
 })
 

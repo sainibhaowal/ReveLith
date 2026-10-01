@@ -26,7 +26,13 @@ html[data-ai-panel-side='right'] .sheet-body {
   grid-template-columns: minmax(0, 1fr) var(--copilot-width, 360px);
 }
 
+html[data-ai-panel-side='right'] .sheet-body > .sheet-main {
+  grid-column: 1;
+  order: 0;
+}
+
 html[data-ai-panel-side='right'] .sheet-body > .copilot {
+  grid-column: 2;
   order: 1;
 }
 

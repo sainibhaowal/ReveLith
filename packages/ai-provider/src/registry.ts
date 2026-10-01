@@ -1,14 +1,14 @@
 import { ANTHROPIC_BASE_URL } from './protocols/anthropic'
 import { GEMINI_BASE_URL } from './protocols/gemini'
-import { AI_PROVIDERS, DEEPSEEK_V41_FLASH, REVELITH_LLM_BASE_URLS } from './providers'
+import { AI_PROVIDERS, DEEPSEEK_V41_FLASH } from './providers'
 import type { AiProviderConfig, AiProviderId, AiProviderMeta } from './types'
 
 /** Wire protocols every provider maps onto, including the official Codex app-server bridge. */
 export type AiProtocol = 'anthropic' | 'gemini' | 'openai-compatible' | 'codex-app-server'
 
 export interface ProviderCapabilities {
-  /** How the provider authenticates: app login, user key, or the Codex CLI's existing login. */
-  auth: 'gsk-login' | 'api-key' | 'codex-chatgpt'
+  /** How the provider authenticates: user key, or the Codex CLI's existing login. */
+  auth: 'api-key' | 'codex-chatgpt'
   /** chat models accept image input (declarative; for custom endpoints it is assumed, not known) */
   vision: boolean
 }
@@ -178,20 +178,27 @@ function fixedEndpoint(
 }
 
 export const AI_PROVIDER_ADAPTERS: Record<AiProviderId, ProviderAdapter> = {
-  revelith: {
-    meta: metaOf('revelith'),
-    capabilities: { auth: 'gsk-login', vision: true },
-    // Route by model id prefix: claude uses the Anthropic protocol (preserves image
-    // input fidelity), the rest OpenAI-compatible. The proxy's gemini endpoint was
-    // removed server-side (405 as of 2026-08-31) along with its gemini models.
+  lmstudio: {
+    meta: metaOf('lmstudio'),
+    capabilities: { auth: 'api-key', vision: true },
     resolveEndpoint(config) {
-      if (config.model.startsWith('claude')) {
-        return { protocol: 'anthropic', baseUrl: REVELITH_LLM_BASE_URLS.anthropic }
-      }
       return {
         protocol: 'openai-compatible',
-        baseUrl: REVELITH_LLM_BASE_URLS.openai,
-        ...(modelHasFixedSampling(config.model) ? { omitTemperature: true } : {}),
+        baseUrl: config.baseUrl
+          ? normalizeBaseUrl(config.baseUrl, 'http://127.0.0.1:1234/v1')
+          : 'http://127.0.0.1:1234/v1',
+      }
+    },
+  },
+  ollama: {
+    meta: metaOf('ollama'),
+    capabilities: { auth: 'api-key', vision: true },
+    resolveEndpoint(config) {
+      return {
+        protocol: 'openai-compatible',
+        baseUrl: config.baseUrl
+          ? normalizeBaseUrl(config.baseUrl, 'http://127.0.0.1:11434/v1')
+          : 'http://127.0.0.1:11434/v1',
       }
     },
   },

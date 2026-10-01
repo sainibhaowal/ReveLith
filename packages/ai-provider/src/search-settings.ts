@@ -6,12 +6,6 @@ import type {
 } from './types'
 
 export const AI_SEARCH_PROVIDERS: AiSearchProviderMeta[] = [
-  {
-    id: 'revelith',
-    label: 'ReveLith',
-    keyPlaceholder: 'Not required - sign in to ReveLith',
-    imageSearch: true,
-  },
   { id: 'serper', label: 'Serper', keyPlaceholder: 'Serper API key', imageSearch: true },
   { id: 'serply', label: 'Serply', keyPlaceholder: 'Serply API key', imageSearch: true },
   { id: 'tavily', label: 'Tavily', keyPlaceholder: 'tvly-...', imageSearch: false },
@@ -20,7 +14,7 @@ export const AI_SEARCH_PROVIDERS: AiSearchProviderMeta[] = [
 
 export function defaultAiSearchSettings(): AiSearchSettings {
   return {
-    provider: 'revelith',
+    provider: 'serper',
     providers: {
       serper: { apiKey: '' },
       serply: { apiKey: '' },
@@ -43,13 +37,11 @@ export function resolveAiSearchSettings(
   return { provider: stored.provider ?? defaults.provider, providers }
 }
 
-/** Parallel can run keylessly; other custom providers require a key or fall back to ReveLith. */
+/** Parallel can run keylessly; other custom providers require a key or fall back to serper. */
 export function activeSearchProvider(settings: Pick<AiSettings, 'search'>): AiSearchProviderId {
   const search = settings.search
-  if (!search || search.provider === 'revelith') return 'revelith'
-  if (!AI_SEARCH_PROVIDERS.some((m) => m.id === search.provider)) return 'revelith'
+  if (!search) return 'serper'
+  if (!AI_SEARCH_PROVIDERS.some((m) => m.id === search.provider)) return 'serper'
   if (search.provider === 'parallel') return 'parallel'
-  // Trim-aware: a whitespace-only key from in-memory settings falls back
-  // instead of sending `Bearer    ` to the search backend.
-  return search.providers?.[search.provider]?.apiKey?.trim() ? search.provider : 'revelith'
+  return search.providers?.[search.provider]?.apiKey?.trim() ? search.provider : 'serper'
 }

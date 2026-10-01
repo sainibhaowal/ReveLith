@@ -877,7 +877,11 @@ export const workbookRangeResultSchema = z
           .strict(),
       )
       .max(MAX_RANGE_CELLS),
-    merges: z.array(cellAreaSchema).max(MAX_RANGE_CELLS),
+    merges: z
+      .array(cellAreaSchema)
+      .max(MAX_RANGE_CELLS)
+      .nullish()
+      .transform((v) => v ?? []),
     hyperlinks: z
       .array(
         z
@@ -888,12 +892,21 @@ export const workbookRangeResultSchema = z
           })
           .strict(),
       )
-      .max(MAX_RANGE_CELLS),
-    conditionalRules: z.array(conditionalRuleSchema).max(MAX_RANGE_CELLS),
+      .max(MAX_RANGE_CELLS)
+      .nullish()
+      .transform((v) => v ?? []),
+    conditionalRules: z
+      .array(conditionalRuleSchema)
+      .max(MAX_RANGE_CELLS)
+      .nullish()
+      .transform((v) => v ?? []),
     autoFilter: cellAreaSchema.nullable(),
     /// The autoFilter's live per-column criteria; sheet-wide, complete-only,
-    /// empty when the filter has none (or the sheet has no filter).
-    autoFilterColumns: z.array(filterColumnStateSchema).max(1_000),
+    autoFilterColumns: z
+      .array(filterColumnStateSchema)
+      .max(1_000)
+      .nullish()
+      .transform((v) => v ?? []),
     dataValidations: z
       .array(
         z
@@ -915,7 +928,9 @@ export const workbookRangeResultSchema = z
           })
           .strict(),
       )
-      .max(MAX_RANGE_CELLS),
+      .max(MAX_RANGE_CELLS)
+      .nullish()
+      .transform((v) => v ?? []),
     /// Sheet-wide, delivered complete-only (like autoFilter). null = no
     /// <sheetProtection> element in the worksheet.
     sheetProtection: z
@@ -927,8 +942,16 @@ export const workbookRangeResultSchema = z
       .nullable(),
     /// Manual page breaks (0-based index of the row/column after the break);
     /// sheet-wide, complete-only.
-    rowBreaks: z.array(z.number().int().nonnegative()).max(1_024),
-    colBreaks: z.array(z.number().int().nonnegative()).max(1_024),
+    rowBreaks: z
+      .array(z.number().int().nonnegative())
+      .max(1_024)
+      .nullish()
+      .transform((v) => v ?? []),
+    colBreaks: z
+      .array(z.number().int().nonnegative())
+      .max(1_024)
+      .nullish()
+      .transform((v) => v ?? []),
     /// Saved print settings (pageSetup / pageMargins / printOptions /
     /// headerFooter); sheet-wide, complete-only. Absent/null when the sheet
     /// declares none (also for stale sidecar binaries).
@@ -999,7 +1022,9 @@ export const workbookRangeResultSchema = z
           })
           .strict(),
       )
-      .max(1_024),
+      .max(1_024)
+      .nullish()
+      .transform((v) => v ?? []),
     indexedThroughRow: z.number().int().nonnegative().nullable(),
     indexingComplete: z.boolean(),
   })

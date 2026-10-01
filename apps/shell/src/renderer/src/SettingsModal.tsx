@@ -20,6 +20,7 @@ import type {
   AiMediaProviderId,
   AiMediaProviderMeta,
   AiMediaSettings,
+  AiProviderId,
   AiSearchProviderMeta,
   AiSearchSettings,
   AiSettings,
@@ -140,10 +141,9 @@ function CustomFontSizeInput({
   )
 }
 
-export type SectionId = 'account' | 'aiModel' | 'aiMedia' | 'general' | 'integrations' | 'about'
+export type SectionId = 'aiModel' | 'aiMedia' | 'general' | 'integrations' | 'about'
 
 const SECTIONS: readonly { id: SectionId; labelKey: StringKey }[] = [
-  { id: 'account', labelKey: 'setSecAccount' },
   { id: 'aiModel', labelKey: 'setSecAiModel' },
   { id: 'aiMedia', labelKey: 'setSecAiMedia' },
   { id: 'general', labelKey: 'setSecGeneral' },
@@ -182,19 +182,6 @@ function SectionIcon({ id }: { id: SectionId }) {
           strokeLinejoin="round"
         />
         <circle cx="10.5" cy="6" r="1.1" fill="currentColor" />
-      </svg>
-    )
-  }
-  if (id === 'account') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <circle cx="8" cy="5.2" r="2.9" stroke="currentColor" strokeWidth="1.3" />
-        <path
-          d="M2.7 13.6a5.5 5.5 0 0 1 10.6 0"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
       </svg>
     )
   }
@@ -305,14 +292,6 @@ function AiModelPane({ t }: { t: TFunc }) {
     let alive = true
     void window.aiOffice.getAiSettings?.().then((s) => {
       if (!alive || !s) return
-      // The switch is disabled with revelith, so never present it stranded
-      // off. Display-only: s.provider may be the activeProvider fallback for
-      // a half-configured BYOK selection, so writing anything back here would
-      // clobber the stored choice — the main process heals a genuine legacy
-      // revelith+off file itself, judged on the raw stored provider.
-      if (s.provider === 'revelith' && s.gskToolsEnabled === false) {
-        s = { ...s, gskToolsEnabled: true }
-      }
       setSettings(s)
       const codex = s.providers.codex
       if (codex) {
@@ -329,11 +308,18 @@ function AiModelPane({ t }: { t: TFunc }) {
   // the literal 'custom' id, so it follows the slot rather than the name, and
   // stays a no-op while any other provider is selected — a local server saved
   // months ago is never contacted while ReveLith is in use.
-  const endpointProvider = catalog.find(
-    (entry) => entry.id === settings?.provider && entry.needsBaseUrl,
-  )?.id
+  const endpointMeta = catalog.find(
+    (entry) =>
+      entry.id === settings?.provider &&
+      (entry.needsBaseUrl || entry.id === 'lmstudio' || entry.id === 'ollama'),
+  )
+  const endpointProvider = endpointMeta?.id
   const endpointConfig = settings ? settings.providers[settings.provider] : undefined
-  const endpointBaseUrl = (endpointConfig?.baseUrl ?? '').trim()
+  const endpointBaseUrl = (
+    endpointConfig?.baseUrl?.trim() ||
+    endpointMeta?.defaultBaseUrl ||
+    ''
+  ).trim()
   const endpointApiKey = endpointConfig?.apiKey ?? ''
   // The stored model decides where the pin goes below, but changing it must not
   // send another request, so it is read when the reply lands rather than keyed on.
@@ -344,11 +330,45 @@ function AiModelPane({ t }: { t: TFunc }) {
   /** the address that produced the list currently folded in; '' when none is */
   const listedForRef = useRef('')
 
+  const probeModels = useCallback(
+    async (providerId: AiProviderId, baseUrl: string, apiKey: string) => {
+      if (!baseUrl || !window.aiOffice.getCustomModels) return
+      try {
+        const live = await window.aiOffice.getCustomModels(baseUrl, apiKey)
+        if (!live || live.models.length === 0) return
+        const selected = selectedModelRef.current.trim()
+        const otherModels = live.models.filter((m) => m !== selected)
+        const models = selected ? [selected, ...otherModels] : live.models
+        listedForRef.current = baseUrl
+        setCatalog(foldModels(providerId, models))
+        if (!selected && live.models.length > 0) {
+          setSettings((curr) => {
+            if (!curr) return curr
+            const currentCfg = curr.providers[providerId]
+            if (currentCfg?.model) return curr
+            return {
+              ...curr,
+              providers: {
+                ...curr.providers,
+                [providerId]: {
+                  apiKey: currentCfg?.apiKey ?? '',
+                  model: live.models[0],
+                  baseUrl: currentCfg?.baseUrl,
+                  cliPath: currentCfg?.cliPath,
+                },
+              },
+            }
+          })
+        }
+      } catch {
+        // server probe failed / offline
+      }
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!endpointProvider) return
-    // A list belonging to a different server — or to no server, once the address
-    // is cleared — is misinformation, so it goes the moment the address changes:
-    // the free-text box is the honest thing to show while the answer is unknown.
     if (listedForRef.current && listedForRef.current !== endpointBaseUrl) {
       listedForRef.current = ''
       setCatalog(foldModels(endpointProvider, []))
@@ -356,31 +376,14 @@ function AiModelPane({ t }: { t: TFunc }) {
     if (!endpointBaseUrl || !window.aiOffice.getCustomModels) return
     let cancelled = false
     const timer = setTimeout(() => {
-      void window.aiOffice
-        .getCustomModels(endpointBaseUrl, endpointApiKey)
-        .then((live) => {
-          // A server that will not answer leaves the current list alone: a blip
-          // must not wipe a picker mid-use.
-          if (cancelled || !live || live.models.length === 0) return
-          // A hand-typed id is pinned to the top so it never vanishes from the
-          // picker. The catalog is the only thing written — writing settings
-          // here would revert whatever the user typed while the probe was in
-          // flight, since `updateConfig` rebuilds them from its own render.
-          const selected = selectedModelRef.current.trim()
-          const models =
-            selected && !live.models.includes(selected) ? [selected, ...live.models] : live.models
-          listedForRef.current = endpointBaseUrl
-          setCatalog(foldModels(endpointProvider, models))
-        })
-        .catch(() => undefined)
+      if (cancelled) return
+      void probeModels(endpointProvider, endpointBaseUrl, endpointApiKey)
     }, CUSTOM_MODELS_DEBOUNCE_MS)
-    // React's own cleanup drops a superseded reply, so a slow answer from the
-    // previous address can never overwrite a fast one from the current address.
     return () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [endpointProvider, endpointBaseUrl, endpointApiKey])
+  }, [endpointProvider, endpointBaseUrl, endpointApiKey, probeModels])
 
   if (!settings) return null
   const provider = settings.provider
@@ -388,10 +391,8 @@ function AiModelPane({ t }: { t: TFunc }) {
   const config = settings.providers[provider] ?? {
     apiKey: '',
     model: meta?.defaultModel ?? '',
-    baseUrl: undefined,
-    cliPath: undefined,
+    baseUrl: meta?.defaultBaseUrl,
   }
-  const isReveLith = provider === 'revelith'
   const isCodex = provider === 'codex'
 
   const touch = () => {
@@ -416,13 +417,26 @@ function AiModelPane({ t }: { t: TFunc }) {
     touch()
   }
   const selectProvider = (id: AiSettings['provider']) => {
-    // cloud tools cannot be off with revelith (chat runs through gsk anyway)
-    setSettings({
+    const nextMeta = catalog.find((c) => c.id === id)
+    const existing = settings.providers[id]
+    const updated: AiSettings = {
       ...settings,
       provider: id,
-      ...(id === 'revelith' ? { gskToolsEnabled: true } : {}),
-    })
+      providers: {
+        ...settings.providers,
+        [id]: existing ?? {
+          apiKey: '',
+          model: nextMeta?.defaultModel ?? '',
+          baseUrl: nextMeta?.defaultBaseUrl,
+        },
+      },
+    }
+    setSettings(updated)
     touch()
+    if (nextMeta && (nextMeta.needsBaseUrl || id === 'lmstudio' || id === 'ollama')) {
+      const targetBase = (existing?.baseUrl?.trim() || nextMeta.defaultBaseUrl || '').trim()
+      void probeModels(id, targetBase, existing?.apiKey ?? '')
+    }
   }
   const save = () => {
     window.aiOffice
@@ -500,16 +514,49 @@ function AiModelPane({ t }: { t: TFunc }) {
         />
       </div>
       <div className="set-field-desc set-ai-note">
-        {isReveLith ? t('setAiReveLithHint') : isCodex ? t('setAiCodexHint') : t('setAiByokNote')}
+        {isCodex ? t('setAiCodexHint') : t('setAiByokNote')}
       </div>
       <div className="set-field">
         <div className="set-field-text">
-          <label className="set-field-label">{t('setAiModelId')}</label>
+          <div className="set-field-stack">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <label className="set-field-label">{t('setAiModelId')}</label>
+              {(provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') && (
+                <button
+                  type="button"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--primary, #6366f1)',
+                    padding: '0 4px',
+                    textDecoration: 'underline',
+                  }}
+                  onClick={() => {
+                    void probeModels(provider, endpointBaseUrl, endpointApiKey)
+                  }}
+                >
+                  {meta && meta.models.length > 0
+                    ? `⟳ Refresh (${meta.models.length} found)`
+                    : '⟳ Scan local models'}
+                </button>
+              )}
+            </div>
+            {provider === 'lmstudio' && (
+              <div className="set-field-desc">
+                {meta && meta.models.length > 0
+                  ? `Active model: ${config.model || meta.models[0]} (connected to ${endpointBaseUrl || 'http://127.0.0.1:1234/v1'})`
+                  : `Discovers all loaded models from LM Studio Local Server (default: http://127.0.0.1:1234/v1)`}
+              </div>
+            )}
+          </div>
         </div>
         {meta && meta.models.length > 0 ? (
           <Dropdown
             className="set-dd"
-            value={config.model || meta.defaultModel}
+            value={config.model || meta.models[0] || meta.defaultModel}
             ariaLabel={t('setAiModelId')}
             options={meta.models.map((m) => ({ value: m, label: m }))}
             onPick={(m) => updateConfig({ model: m })}
@@ -520,7 +567,11 @@ function AiModelPane({ t }: { t: TFunc }) {
             className="set-input"
             type="text"
             value={config.model}
-            placeholder="model-id"
+            placeholder={
+              provider === 'lmstudio'
+                ? 'LM Studio model id (start local server to auto-discover)'
+                : 'model-id'
+            }
             spellCheck={false}
             onChange={(e) => updateConfig({ model: e.target.value })}
           />
@@ -551,7 +602,7 @@ function AiModelPane({ t }: { t: TFunc }) {
             }}
           />
         </div>
-      ) : !isReveLith ? (
+      ) : (
         <>
           <div className="set-field">
             <div className="set-field-text">
@@ -559,7 +610,11 @@ function AiModelPane({ t }: { t: TFunc }) {
                 <label className="set-field-label" htmlFor="set-ai-key">
                   {t('setAiApiKey')}
                 </label>
-                <div className="set-field-desc">{t('setAiKeyHint')}</div>
+                <div className="set-field-desc">
+                  {provider === 'lmstudio' || provider === 'ollama'
+                    ? 'Optional for local models (leave empty or use lm-studio)'
+                    : t('setAiKeyHint')}
+                </div>
               </div>
             </div>
             <input
@@ -579,9 +634,15 @@ function AiModelPane({ t }: { t: TFunc }) {
                 <label className="set-field-label" htmlFor="set-ai-base-url">
                   {t('setAiBaseUrl')}
                 </label>
-                {!meta?.needsBaseUrl && (
-                  <div className="set-field-desc">{t('setAiBaseUrlHint')}</div>
-                )}
+                <div className="set-field-desc">
+                  {provider === 'lmstudio'
+                    ? 'LM Studio Local Server endpoint (default: http://127.0.0.1:1234/v1)'
+                    : provider === 'ollama'
+                      ? 'Ollama endpoint (default: http://127.0.0.1:11434/v1)'
+                      : !meta?.needsBaseUrl
+                        ? t('setAiBaseUrlHint')
+                        : undefined}
+                </div>
               </div>
             </div>
             <input
@@ -589,13 +650,13 @@ function AiModelPane({ t }: { t: TFunc }) {
               className="set-input"
               type="text"
               value={config.baseUrl ?? ''}
-              placeholder={meta?.needsBaseUrl ? 'https://…/v1' : meta?.defaultBaseUrl}
+              placeholder={meta?.defaultBaseUrl ?? (meta?.needsBaseUrl ? 'https://…/v1' : '')}
               spellCheck={false}
               onChange={(e) => updateConfig({ baseUrl: e.target.value.trim() })}
             />
           </div>
         </>
-      ) : null}
+      )}
       <div className="set-field">
         <div className="set-field-text">
           <div className="set-field-stack">
@@ -624,13 +685,11 @@ function AiModelPane({ t }: { t: TFunc }) {
             <div className="set-field-desc">{t('setAiGskToolsDesc')}</div>
           </div>
         </div>
-        {/* locked on with the revelith provider — chat runs through gsk anyway */}
         <button
           className="set-switch"
           role="switch"
           aria-checked={settings.gskToolsEnabled !== false}
           aria-label={t('setAiGskTools')}
-          disabled={isReveLith}
           onClick={() => {
             setSettings({ ...settings, gskToolsEnabled: settings.gskToolsEnabled === false })
             touch()
@@ -783,10 +842,7 @@ function AiMediaPane({
         () =>
           window.aiOffice.testAiSearchSettings?.({
             provider: search.provider,
-            apiKey:
-              search.provider === 'revelith'
-                ? ''
-                : (search.providers[search.provider]?.apiKey ?? ''),
+            apiKey: search.providers[search.provider]?.apiKey ?? '',
           }) ?? Promise.resolve(fallback),
       ],
       ['image', () => vendorCheck(media.imageProvider)],
@@ -1030,33 +1086,26 @@ function AiMediaPane({
       <section key={cap}>
         {subhead(cap, title)}
         {providerRow(title, id, options, pick)}
-        <div className="set-field-desc set-ai-note">
-          {id === 'revelith' ? t('setAiMediaReveLithHint') : meta.description}
-        </div>
-        {id !== 'revelith' && (
-          <>
-            {modelRow(
-              `set-ai-${cap}-model`,
-              cap === 'image' ? meta.imageModels : meta.analysisModels,
-              cap === 'image' ? meta.defaultImageModel : meta.defaultAnalysisModel,
-              config[modelField],
-              (m) => updateMediaConfig(id, { [modelField]: m }),
-            )}
-            {keyRow(`set-ai-${cap}-key`, config.apiKey, meta.keyPlaceholder, (v) =>
-              updateMediaConfig(id, { apiKey: v }),
-            )}
-            {baseUrlRow(`set-ai-${cap}-base-url`, meta, config.baseUrl ?? '', (v) =>
-              updateMediaConfig(id, { baseUrl: v }),
-            )}
-          </>
+        <div className="set-field-desc set-ai-note">{meta.description}</div>
+        {modelRow(
+          `set-ai-${cap}-model`,
+          cap === 'image' ? meta.imageModels : meta.analysisModels,
+          cap === 'image' ? meta.defaultImageModel : meta.defaultAnalysisModel,
+          config[modelField],
+          (m) => updateMediaConfig(id, { [modelField]: m }),
+        )}
+        {keyRow(`set-ai-${cap}-key`, config.apiKey, meta.keyPlaceholder, (v) =>
+          updateMediaConfig(id, { apiKey: v }),
+        )}
+        {baseUrlRow(`set-ai-${cap}-base-url`, meta, config.baseUrl ?? '', (v) =>
+          updateMediaConfig(id, { baseUrl: v }),
         )}
       </section>
     )
   }
 
   const searchMeta = searchCatalog.find((m) => m.id === search.provider)
-  const searchKey =
-    search.provider === 'revelith' ? '' : (search.providers[search.provider]?.apiKey ?? '')
+  const searchKey = search.providers[search.provider]?.apiKey ?? ''
 
   return (
     <>
@@ -1079,23 +1128,20 @@ function AiMediaPane({
           setSearch({ ...search, provider: v as AiSearchSettings['provider'] }),
         )}
         <div className="set-field-desc set-ai-note">
-          {search.provider === 'revelith'
-            ? t('setAiSearchReveLithHint')
-            : search.provider === 'parallel'
-              ? t('setAiSearchParallelHint')
-              : search.provider === 'serply'
-                ? t('setAiSearchSerplyHint')
-                : searchMeta?.imageSearch
-                  ? t('setAiSearchSerperHint')
-                  : t('setAiSearchTavilyHint')}
+          {search.provider === 'parallel'
+            ? t('setAiSearchParallelHint')
+            : search.provider === 'serply'
+              ? t('setAiSearchSerplyHint')
+              : searchMeta?.imageSearch
+                ? t('setAiSearchSerperHint')
+                : t('setAiSearchTavilyHint')}
         </div>
-        {search.provider !== 'revelith' &&
-          keyRow('set-ai-search-key', searchKey, searchMeta?.keyPlaceholder ?? 'API Key', (v) =>
-            setSearch({
-              ...search,
-              providers: { ...search.providers, [search.provider]: { apiKey: v } },
-            }),
-          )}
+        {keyRow('set-ai-search-key', searchKey, searchMeta?.keyPlaceholder ?? 'API Key', (v) =>
+          setSearch({
+            ...search,
+            providers: { ...search.providers, [search.provider]: { apiKey: v } },
+          }),
+        )}
       </section>
       {fileSearch && (
         <section>
@@ -1248,7 +1294,7 @@ export function SettingsModal({
   target,
 }: SettingsModalProps) {
   const { lang, setLang, t } = useI18n()
-  const [section, setSection] = useState<SectionId>(target?.section ?? 'account')
+  const [section, setSection] = useState<SectionId>(target?.section ?? 'aiModel')
   const [theme, setTheme] = useState<UiTheme>('system')
   const [saveDir, setSaveDir] = useState('')
   const [analyticsOn, setAnalyticsOn] = useState(true)
@@ -1396,54 +1442,7 @@ export function SettingsModal({
             ))}
           </nav>
           <div className="set-pane">
-            {section === 'account' && (
-              <>
-                <h3 className="set-pane-title">{t('setSecAccount')}</h3>
-                <Field label={t('setEmail')} value={loggedIn ? email : t('setNotLoggedIn')} />
-                {loggedIn && (
-                  <Field
-                    label={t('credits')}
-                    value={
-                      status?.creditBalance === undefined
-                        ? '—'
-                        : Math.floor(status.creditBalance).toLocaleString('en-US')
-                    }
-                    action={
-                      <button
-                        className="set-btn"
-                        data-tip={t('creditsTip')}
-                        onClick={() => void window.aiOffice.openCreditUsage?.()}
-                      >
-                        {t('setViewUsage')}
-                      </button>
-                    }
-                  />
-                )}
-                <div className="set-pane-footer">
-                  {loggedIn ? (
-                    <button className="set-btn danger" disabled={loggingOut} onClick={onLogout}>
-                      {loggingOut ? t('loggingOut') : t('logout')}
-                    </button>
-                  ) : (
-                    <>
-                      {loginWaiting && loginUrl && (
-                        <>
-                          <button className="set-btn" onClick={onOpenLoginUrl}>
-                            {t('loginOpenManually')}
-                          </button>
-                          <button className="set-btn" onClick={onCopyLoginUrl}>
-                            {urlCopied ? t('loginCopied') : t('loginCopyUrl')}
-                          </button>
-                        </>
-                      )}
-                      <button className="set-btn primary" onClick={onLogin}>
-                        {loginWaiting ? t('waitingShort') : t('loginReveLith')}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
+{/* Account/login section removed — ReveLith does not require login to use the app */}
             {section === 'aiModel' && <AiModelPane t={t} />}
             {section === 'aiMedia' && (
               <AiMediaPane

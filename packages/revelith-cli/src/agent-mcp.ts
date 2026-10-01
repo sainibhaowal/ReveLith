@@ -184,7 +184,7 @@ export function readMcpEntry(id: AgentId, file: string, launch: McpLaunch): McpE
   if (JSON.stringify(entry) === JSON.stringify(def.shape.entry(launch))) {
     return { status: 'registered', command }
   }
-  return { status: isGenofficeLauncher(command, args) ? 'stale' : 'occupied', command }
+  return { status: isReveLithLauncher(command, args) ? 'stale' : 'occupied', command }
 }
 
 /** Set the revelith entry (replacing any existing one); the caller has already decided that is allowed. */
@@ -232,7 +232,7 @@ const LAUNCHER_NAMES = new Set(['revelith', 'revelith.cmd', 'revelith.exe'])
  * Any revelith launcher, whatever install it came from (an older app path is
  * ours to update): the launcher scripts, or the app run as Node on revelith.cjs.
  */
-export function isGenofficeLauncher(command: string | null, args: string[] = []): boolean {
+export function isReveLithLauncher(command: string | null, args: string[] = []): boolean {
   if (command && LAUNCHER_NAMES.has(fileName(command))) return true
   return args.some((a) => fileName(a) === 'revelith.cjs')
 }
@@ -327,7 +327,7 @@ function tomlState(text: string, launch: McpLaunch): McpEntryState {
     return { status: 'registered', command }
   }
   const args = tomlStrings(block, 'args')
-  return { status: isGenofficeLauncher(command, args) ? 'stale' : 'occupied', command }
+  return { status: isReveLithLauncher(command, args) ? 'stale' : 'occupied', command }
 }
 
 function tomlValue(block: string[], key: string): string | null {

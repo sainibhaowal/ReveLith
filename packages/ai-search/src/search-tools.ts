@@ -17,7 +17,6 @@ export interface SearchOptions {
 
 export function searchOptionsFromSettings(settings: AiSettings): SearchOptions {
   const provider = activeSearchProvider(settings)
-  if (provider === 'revelith') return { useGsk: false }
   const searchProviders = settings.search?.providers
   const key = searchProviders && provider in searchProviders
     ? (searchProviders as any)[provider]?.apiKey?.trim() ?? ''

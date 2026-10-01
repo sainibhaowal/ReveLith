@@ -181,7 +181,7 @@ export const tMain = createI18n({
     errImageNoText: 'Image attachments have no text; the image is sent along with the user message',
     errNotImage: 'not a supported image type',
     errGskNotLoggedIn:
-      'Not signed in to ReveLith: click “Sign in to ReveLith” below, sign in, then retry',
+      'No AI model or API key configured: please select a provider and enter your API key or configure a local model (Ollama / LM Studio) in Settings',
     errNoApiKey: 'No API key configured for {provider}',
     errNoModel: 'No model name configured',
     errGskCli: 'gsk not signed in: run gsk login to sign in to your ReveLith account first',

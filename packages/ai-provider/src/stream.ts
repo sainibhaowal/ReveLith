@@ -1,4 +1,5 @@
 import type { AgentMessage, AgentToolDef } from '@revelith/agent-core'
+import { listCustomModels } from './custom-models'
 import { withOutputCapFallback } from './output-cap'
 import { streamAnthropic } from './protocols/anthropic'
 import { streamGemini } from './protocols/gemini'
@@ -26,6 +27,17 @@ export async function streamForProvider(
 ): Promise<void> {
   const endpoint = getProviderAdapter(provider).resolveEndpoint(config)
   const { baseUrl } = endpoint
+  if (provider === 'lmstudio' && !config.model?.trim()) {
+    try {
+      const cat = await listCustomModels(baseUrl || 'http://127.0.0.1:1234/v1', config.apiKey)
+      const first = cat.models[0]
+      if (first) {
+        config = { ...config, model: first }
+      }
+    } catch {
+      // probe failed, proceed with config
+    }
+  }
   if (endpoint.model) config = { ...config, model: endpoint.model }
   if (endpoint.protocol === 'codex-app-server') {
     return streamCodexAppServer(config, system, messages, tools, maxTokens, cb)

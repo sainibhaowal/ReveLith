@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { isGenofficeLauncher, mcpSnippet, readMcpEntry, writeMcpEntry } from '../src/agent-mcp'
+import { isReveLithLauncher, mcpSnippet, readMcpEntry, writeMcpEntry } from '../src/agent-mcp'
 import { mcpLaunch, mcpLaunchFromLauncher, type McpLaunch } from '../src/mcp-launch'
 import { tempDir } from './helpers'
 
@@ -45,15 +45,15 @@ describe('mcp launch entry', () => {
   })
 
   it('recognises every launcher shape as ours', () => {
-    expect(isGenofficeLauncher('/opt/ReveLith/resources/cli/revelith')).toBe(true)
-    expect(isGenofficeLauncher('C:\\ReveLith\\resources\\cli\\revelith.cmd')).toBe(true)
-    expect(isGenofficeLauncher('C:\\Program Files\\ReveLith\\ReveLith.exe')).toBe(true)
-    expect(isGenofficeLauncher(WIN_APP.command, WIN_APP.args)).toBe(true)
+    expect(isReveLithLauncher('/opt/ReveLith/resources/cli/revelith')).toBe(true)
+    expect(isReveLithLauncher('C:\\ReveLith\\resources\\cli\\revelith.cmd')).toBe(true)
+    expect(isReveLithLauncher('C:\\Program Files\\ReveLith\\ReveLith.exe')).toBe(true)
+    expect(isReveLithLauncher(WIN_APP.command, WIN_APP.args)).toBe(true)
     expect(
-      isGenofficeLauncher('node', ['C:\\src\\packages\\cli\\dist\\revelith.cjs', 'mcp']),
+      isReveLithLauncher('node', ['C:\\src\\packages\\cli\\dist\\revelith.cjs', 'mcp']),
     ).toBe(true)
-    expect(isGenofficeLauncher('npx', ['-y', 'other-mcp'])).toBe(false)
-    expect(isGenofficeLauncher(null)).toBe(false)
+    expect(isReveLithLauncher('npx', ['-y', 'other-mcp'])).toBe(false)
+    expect(isReveLithLauncher(null)).toBe(false)
   })
 
   it('carries env in every config format', () => {

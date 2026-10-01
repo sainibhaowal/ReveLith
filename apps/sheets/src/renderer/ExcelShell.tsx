@@ -403,6 +403,10 @@ export function ExcelShell({
   )
   useEffect(() => {
     localStorage.setItem('ai-sheets-show-ai', isCopilotOpen ? '1' : '0')
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 200)
+    return () => clearTimeout(timer)
   }, [isCopilotOpen])
   const [showFormatCells, setShowFormatCells] = useState(false)
   const [axisSizeTarget, setAxisSizeTarget] = useState<'row' | 'col' | null>(null)

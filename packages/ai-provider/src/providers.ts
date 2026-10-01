@@ -44,28 +44,22 @@ export const DEEPSEEK_V41_FLASH = 'deep-seek-v4.1-flash'
 
 export const AI_PROVIDERS: AiProviderMeta[] = [
   {
-    id: 'revelith',
-    label: 'ReveLith',
-    // must stay within the proxy's served set (GET /api/llm_proxy/v1/models);
-    // bare gpt-5.6 and the gemini family dropped off it (verified 2026-08-31).
-    // DeepSeek goes by the proxy's hyphenated pool id; V4.1 Flash takes images
-    // (live-verified 2026-09-15). gpt-6-astra: chat, tool call and image
-    // input all live-verified through the proxy 2026-09-17; claude-opus-5-5,
-    // gpt-6-sol and gpt-6-luna the same way 2026-09-24
-    models: [
-      'claude-opus-5-5',
-      'claude-opus-4-7',
-      'claude-opus-4-8',
-      'claude-sonnet-4-6',
-      'gpt-6-astra',
-      'gpt-6-sol',
-      'gpt-6-luna',
-      'gpt-5.6-terra',
-      'gpt-5.6-luna',
-      DEEPSEEK_V41_FLASH,
-    ],
-    defaultModel: 'claude-opus-4-7',
-    keyPlaceholder: 'Not required - sign in to ReveLith',
+    id: 'lmstudio',
+    label: 'LM Studio',
+    models: [],
+    defaultModel: '',
+    keyPlaceholder: 'lm-studio (or leave empty)',
+    needsBaseUrl: true,
+    defaultBaseUrl: 'http://127.0.0.1:1234/v1',
+  },
+  {
+    id: 'ollama',
+    label: 'Ollama',
+    models: ['llama3.3', 'qwen2.5-coder', 'deepseek-r1'],
+    defaultModel: 'llama3.3',
+    keyPlaceholder: 'ollama (or leave empty)',
+    needsBaseUrl: true,
+    defaultBaseUrl: 'http://127.0.0.1:11434/v1',
   },
   {
     id: 'codex',
@@ -328,15 +322,23 @@ export function defaultAiSettings(
 ): AiSettings {
   const providers = {} as AiSettings['providers']
   for (const meta of AI_PROVIDERS) {
+    let baseUrl: string | undefined = undefined
+    if (meta.id === 'lmstudio') {
+      baseUrl = 'http://127.0.0.1:1234/v1'
+    } else if (meta.id === 'ollama') {
+      baseUrl = 'http://127.0.0.1:11434/v1'
+    } else if (meta.needsBaseUrl) {
+      baseUrl = ''
+    }
     providers[meta.id] = {
       apiKey: defaultApiKeys?.[meta.id] ?? '',
       model: meta.defaultModel,
-      baseUrl: meta.needsBaseUrl ? '' : undefined,
+      baseUrl,
       cliPath: meta.needsCliPath ? '' : undefined,
     }
   }
   return {
-    provider: 'revelith',
+    provider: 'openai',
     providers,
     gskToolsEnabled: true,
     media: defaultAiMediaSettings(),
@@ -351,29 +353,24 @@ export function cloudToolsEnabled(settings: Pick<AiSettings, 'gskToolsEnabled'>)
 
 /**
  * The stored provider selection is honored only when its config is usable
- * (api-key providers need a key and a model id; custom also needs a base URL).
- * Codex can auto-discover its executable. Anything else — including unknown
- * ids from a hand-edited
- * settings file — falls back to revelith, so a half-filled setup degrades
- * to the signed-in default instead of silently disabling AI.
+ * (api-key providers need a key and a model id; custom/local also need a base URL).
+ * Codex can auto-discover its executable. Anything else falls back to openai.
  */
 export function activeProvider(settings: AiSettings): AiProviderId {
   const provider = settings.provider
-  if (provider === 'revelith') return 'revelith'
   const meta = AI_PROVIDERS.find((m) => m.id === provider)
   const config = settings.providers?.[provider]
-  if (!meta || !config) return 'revelith'
+  if (!meta || !config) return 'openai'
   if (meta.needsCliPath) return provider
-  // Trim-aware: in-memory settings bypass the trimConfigs applied to
-  // persisted files, and a whitespace-only key/URL/model is a 401, not a config.
-  if (!config.model?.trim()) return 'revelith'
-  if (meta.needsBaseUrl) {
-    // Custom OpenAI-compatible endpoints (Ollama, LM Studio, vLLM) accept
-    // anonymous requests: base URL + model suffice, the key stays optional.
-    if (!config.baseUrl?.trim()) return 'revelith'
+  if (provider === 'lmstudio' || provider === 'ollama') {
     return provider
   }
-  if (!config.apiKey?.trim()) return 'revelith'
+  if (!config.model?.trim()) return 'openai'
+  if (meta.needsBaseUrl) {
+    if (!config.baseUrl?.trim() && !meta.defaultBaseUrl) return 'openai'
+    return provider
+  }
+  if (!config.apiKey?.trim()) return 'openai'
   return provider
 }
 
@@ -393,15 +390,6 @@ const RETIRED_MODELS: Partial<Record<AiProviderId, Record<string, string>>> = {
     'deepseek-v4-flash': DEEPSEEK_V41_FLASH,
     'deepseek-v4-flash-vision-exp': DEEPSEEK_V41_FLASH,
     'deepseek-flash': DEEPSEEK_V41_FLASH,
-  },
-  // proxy stopped serving bare gpt-5.6 (400) and removed the gemini route
-  // entirely (405), verified 2026-08-31; gemini selections fall back to the
-  // provider default since no gemini id is served at all
-  revelith: {
-    'gpt-5.6': 'gpt-5.6-terra',
-    'gemini-3.1-pro-preview': 'claude-opus-4-7',
-    'gemini-3-flash-preview': 'claude-opus-4-7',
-    'gemini-3.7-flash': 'claude-opus-4-7',
   },
 }
 

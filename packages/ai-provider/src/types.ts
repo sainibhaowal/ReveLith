@@ -1,12 +1,13 @@
 import type { AgentMessage, AgentToolCall, AgentToolDef } from '@revelith/agent-core'
 
 export type AiProviderId =
-  | 'revelith'
   | 'codex'
   | 'anthropic'
   | 'gemini'
   | 'deepseek'
   | 'openai'
+  | 'lmstudio'
+  | 'ollama'
   | 'kimi'
   | 'glm'
   | 'qwen'
@@ -49,12 +50,12 @@ export interface AiProviderMeta {
   defaultModel: string
   keyPlaceholder: string
   needsBaseUrl?: boolean
+  defaultBaseUrl?: string
   needsCliPath?: boolean
 }
 
 /** Image generation / media analysis backends (separate from the chat provider) */
 export type AiMediaProviderId =
-  | 'revelith'
   | 'openai'
   | 'gemini'
   | 'doubao'
@@ -87,7 +88,7 @@ export interface AiMediaProviderMeta {
   description: string
   keyPlaceholder: string
   needsBaseUrl?: boolean
-  /** '' for revelith (gsk login) and custom (user-supplied) */
+  /** default base URL, or '' for custom */
   defaultBaseUrl: string
   /** absent = the provider does not generate images */
   imageProtocol?: AiImageProtocol
@@ -114,7 +115,7 @@ export interface AiMediaSettings {
 }
 
 /** web/image search backends; Parallel supports both a user key and free keyless search */
-export type AiSearchProviderId = 'revelith' | 'serper' | 'serply' | 'tavily' | 'parallel'
+export type AiSearchProviderId = 'serper' | 'serply' | 'tavily' | 'parallel'
 
 export interface AiSearchProviderMeta {
   id: AiSearchProviderId
@@ -126,7 +127,7 @@ export interface AiSearchProviderMeta {
 
 export interface AiSearchSettings {
   provider: AiSearchProviderId
-  providers: Record<Exclude<AiSearchProviderId, 'revelith'>, { apiKey: string }>
+  providers: Record<AiSearchProviderId, { apiKey: string }>
 }
 
 export interface AiSettings {

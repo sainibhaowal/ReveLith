@@ -87,7 +87,8 @@ const WIN_SIDECAR = existsSync(
 function assertExtraResourceSources() {
   for (const rel of [
     '../../node_modules/@revelith/cli',
-    '../../node_modules/@revelith/cli/node_modules/commander',
+    // commander is hoisted to the monorepo root by npm (no longer nested under @revelith/cli)
+    '../../node_modules/commander',
     '../../node_modules/ws',
     '../../node_modules/electron/dist/LICENSES.chromium.html',
     '../../node_modules/@embedpdf/pdfium/dist/pdfium.wasm',
@@ -218,8 +219,8 @@ function assertModuleTreesPresent() {
     '../pdf/out',
     '../markdown/out',
     '../html/out',
-    '../../packages/cli/dist/revelith.cjs',
-    '../../packages/cli/dist/node_modules/jsdom',
+    '../../packages/revelith-cli/dist/revelith.cjs',
+    '../../packages/revelith-cli/dist/node_modules/jsdom',
   ]) {
     if (!existsSync(join(__dirname, rel))) {
       throw new Error(
@@ -229,8 +230,8 @@ function assertModuleTreesPresent() {
   }
 }
 
-const CLI_BUNDLE_REL = '../../packages/cli/dist/revelith.cjs'
-const CLI_BUILD_REL = '../../packages/cli/build.mjs'
+const CLI_BUNDLE_REL = '../../packages/revelith-cli/dist/revelith.cjs'
+const CLI_BUILD_REL = '../../packages/revelith-cli/build.mjs'
 const CLI_VERSION_ENV = 'REVELITH_APP_VERSION'
 const CLI_VERSION_BANNER = /^const __cliAppVersion = ("(?:[^"\\]|\\.)*");$/m
 
@@ -376,21 +377,21 @@ const config = {
     // Layout (Resources/cli next to wasm/, native/, ocr/) is what
     // packages/cli/src/resources.ts expects.
     {
-      from: '../../packages/cli/dist/revelith.cjs',
+      from: '../../packages/revelith-cli/dist/revelith.cjs',
       to: 'cli/revelith.cjs',
     },
     {
-      from: '../../packages/cli/bin/revelith',
+      from: '../../packages/revelith-cli/bin/revelith',
       to: 'cli/revelith',
     },
     {
-      from: '../../packages/cli/bin/revelith.cmd',
+      from: '../../packages/revelith-cli/bin/revelith.cmd',
       to: 'cli/revelith.cmd',
     },
     // the CLI's version (Settings → Integrations shows it) and the agent skill
     // the same pane installs into Claude Code / Codex / …; bytes identical to the repo file
     {
-      from: '../../packages/cli/package.json',
+      from: '../../packages/revelith-cli/package.json',
       to: 'cli/package.json',
     },
     {
@@ -400,11 +401,12 @@ const config = {
     // runtime deps the revelith bundle leaves external (jsdom for the Word/Markdown
     // paths); collected by packages/cli/collect-deps.mjs during its build
     {
-      from: '../../packages/cli/dist/node_modules',
+      from: '../../packages/revelith-cli/dist/node_modules',
       to: 'cli/node_modules',
     },
     {
-      from: '../../node_modules/@revelith/cli/node_modules/commander',
+      // commander is hoisted to monorepo root by npm (not nested under @revelith/cli)
+      from: '../../node_modules/commander',
       to: 'gsk/node_modules/commander',
     },
     {
@@ -540,6 +542,7 @@ const config = {
     ],
   },
   win: {
+    icon: 'build/icon.ico',
     target: [
       {
         target: 'nsis',
@@ -653,6 +656,9 @@ const config = {
   nsis: {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
+    installerIcon: 'build/installerIcon.ico',
+    uninstallerIcon: 'build/uninstallerIcon.ico',
+    installerHeaderIcon: 'build/icon.ico',
   },
   beforePack: async (context) => {
     ensurePlatformHelpers()

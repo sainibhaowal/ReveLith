@@ -107,7 +107,7 @@ import {
 import { listCodexModels, shutdownCodexAppServers } from '@revelith/ai-provider/codex-app-server'
 import { listCustomModelsForIpc } from '@revelith/ai-provider/custom-models'
 import {
-  ensureGenofficeLogin,
+  ensureReveLithLogin,
   gskApiKey,
   generateImageTool,
   testSearchProvider,
@@ -348,7 +348,7 @@ const tMain = createI18n({
     errImageNoText: 'Image attachments have no text; the image is sent along with the user message',
     errNotImage: 'not a supported image type',
     errGskNotLoggedIn:
-      'Not signed in to ReveLith: click “Sign in to ReveLith” below, sign in, then retry',
+      'No AI model or API key configured: please select a provider and enter your API key or configure a local model (Ollama / LM Studio) in Settings',
     errNoApiKey: 'No API key configured for {provider}',
     errAiBusy: 'The AI service is busy right now — please try again in a moment',
     errNoModel: 'No model name configured',
@@ -3752,16 +3752,7 @@ export function registerAiIpc(): void {
   ipcMain.handle('ai:get-settings', async (): Promise<AiSettings> => {
     const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
     // pre-lock legacy file: revelith selected with cloud tools opted out. The
-    // settings UI locks the tools switch on with revelith and apps read this
-    // file live, so heal the stored flag once. Judged on the *stored* provider
-    // — never the activeProvider fallback below, which must not leak into the
-    // file and clobber a saved (half-configured) BYOK selection.
-    if ((stored.provider ?? 'revelith') === 'revelith' && stored.gskToolsEnabled === false) {
-      stored.gskToolsEnabled = true
-      writeJsonAtomic(SETTINGS_PATH(), stored)
-    }
     const settings = resolveAiSettings(stored, defaultAiSettings())
-    // a stored BYOK provider is honored when usable; half-filled configs fall back to revelith
     settings.provider = activeProvider(settings)
     return settings
   })
@@ -3778,7 +3769,7 @@ export function registerAiIpc(): void {
   )
 
   ipcMain.handle('ai:gsk-login', () => {
-    ensureGenofficeLogin((url) => void shell.openExternal(url))
+    ensureReveLithLogin((url) => void shell.openExternal(url))
   })
 
   ipcMain.handle('ai:set-settings', (_event, settings: AiSettings) => {
@@ -3796,23 +3787,24 @@ export function registerAiIpc(): void {
     const tools = request.tools ?? []
     const maxTokens = request.maxTokens ?? maxOutputTokensOf(settings)
     const provider = settings.provider
-    let config = settings.providers?.[provider]
-    // the revelith key never enters the settings file; requests take it from the gsk login state
-    if (provider === 'revelith' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() }
-    }
+    const config = settings.providers?.[provider]
     const send = (chunk: AiStreamChunk) => {
       if (!event.sender.isDestroyed()) event.sender.send('ai:stream-chunk', chunk)
     }
-    if (!config || (provider !== 'codex' && !config.apiKey)) {
+    const needsKey =
+      provider !== 'codex' &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    if (!config || (needsKey && !config.apiKey)) {
       send({
         requestId,
         type: 'error',
-        error: provider === 'revelith' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
+        error: tm('errNoApiKey', { provider }),
       })
       return
     }
-    if (provider !== 'codex' && !config.model) {
+    if (provider !== 'codex' && !config.model && provider !== 'custom' && provider !== 'lmstudio') {
       send({ requestId, type: 'error', error: tm('errNoModel') })
       return
     }
@@ -3951,39 +3943,43 @@ export function registerAiIpc(): void {
 
   ipcMain.handle('ai:search-test', (_event, input: unknown) => {
     const { provider, apiKey } = (input ?? {}) as { provider?: AiSearchProviderId; apiKey?: string }
-    if (!provider || provider === 'revelith') {
-      return hasGskAuth() ? { ok: true } : { ok: false, error: tm('errGskNotLoggedIn') }
-    }
+    if (!provider) return { ok: false, error: 'No search provider' }
     return testSearchProvider(provider, String(apiKey ?? ''))
   })
 
-  // settings-UI connection test for the media provider (revelith = the gsk login state)
+  // settings-UI connection test for the media provider
   ipcMain.handle('ai:media-test', (_event, input: unknown) => {
     const { provider, config } = (input ?? {}) as {
       provider?: AiMediaProviderId
       config?: AiMediaProviderConfig
     }
-    if (!provider || provider === 'revelith') {
-      return hasGskAuth() ? { ok: true } : { ok: false, error: tm('errGskNotLoggedIn') }
-    }
-    if (!config) return { ok: false, error: 'No media provider configuration' }
+    if (!provider || !config) return { ok: false, error: 'No media provider configuration' }
     return testMediaProvider(provider, config)
   })
 
   ipcMain.handle('ai:chat', async (_event, request: AiChatRequest) => {
     const { settings, system, user } = request
     const provider = settings.provider
-    let config = settings.providers?.[provider]
-    if (provider === 'revelith' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() }
-    }
-    if (!config || (provider !== 'codex' && !config.apiKey)) {
+    const config = settings.providers?.[provider]
+    const needsKey =
+      provider !== 'codex' &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    if (!config || (needsKey && !config.apiKey)) {
       return {
         ok: false,
-        error: provider === 'revelith' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
+        error: tm('errNoApiKey', { provider }),
       }
     }
-    if (provider !== 'codex' && !config.model) return { ok: false, error: tm('errNoModel') }
+    if (
+      provider !== 'codex' &&
+      !config.model &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    )
+      return { ok: false, error: tm('errNoModel') }
     try {
       const result = await chatForProvider(provider, config, system, user)
       // the one-shot path reports HTTP failures as ok:false with the raw body —

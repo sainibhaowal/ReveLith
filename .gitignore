@@ -4,10 +4,21 @@ node_modules/
 .pnp.js
 
 # Build, Output & Distribution
+#
+# `build/` is deliberately NOT ignored repo-wide. apps/docs/build/ and
+# apps/shell/build/ hold TRACKED source assets (app icons, mac entitlements,
+# NSIS installer scripts, blank.* templates). A blanket `build/` rule makes git
+# silently skip any NEW icon or script added there, so it could only be staged
+# with `git add -f`. Only the generated files inside those dirs are ignored,
+# and they are listed explicitly in the last section of this file.
+
+# electron-vite output (main / preload / renderer bundles)
 out/
+# tsc / vite / rollup library output
 dist/
+# electron-builder installer output (.exe .msi .dmg .AppImage .deb .rpm)
 release/
-build/
+# cargo / rust build output
 target/
 *.tsbuildinfo
 *.node
@@ -78,6 +89,22 @@ Thumbs.db
 *.sw?
 
 # Packaging Artifacts & Reference Sources
+# Generated files inside the tracked apps/*/build/ asset dirs
+# (see the note in the Build section above -- `build/` itself is NOT ignored)
 apps/shell/build/THIRD-PARTY-NOTICES.txt
+# per-filetype Windows/mac icons baked into OS file associations
+# (tools/gen-file-association-icons.mjs -> apps/shell/build/<type>.{ico,icns})
+apps/shell/build/*.ico
+apps/shell/build/*.icns
+# ...but keep the tracked main app icon
+!apps/shell/build/icon.ico
+!apps/shell/build/icon.icns
+# electron-builder NSIS/Linux hooks
+apps/shell/build/linux-after-install.sh
+apps/shell/build/linux-after-remove.sh
+# generated size ladder in apps/shell/build/icons/ (keeps docx.png, md.png, ...)
+apps/shell/build/icons/[0-9]*x[0-9]*.png
 docs/TASK_PROMPT_TEMPLATE.md
 assets/genoffice-0.11.0/
+# local scratch notes
+assets/new.md

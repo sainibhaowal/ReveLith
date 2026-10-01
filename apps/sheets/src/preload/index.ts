@@ -1245,7 +1245,7 @@ function parseRangeResult(input: unknown): WorkbookRangeResult {
       ...(row.styleIndex === undefined ? {} : { styleIndex: row.styleIndex }),
     }
   })
-  const merges = input.merges.map((merge) => {
+  const merges = (input.merges ?? []).map((merge) => {
     if (
       !isRecord(merge) ||
       !isNonnegativeInteger(merge.startRow) ||
@@ -1264,7 +1264,7 @@ function parseRangeResult(input: unknown): WorkbookRangeResult {
       endColumn: merge.endColumn,
     }
   })
-  const hyperlinks = input.hyperlinks.map((link) => {
+  const hyperlinks = (input.hyperlinks ?? []).map((link) => {
     if (
       !isRecord(link) ||
       !isNonnegativeInteger(link.row) ||
@@ -1275,18 +1275,21 @@ function parseRangeResult(input: unknown): WorkbookRangeResult {
     }
     return { row: link.row, column: link.column, target: link.target }
   })
-  const conditionalRules = input.conditionalRules.map(parseConditionalRule)
+  const conditionalRules = (input.conditionalRules ?? []).map(parseConditionalRule)
+  const rawDataValidations = input.dataValidations ?? []
   if (
-    !Array.isArray(input.dataValidations) ||
-    input.dataValidations.length > 20_000 ||
-    (input.autoFilter !== null && !isRecord(input.autoFilter)) ||
-    !Array.isArray(input.autoFilterColumns) ||
-    input.autoFilterColumns.length > 1_000
+    !Array.isArray(rawDataValidations) ||
+    rawDataValidations.length > 20_000 ||
+    (input.autoFilterColumns !== undefined &&
+      input.autoFilterColumns !== null &&
+      (!Array.isArray(input.autoFilterColumns) || input.autoFilterColumns.length > 1_000))
   ) {
     throw new Error('Invalid workbook range response.')
   }
-  const autoFilterColumns = input.autoFilterColumns.map(parseAutoFilterColumn)
-  const dataValidations = input.dataValidations.map((rule) => {
+  const autoFilterColumns = Array.isArray(input.autoFilterColumns)
+    ? input.autoFilterColumns.map(parseAutoFilterColumn)
+    : []
+  const dataValidations = rawDataValidations.map((rule) => {
     if (
       !isRecord(rule) ||
       !Array.isArray(rule.ranges) ||
@@ -1335,15 +1338,17 @@ function parseRangeResult(input: unknown): WorkbookRangeResult {
     sheetProtection = { protected: protection.protected, hasPassword: protection.hasPassword }
   }
   const parseBreaks = (value: unknown, label: string): number[] => {
+    if (value === null || value === undefined) return []
     if (!Array.isArray(value) || value.length > 1_024 || !value.every(isNonnegativeInteger)) {
       throw new Error(`Invalid workbook ${label} response.`)
     }
     return value as number[]
   }
-  if (!Array.isArray(input.protectedRanges) || input.protectedRanges.length > 1_024) {
+  const rawProtectedRanges = input.protectedRanges ?? []
+  if (!Array.isArray(rawProtectedRanges) || rawProtectedRanges.length > 1_024) {
     throw new Error('Invalid workbook protected ranges response.')
   }
-  const protectedRanges = input.protectedRanges.map((range) => {
+  const protectedRanges = rawProtectedRanges.map((range) => {
     if (
       !isRecord(range) ||
       typeof range.name !== 'string' ||

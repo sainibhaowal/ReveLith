@@ -43,7 +43,7 @@ import {
 import {
   webSearchTool,
   imageSearchTool,
-  ensureGenofficeLogin,
+  ensureReveLithLogin,
   gskApiKey,
   generateImageTool,
   analyzeMediaTool,
@@ -126,7 +126,7 @@ export function registerAiIpc(): void {
   )
 
   ipcMain.handle('ai:gsk-login', () => {
-    ensureGenofficeLogin((url) => void shell.openExternal(url))
+    ensureReveLithLogin((url) => void shell.openExternal(url))
   })
 
   ipcMain.handle('ai:set-settings', (_event, settings: AiSettings) => {
@@ -142,23 +142,30 @@ export function registerAiIpc(): void {
     const tools = request.tools ?? []
     const maxTokens = request.maxTokens ?? maxOutputTokensOf(settings)
     const provider = settings.provider
-    let config = settings.providers?.[provider]
-    // The revelith key never enters the settings file; it is fetched from the gsk login state per request
-    if (provider === 'revelith' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() ?? '' }
-    }
+    const config = settings.providers?.[provider]
     const send = (chunk: AiStreamChunk) => {
       if (!event.sender.isDestroyed()) event.sender.send('ai:stream-chunk', chunk)
     }
-    if (!config || (provider !== 'codex' && !config.apiKey)) {
+    const needsKey =
+      provider !== 'codex' &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    if (!config || (needsKey && !config.apiKey)) {
       send({
         requestId,
         type: 'error',
-        error: provider === 'revelith' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
+        error: tm('errNoApiKey', { provider }),
       })
       return
     }
-    if (provider !== 'codex' && !config.model) {
+    if (
+      provider !== 'codex' &&
+      !config.model &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    ) {
       send({ requestId, type: 'error', error: tm('errNoModel') })
       return
     }

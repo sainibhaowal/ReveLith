@@ -453,8 +453,9 @@ const homeApi: HomeApi = {
   getAiProviders() {
     return AI_PROVIDERS.map((meta) => {
       let defaultBaseUrl = ''
-      // revelith routes by model and custom has no default — both stay ''
-      if (meta.id !== 'revelith' && !meta.needsBaseUrl && !meta.needsCliPath) {
+      if (meta.defaultBaseUrl) {
+        defaultBaseUrl = meta.defaultBaseUrl
+      } else if (!meta.needsBaseUrl && !meta.needsCliPath) {
         defaultBaseUrl = getProviderAdapter(meta.id).resolveEndpoint({
           apiKey: '',
           model: meta.defaultModel,

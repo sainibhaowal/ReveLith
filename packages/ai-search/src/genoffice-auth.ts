@@ -2,7 +2,7 @@
  * ReveLith's own Genspark identity: device-code login (office_addin_auth,
  * app_type=genoffice) minting a gsk API key named "genoffice" — the key_name
  * lands in billing as billing_tag, attributing all traffic (incl. gsk CLI
- * subprocesses) to ReveLith. Stored in ~/.genoffice/auth.json, deliberately
+ * subprocesses) to ReveLith. Stored in ~/.revelith/auth.json, deliberately
  * NOT the shared config.json that Claw Desktop overwrites on every launch.
  *
  * Flow: POST /device_code → browser approve → poll /token for a 30-day Bearer
@@ -25,8 +25,8 @@ export interface GskLoginProgress {
   error?: string
 }
 
-const APP_TYPE = 'genoffice'
-const KEY_NAME = 'genoffice'
+const APP_TYPE = 'revelith'
+const KEY_NAME = 'revelith'
 const HTTP_TIMEOUT_MS = 30_000
 
 function baseUrl(): string {
@@ -88,7 +88,7 @@ async function proxyFallbackFetch(): Promise<typeof fetch | null> {
         session?: { fromPartition: (partition: string) => ProxySession }
       }
       if (session) {
-        const ses = session.fromPartition('genoffice-login-proxy')
+        const ses = session.fromPartition('revelith-login-proxy')
         await ses.setProxy({ proxyRules: proxyUrl })
         impl = ses.fetch.bind(ses)
       }
@@ -109,21 +109,21 @@ async function loginFetchChannels(): Promise<(typeof fetch)[]> {
 }
 
 /** Override dir via REVELITH_AUTH_DIR (test isolation). */
-export function genofficeAuthPath(): string {
-  return join(process.env.REVELITH_AUTH_DIR || join(homedir(), '.genoffice'), 'auth.json')
+export function revelithAuthPath(): string {
+  return join(process.env.REVELITH_AUTH_DIR || join(homedir(), '\.revelith'), 'auth.json')
 }
 
-export interface GenofficeAuth {
+export interface ReveLithAuth {
   apiKey: string
   keyId?: string
   accessToken?: string
 }
 
-let cachedAuth: GenofficeAuth | null | undefined
+let cachedAuth: ReveLithAuth | null | undefined
 
-function readAuthFile(): GenofficeAuth | null {
+function readAuthFile(): ReveLithAuth | null {
   try {
-    const raw = asRecord(JSON.parse(readFileSync(genofficeAuthPath(), 'utf-8')))
+    const raw = asRecord(JSON.parse(readFileSync(revelithAuthPath(), 'utf-8')))
     if (typeof raw.api_key !== 'string' || !raw.api_key) return null
     return {
       apiKey: raw.api_key,
@@ -137,23 +137,23 @@ function readAuthFile(): GenofficeAuth | null {
   }
 }
 
-export function loadGenofficeAuth(): GenofficeAuth | null {
+export function loadReveLithAuth(): ReveLithAuth | null {
   if (cachedAuth === undefined) cachedAuth = readAuthFile()
   return cachedAuth
 }
 
 /** Drop the cache so the next read sees a key written by another process. */
-export function reloadGenofficeAuth(): void {
+export function reloadReveLithAuth(): void {
   cachedAuth = undefined
 }
 
 /** The ReveLith-named api key; '' when not signed in. Cached (invalidated by login/logout). */
-export function genofficeApiKey(): string {
-  return loadGenofficeAuth()?.apiKey ?? ''
+export function revelithApiKey(): string {
+  return loadReveLithAuth()?.apiKey ?? ''
 }
 
-function saveAuth(auth: GenofficeAuth): void {
-  const path = genofficeAuthPath()
+function saveAuth(auth: ReveLithAuth): void {
+  const path = revelithAuthPath()
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(
     path,
@@ -169,7 +169,7 @@ function saveAuth(auth: GenofficeAuth): void {
 
 function clearAuth(): void {
   try {
-    if (existsSync(genofficeAuthPath())) unlinkSync(genofficeAuthPath())
+    if (existsSync(revelithAuthPath())) unlinkSync(revelithAuthPath())
   } catch {
     /* local sign-out must not throw */
   }
@@ -317,7 +317,7 @@ async function runDeviceLogin(
   if (!apiKey) {
     throw new LoginFlowError(String(created.message ?? 'API key creation failed'))
   }
-  const previousKeyId = loadGenofficeAuth()?.keyId
+  const previousKeyId = loadReveLithAuth()?.keyId
   saveAuth({
     apiKey,
     ...(typeof data.key_id === 'string' ? { keyId: data.key_id } : {}),
@@ -342,7 +342,7 @@ let activeLogin: { cancel: () => void } | null = null
  * (its device code would otherwise be approved into a dead flow). The caller
  * opens `url` in the system browser. Returns whether the flow was started.
  */
-export function startGenofficeLogin(onEvent?: (progress: GskLoginProgress) => void): boolean {
+export function startReveLithLogin(onEvent?: (progress: GskLoginProgress) => void): boolean {
   activeLogin?.cancel()
   const emit = onEvent ?? (() => {})
   const controller = new AbortController()
@@ -374,8 +374,8 @@ export function startGenofficeLogin(onEvent?: (progress: GskLoginProgress) => vo
   return true
 }
 
-/** True while a login started via startGenofficeLogin is in flight. */
-export function genofficeLoginInFlight(): boolean {
+/** True while a login started via startReveLithLogin is in flight. */
+export function revelithLoginInFlight(): boolean {
   return activeLogin !== null
 }
 
@@ -384,9 +384,9 @@ export function genofficeLoginInFlight(): boolean {
  * in-flight flow (restarting would strand it on a dead device code); openUrl
  * is the caller's browser opener (this module is Electron-free).
  */
-export function ensureGenofficeLogin(openUrl: (url: string) => void): void {
-  if (genofficeLoginInFlight()) return
-  startGenofficeLogin((progress) => {
+export function ensureReveLithLogin(openUrl: (url: string) => void): void {
+  if (revelithLoginInFlight()) return
+  startReveLithLogin((progress) => {
     if (progress.url) openUrl(progress.url)
   })
 }
@@ -397,7 +397,7 @@ export function ensureGenofficeLogin(openUrl: (url: string) => void): void {
  * (~/.genspark-tool-cli) is untouched — terminal gsk and Claw keep working.
  */
 export async function revelithLogout(): Promise<void> {
-  const auth = loadGenofficeAuth()
+  const auth = loadReveLithAuth()
   if (auth?.accessToken && auth.keyId) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS)
@@ -414,13 +414,26 @@ export async function revelithLogout(): Promise<void> {
 }
 
 /** Test hook: drop the auth cache and fetch-channel state. */
-export function resetGenofficeAuthCache(): void {
+export function resetReveLithAuthCache(): void {
   cachedAuth = undefined
   proxyFetchCache = undefined
   proxyFallbackPreferred = false
 }
 
 /** Test hook: whether the proxy fallback channel is currently preferred. */
-export function genofficeProxyFallbackPreferred(): boolean {
+export function revelithProxyFallbackPreferred(): boolean {
   return proxyFallbackPreferred
 }
+
+// Backward-compatible aliases for legacy callers
+export const ensureGenofficeLogin = ensureReveLithLogin
+export const loadGenofficeAuth = loadReveLithAuth
+export const reloadGenofficeAuth = reloadReveLithAuth
+export const startGenofficeLogin = startReveLithLogin
+export const genofficeApiKey = revelithApiKey
+export const genofficeAuthPath = revelithAuthPath
+export const genofficeLoginInFlight = revelithLoginInFlight
+export const resetGenofficeAuthCache = resetReveLithAuthCache
+export const genofficeProxyFallbackPreferred = revelithProxyFallbackPreferred
+export type GenofficeAuth = ReveLithAuth
+

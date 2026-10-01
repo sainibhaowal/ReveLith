@@ -3,12 +3,12 @@ import type { ReactNode } from 'react'
 import type { AiProviderId } from '@revelith/ai-provider'
 
 // ── AI provider brand logos (settings → AI model provider picker) ─────────
-// Vector marks adapted from the MIT-licensed @lobehub/icons set, plus a
-// hand-traced ReveLith mark, OpenCode's pixel-block favicon glyph and a
-// generic icon for the "custom" endpoint.
+// Vector marks adapted from the MIT-licensed @lobehub/icons set, plus
+// OpenCode's pixel-block favicon glyph, local engine marks (LM Studio, Ollama),
+// and a generic icon for the "custom" endpoint.
 // Brand-colored logos keep their official colors in both themes (brand
 // assets, not chrome — see CLAUDE.md theming rules); monochrome marks
-// (OpenAI, Kimi, Grok, OpenRouter, Requesty, Opper, OpenCode, ReveLith, Custom) use
+// (OpenAI, Kimi, Grok, OpenRouter, Requesty, Opper, OpenCode, LM Studio, Ollama, Custom) use
 // currentColor so they stay legible in dark mode.
 //
 // Gradient-filled marks (Gemini, Qwen, MiniMax) are components so useId can
@@ -113,9 +113,24 @@ const opencodeLogo = (
 )
 
 const LOGOS: Record<AiProviderId, ReactNode> = {
-  revelith: (
-    <svg viewBox="0 0 24 24" fill="currentColor" fillRule="evenodd" aria-hidden="true">
-      <path d="M12 0a12 12 0 100 24 12 12 0 000-24zM7.8 4.4Q8.6 8.5 12.7 9.3 8.6 10.1 7.8 14.2 7 10.1 2.9 9.3 7 8.5 7.8 4.4zM16.1 3.8Q16.6 6.4 19.2 6.9 16.6 7.4 16.1 10 15.6 7.4 13 6.9 15.6 6.4 16.1 3.8zm.5 6.8q.3 1.7 2 2-1.7.3-2 2-.3-1.7-2-2 1.7-.3 2-2zM6.1 16.8h11.8a1.1 1.1 0 010 2.2H6.1a1.1 1.1 0 010-2.2z" />
+  lmstudio: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <path d="M7 16V8h3a2.5 2.5 0 012.5 2.5v0A2.5 2.5 0 0110 13H7" />
+      <path d="M14 16l3-8" />
+    </svg>
+  ),
+  ollama: (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2a4 4 0 00-4 4v2H7a3 3 0 00-3 3v5a4 4 0 004 4h8a4 4 0 004-4v-5a3 3 0 00-3-3h-1V6a4 4 0 00-4-4zm-2 4a2 2 0 114 0v2h-4V6zm-2 7a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm7 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" />
     </svg>
   ),
   codex: (

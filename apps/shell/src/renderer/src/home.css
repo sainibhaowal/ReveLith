@@ -116,11 +116,27 @@ body.vib .home {
   margin-bottom: 20px;
 }
 
+.logo-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+.logo-brand-text {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--text-normal, #1e293b);
+  user-select: none;
+}
+
+[data-theme='dark'] .logo-brand-text {
+  color: #f8fafc;
+}
+
 .logo-lockup {
   display: block;
   height: 28px;
   width: auto;
-  filter: invert(var(--logo-invert));
 }
 
 .sidebar-nav {

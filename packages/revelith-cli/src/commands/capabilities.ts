@@ -25,32 +25,28 @@ export const capabilitiesCommand: CommandDef = {
   async run(_args, ctx) {
     await prepareCloud(ctx.env)
     const settings = readAiSettingsFile(aiSettingsPath(ctx.env))
-    const gsk = hasGskAuth() && cloudToolsEnabled(settings)
     const searchProvider = activeSearchProvider(settings)
-    const gskSearch = gsk && searchProvider === 'revelith'
-    const customSearch = searchProvider !== 'revelith'
-    const search = gskSearch || customSearch
     const keyedImageSearch = searchProvider === 'serper' || searchProvider === 'serply'
-    const imageSearch = gskSearch || keyedImageSearch
-    const imageGeneration = imageGenerationAvailable(settings, hasGskAuth())
-    const mediaAnalysis = mediaAnalysisAvailable(settings, hasGskAuth())
-    const via = (byok: string | null | undefined) => (byok ? byok : gsk ? 'revelith' : null)
+    const searchKey = settings.search?.providers?.[searchProvider]?.apiKey?.trim()
+    const searchAvailable = searchProvider === 'parallel' || !!searchKey
+    const imageGeneration = imageGenerationAvailable(settings, false)
+    const mediaAnalysis = mediaAnalysisAvailable(settings, false)
     const detail = {
       search: {
-        available: search,
-        via: customSearch ? searchProvider : gskSearch ? 'revelith' : null,
+        available: searchAvailable,
+        via: searchAvailable ? searchProvider : null,
       },
       image_search: {
-        available: imageSearch,
-        via: keyedImageSearch ? searchProvider : gskSearch ? 'revelith' : null,
+        available: keyedImageSearch && !!searchKey,
+        via: keyedImageSearch && !!searchKey ? searchProvider : null,
       },
       image_generation: {
         available: imageGeneration,
-        via: imageGeneration ? via(activeMediaProvider(settings, 'image')) : null,
+        via: imageGeneration ? activeMediaProvider(settings, 'image') : null,
       },
       media_analysis: {
         available: mediaAnalysis,
-        via: mediaAnalysis ? via(activeMediaProvider(settings, 'analysis')) : null,
+        via: mediaAnalysis ? activeMediaProvider(settings, 'analysis') : null,
       },
       app: { available: appLaunch(ctx.env) !== null },
       settings_path: aiSettingsPath(ctx.env),

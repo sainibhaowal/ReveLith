@@ -7,9 +7,9 @@ import {
 } from '../src/search-settings'
 
 describe('search settings', () => {
-  it('defaults to revelith with empty keys and rides along in defaultAiSettings', () => {
+  it('defaults to serper with empty keys and rides along in defaultAiSettings', () => {
     expect(defaultAiSearchSettings()).toEqual({
-      provider: 'revelith',
+      provider: 'serper',
       providers: {
         serper: { apiKey: '' },
         serply: { apiKey: '' },
@@ -17,9 +17,9 @@ describe('search settings', () => {
         parallel: { apiKey: '' },
       },
     })
-    expect(defaultAiSettings().search?.provider).toBe('revelith')
+    expect(defaultAiSettings().search?.provider).toBe('serper')
     const resolved = resolveAiSettings(
-      { provider: 'revelith', providers: {} as never },
+      { provider: 'serper', providers: {} as never },
       defaultAiSettings(),
     )
     expect(resolved.search).toEqual(defaultAiSearchSettings())
@@ -36,7 +36,7 @@ describe('search settings', () => {
   })
 
   it('activates a BYOK search provider only with a key', () => {
-    expect(activeSearchProvider({ search: undefined })).toBe('revelith')
+    expect(activeSearchProvider({ search: undefined })).toBe('serper')
     expect(
       activeSearchProvider({
         search: {
@@ -49,7 +49,7 @@ describe('search settings', () => {
           },
         },
       }),
-    ).toBe('revelith')
+    ).toBe('serper')
     expect(
       activeSearchProvider({
         search: {
@@ -75,9 +75,9 @@ describe('search settings', () => {
           },
         },
       }),
-    ).toBe('revelith')
+    ).toBe('serper')
     expect(activeSearchProvider({ search: { provider: 'bing', providers: {} } as never })).toBe(
-      'revelith',
+      'serper',
     )
   })
 })
@@ -95,7 +95,7 @@ describe('Serply search settings', () => {
       activeSearchProvider({
         search: { ...settings, providers: { ...settings.providers, serply: { apiKey: '  ' } } },
       }),
-    ).toBe('revelith')
+    ).toBe('serper')
   })
 })
 

@@ -21,20 +21,6 @@ export const DEEPSEEK_MEDIA_BASE_URL = 'https://api.deepseek.com/v1'
 // models in step with the chat catalog in providers.ts.
 export const AI_MEDIA_PROVIDERS: AiMediaProviderMeta[] = [
   {
-    id: 'revelith',
-    label: 'ReveLith',
-    description: 'Image generation, media analysis and search through your ReveLith sign-in',
-    keyPlaceholder: 'Not required - sign in to ReveLith',
-    defaultBaseUrl: '',
-    imageProtocol: 'openai-images',
-    imageModels: [],
-    defaultImageModel: '',
-    analysisProtocol: 'openai-chat',
-    analysisModels: [],
-    defaultAnalysisModel: '',
-    videoAnalysis: true,
-  },
-  {
     id: 'openai',
     label: 'OpenAI',
     description: 'GPT Image for generation and editing; GPT chat models for image analysis',
@@ -224,9 +210,9 @@ export function defaultAiMediaSettings(): AiMediaSettings {
     }
   }
   return {
-    imageProvider: 'revelith',
-    analysisProvider: 'revelith',
-    videoAnalysisProvider: 'revelith',
+    imageProvider: 'openai',
+    analysisProvider: 'openai',
+    videoAnalysisProvider: 'gemini',
     providers,
   }
 }
@@ -285,36 +271,39 @@ export function mediaConfigUsable(
 
 /**
  * The stored provider for one capability, honored only when it exists, has
- * that capability and is usable; anything else falls back to revelith so a
- * half-filled setup degrades to the signed-in default.
+ * that capability and is usable; otherwise defaults to openai or gemini.
  */
 export function activeMediaProvider(
   settings: Pick<AiSettings, 'media'>,
   capability: MediaCapability,
 ): AiMediaProviderId {
+  const fallback: AiMediaProviderId = capability === 'video' ? 'gemini' : 'openai'
   const media = settings.media
-  if (!media) return 'revelith'
+  if (!media) return fallback
   const id =
     capability === 'image'
       ? media.imageProvider
       : capability === 'video'
         ? media.videoAnalysisProvider
         : media.analysisProvider
-  if (!id || id === 'revelith') return 'revelith'
+  if (!id) return fallback
   const meta = getMediaProviderMeta(id)
-  if (!meta || !providerHasCapability(meta, capability)) return 'revelith'
-  if (!mediaConfigUsable(meta, media.providers?.[id])) return 'revelith'
+  if (!meta || !providerHasCapability(meta, capability)) return fallback
+  if (!mediaConfigUsable(meta, media.providers?.[id])) return fallback
   return id
 }
 
-/** the active BYOK config for one capability, or null when it runs through ReveLith */
+/** the active BYOK config for one capability, or null when not configured with a valid key/url */
 export function activeMediaConfig(
   settings: Pick<AiSettings, 'media'>,
   capability: MediaCapability,
-): { provider: Exclude<AiMediaProviderId, 'revelith'>; config: AiMediaProviderConfig } | null {
+): { provider: AiMediaProviderId; config: AiMediaProviderConfig } | null {
   const provider = activeMediaProvider(settings, capability)
-  if (provider === 'revelith') return null
-  return { provider, config: settings.media!.providers[provider] }
+  const meta = getMediaProviderMeta(provider)
+  if (!meta || !settings.media?.providers?.[provider]) return null
+  const config = settings.media.providers[provider]
+  if (!mediaConfigUsable(meta, config)) return null
+  return { provider, config }
 }
 
 function byokModel(

@@ -111,9 +111,9 @@ import { collectLaunchPaths } from './launch-paths'
 import {
   revelithLogout,
   gskLoginInfo,
-  loadGenofficeAuth,
+  loadReveLithAuth,
   setGskProxyUrl,
-  startGenofficeLogin,
+  startReveLithLogin,
   watchGskApiKey,
 } from '@revelith/ai-search'
 
@@ -3549,7 +3549,7 @@ function registerHomeIpc(): void {
   // signed-in means ReveLith's own device-code login; the shared gsk CLI key
   // is only a silent fallback, deliberately not shown here to nudge users onto our key
   ipcMain.handle(HOME_CHANNELS.accountStatus, async () => {
-    if (!loadGenofficeAuth()) return { loggedIn: false }
+    if (!loadReveLithAuth()) return { loggedIn: false }
     await proxyBootstrap
     const info = await gskLoginInfo()
     return info
@@ -3570,7 +3570,7 @@ function registerHomeIpc(): void {
     }
     // open the browser on the first url event only; later events refresh the rescue URL
     let opened = false
-    const launched = startGenofficeLogin((progress) => {
+    const launched = startReveLithLogin((progress) => {
       if (progress.url) {
         pendingLoginUrl = progress.url
         if (!opened) {
@@ -5421,7 +5421,7 @@ app.whenReady().then(async () => {
   // home page re-reads its account status. A logout that leaves only the
   // gsk CLI fallback key is not a login
   stopAuthWatch = watchGskApiKey(() => {
-    if (!loadGenofficeAuth()) return
+    if (!loadReveLithAuth()) return
     for (const w of BrowserWindow.getAllWindows())
       w.webContents.send(HOME_CHANNELS.accountLoginEvent, { phase: 'success' })
   })

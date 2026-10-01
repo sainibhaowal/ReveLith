@@ -40,17 +40,33 @@ jobs:
         id: custom_tag
         if: steps.semantic.outputs.new_release_published != 'true'
         run: |
+          set -euo pipefail
           if [ -n "${{ inputs.force_version }}" ]; then
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "version=${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
             echo "git_tag=v${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
           else
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.1.0")
+            # Never re-publish an existing tag. Bump the patch component of the
+            # newest tag so the fallback always yields a fresh 0.10.<N+1>.
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.10.100")
             echo "Latest tag: $LATEST_TAG"
             CLEAN_VER="${LATEST_TAG#v}"
+            MAJOR="${CLEAN_VER%%.*}"
+            REST="${CLEAN_VER#*.}"
+            MINOR="${REST%%.*}"
+            PATCH="${REST##*.}"
+            case "$PATCH" in
+              ''|*[!0-9]*)
+                echo "::error::Cannot parse patch component from tag '$LATEST_TAG'"
+                exit 1
+                ;;
+            esac
+            NEXT_PATCH=$((PATCH + 1))
+            NEXT_VER="$MAJOR.$MINOR.$NEXT_PATCH"
+            echo "Next version: $NEXT_VER"
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "version=$CLEAN_VER" >> "$GITHUB_OUTPUT"
-            echo "git_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+            echo "version=$NEXT_VER" >> "$GITHUB_OUTPUT"
+            echo "git_tag=v$NEXT_VER" >> "$GITHUB_OUTPUT"
           fi
         shell: bash
 

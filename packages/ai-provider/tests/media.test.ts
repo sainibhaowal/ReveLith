@@ -38,11 +38,11 @@ function openaiSettings(apiKey = 'sk-test', imageModel = 'gpt-image-2'): AiSetti
 }
 
 describe('media settings', () => {
-  it('defaults every provider to its default models and revelith as the active one', () => {
+  it('defaults every provider to its default models and openai as the active one', () => {
     const media = defaultAiMediaSettings()
-    expect(media.imageProvider).toBe('revelith')
-    expect(media.analysisProvider).toBe('revelith')
-    expect(media.videoAnalysisProvider).toBe('revelith')
+    expect(media.imageProvider).toBe('openai')
+    expect(media.analysisProvider).toBe('openai')
+    expect(media.videoAnalysisProvider).toBe('gemini')
     for (const meta of AI_MEDIA_PROVIDERS) {
       expect(media.providers[meta.id].imageModel).toBe(meta.defaultImageModel)
       expect(media.providers[meta.id].apiKey).toBe('')
@@ -53,9 +53,9 @@ describe('media settings', () => {
 
   it('is carried by defaultAiSettings and healed in from a pre-media settings file', () => {
     const defaults = defaultAiSettings()
-    expect(defaults.media?.imageProvider).toBe('revelith')
+    expect(defaults.media?.imageProvider).toBe('openai')
     const resolved = resolveAiSettings(
-      { provider: 'revelith', providers: defaults.providers },
+      { provider: 'openai', providers: defaults.providers },
       defaultAiSettings(),
     )
     expect(resolved.media).toEqual(defaultAiMediaSettings())
@@ -106,38 +106,38 @@ describe('media settings', () => {
   it('activates a BYOK media provider per capability, only when usable and capable', () => {
     expect(activeMediaProvider(openaiSettings(), 'image')).toBe('openai')
     expect(activeMediaProvider(openaiSettings(), 'analysis')).toBe('openai')
-    expect(activeMediaProvider(openaiSettings(''), 'image')).toBe('revelith')
-    expect(activeMediaProvider(openaiSettings('   '), 'image')).toBe('revelith')
+    expect(activeMediaProvider(openaiSettings(''), 'image')).toBe('openai')
+    expect(activeMediaProvider(openaiSettings('   '), 'image')).toBe('openai')
     const custom = defaultAiMediaSettings()
     custom.imageProvider = 'custom'
-    expect(activeMediaProvider(withMedia(custom), 'image')).toBe('revelith')
+    expect(activeMediaProvider(withMedia(custom), 'image')).toBe('openai')
     custom.providers.custom.baseUrl = 'http://localhost:1234/v1'
     expect(activeMediaProvider(withMedia(custom), 'image')).toBe('custom')
-    expect(activeMediaProvider(withMedia(custom), 'analysis')).toBe('revelith')
+    expect(activeMediaProvider(withMedia(custom), 'analysis')).toBe('openai')
     expect(activeMediaConfig(withMedia(custom), 'image')?.provider).toBe('custom')
     // MiniMax has no analysis endpoint: picking it for analysis falls back
     const mm = defaultAiMediaSettings()
     mm.analysisProvider = 'minimax'
     mm.providers.minimax.apiKey = 'k'
-    expect(activeMediaProvider(withMedia(mm), 'analysis')).toBe('revelith')
+    expect(activeMediaProvider(withMedia(mm), 'analysis')).toBe('openai')
     // DeepSeek reads images (V4.1 Flash vision) but takes no video
     const ds = defaultAiMediaSettings()
     ds.analysisProvider = 'deepseek'
     ds.providers.deepseek.apiKey = 'sk-ds'
     expect(activeMediaProvider(withMedia(ds), 'analysis')).toBe('deepseek')
     ds.videoAnalysisProvider = 'deepseek'
-    expect(activeMediaProvider(withMedia(ds), 'video')).toBe('revelith')
+    expect(activeMediaProvider(withMedia(ds), 'video')).toBe('gemini')
     // OpenAI reads images but not video: as the video provider it falls back
     const oa = openaiSettings()
     oa.media!.videoAnalysisProvider = 'openai'
-    expect(activeMediaProvider(oa, 'video')).toBe('revelith')
+    expect(activeMediaProvider(oa, 'video')).toBe('gemini')
     oa.media!.videoAnalysisProvider = 'gemini'
     oa.media!.providers.gemini.apiKey = 'AIza'
     expect(activeMediaProvider(oa, 'video')).toBe('gemini')
-    expect(activeMediaProvider({ media: undefined }, 'image')).toBe('revelith')
+    expect(activeMediaProvider({ media: undefined }, 'image')).toBe('openai')
     expect(
       activeMediaProvider({ media: { imageProvider: 'nope', providers: {} } as never }, 'image'),
-    ).toBe('revelith')
+    ).toBe('openai')
   })
 
   it('gates the tools on gsk login + toggle without BYOK, and on the BYOK model with it', () => {

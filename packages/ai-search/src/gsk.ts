@@ -25,8 +25,8 @@ import {
   type ImageSearchResult,
   type WebSearchResult,
 } from './shared'
-import { genofficeApiKey, genofficeAuthPath, reloadGenofficeAuth } from './genoffice-auth'
-// deep import: the package root re-exports Electron-bound modules, and this file also runs in the genoffice CLI
+import { revelithApiKey, revelithAuthPath, reloadReveLithAuth } from './genoffice-auth'
+// deep import: the package root re-exports Electron-bound modules, and this file also runs in the revelith CLI
 import { readBodyCapped } from '@revelith/electron-utils/remote-image'
 
 const SEARCH_TIMEOUT_MS = 60_000
@@ -69,7 +69,7 @@ function electronCompatArgs(): string[] {
   if (!process.versions.electron) return []
   if (compatPath === undefined) {
     try {
-      const dir = join(homedir(), '.genoffice', 'bin')
+      const dir = join(homedir(), '.revelith', 'bin')
       mkdirSync(dir, { recursive: true })
       compatPath = join(dir, 'electron-compat.js')
       writeFileSync(compatPath, 'delete process.versions.electron;\n')
@@ -87,7 +87,7 @@ function electronCompatArgs(): string[] {
  */
 export function gskApiKey(): string {
   if (process.env.GSK_API_KEY) return process.env.GSK_API_KEY
-  const own = genofficeApiKey()
+  const own = revelithApiKey()
   if (own) return own
   try {
     const configPath = join(homedir(), '.genspark-tool-cli', 'config.json')
@@ -108,13 +108,13 @@ export function gskApiKey(): string {
 export function watchGskApiKey(onChange: (key: string) => void, intervalMs = 2000): () => void {
   let last = gskApiKey()
   const check = (): void => {
-    reloadGenofficeAuth()
+    reloadReveLithAuth()
     const key = gskApiKey()
     if (key === last) return
     last = key
     onChange(key)
   }
-  const files = [genofficeAuthPath(), join(homedir(), '.genspark-tool-cli', 'config.json')]
+  const files = [revelithAuthPath(), join(homedir(), '.genspark-tool-cli', 'config.json')]
   for (const f of files) watchFile(f, { persistent: false, interval: intervalMs }, check)
   return () => {
     for (const f of files) unwatchFile(f, check)
@@ -495,7 +495,7 @@ async function toolCliPost(
       headers: {
         'X-Api-Key': key,
         'Content-Type': 'application/json',
-        'X-Agent-Type': 'genoffice',
+        'X-Agent-Type': 'revelith',
       },
       body: JSON.stringify(body),
       signal: controller.signal,

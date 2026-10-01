@@ -84,7 +84,7 @@ import {
   sheetCsvToXlsxBuffer,
 } from '@revelith/xlsx-gateway/gateway/csv-import'
 import {
-  ensureGenofficeLogin,
+  ensureReveLithLogin,
   gskApiKey,
   gskLoginInfo,
   hasGskAuth,
@@ -241,7 +241,7 @@ const tMain = createI18n({
     errImageNoText: 'Image attachments have no text; the image is sent along with the user message',
     errNotImage: 'not a supported image type',
     errGskNotLoggedIn:
-      'Not signed in to ReveLith: click “Sign in to ReveLith” below, sign in, then retry',
+      'No AI model or API key configured: please select a provider and enter your API key or configure a local model (Ollama / LM Studio) in Settings',
     errNoApiKey: 'No API key configured for {provider}',
     errAiBusy: 'The AI service is busy right now — please try again in a moment',
     errNoModel: 'No model name configured',
@@ -3389,7 +3389,7 @@ export function registerSheetsAiIpc(): void {
   )
 
   ipcMain.handle(IPC_CHANNELS.aiGskLogin, () => {
-    ensureGenofficeLogin((url) => void shell.openExternal(url))
+    ensureReveLithLogin((url) => void shell.openExternal(url))
   })
 
   ipcMain.handle(IPC_CHANNELS.aiSetSettings, async (event, input: unknown) => {
@@ -3402,17 +3402,27 @@ export function registerSheetsAiIpc(): void {
     sessionFor(event)
     const request = aiChatRequestSchema.parse(input)
     const provider = request.settings.provider as AiProviderId
-    let config = request.settings.providers[provider]
-    if (provider === 'revelith' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() ?? '' }
-    }
-    if (!config || (provider !== 'codex' && !config.apiKey)) {
+    const config = request.settings.providers[provider]
+    const needsKey =
+      provider !== 'codex' &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    if (!config || (needsKey && !config.apiKey)) {
       return {
         ok: false,
-        error: provider === 'revelith' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
+        error: tm('errNoApiKey', { provider }),
       }
     }
-    if (provider !== 'codex' && !config.model) return { ok: false, error: tm('errNoModel') }
+    if (
+      provider !== 'codex' &&
+      !config.model &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    ) {
+      return { ok: false, error: tm('errNoModel') }
+    }
     try {
       const result = await chatForProvider(provider, config, request.system, request.user)
       // the one-shot path reports HTTP failures as ok:false with the raw body —
@@ -3433,24 +3443,30 @@ export function registerSheetsAiIpc(): void {
     const tools = request.tools ?? []
     const maxTokens = request.maxTokens ?? maxOutputTokensOf(request.settings)
     const provider = request.settings.provider as AiProviderId
-    let config = request.settings.providers[provider]
-    // ReveLith's key never enters the settings file; it is read from the gsk
-    // login state per request
-    if (provider === 'revelith' && config && !config.apiKey) {
-      config = { ...config, apiKey: gskApiKey() ?? '' }
-    }
+    const config = request.settings.providers[provider]
     const send = (chunk: AiStreamChunk) => {
       if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.aiStreamChunk, chunk)
     }
-    if (!config || (provider !== 'codex' && !config.apiKey)) {
+    const needsKey =
+      provider !== 'codex' &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    if (!config || (needsKey && !config.apiKey)) {
       send({
         requestId,
         type: 'error',
-        error: provider === 'revelith' ? tm('errGskNotLoggedIn') : tm('errNoApiKey', { provider }),
+        error: tm('errNoApiKey', { provider }),
       })
       return
     }
-    if (provider !== 'codex' && !config.model) {
+    if (
+      provider !== 'codex' &&
+      !config.model &&
+      provider !== 'custom' &&
+      provider !== 'lmstudio' &&
+      provider !== 'ollama'
+    ) {
       send({ requestId, type: 'error', error: tm('errNoModel') })
       return
     }
