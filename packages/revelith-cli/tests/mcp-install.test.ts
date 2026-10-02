@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { run, tempDir } from './helpers'
 import { launcherPath } from '../src/commands/install'

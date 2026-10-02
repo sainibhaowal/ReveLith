@@ -1,6 +1,5 @@
 import {
   activeMediaConfig,
-  activeMediaProvider,
   activeSearchProvider,
   imageGenerationAvailable,
   mediaAnalysisAvailable,
