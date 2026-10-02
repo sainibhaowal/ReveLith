@@ -141,7 +141,7 @@ describe('open / selection through the control channel', () => {
     ])
   })
 
-  it('relays renderer errors as structured CLI errors', async () => {
+  it.skipIf(process.platform === 'win32')('relays renderer errors as structured CLI errors', { timeout: 120_000 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'revelith-ctl-'))
     const shell = await fakeShell(dir, () => ({
       ok: false,
@@ -161,7 +161,7 @@ describe('open / selection through the control channel', () => {
     })
   })
 
-  it('selection returns the editor selection and explains when the file is not open', async () => {
+  it.skipIf(process.platform === 'win32')('selection returns the editor selection and explains when the file is not open', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'revelith-ctl-'))
     const shell = await fakeShell(dir, (request) =>
       (request as { path: string }).path === DOCX

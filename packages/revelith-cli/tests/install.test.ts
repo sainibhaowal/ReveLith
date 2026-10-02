@@ -81,14 +81,20 @@ describe('installCliLink', () => {
 
     const locked = join(dir, 'locked')
     mkdirSync(locked)
-    chmodSync(locked, 0o555)
-    const r = installCliLink({ launcher, platform: 'linux', candidateDirs: [locked] })
-    const seen = inspectCliLink({ launcher, platform: 'linux', candidateDirs: [locked] })
-    chmodSync(locked, 0o755)
-    if (process.getuid?.() !== 0) {
-      expect(r.status).toBe('unwritable')
-      expect(r.manual).toContain(launcher)
-      expect(seen.status).toBe('unwritable')
+    if (process.platform !== 'win32') {
+      chmodSync(locked, 0o555)
+      const r = installCliLink({ launcher, platform: 'linux', candidateDirs: [locked] })
+      const seen = inspectCliLink({ launcher, platform: 'linux', candidateDirs: [locked] })
+      chmodSync(locked, 0o755)
+      if (process.getuid?.() !== 0) {
+        expect(r.status).toBe('unwritable')
+        expect(r.manual).toContain(launcher)
+        expect(seen.status).toBe('unwritable')
+      }
+    } else {
+      // Windows doesn't respect Unix-style read-only directories the same way
+      const r = installCliLink({ launcher, platform: 'win32', candidateDirs: [locked] })
+      expect(r.status).toBe('linked')
     }
   })
 

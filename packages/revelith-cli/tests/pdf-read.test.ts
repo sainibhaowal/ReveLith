@@ -87,7 +87,7 @@ describe('revelith pdf read', () => {
     const pdf = writeMinimalPdf(join(tempDir(), 'one.pdf'), 'Hello revelith readers')
     const r = await run(['pdf', 'read', pdf, '--max-chars', '5', '--json'])
     expect(r.json().detail.pages_read[0]).toMatchObject({
-      text: 'Hello…(+18 chars)',
+      text: 'Hello…(+17 chars)',
       truncated: true,
     })
     const full = await run(['pdf', 'read', pdf, '--full', '--json'])

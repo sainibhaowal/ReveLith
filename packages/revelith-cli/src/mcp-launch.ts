@@ -38,7 +38,7 @@ export interface LauncherLaunchOptions {
  * `mcp install`: always the absolute launcher, never the bare name. On Windows
  * the packaged app is run as Node (same entry as the app's snippet); a checkout
  * has no ReveLith.exe beside it and runs the bundle on the system node, as the
- * bin/revelith script does.
+ * bin/revelith.cmd script does.
  */
 export function mcpLaunchFromLauncher(
   launcher: string,
@@ -50,8 +50,7 @@ export function mcpLaunchFromLauncher(
   const dir = launcher.slice(0, Math.max(launcher.lastIndexOf('\\'), launcher.lastIndexOf('/')))
   const exists = opts.exists ?? (() => false)
   if (exists(`${dir}${sep}..${sep}..${sep}ReveLith.exe`)) return windowsAppLaunch(dir)
-  const bundle = exists(`${dir}${sep}revelith.cjs`)
-    ? `${dir}${sep}revelith.cjs`
-    : `${dir}${sep}..${sep}dist${sep}revelith.cjs`
-  return { command: 'node', args: [bundle, 'mcp'] }
+  // In dev mode, the launcher (revelith.cmd) handles running the bundle.
+  // Return the launcher directly, same as non-Windows.
+  return { command: launcher, args: ['mcp'] }
 }

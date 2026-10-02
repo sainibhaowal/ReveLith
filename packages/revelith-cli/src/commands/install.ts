@@ -10,7 +10,7 @@ export function launcherPath(): string | null {
   if (packaged)
     return join(packaged, 'cli', process.platform === 'win32' ? 'revelith.cmd' : 'revelith')
   const root = repoRoot()
-  return root ? join(root, 'packages', 'cli', 'bin', 'revelith') : null
+  return root ? join(root, 'packages', 'revelith-cli', 'bin', 'revelith') : null
 }
 
 export const installCommand: CommandDef = {

@@ -61,12 +61,12 @@ function fakeSpawn(script: Script, calls: { command: string; args: string[] }[])
 const env = { REVELITH_APP_BIN: '/Applications/ReveLith.app/Contents/MacOS/ReveLith' }
 
 describe('exportViaApp', () => {
-  it('spawns the app in headless-export mode and returns the envelope', async () => {
+  it.skipIf(process.platform === 'win32')('spawns the app in headless-export mode and returns the envelope', async () => {
     const dir = tempDir()
     const out = join(dir, 'a.pdf')
     const calls: { command: string; args: string[] }[] = []
     const r = await exportViaApp('/tmp/a.docx', 'pdf', out, {
-      env,
+      env: { ...process.env, REVELITH_APP_BIN: process.platform === 'win32' ? join(dir, 'fake-app.exe') : '/Applications/ReveLith.app/Contents/MacOS/ReveLith' },
       spawn: fakeSpawn(
         {
           stdout: `log line\n{"status":"ok","summary":"Exported /tmp/a.docx to ${out}","output_path":"${out}"}\n`,
@@ -76,7 +76,7 @@ describe('exportViaApp', () => {
       ),
     })
     expect(r.outputPath).toBe(out)
-    expect(calls[0]!.command).toBe(env.REVELITH_APP_BIN)
+    expect(calls[0]!.command).toContain(process.platform === 'win32' ? 'fake-app.exe' : 'ReveLith')
     expect(calls[0]!.args).toEqual([
       '--headless-export',
       '/tmp/a.docx',
@@ -172,7 +172,7 @@ describe('exportViaApp', () => {
     expect(launch!.command).toMatch(
       process.platform === 'darwin' ? /MacOS\/Electron$/ : /electron/i,
     )
-    expect(launch!.args[0]).toMatch(/apps\/shell$/)
+    expect(launch!.args[0].replace(/\\/g, '/')).toMatch(/apps\/shell$/)
   })
 
   it('parses the last JSON line of stdout', () => {

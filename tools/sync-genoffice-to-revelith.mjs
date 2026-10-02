@@ -39,6 +39,14 @@ const BINARY_EXTENSIONS = new Set([
   '.wmf',
   '.emz',
   '.wmz',
+  // Legacy Office binaries (OLE CFBF) — same hazard as above.
+  '.doc',
+  '.ppt',
+  '.xls',
+  '.dot',
+  '.pot',
+  '.pps',
+  '.xla',
 ])
 
 function isBinaryFile(filePath) {

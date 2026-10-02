@@ -2,8 +2,9 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileS
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { run, tempDir } from './helpers'
+import { launcherPath } from '../src/commands/install'
 
-const LAUNCHER = resolve(__dirname, '..', 'bin', 'revelith')
+const LAUNCHER = launcherPath()
 
 function fakeMachine(agents: string[]) {
   const home = tempDir()
@@ -37,6 +38,7 @@ describe('revelith mcp list', () => {
       detected: true,
       registered: true,
       status: 'registered',
+      config: join(m.home, '.gemini', 'settings.json'),
     })
     expect(agents.find((a) => a.agent === 'codex')).toMatchObject({ detected: false })
     expect(agents.find((a) => a.agent === 'claude-code')!.config).toBe(join(m.home, '.claude.json'))

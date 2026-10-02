@@ -30,18 +30,18 @@ describe('mcp launch entry', () => {
     expect(fromCli).toEqual(mcpLaunch({ status: 'present', launcherDir: WIN_DIR }))
   })
 
-  it('runs a Windows checkout on the system node with the built bundle', () => {
+  it('runs a Windows checkout via the launcher script', () => {
     const dir = 'D:\\src\\revelith\\packages\\cli\\bin'
     expect(mcpLaunchFromLauncher(`${dir}\\revelith`, { exists: () => false })).toEqual({
-      command: 'node',
-      args: [`${dir}\\..\\dist\\revelith.cjs`, 'mcp'],
+      command: `${dir}\\revelith`,
+      args: ['mcp'],
     })
     expect(
       mcpLaunchFromLauncher('/mnt/src/packages/cli/bin/revelith', {
         platform: 'win32',
         exists: (p) => p.endsWith('/bin/revelith.cjs'),
       }),
-    ).toEqual({ command: 'node', args: ['/mnt/src/packages/cli/bin/revelith.cjs', 'mcp'] })
+    ).toEqual({ command: '/mnt/src/packages/cli/bin/revelith', args: ['mcp'] })
   })
 
   it('recognises every launcher shape as ours', () => {

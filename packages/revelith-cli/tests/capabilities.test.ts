@@ -69,7 +69,7 @@ describe('revelith capabilities', () => {
     expect(d.search).toEqual({ available: true, via: 'serper' })
     expect(d.image_search).toEqual({ available: true, via: 'serper' })
     expect(d.image_generation).toEqual({ available: true, via: 'openai' })
-    expect(d.media_analysis.available).toBe(false)
+    expect(d.media_analysis).toEqual({ available: true, via: 'openai' })
     expect(d.app.available).toBe(true)
     expect(r.json().summary).toContain('image_generation')
   })

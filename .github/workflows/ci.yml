@@ -138,6 +138,12 @@ jobs:
           npm ci --include=optional
           npm install --save-optional --include=optional @rollup/rollup-linux-x64-gnu || true
         shell: bash
+      # tools/ooxml-validate shells out to xmllint (pptx-engine schema tests).
+      # ubuntu-latest images do not ship libxml2-utils; without it every
+      # schema assertion fails with `spawnSync xmllint ENOENT`.
+      - name: Install XML validation tools
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+        shell: bash
       # @revelith/html2docx drives a real Chrome via playwright-core and hard
       # fails in beforeAll when it cannot find one. Resolve the binary
       # explicitly instead of relying on the runner image happening to have it.

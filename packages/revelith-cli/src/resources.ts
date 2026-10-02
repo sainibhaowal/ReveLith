@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 /**
  * Two layouts: packaged (Resources/cli/revelith.cjs next to Resources/wasm,
  * Resources/native, Resources/ocr — see apps/shell/electron-builder.cjs) and
- * the dev checkout (packages/cli/{src,dist} inside the monorepo).
+ * the dev checkout (packages/revelith-cli/{src,dist} inside the monorepo).
  */
 function scriptDir(): string {
   if (typeof __dirname === 'string') return __dirname

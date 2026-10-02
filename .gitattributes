@@ -22,3 +22,11 @@
 *.wmf binary
 *.emz binary
 *.wmz binary
+# Legacy Office binaries (OLE CFBF): same text-mangling hazard as above.
+*.doc binary
+*.ppt binary
+*.xls binary
+*.dot binary
+*.pot binary
+*.pps binary
+*.xla binary

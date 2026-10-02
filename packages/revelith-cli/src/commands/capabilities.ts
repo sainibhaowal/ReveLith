@@ -1,10 +1,11 @@
 import {
+  activeMediaConfig,
   activeMediaProvider,
   activeSearchProvider,
   imageGenerationAvailable,
   mediaAnalysisAvailable,
 } from '@revelith/ai-provider'
-import { readAiSettingsFile } from '@revelith/ai-search'
+import { hasGskAuth, readAiSettingsFile } from '@revelith/ai-search'
 import { aiSettingsPath, prepareCloud } from '../cloud'
 import type { CommandDef } from '../registry'
 import { appLaunch } from '../resources'
@@ -28,8 +29,14 @@ export const capabilitiesCommand: CommandDef = {
     const keyedImageSearch = searchProvider === 'serper' || searchProvider === 'serply'
     const searchKey = settings.search?.providers?.[searchProvider]?.apiKey?.trim()
     const searchAvailable = searchProvider === 'parallel' || !!searchKey
-    const imageGeneration = imageGenerationAvailable(settings, false)
-    const mediaAnalysis = mediaAnalysisAvailable(settings, false)
+    const gskLoggedIn = hasGskAuth()
+    const imageGeneration = imageGenerationAvailable(settings, gskLoggedIn)
+    const mediaAnalysis = mediaAnalysisAvailable(settings, gskLoggedIn)
+    const byokImageProvider = activeMediaConfig(settings, 'image')?.provider ?? null
+    const byokAnalysisProvider = activeMediaConfig(settings, 'analysis')?.provider ?? null
+    const via = (byok: string | null | undefined) =>
+      byok ? byok : gskLoggedIn ? 'revelith' : null
+
     const detail = {
       search: {
         available: searchAvailable,
@@ -41,11 +48,11 @@ export const capabilitiesCommand: CommandDef = {
       },
       image_generation: {
         available: imageGeneration,
-        via: imageGeneration ? activeMediaProvider(settings, 'image') : null,
+        via: imageGeneration ? via(byokImageProvider) : null,
       },
       media_analysis: {
         available: mediaAnalysis,
-        via: mediaAnalysis ? activeMediaProvider(settings, 'analysis') : null,
+        via: mediaAnalysis ? via(byokAnalysisProvider) : null,
       },
       app: { available: appLaunch(ctx.env) !== null },
       settings_path: aiSettingsPath(ctx.env),

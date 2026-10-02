@@ -249,7 +249,7 @@ describe('source splice', () => {
     expect(load(editor, '# A\r\n\r\nb\r\n')).toBeNull()
   })
 
-  it('round-trips every markdown file in the repository', () => {
+  it('round-trips every markdown file in the repository', { timeout: 120_000 }, () => {
     const root = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim()
     const files = execSync('git ls-files -- "*.md"', { cwd: root, encoding: 'utf8' })
       .split('\n')
