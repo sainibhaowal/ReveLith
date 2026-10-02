@@ -33,8 +33,7 @@ export const capabilitiesCommand: CommandDef = {
     const mediaAnalysis = mediaAnalysisAvailable(settings, gskLoggedIn)
     const byokImageProvider = activeMediaConfig(settings, 'image')?.provider ?? null
     const byokAnalysisProvider = activeMediaConfig(settings, 'analysis')?.provider ?? null
-    const via = (byok: string | null | undefined) =>
-      byok ? byok : gskLoggedIn ? 'revelith' : null
+    const via = (byok: string | null | undefined) => (byok ? byok : gskLoggedIn ? 'revelith' : null)
 
     const detail = {
       search: {
