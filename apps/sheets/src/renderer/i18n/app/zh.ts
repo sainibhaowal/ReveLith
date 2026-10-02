@@ -1183,6 +1183,7 @@ export const zh = {
   appPasteFormattingOnly: '仅格式',
   appPasteColWidths: '仅列宽',
   appPasteExceptBorders: '边框除外',
+  appPasteTooLarge: '粘贴内容过大（{cells} 个单元格，上限 {max}）',
   appCutTitle: '剪切 ⌘X',
   appCopyTitle: '复制 ⌘C',
   appFormatPainter: '格式刷',

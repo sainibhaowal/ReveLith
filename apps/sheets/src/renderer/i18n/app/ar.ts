@@ -1207,6 +1207,7 @@ export const ar = {
   appPasteFormattingOnly: 'التنسيق فقط',
   appPasteColWidths: 'عرض الأعمدة فقط',
   appPasteExceptBorders: 'باستثناء الحدود',
+  appPasteTooLarge: 'اللصق كبير جدًا ({cells} من الخلايا، الحد الأقصى {max})',
   appCutTitle: 'قص ⌘X',
   appCopyTitle: 'نسخ ⌘C',
   appFormatPainter: 'نسخ التنسيق',

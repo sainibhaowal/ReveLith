@@ -1232,6 +1232,7 @@ export const vi = {
   appPasteFormattingOnly: 'Chỉ định dạng',
   appPasteColWidths: 'Chỉ độ rộng cột',
   appPasteExceptBorders: 'Tất cả trừ viền',
+  appPasteTooLarge: 'Nội dung dán quá lớn ({cells} ô, tối đa {max})',
   appCutTitle: 'Cắt ⌘X',
   appCopyTitle: 'Sao chép ⌘C',
   appFormatPainter: 'Sao chép định dạng',

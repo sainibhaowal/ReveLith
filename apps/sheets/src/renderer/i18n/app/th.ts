@@ -1207,6 +1207,7 @@ export const th = {
   appPasteFormattingOnly: 'การจัดรูปแบบเท่านั้น',
   appPasteColWidths: 'ความกว้างคอลัมน์เท่านั้น',
   appPasteExceptBorders: 'ทั้งหมดยกเว้นเส้นขอบ',
+  appPasteTooLarge: 'เนื้อหาที่วางมีขนาดใหญ่เกินไป ({cells} เซลล์ สูงสุด {max})',
   appCutTitle: 'ตัด ⌘X',
   appCopyTitle: 'คัดลอก ⌘C',
   appFormatPainter: 'ตัวคัดวางรูปแบบ',

@@ -15,3 +15,10 @@
 *.otf binary
 *.woff binary
 *.woff2 binary
+# Office metafiles: binary VBA-era formats. Without this, text=auto EOL
+# normalization corrupts embedded 0D 0A bytes on commit (and the sync script
+# below must also treat them as binary — see tools/sync-genoffice-to-revelith.mjs).
+*.emf binary
+*.wmf binary
+*.emz binary
+*.wmz binary

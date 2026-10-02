@@ -6,7 +6,7 @@ import type {
   RenderSlide,
   ShapeRenderNode,
 } from '@revelith/pptx-render'
-import type { AgentToolCall, AgentToolDef } from '../../shared/ipc'
+import type { AgentToolCall, AgentToolDef, EditParagraph } from '../../shared/ipc'
 import { OP_GROUPS, opGuide, opGuideCatalog, opSignatureIndex } from '@revelith/pptx-ops/op-docs'
 import { auditSlideLayout, formatAudit } from '@revelith/pipelines/slides/layout-audit'
 import { runLayoutScript, type LayoutScriptElement } from './layout-script'
@@ -260,6 +260,63 @@ export interface ClarifyQuestion {
   options: string[]
   /** Multi-select (single-select by default) */
   multi?: boolean
+}
+
+/** Paragraph schema (shared by set_element_text / add_text_box / add_shape) */
+const PARAGRAPHS_DEF = {
+  paragraphs: {
+    type: 'array',
+    description: 'Complete paragraph list, one object per paragraph',
+    items: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Paragraph plain text' },
+        bold: { type: 'boolean' },
+        italic: { type: 'boolean' },
+        underline: { type: 'boolean' },
+        fontSize: { type: 'number', description: 'Font size (pt)' },
+        fontFamily: {
+          type: 'string',
+          description: 'Font name; omit to inherit the theme font (recommended)',
+        },
+        color: { type: 'string', description: '#RRGGBB' },
+        align: { type: 'string', enum: ['left', 'center', 'right'] },
+      },
+      required: ['text'],
+    },
+  },
+} as const
+
+interface ToolParagraph {
+  text?: unknown
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  fontSize?: number
+  fontFamily?: string
+  color?: string
+  align?: 'left' | 'center' | 'right'
+}
+
+function toEditParagraphs(raw: unknown): EditParagraph[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null
+  return raw.map((p) => {
+    const para = p as ToolParagraph
+    return {
+      runs: [
+        {
+          text: String(para.text ?? ''),
+          ...(para.bold ? { bold: true } : {}),
+          ...(para.italic ? { italic: true } : {}),
+          ...(para.underline ? { underline: true } : {}),
+          ...(typeof para.fontSize === 'number' ? { fontSize: para.fontSize } : {}),
+          ...(para.fontFamily ? { fontFamily: para.fontFamily } : {}),
+          ...(para.color ? { color: para.color } : {}),
+        },
+      ],
+      ...(para.align ? { align: para.align } : {}),
+    }
+  })
 }
 
 const TOOLS: AgentToolDef[] = [
@@ -653,6 +710,93 @@ const TOOLS: AgentToolDef[] = [
     description:
       'List all saved style templates (name + topic + createdAt). When the user says "use last time\'s style" or "use some template", call this first to see what exists, then pass the target template name to generate_deck\'s style_template argument.',
     inputSchema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'add_table',
+    description:
+      'Insert a native pptx table on a page (with built-in styling, still editable in PowerPoint). cells gives text row by row (optional; ' +
+      'missing rows/columns stay empty). Omit x/y/w/h to center it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slideIndex: { type: 'integer' },
+        rows: { type: 'integer', description: 'Row count (including header)' },
+        cols: { type: 'integer', description: 'Column count' },
+        cells: {
+          type: 'array',
+          items: { type: 'array', items: { type: 'string' } },
+          description: 'Cell texts, row by row, e.g. [["Name","Qty"],["A","1"]]',
+        },
+        x: { type: 'number' },
+        y: { type: 'number' },
+        w: { type: 'number' },
+        h: { type: 'number' },
+      },
+      required: ['slideIndex', 'rows', 'cols'],
+    },
+  },
+  {
+    name: 'edit_table_cell',
+    description:
+      "Replace one table cell's text entirely. The table element id comes from the outline/read_slide (type=table); row/col are 0-based.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slideIndex: { type: 'integer' },
+        sourceId: { type: 'string', description: 'Table element id' },
+        row: { type: 'integer', description: 'Row number (0-based)' },
+        col: { type: 'integer', description: 'Column number (0-based)' },
+        paragraphs: { $ref: '#/definitions/paragraphs' },
+      },
+      required: ['slideIndex', 'sourceId', 'row', 'col', 'paragraphs'],
+      definitions: PARAGRAPHS_DEF,
+    },
+  },
+  {
+    name: 'edit_table_structure',
+    description:
+      'Add/remove table rows/columns: kind=insert-row/delete-row/insert-col/delete-col; index is the row/column number (0-based), insert defaults to after it, before=true inserts before it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slideIndex: { type: 'integer' },
+        sourceId: { type: 'string', description: 'Table element id' },
+        kind: { type: 'string', enum: ['insert-row', 'delete-row', 'insert-col', 'delete-col'] },
+        index: { type: 'integer', description: 'Row/column number (0-based)' },
+        before: { type: 'boolean', description: 'For insert, set true to insert before index' },
+      },
+      required: ['slideIndex', 'sourceId', 'kind', 'index'],
+    },
+  },
+  {
+    name: 'edit_table_style',
+    description:
+      'Modify table styling: apply a preset (styleName) or individually change header row/banding/shading/borders. styleName options: none/lightGrid/zebraBlue/zebraGray/headerDarkBlue/headerOrange/noBorder/fullBorder.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slideIndex: { type: 'integer' },
+        sourceId: { type: 'string', description: 'Table element id' },
+        styleName: {
+          type: 'string',
+          description: 'Preset style name (see description), highest priority',
+        },
+        firstRow: { type: 'boolean', description: 'Enable header row (first-row emphasis)' },
+        bandRow: { type: 'boolean', description: 'Enable banded rows' },
+        shadingColor: {
+          type: 'string',
+          description: 'Shading color #RRGGBB, "none" clears shading',
+        },
+        borderColor: { type: 'string', description: 'Border color #RRGGBB' },
+        borderWidthPt: { type: 'number', description: 'Border width (pt)' },
+        borderPreset: {
+          type: 'string',
+          enum: ['all', 'none'],
+          description: '"all" = full borders, "none" = clear borders',
+        },
+      },
+      required: ['slideIndex', 'sourceId'],
+    },
   },
   {
     name: 'edit_chart',
@@ -2452,6 +2596,171 @@ async function executeTool(
           okMsg + failMsg + degradedMsg + cloudNote + imageFailNote(deckImageFails) + progressTail,
         mutated: true,
         summary: t('aiSumDeckGenerated', { done: landedPages, total }),
+      }
+    }
+
+    case 'add_table': {
+      const idx = Number(call.input.slideIndex)
+      const slide = slides[idx]
+      if (!slide) return fail(t('aiFailTable'), `slideIndex out of range (0-${slides.length - 1})`)
+      const rows = Number(call.input.rows)
+      const cols = Number(call.input.cols)
+      if (
+        !Number.isInteger(rows) ||
+        !Number.isInteger(cols) ||
+        rows < 1 ||
+        cols < 1 ||
+        rows > 30 ||
+        cols > 12
+      ) {
+        return fail(t('aiFailTable'), 'Invalid rows (1-30) / cols (1-12)')
+      }
+      const defW = Math.round(slide.widthPx * 0.7)
+      const defH = Math.round(Math.min(slide.heightPx * 0.6, rows * 40 + 20))
+      const w = Number(call.input.w) || defW
+      const h = Number(call.input.h) || defH
+      const r = await window.slidesApi.addTable({
+        slideIndex: idx,
+        rows,
+        cols,
+        xPx:
+          Number.isFinite(Number(call.input.x)) && call.input.x != null
+            ? Number(call.input.x)
+            : Math.round((slide.widthPx - w) / 2),
+        yPx:
+          Number.isFinite(Number(call.input.y)) && call.input.y != null
+            ? Number(call.input.y)
+            : Math.round((slide.heightPx - h) / 2),
+        wPx: w,
+        hPx: h,
+        fitWidthPx: access.fitWidthPx,
+      })
+      if (!r) return fail(t('aiFailTable'), 'Insertion failed')
+      let updated = r.slide
+      // Fill cells one by one (cells optional; out-of-range parts ignored)
+      const cells = Array.isArray(call.input.cells) ? (call.input.cells as unknown[][]) : []
+      let filled = 0
+      for (let ri = 0; ri < Math.min(cells.length, rows); ri++) {
+        const rowCells = Array.isArray(cells[ri]) ? cells[ri]! : []
+        for (let ci = 0; ci < Math.min(rowCells.length, cols); ci++) {
+          const text = String(rowCells[ci] ?? '')
+          if (!text) continue
+          const u = await window.slidesApi.editTableCell({
+            slideIndex: idx,
+            sourceId: r.sourceId,
+            row: ri,
+            col: ci,
+            paragraphs: [{ runs: [{ text }] }],
+          })
+          if (u) {
+            updated = u
+            filled++
+          }
+        }
+      }
+      access.applySlide(idx, updated)
+      return {
+        output: `Inserted a ${rows}×${cols} table on page ${idx + 1}, element id=${r.sourceId}${filled ? `, filled ${filled} cell(s) with text` : ''}.`,
+        mutated: true,
+        summary: t('aiSumTable', { n: idx + 1 }),
+      }
+    }
+
+    case 'edit_table_cell': {
+      const idx = Number(call.input.slideIndex)
+      const sourceId = String(call.input.sourceId ?? '')
+      if (!slides[idx])
+        return fail(t('aiFailEditTable'), `slideIndex out of range (0-${slides.length - 1})`)
+      const paragraphs = toEditParagraphs(call.input.paragraphs)
+      if (!paragraphs) return fail(t('aiFailEditTable'), 'paragraphs must be a non-empty array')
+      const row = Number(call.input.row)
+      const col = Number(call.input.col)
+      const updated = await window.slidesApi.editTableCell({
+        slideIndex: idx,
+        sourceId,
+        row,
+        col,
+        paragraphs,
+      })
+      if (!updated)
+        return fail(
+          t('aiFailEditTable'),
+          `Table ${sourceId} not found or cell (${row},${col}) out of range`,
+        )
+      access.applySlide(idx, updated)
+      return {
+        output: `Replaced the text of cell (${row},${col}) in table ${sourceId} on page ${idx + 1}.`,
+        mutated: true,
+        summary: t('aiSumTableCell', { n: idx + 1 }),
+      }
+    }
+
+    case 'edit_table_structure': {
+      const idx = Number(call.input.slideIndex)
+      const sourceId = String(call.input.sourceId ?? '')
+      if (!slides[idx])
+        return fail(t('aiFailTableStructure'), `slideIndex out of range (0-${slides.length - 1})`)
+      const kind = String(call.input.kind) as
+        'insert-row' | 'delete-row' | 'insert-col' | 'delete-col'
+      if (!['insert-row', 'delete-row', 'insert-col', 'delete-col'].includes(kind)) {
+        return fail(t('aiFailTableStructure'), 'Invalid kind')
+      }
+      const r = await window.slidesApi.tableStructure({
+        slideIndex: idx,
+        sourceId,
+        kind,
+        index: Number(call.input.index),
+        ...(call.input.before ? { before: true } : {}),
+      })
+      if (!r)
+        return fail(
+          t('aiFailTableStructure'),
+          `Operation failed (table ${sourceId} does not exist, index out of range, or the last row/column cannot be deleted)`,
+        )
+      access.applySlide(idx, r.slide)
+      return {
+        output: `Applied ${kind} (index=${Number(call.input.index)}) to table ${sourceId} on page ${idx + 1}. The table id may have been updated to ${r.sourceId}.`,
+        mutated: true,
+        summary: t('aiSumTableStructure', {
+          n: idx + 1,
+          op: t(
+            kind.startsWith('insert')
+              ? kind.endsWith('row')
+                ? 'aiOpInsertRow'
+                : 'aiOpInsertCol'
+              : kind.endsWith('row')
+                ? 'aiOpDeleteRow'
+                : 'aiOpDeleteCol',
+          ),
+        }),
+      }
+    }
+
+    case 'edit_table_style': {
+      const idx = Number(call.input.slideIndex)
+      const sourceId = String(call.input.sourceId ?? '')
+      if (!slides[idx])
+        return fail(t('aiFailTableStyle'), `slideIndex out of range (0-${slides.length - 1})`)
+      const op: import('../../shared/ipc').EditTableStyleOp = { slideIndex: idx, sourceId }
+      if (call.input.styleName != null) op.styleName = String(call.input.styleName)
+      if (call.input.firstRow != null) op.firstRow = Boolean(call.input.firstRow)
+      if (call.input.bandRow != null) op.bandRow = Boolean(call.input.bandRow)
+      if (call.input.shadingColor != null) op.shadingColor = String(call.input.shadingColor)
+      if (call.input.borderColor != null) op.borderColor = String(call.input.borderColor)
+      if (call.input.borderWidthPt != null) op.borderWidthPt = Number(call.input.borderWidthPt)
+      if (call.input.borderPreset != null)
+        op.borderPreset = String(call.input.borderPreset) as 'all' | 'none'
+      const updated = await window.slidesApi.editTableStyle(op)
+      if (!updated)
+        return fail(
+          t('aiFailTableStyle'),
+          `Operation failed (table ${sourceId} does not exist or is not of type table)`,
+        )
+      access.applySlide(idx, updated.slide)
+      return {
+        output: `Updated the style of table ${sourceId} on page ${idx + 1}.`,
+        mutated: true,
+        summary: t('aiSumTableStyle', { n: idx + 1 }),
       }
     }
 

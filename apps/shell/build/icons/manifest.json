@@ -28,5 +28,11 @@
     "pngBytes": 2103,
     "icoBytes": 3538,
     "icnsBytes": 3052
+  },
+  "html": {
+    "sha256": "b5f3de91b301",
+    "pngBytes": 2050,
+    "icoBytes": 3371,
+    "icnsBytes": 3189
   }
 }

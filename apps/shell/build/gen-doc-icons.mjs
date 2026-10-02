@@ -1,7 +1,7 @@
 /**
  * Per-document-type icon generator (zero dependencies, pure Node).
  *
- * Produces build/icons/{docx,xlsx,pptx,pdf,md}.{ico,icns,png}: 256px artwork
+ * Produces build/icons/{docx,xlsx,pptx,pdf,md,html}.{ico,icns,png}: 256px artwork
  * rasterized in-process, PNG-encoded with node:zlib, then wrapped as Windows
  * ICO (16/32/48/256px PNG-compressed entries) and macOS ICNS (ic07/ic08 PNG
  * elements). The .ico files are referenced by `fileAssociations[].icon` in
@@ -172,7 +172,16 @@ function artMd(c) {
   for (let i = 0; i < 2; i++) c.rect(84, 140 + i * 26, 88, 10, '#475569') // text lines
 }
 
-const ART = { docx: artDocx, xlsx: artXlsx, pptx: artPptx, pdf: artPdf, md: artMd }
+function artHtml(c) {
+  // teal matches the in-app file-html.svg tile; solid angle brackets read as
+  // code at 16px where stroked chevrons would blur together
+  c.base('#0FA3A3', 48)
+  c.rect(66, 42, 124, 172, WHITE) // page
+  c.triangle(126, 106, 126, 164, 90, 135, '#0FA3A3') // <
+  c.triangle(130, 106, 130, 164, 166, 135, '#0FA3A3') // >
+}
+
+const ART = { docx: artDocx, xlsx: artXlsx, pptx: artPptx, pdf: artPdf, md: artMd, html: artHtml }
 
 // ─── PNG encoder (raw RGBA → PNG, CRC32 + zlib from node) ─────────
 

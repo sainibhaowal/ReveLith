@@ -1155,6 +1155,7 @@ export const zhTW = {
   appPasteFormattingOnly: '僅格式',
   appPasteColWidths: '僅欄寬',
   appPasteExceptBorders: '框線除外',
+  appPasteTooLarge: '貼上內容過大（{cells} 個儲存格，上限 {max}）',
   appCutTitle: '剪下 ⌘X',
   appCopyTitle: '複製 ⌘C',
   appFormatPainter: '複製格式',

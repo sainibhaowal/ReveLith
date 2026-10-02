@@ -1281,6 +1281,7 @@ export const pt = {
   appPasteFormattingOnly: 'Somente Formatação',
   appPasteColWidths: 'Somente Larguras de Coluna',
   appPasteExceptBorders: 'Tudo Exceto Bordas',
+  appPasteTooLarge: 'Colagem muito grande ({cells} células, máximo {max})',
   appCutTitle: 'Recortar ⌘X',
   appCopyTitle: 'Copiar ⌘C',
   appFormatPainter: 'Pincel de Formatação',

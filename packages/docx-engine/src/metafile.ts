@@ -1,4 +1,5 @@
 import { decompressionStream, streamBytes } from './byte-stream'
+import { extractEmfBitmapDataUrl } from './metafile-bitmap'
 import { convertEmfToDataUrl, convertWmfToDataUrl } from './vendor/emf-converter/index.mjs'
 
 const EMF_MIMES = new Set(['image/emf', 'image/x-emf'])
@@ -113,6 +114,10 @@ export async function metafileToDataUrl(
       : await convertWmfToDataUrl(buffer, opts)
     if (result === null) {
       console.warn(`metafileToDataUrl: converter returned null (${mime}, ${u8.byteLength} bytes)`)
+      // No canvas API (node/SSR) or unsupported records: Office EMFs that wrap
+      // a DIB still display via the native bitmap fallback instead of a blank
+      // frame. WMF has no equivalent wrapper, so only EMF retries this way.
+      if (isEmf) return extractEmfBitmapDataUrl(u8)
     }
     return result
   } catch (err) {

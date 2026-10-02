@@ -1280,6 +1280,7 @@ export const it = {
   appPasteFormattingOnly: 'Solo formattazione',
   appPasteColWidths: 'Solo larghezze colonne',
   appPasteExceptBorders: 'Tutto eccetto i bordi',
+  appPasteTooLarge: 'Contenuto da incollare troppo grande ({cells} celle, massimo {max})',
   appCutTitle: 'Taglia ⌘X',
   appCopyTitle: 'Copia ⌘C',
   appFormatPainter: 'Copia formato',

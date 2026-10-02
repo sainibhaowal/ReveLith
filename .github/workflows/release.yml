@@ -160,25 +160,56 @@ jobs:
       - name: Build All Workspaces
         run: npm run build:all
 
-      - name: Prepare Windows signing cert (if provided)
+      - name: Prepare Windows signing (if secrets provided)
         if: matrix.platform == 'win'
         env:
           CSC_LINK_B64: ${{ secrets.CSC_LINK_B64 }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
         run: |
+          # electron-builder.cjs only signs under REVELITH_WIN_SIGN_MODE (see
+          # scripts/win-sign.cjs) and never reads CSC_LINK directly: exporting it
+          # alone used to produce unsigned installers that looked signed.
           if [ -n "$CSC_LINK_B64" ]; then
             echo "$CSC_LINK_B64" | base64 -d > "$RUNNER_TEMP/cert.pfx"
             echo "CSC_LINK=$RUNNER_TEMP/cert.pfx" >> "$GITHUB_ENV"
           fi
+          if [ -n "$AZURE_TRUSTED_SIGNING_ENDPOINT" ] || [ -n "$CSC_LINK_B64" ]; then
+            echo "REVELITH_WIN_SIGN_MODE=production" >> "$GITHUB_ENV"
+          fi
+        shell: bash
+
+      - name: Pre-sign static Windows binaries (sidecar + OCR helper)
+        if: matrix.platform == 'win' && env.REVELITH_WIN_SIGN_MODE != ''
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          # electron-builder does not sign extraResources: without this the
+          # unsigned xlsx-sidecar.exe dies with "spawn UNKNOWN" on machines with
+          # Smart App Control / WDAC, even when the installer itself is signed.
+          node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "apps/sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe" || node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar.exe"
+          node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "packages/pdf2docx/ocr-helper/win-ocr.exe" || true
         shell: bash
 
       - name: Package Desktop Artifacts (${{ matrix.platform }})
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REVELITH_UPDATE_URL: ${{ secrets.REVELITH_UPDATE_URL }}
+          REVELITH_WIN_SIGN_MODE: ${{ env.REVELITH_WIN_SIGN_MODE }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
           AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
           AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

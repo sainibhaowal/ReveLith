@@ -1239,6 +1239,7 @@ export const hi = {
   appPasteFormattingOnly: 'केवल स्वरूपण',
   appPasteColWidths: 'केवल स्तंभ चौड़ाई',
   appPasteExceptBorders: 'बॉर्डर छोड़कर सब कुछ',
+  appPasteTooLarge: 'पेस्ट बहुत बड़ा है ({cells} सेल, अधिकतम {max})',
   appCutTitle: 'काटें ⌘X',
   appCopyTitle: 'प्रतिलिपि बनाएँ ⌘C',
   appFormatPainter: 'फ़ॉर्मेट पेंटर',

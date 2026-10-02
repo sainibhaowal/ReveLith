@@ -1185,6 +1185,7 @@ export const he = {
   appPasteFormattingOnly: 'עיצוב בלבד',
   appPasteColWidths: 'רוחבי עמודות בלבד',
   appPasteExceptBorders: 'הכל פרט לגבולות',
+  appPasteTooLarge: 'ההדבקה גדולה מדי ({cells} תאים, עד {max})',
   appCutTitle: 'גזור ⌘X',
   appCopyTitle: 'העתק ⌘C',
   appFormatPainter: 'מברשת עיצוב',

@@ -1291,6 +1291,7 @@ export const ja = {
   appPasteFormattingOnly: '書式のみ',
   appPasteColWidths: '列幅のみ',
   appPasteExceptBorders: '罫線を除くすべて',
+  appPasteTooLarge: '貼り付けデータが大きすぎます（{cells} セル、上限 {max}）',
   appCutTitle: '切り取り ⌘X',
   appCopyTitle: 'コピー ⌘C',
   appFormatPainter: '書式のコピー/貼り付け',

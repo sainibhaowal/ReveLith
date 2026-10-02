@@ -6,6 +6,17 @@ import {
   remoteImageHeaders,
 } from '../src/remote-image'
 
+// fetchRemoteImage validates every hop with a real DNS lookup. The CDN
+// hostnames used here have no DNS records in CI sandboxes (and must not gain
+// a network dependency), so resolve every test hostname to a public address.
+vi.mock('node:dns/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:dns/promises')>()
+  return {
+    ...actual,
+    lookup: async () => [{ address: '93.184.216.34', family: 4 }],
+  }
+})
+
 const png = () => new Response('img', { status: 200 })
 
 describe('remoteImageHeaders', () => {

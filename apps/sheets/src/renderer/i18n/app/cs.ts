@@ -1244,6 +1244,7 @@ export const cs = {
   appPasteFormattingOnly: 'Pouze formátování',
   appPasteColWidths: 'Pouze šířky sloupců',
   appPasteExceptBorders: 'Vše kromě ohraničení',
+  appPasteTooLarge: 'Vložení je příliš velké ({cells} buněk, maximum {max})',
   appCutTitle: 'Vyjmout ⌘X',
   appCopyTitle: 'Kopírovat ⌘C',
   appFormatPainter: 'Kopírovat formát',

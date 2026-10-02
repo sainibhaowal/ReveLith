@@ -174,6 +174,8 @@ function parseEmfHeader(reader: BinaryReader): EmfHeader {
     }
   }
 
+  // exactOptionalPropertyTypes: an explicit `key: undefined` is not assignable
+  // to `key?: T`, so optional header fields are spread in only when defined.
   return {
     type: 'EMF',
     bounds,
@@ -182,10 +184,8 @@ function parseEmfHeader(reader: BinaryReader): EmfHeader {
     dpi,
     recordsCount,
     handCount,
-    description,
-    pixelFormat: undefined,
-    emfPlusFlags: undefined,
-    logPalette,
+    ...(description !== undefined ? { description } : {}),
+    ...(logPalette !== undefined ? { logPalette } : {}),
   }
 }
 

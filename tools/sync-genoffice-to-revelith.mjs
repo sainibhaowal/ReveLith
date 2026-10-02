@@ -32,6 +32,13 @@ const BINARY_EXTENSIONS = new Set([
   '.docx',
   '.xlsx',
   '.pptx',
+  // Office metafiles are binary: text-processing them (utf8 read + rebrand
+  // write) replaces every non-UTF8 byte with U+FFFD and destroys the fixture.
+  // This exact corruption once took down the docx-engine metafile suite.
+  '.emf',
+  '.wmf',
+  '.emz',
+  '.wmz',
 ])
 
 function isBinaryFile(filePath) {

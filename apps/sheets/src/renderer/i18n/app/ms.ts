@@ -1242,6 +1242,7 @@ export const ms = {
   appPasteFormattingOnly: 'Pemformatan Sahaja',
   appPasteColWidths: 'Lebar Lajur Sahaja',
   appPasteExceptBorders: 'Semua Kecuali Sempadan',
+  appPasteTooLarge: 'Tampalan terlalu besar ({cells} sel, maks {max})',
   appCutTitle: 'Potong ⌘X',
   appCopyTitle: 'Salin ⌘C',
   appFormatPainter: 'Pelukis Format',

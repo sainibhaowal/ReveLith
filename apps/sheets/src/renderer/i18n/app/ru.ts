@@ -1260,6 +1260,7 @@ export const ru = {
   appPasteFormattingOnly: 'Только форматы',
   appPasteColWidths: 'Только ширины столбцов',
   appPasteExceptBorders: 'Без рамок',
+  appPasteTooLarge: 'Слишком большая вставка ({cells} ячеек, максимум {max})',
   appCutTitle: 'Вырезать ⌘X',
   appCopyTitle: 'Копировать ⌘C',
   appFormatPainter: 'Формат по образцу',

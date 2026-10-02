@@ -1276,6 +1276,7 @@ export const nl = {
   appPasteFormattingOnly: 'Alleen opmaak',
   appPasteColWidths: 'Alleen kolombreedten',
   appPasteExceptBorders: 'Alles behalve randen',
+  appPasteTooLarge: 'Plakken is te groot ({cells} cellen, max {max})',
   appCutTitle: 'Knippen ⌘X',
   appCopyTitle: 'Kopiëren ⌘C',
   appFormatPainter: 'Opmaak kopiëren/plakken',

@@ -1264,6 +1264,7 @@ export const ko = {
   appPasteFormattingOnly: '서식만',
   appPasteColWidths: '열 너비만',
   appPasteExceptBorders: '테두리만 제외',
+  appPasteTooLarge: '붙여넣을 내용이 너무 큽니다({cells}개 셀, 최대 {max})',
   appCutTitle: '잘라내기 ⌘X',
   appCopyTitle: '복사 ⌘C',
   appFormatPainter: '서식 복사',

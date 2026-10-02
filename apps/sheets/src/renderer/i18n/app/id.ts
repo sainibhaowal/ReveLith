@@ -1242,6 +1242,7 @@ export const id = {
   appPasteFormattingOnly: 'Hanya Pemformatan',
   appPasteColWidths: 'Hanya Lebar Kolom',
   appPasteExceptBorders: 'Semua Kecuali Batas',
+  appPasteTooLarge: 'Tempelan terlalu besar ({cells} sel, maks {max})',
   appCutTitle: 'Potong ⌘X',
   appCopyTitle: 'Salin ⌘C',
   appFormatPainter: 'Penyalin Format',

@@ -59,6 +59,16 @@ describe('resolveDefaultSaveDir', () => {
   })
 
   it('degrades to the fallback when the configured folder is not writable', () => {
+    // chmod-based read-only dirs only restrict writes on POSIX; on Windows the
+    // mode is a no-op so the dir stays usable. There a file at the configured
+    // path exercises the same degrade-to-fallback contract (mkdir fails).
+    if (process.platform === 'win32') {
+      const blocker = join(root, 'read-only-blocker')
+      writeFileSync(blocker, 'x')
+      const fallback = join(root, 'fallback')
+      expect(resolveDefaultSaveDir(blocker, fallback)).toBe(fallback)
+      return
+    }
     const readOnly = join(root, 'read-only')
     mkdirSync(readOnly)
     chmodSync(readOnly, 0o500)

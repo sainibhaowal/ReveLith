@@ -74,7 +74,12 @@ export function remoteImageHeaders(rawUrl: string): Record<string, string> {
   }
   try {
     const host = new URL(rawUrl).hostname.toLowerCase()
-    if (host === 'revelith.ai' || host.endsWith('.revelith.ai')) {
+    if (
+      host === 'revelith.ai' ||
+      host.endsWith('.revelith.ai') ||
+      host === 'revelith.com' ||
+      host.endsWith('.revelith.com')
+    ) {
       headers.Referer = 'https://www.revelith.ai/'
     }
   } catch {

@@ -20,7 +20,7 @@ function runGeneratorCheck(): string {
 
 describe('doc icon artifacts', () => {
   it('every document type has .ico/.icns/.png artifacts', () => {
-    for (const name of ['docx', 'xlsx', 'pptx', 'pdf', 'md']) {
+    for (const name of ['docx', 'xlsx', 'pptx', 'pdf', 'md', 'html']) {
       for (const ext of ['ico', 'icns', 'png']) {
         expect(existsSync(`${ICONS_DIR}/${name}.${ext}`), `${name}.${ext}`).toBe(true)
       }
@@ -30,7 +30,7 @@ describe('doc icon artifacts', () => {
   it('the generator self-validation passes on the committed files', () => {
     const out = runGeneratorCheck()
     const report = JSON.parse(out) as Record<string, { ico: number[]; icns: string[] }>
-    expect(Object.keys(report).sort()).toEqual(['docx', 'md', 'pdf', 'pptx', 'xlsx'])
+    expect(Object.keys(report).sort()).toEqual(['docx', 'html', 'md', 'pdf', 'pptx', 'xlsx'])
     for (const [name, entry] of Object.entries(report)) {
       // ICO carries 16/32/48/256px PNG entries; ICNS carries ic07/ic08
       expect(entry.ico, `${name} ico sizes`).toEqual([16, 32, 48, 256])
@@ -40,7 +40,7 @@ describe('doc icon artifacts', () => {
 
   it('icons are distinct per type (no copy-paste duplicates)', () => {
     const hashes = new Set<string>()
-    for (const name of ['docx', 'xlsx', 'pptx', 'pdf', 'md']) {
+    for (const name of ['docx', 'xlsx', 'pptx', 'pdf', 'md', 'html']) {
       const png = readFileSync(`${ICONS_DIR}/${name}.png`)
       // compare pixels, not container bytes (timestamps could differ)
       const idat = png.subarray(png.indexOf(Buffer.from('IDAT')) + 8)
@@ -82,8 +82,14 @@ describe('packager wiring', () => {
     ]) {
       expect(config, key).toContain(key)
     }
+    // The hook must exist or every signed build crashes with ENOENT.
+    expect(existsSync(`${SHELL_DIR}/../../scripts/win-sign.cjs`), 'scripts/win-sign.cjs').toBe(true)
     // The retired env-var contract must not creep back in.
-    for (const retired of ['CSC_LINK', 'AZURE_TRUSTED_SIGNING_ENDPOINT', 'timestamp.digicert.com']) {
+    for (const retired of [
+      'CSC_LINK',
+      'AZURE_TRUSTED_SIGNING_ENDPOINT',
+      'timestamp.digicert.com',
+    ]) {
       expect(config, retired).not.toContain(retired)
     }
   })

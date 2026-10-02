@@ -1282,6 +1282,7 @@ export const es = {
   appPasteFormattingOnly: 'Solo formato',
   appPasteColWidths: 'Solo anchos de columna',
   appPasteExceptBorders: 'Todo excepto bordes',
+  appPasteTooLarge: 'El pegado es demasiado grande ({cells} celdas, máximo {max})',
   appCutTitle: 'Cortar ⌘X',
   appCopyTitle: 'Copiar ⌘C',
   appFormatPainter: 'Copiar formato',

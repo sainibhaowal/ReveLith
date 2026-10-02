@@ -1222,6 +1222,7 @@ export const en = {
   appPasteFormattingOnly: 'Formatting Only',
   appPasteColWidths: 'Column Widths Only',
   appPasteExceptBorders: 'All Except Borders',
+  appPasteTooLarge: 'Paste is too large ({cells} cells, max {max})',
   appCutTitle: 'Cut ⌘X',
   appCopyTitle: 'Copy ⌘C',
   appFormatPainter: 'Format Painter',

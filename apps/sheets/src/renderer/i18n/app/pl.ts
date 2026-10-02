@@ -1269,6 +1269,7 @@ export const pl = {
   appPasteFormattingOnly: 'Tylko formatowanie',
   appPasteColWidths: 'Tylko szerokości kolumn',
   appPasteExceptBorders: 'Wszystko oprócz obramowań',
+  appPasteTooLarge: 'Wklejanie jest za duże ({cells} komórek, maks. {max})',
   appCutTitle: 'Wytnij ⌘X',
   appCopyTitle: 'Kopiuj ⌘C',
   appFormatPainter: 'Malarz formatów',

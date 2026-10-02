@@ -1291,6 +1291,7 @@ export const de = {
   appPasteFormattingOnly: 'Nur Formatierung',
   appPasteColWidths: 'Nur Spaltenbreiten',
   appPasteExceptBorders: 'Alles außer Rahmen',
+  appPasteTooLarge: 'Einfügen zu groß ({cells} Zellen, max. {max})',
   appCutTitle: 'Ausschneiden ⌘X',
   appCopyTitle: 'Kopieren ⌘C',
   appFormatPainter: 'Format übertragen',

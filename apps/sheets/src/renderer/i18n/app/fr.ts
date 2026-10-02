@@ -1304,6 +1304,7 @@ export const fr = {
   appPasteFormattingOnly: 'Mise en forme uniquement',
   appPasteColWidths: 'Largeurs de colonnes uniquement',
   appPasteExceptBorders: 'Tout sauf les bordures',
+  appPasteTooLarge: 'Collage trop volumineux ({cells} cellules, maximum {max})',
   appCutTitle: 'Couper ⌘X',
   appCopyTitle: 'Copier ⌘C',
   appFormatPainter: 'Reproduire la mise en forme',
