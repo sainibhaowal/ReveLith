@@ -67,7 +67,9 @@
   border-radius: 4px;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.1s ease, color 0.1s ease;
+  transition:
+    background 0.1s ease,
+    color 0.1s ease;
 }
 
 .search-clear:hover {
@@ -88,7 +90,9 @@
 }
 
 @keyframes search-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Search results section */
@@ -118,7 +122,9 @@
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  transition: background 0.1s ease, border-color 0.1s ease;
+  transition:
+    background 0.1s ease,
+    border-color 0.1s ease;
 }
 
 .search-load-more:hover:not(:disabled) {

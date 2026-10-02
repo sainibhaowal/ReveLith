@@ -35,9 +35,9 @@ describe('collectLaunchPaths', () => {
   })
 
   it('accepts a legacy launchPath payload', () => {
-    expect(
-      collectLaunchPaths(['ReveLith.exe'], { launchPath: 'legacy.docx' }, () => true),
-    ).toEqual(['legacy.docx'])
+    expect(collectLaunchPaths(['ReveLith.exe'], { launchPath: 'legacy.docx' }, () => true)).toEqual(
+      ['legacy.docx'],
+    )
   })
 
   it('falls back to the first existing unsupported argv file', () => {

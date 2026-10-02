@@ -8,10 +8,17 @@ import type { UniverRuntime } from './univer-state'
  * which eliminates freezes when searching on large sheets.
  */
 export function installFindReplaceGridFix(_runtime?: UniverRuntime): { dispose(): void } {
-  const proto = (SheetsFindReplaceController as unknown as { prototype: Record<string, unknown> })?.prototype as
+  const proto = (SheetsFindReplaceController as unknown as { prototype: Record<string, unknown> })
+    ?.prototype as
     | {
         _findInWorksheet: (worksheet: any, query: any, unitId: string) => any
-        _findInRange: (worksheet: any, query: any, range: IRange, unitId: string, dedupeFn?: any) => any
+        _findInRange: (
+          worksheet: any,
+          query: any,
+          range: IRange,
+          unitId: string,
+          dedupeFn?: any,
+        ) => any
         __gridBoundPatched?: boolean
       }
     | undefined
@@ -42,7 +49,13 @@ export function installFindReplaceGridFix(_runtime?: UniverRuntime): { dispose()
     return origFindInRange.call(this, worksheet, query, range, unitId)
   }
 
-  proto._findInRange = function (worksheet: any, query: any, range: IRange, unitId: string, dedupeFn?: any) {
+  proto._findInRange = function (
+    worksheet: any,
+    query: any,
+    range: IRange,
+    unitId: string,
+    dedupeFn?: any,
+  ) {
     const realRange = worksheet?.getDataRealRange?.() as IRange | undefined
     if (realRange && range) {
       const clampedRange: IRange = {
@@ -51,7 +64,10 @@ export function installFindReplaceGridFix(_runtime?: UniverRuntime): { dispose()
         endRow: Math.min(range.endRow, realRange.endRow),
         endColumn: Math.min(range.endColumn, realRange.endColumn),
       }
-      if (clampedRange.startRow > clampedRange.endRow || clampedRange.startColumn > clampedRange.endColumn) {
+      if (
+        clampedRange.startRow > clampedRange.endRow ||
+        clampedRange.startColumn > clampedRange.endColumn
+      ) {
         return { results: [] }
       }
       return origFindInRange.call(this, worksheet, query, clampedRange, unitId, dedupeFn)

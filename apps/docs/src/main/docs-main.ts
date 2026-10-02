@@ -108,7 +108,6 @@ import { listCodexModels, shutdownCodexAppServers } from '@revelith/ai-provider/
 import { listCustomModelsForIpc } from '@revelith/ai-provider/custom-models'
 import {
   ensureReveLithLogin,
-  gskApiKey,
   generateImageTool,
   testSearchProvider,
   gskLoginInfo,

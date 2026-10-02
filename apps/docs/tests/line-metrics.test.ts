@@ -892,9 +892,7 @@ describe('cssFontFamily', () => {
       expect(cssFontFamily('Noto Sans CJK SC')).toMatch(
         /'ReveLith Batang','ReveLith Serif KR',serif$/,
       )
-      expect(cssDualFontFamily('Calibri', 'Noto Sans CJK SC')).toMatch(
-        /'ReveLith Serif KR',serif$/,
-      )
+      expect(cssDualFontFamily('Calibri', 'Noto Sans CJK SC')).toMatch(/'ReveLith Serif KR',serif$/)
       stubCanvas(['Source Han Sans CN'])
       expect(cssFontFamily('Source Han Sans CN')).not.toContain('ReveLith Serif KR')
     })

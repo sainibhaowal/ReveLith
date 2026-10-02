@@ -72,4 +72,16 @@ export default tseslint.config(
       '@typescript-eslint/no-require-imports': 'off',
     },
   },
+  {
+    // The html2docx generation layer was ported verbatim from untyped JS and is
+    // being typed file by file, without logic changes. Every one of those files
+    // carries a whole-file type-check opt-out plus that note, which is what
+    // keeps strict consumers (apps/html, apps/shell) building against it today.
+    // The ban is relaxed only here, and only for that directive, so a new
+    // whole-file opt-out or a new @ts-ignore anywhere else is still an error.
+    files: ['packages/html2docx/src/generate.ts', 'packages/html2docx/src/generate/**/*.ts'],
+    rules: {
+      '@typescript-eslint/ban-ts-comment': ['error', { 'ts-nocheck': false }],
+    },
+  },
 )

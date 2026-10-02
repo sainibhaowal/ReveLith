@@ -25,7 +25,9 @@ function readBuildFile(name: string): string {
 }
 
 /** in-memory reg.exe stub keyed by registry key */
-function stubRegistry(initial: Record<string, { label?: string; icon?: string; command?: string }> = {}): {
+function stubRegistry(
+  initial: Record<string, { label?: string; icon?: string; command?: string }> = {},
+): {
   runner: RegRunner
   calls: string[][]
   store: Record<string, { label?: string; icon?: string; command?: string }>
@@ -40,7 +42,8 @@ function stubRegistry(initial: Record<string, { label?: string; icon?: string; c
       const base = isCommand ? key.slice(0, -'\\command'.length) : key
       const entry = store[base]
       const value = isCommand ? entry?.command : entry?.label
-      if (value === undefined) throw new Error('ERROR: The system was unable to find the specified registry key or value.')
+      if (value === undefined)
+        throw new Error('ERROR: The system was unable to find the specified registry key or value.')
       return { stdout: `\n${key}\n    (Default)    REG_SZ    ${value}\n` }
     }
     if (op === 'add') {
@@ -56,7 +59,8 @@ function stubRegistry(initial: Record<string, { label?: string; icon?: string; c
       return { stdout: 'The operation completed successfully.' }
     }
     if (op === 'delete') {
-      if (!(key in store)) throw new Error('ERROR: The system was unable to find the specified registry key or value.')
+      if (!(key in store))
+        throw new Error('ERROR: The system was unable to find the specified registry key or value.')
       delete store[key]
       return { stdout: 'The operation completed successfully.' }
     }
@@ -111,7 +115,9 @@ describe('parseRegDefault', () => {
   })
 
   it('returns null when the key/value is missing', () => {
-    expect(parseRegDefault('ERROR: The system was unable to find the specified registry key or value.')).toBeNull()
+    expect(
+      parseRegDefault('ERROR: The system was unable to find the specified registry key or value.'),
+    ).toBeNull()
     expect(parseRegDefault('')).toBeNull()
   })
 })
@@ -122,14 +128,7 @@ describe('registerShellMenu', () => {
     const exe = 'C:\\Program Files\\ReveLith\\ReveLith.exe'
     await registerShellMenu({ exePath: exe, runner, platform: 'win32' })
     expect(calls).toHaveLength(SHELL_MENU_EXTS.length * 3)
-    expect(calls[0]).toEqual([
-      'add',
-      shellVerbKey('docx'),
-      '/ve',
-      '/d',
-      SHELL_VERB_LABEL,
-      '/f',
-    ])
+    expect(calls[0]).toEqual(['add', shellVerbKey('docx'), '/ve', '/d', SHELL_VERB_LABEL, '/f'])
     expect(calls[1]).toEqual(['add', shellVerbKey('docx'), '/v', 'Icon', '/d', `${exe},0`, '/f'])
     expect(calls[2]).toEqual([
       'add',
@@ -181,20 +180,29 @@ describe('isShellMenuRegistered', () => {
 
   it('is true when every verb points at the exe', async () => {
     const { runner } = stubRegistry(full)
-    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'win32' })).resolves.toBe(true)
+    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'win32' })).resolves.toBe(
+      true,
+    )
   })
 
   it('is false when any ext is missing', async () => {
     const partial = { ...full }
     delete partial[shellVerbKey('pdf')]
     const { runner } = stubRegistry(partial)
-    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'win32' })).resolves.toBe(false)
+    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'win32' })).resolves.toBe(
+      false,
+    )
   })
 
   it('is false when the command points at a stale exe path', async () => {
-    const stale = { ...full, [shellVerbKey('md')]: { label: SHELL_VERB_LABEL, command: '"D:\\old\\ReveLith.exe" "%1"' } }
+    const stale = {
+      ...full,
+      [shellVerbKey('md')]: { label: SHELL_VERB_LABEL, command: '"D:\\old\\ReveLith.exe" "%1"' },
+    }
     const { runner } = stubRegistry(stale)
-    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'win32' })).resolves.toBe(false)
+    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'win32' })).resolves.toBe(
+      false,
+    )
   })
 
   it('command comparison is case-insensitive (registry canonicalizes case)', async () => {
@@ -206,7 +214,9 @@ describe('isShellMenuRegistered', () => {
 
   it('is false off Windows', async () => {
     const { runner } = stubRegistry(full)
-    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'linux' })).resolves.toBe(false)
+    await expect(isShellMenuRegistered({ exePath: exe, runner, platform: 'linux' })).resolves.toBe(
+      false,
+    )
   })
 })
 

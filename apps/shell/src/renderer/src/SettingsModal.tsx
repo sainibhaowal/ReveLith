@@ -519,7 +519,14 @@ function AiModelPane({ t }: { t: TFunc }) {
       <div className="set-field">
         <div className="set-field-text">
           <div className="set-field-stack">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+              }}
+            >
               <label className="set-field-label">{t('setAiModelId')}</label>
               {(provider === 'lmstudio' || provider === 'ollama' || provider === 'custom') && (
                 <button
@@ -1278,17 +1285,8 @@ export interface SettingsModalProps {
 }
 
 export function SettingsModal({
-  status,
-  loggingOut,
-  loginWaiting,
-  loginUrl,
-  urlCopied,
-  onOpenLoginUrl,
-  onCopyLoginUrl,
   onClose,
   onFileSearchChange,
-  onLogin,
-  onLogout,
   skillUpdateDue: updateDue = false,
   onSkillUpdateDue,
   target,
@@ -1400,9 +1398,6 @@ export function SettingsModal({
     return t('setDefaultAppDesc')
   })()
 
-  const loggedIn = status?.loggedIn ?? false
-  const email = status?.email ?? ''
-
   return (
     <div
       className="set-overlay"
@@ -1442,7 +1437,7 @@ export function SettingsModal({
             ))}
           </nav>
           <div className="set-pane">
-{/* Account/login section removed — ReveLith does not require login to use the app */}
+            {/* Account/login section removed — ReveLith does not require login to use the app */}
             {section === 'aiModel' && <AiModelPane t={t} />}
             {section === 'aiMedia' && (
               <AiMediaPane

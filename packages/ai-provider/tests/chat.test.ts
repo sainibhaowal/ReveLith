@@ -138,8 +138,6 @@ describe('chatForProvider', () => {
     )
   })
 
-
-
   it('opencode: a one-shot call gets its own x-opencode-session', async () => {
     const fetchMock = vi
       .fn()

@@ -9,10 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 // avoids bundling stale implementations when node_modules links point elsewhere)
 const workspaceAlias = {
   // Subpath before the bare name: string aliases are prefix replacements
-  '@revelith/pptx-engine/table-grid': resolve(
-    here,
-    '../../packages/pptx-engine/src/table-grid.ts',
-  ),
+  '@revelith/pptx-engine/table-grid': resolve(here, '../../packages/pptx-engine/src/table-grid.ts'),
   '@revelith/pptx-engine/identity': resolve(here, '../../packages/pptx-engine/src/identity.ts'),
   '@revelith/pptx-engine/named-action': resolve(
     here,

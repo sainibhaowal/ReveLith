@@ -1287,9 +1287,15 @@ describe.skip('streamForProvider: revelith', () => {
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseStream([])))
       vi.stubGlobal('fetch', fetchMock)
       const { cb } = collector()
-      await streamForProvider('revelith' as never, { apiKey: 'gsk-k', model }, 'sys', [], [], 100, cb).catch(
-        () => {},
-      )
+      await streamForProvider(
+        'revelith' as never,
+        { apiKey: 'gsk-k', model },
+        'sys',
+        [],
+        [],
+        100,
+        cb,
+      ).catch(() => {})
       expect(fetchMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({

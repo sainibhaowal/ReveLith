@@ -133,7 +133,10 @@ export async function createDocument(
   const pdfDoc = await PDFDocument.create()
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-  const body = (text ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
+  const body = (text ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
   for (let i = 0; i < pageCount; i++) {
     const page = pdfDoc.addPage([A4[0], A4[1]])
     const margin = 72

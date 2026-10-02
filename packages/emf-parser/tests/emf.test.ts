@@ -8,15 +8,30 @@ function makeMinimalEmf(): Uint8Array {
   const buf = new Uint8Array(108)
   const view = new DataView(buf.buffer)
   let o = 0
-  const u32 = (v: number) => { view.setUint32(o, v, true); o += 4 }
-  const i32 = (v: number) => { view.setInt32(o, v, true); o += 4 }
-  const u16 = (v: number) => { view.setUint16(o, v, true); o += 2 }
+  const u32 = (v: number) => {
+    view.setUint32(o, v, true)
+    o += 4
+  }
+  const i32 = (v: number) => {
+    view.setInt32(o, v, true)
+    o += 4
+  }
+  const u16 = (v: number) => {
+    view.setUint16(o, v, true)
+    o += 2
+  }
   u32(1) // iType = EMR_HEADER
   u32(88) // nSize
   // rclBounds
-  i32(0); i32(0); i32(100); i32(100)
+  i32(0)
+  i32(0)
+  i32(100)
+  i32(100)
   // rclFrame
-  i32(0); i32(0); i32(100); i32(100)
+  i32(0)
+  i32(0)
+  i32(100)
+  i32(100)
   u32(0x464d4520) // dSignature
   u32(0x00010000) // nVersion
   u32(108) // nBytes
@@ -26,8 +41,10 @@ function makeMinimalEmf(): Uint8Array {
   u32(0) // nDescription
   u32(0) // offDescription
   u32(0) // nPalEntries
-  i32(0); i32(0) // szlDevice
-  i32(0); i32(0) // szlMillimeters
+  i32(0)
+  i32(0) // szlDevice
+  i32(0)
+  i32(0) // szlMillimeters
   // EMR_EOF record
   u32(0x0000000e)
   u32(20)

@@ -23,10 +23,8 @@ document.body.classList.add(IS_MAC ? 'mac' : 'overlay-title-bar')
 // so the UI never flashes (home showing briefly before the onboarding overlay)
 const getInitState = async () => {
   const lang = (await window.aiOffice?.getLanguage?.().catch(() => 'en' as const)) ?? 'en'
-  const onboardingSeen =
-    (await window.aiOffice?.onboardingSeen?.().catch(() => true)) ?? true
-  const theme =
-    (await window.aiOffice?.getTheme?.().catch(() => 'system' as const)) ?? 'system'
+  const onboardingSeen = (await window.aiOffice?.onboardingSeen?.().catch(() => true)) ?? true
+  const theme = (await window.aiOffice?.getTheme?.().catch(() => 'system' as const)) ?? 'system'
   return { lang, onboardingSeen, theme }
 }
 

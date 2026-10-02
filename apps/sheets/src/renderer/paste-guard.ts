@@ -62,7 +62,8 @@ export function installPasteGuard(
             (t as any)('appPasteTooLarge', {
               cells: cells.toLocaleString(),
               max: PASTE_CELL_LIMIT.toLocaleString(),
-            }) || `Paste is too large (${cells.toLocaleString()} cells, max ${PASTE_CELL_LIMIT.toLocaleString()})`,
+            }) ||
+              `Paste is too large (${cells.toLocaleString()} cells, max ${PASTE_CELL_LIMIT.toLocaleString()})`,
           )
           return false
         }

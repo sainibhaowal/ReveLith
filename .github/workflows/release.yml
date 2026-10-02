@@ -99,7 +99,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target"
+          workspaces: 'apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target'
 
       - name: Install Linux Build Dependencies
         if: runner.os == 'Linux'

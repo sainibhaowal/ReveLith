@@ -44,7 +44,6 @@ import {
   webSearchTool,
   imageSearchTool,
   ensureReveLithLogin,
-  gskApiKey,
   generateImageTool,
   analyzeMediaTool,
   gskLoginInfo,

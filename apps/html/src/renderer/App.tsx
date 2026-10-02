@@ -8,10 +8,7 @@ import {
   type FindPanelStrings,
   type FindTarget,
 } from '@revelith/ui'
-import {
-  pollUntilReady,
-  runHeadlessRendererExport,
-} from '@revelith/electron-utils/headless-export'
+import { pollUntilReady, runHeadlessRendererExport } from '@revelith/electron-utils/headless-export'
 import { useI18n } from './i18n/locale'
 import { parseDocText, serializeDocText, type Envelope } from './document/envelope'
 import { SourceEditor, type CursorInfo, type SourceEditorHandle } from './source/SourceEditor'

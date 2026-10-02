@@ -110,7 +110,7 @@ async function loginFetchChannels(): Promise<(typeof fetch)[]> {
 
 /** Override dir via REVELITH_AUTH_DIR (test isolation). */
 export function revelithAuthPath(): string {
-  return join(process.env.REVELITH_AUTH_DIR || join(homedir(), '\.revelith'), 'auth.json')
+  return join(process.env.REVELITH_AUTH_DIR || join(homedir(), '.revelith'), 'auth.json')
 }
 
 export interface ReveLithAuth {
@@ -436,4 +436,3 @@ export const genofficeLoginInFlight = revelithLoginInFlight
 export const resetGenofficeAuthCache = resetReveLithAuthCache
 export const genofficeProxyFallbackPreferred = revelithProxyFallbackPreferred
 export type GenofficeAuth = ReveLithAuth
-

@@ -15,11 +15,7 @@ import {
   type OpenedPptx,
   type Slide,
 } from '@revelith/pptx-engine'
-import {
-  buildRenderSlide,
-  type FontMetricsProvider,
-  type RenderSlide,
-} from '@revelith/pptx-render'
+import { buildRenderSlide, type FontMetricsProvider, type RenderSlide } from '@revelith/pptx-render'
 import { createSystemFontMetrics, resetFontRegistry } from './fonts'
 import { tiffToPng } from './tiff-decode'
 import { neutralizeJpegOrientation } from './jpeg-orientation'

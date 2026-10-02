@@ -53,7 +53,12 @@ const assistant = (text: string, extra: Partial<AiChatMessage> = {}): AiChatMess
 
 describe('pruneFailedExchange', () => {
   it('drops the failed bubble and its paired error reply', () => {
-    const chat = [user('a'), assistant('ok'), user('b', { undelivered: true }), assistant('boom', { isError: true })]
+    const chat = [
+      user('a'),
+      assistant('ok'),
+      user('b', { undelivered: true }),
+      assistant('boom', { isError: true }),
+    ]
     expect(pruneFailedExchange(chat, 2)).toEqual([user('a'), assistant('ok')])
   })
 

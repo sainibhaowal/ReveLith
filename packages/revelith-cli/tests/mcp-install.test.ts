@@ -228,9 +228,7 @@ describe('revelith mcp install', () => {
       status: 'installed',
       config: join(m.home, 'cfg', 'settings.json'),
     })
-    expect(readJson(join(m.home, 'cfg', 'settings.json')).mcpServers.revelith.args).toEqual([
-      'mcp',
-    ])
+    expect(readJson(join(m.home, 'cfg', 'settings.json')).mcpServers.revelith.args).toEqual(['mcp'])
     const all = await run(['mcp', 'install', 'all', '--dir', 'cfg', '--json'], { env: m.env })
     expect(all.code).toBe(1)
   })

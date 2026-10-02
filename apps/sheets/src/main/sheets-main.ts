@@ -85,7 +85,6 @@ import {
 } from '@revelith/xlsx-gateway/gateway/csv-import'
 import {
   ensureReveLithLogin,
-  gskApiKey,
   gskLoginInfo,
   hasGskAuth,
   setGskProxyUrl,

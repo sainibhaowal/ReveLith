@@ -1058,8 +1058,7 @@ export const strings = {
     intgSaveZipTitle: 'Lưu kỹ năng',
     intgSavedTo: 'Đã lưu vào {path}',
     intgCopied: 'Đã sao chép',
-    intgCliEphemeral:
-      'Trước tiên hãy kéo ReveLith vào Applications, sau đó mới sử dụng dòng lệnh.',
+    intgCliEphemeral: 'Trước tiên hãy kéo ReveLith vào Applications, sau đó mới sử dụng dòng lệnh.',
     intgCopyPath: 'Sao chép đường dẫn',
     intgCliNeedsUpdate:
       'Kỹ năng này yêu cầu dòng lệnh {v} hoặc mới hơn; vui lòng cập nhật ReveLith.',
@@ -1347,8 +1346,7 @@ export const strings = {
     aiFontSizeCustom: 'カスタム',
     setAiSpellcheck: 'AI チャットのスペルチェック',
     setDefaultApp: 'Office 文書の既定のアプリ',
-    setDefaultAppDesc:
-      '.docx、.xlsx、.pptx ファイルをダブルクリックしたとき ReveLith で開きます。',
+    setDefaultAppDesc: '.docx、.xlsx、.pptx ファイルをダブルクリックしたとき ReveLith で開きます。',
     setDefaultAppIs: 'ReveLith はすでに既定のアプリです。',
     setDefaultAppOther: '現在の既定：{app}',
     setDefaultAppSet: '既定にする',
@@ -4227,8 +4225,7 @@ export const strings = {
     intgExample1: 'Преврати ~/Downloads/report.md в документ Word',
     intgExample2: 'Сделай презентацию из 6 слайдов о наших результатах за 3-й квартал',
     intgExample3: 'Конвертируй budget.xlsx в PDF и открой в ReveLith',
-    intgStep2Note:
-      'Ассистент сам запускает командную строку revelith; вводить её вам не придётся.',
+    intgStep2Note: 'Ассистент сам запускает командную строку revelith; вводить её вам не придётся.',
     intgCliPartTitle: 'CLI · командная строка + skill',
     intgCliPartDesc:
       'Для ассистентов, умеющих выполнять команды терминала (Claude Code, Codex, Cursor и другие). После установки skill ассистент сам вызывает командную строку revelith, чтобы создавать, конвертировать, читать и редактировать файлы; вам не нужно вводить команды.',

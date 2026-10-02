@@ -143,7 +143,8 @@ export const AutolinkExtension = Extension.create({
   addProseMirrorPlugins() {
     return [
       autolinkPlugin(
-        (state) => (state.schema.marks as Record<string, MarkType | undefined>)['link'] ?? undefined,
+        (state) =>
+          (state.schema.marks as Record<string, MarkType | undefined>)['link'] ?? undefined,
       ),
     ]
   },

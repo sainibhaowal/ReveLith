@@ -34,9 +34,7 @@ describe('Meiryo UI GO', () => {
 
   it('serves kana and JP punctuation from the bundled faces without size-adjust', () => {
     expect(find(KANA_RANGE)?.src).toBe("url('./RevelithUIKanaJP-Regular.woff2') format('woff2')")
-    expect(find(KANA_RANGE, true)?.src).toBe(
-      "url('./RevelithUIKanaJP-Bold.woff2') format('woff2')",
-    )
+    expect(find(KANA_RANGE, true)?.src).toBe("url('./RevelithUIKanaJP-Bold.woff2') format('woff2')")
     expect(find(KANA_RANGE)?.adjust).toBeUndefined()
     expect(find(KANA_RANGE, true)?.adjust).toBeUndefined()
     expect(rules.filter((r) => /Hiragino/.test(r.src) && !/Verdana/.test(r.src))).toHaveLength(0)

@@ -20,7 +20,10 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
       setHomeActive(!active || active.kind === 'home')
     }
     if (window.aiOfficeTabs?.list) {
-      void window.aiOfficeTabs.list().then(applyTabs).catch(() => {})
+      void window.aiOfficeTabs
+        .list()
+        .then(applyTabs)
+        .catch(() => {})
       return window.aiOfficeTabs.onChanged?.(applyTabs)
     }
     return undefined
@@ -32,9 +35,12 @@ export function AppFrame({ initialOnboardingSeen }: AppFrameProps) {
   useEffect(() => {
     if (showOnboarding) return
     let alive = true
-    void window.aiOffice?.starPromptShouldShow?.()?.then((result) => {
-      if (alive && result?.show) setStarPromptDocOpens(result.docOpens)
-    })?.catch(() => {})
+    void window.aiOffice
+      ?.starPromptShouldShow?.()
+      ?.then((result) => {
+        if (alive && result?.show) setStarPromptDocOpens(result.docOpens)
+      })
+      ?.catch(() => {})
     return () => {
       alive = false
     }

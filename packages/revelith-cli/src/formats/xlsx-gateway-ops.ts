@@ -18,10 +18,7 @@ import {
   matchableCellText,
   type WorkbookOperation,
 } from '@revelith/xlsx-gateway/domain/workbook-dsl'
-import type {
-  WorkbookSnapshot,
-  WorksheetState,
-} from '@revelith/xlsx-gateway/domain/workbook.types'
+import type { WorkbookSnapshot, WorksheetState } from '@revelith/xlsx-gateway/domain/workbook.types'
 import type { CfWireRule } from '@revelith/xlsx-gateway/gateway/xlsx-cf'
 import type {
   DefinedNameEntry,

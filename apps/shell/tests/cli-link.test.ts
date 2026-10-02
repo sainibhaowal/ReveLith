@@ -20,9 +20,7 @@ describe('revelith launcher file', () => {
     expect(writeLauncherFile(file, '/Applications/ReveLith.app/Contents/Resources/cli')).toBe(true)
     expect(readFileSync(file, 'utf-8')).toBe('/Applications/ReveLith.app/Contents/Resources/cli\n')
     const before = statSync(file).mtimeMs
-    expect(writeLauncherFile(file, '/Applications/ReveLith.app/Contents/Resources/cli')).toBe(
-      false,
-    )
+    expect(writeLauncherFile(file, '/Applications/ReveLith.app/Contents/Resources/cli')).toBe(false)
     expect(statSync(file).mtimeMs).toBe(before)
     expect(writeLauncherFile(file, 'C:\\Programs\\ReveLith\\resources\\revelith')).toBe(true)
     expect(readFileSync(file, 'utf-8')).toBe('C:\\Programs\\ReveLith\\resources\\revelith\n')

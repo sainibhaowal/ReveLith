@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { PDFDocument, PDFName } from 'pdf-lib'
-import { createDocument, cropPages, insertBlankPage, replacePages, setPageSize } from '../src/main/page-ops'
+import {
+  createDocument,
+  cropPages,
+  insertBlankPage,
+  replacePages,
+  setPageSize,
+} from '../src/main/page-ops'
 
 async function makePdf(sizes: [number, number][]): Promise<Uint8Array> {
   const doc = await PDFDocument.create()

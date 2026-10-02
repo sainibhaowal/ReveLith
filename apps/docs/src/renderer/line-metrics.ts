@@ -956,12 +956,7 @@ export function cssFontFamily(font: string, followAltName = true): string {
   // 'ReveLith *' entries are CJK-only local() aliases (fonts.css): the underlying
   // system faces draw Cyrillic/Greek fullwidth, so those scripts must pass through
   const JA_SANS = ['Yu Gothic', 'ReveLith Hiragino Sans', 'Meiryo', 'Noto Sans JP']
-  const JA_SERIF = [
-    'Yu Mincho',
-    'ReveLith Hiragino Mincho',
-    'ReveLith MS Mincho',
-    'Noto Serif JP',
-  ]
+  const JA_SERIF = ['Yu Mincho', 'ReveLith Hiragino Mincho', 'ReveLith MS Mincho', 'Noto Serif JP']
   const KO_SANS = ['Malgun Gothic', 'ReveLith Sans KR', 'Apple SD Gothic Neo', 'Noto Sans KR']
   const KO_SERIF = ['ReveLith Batang', 'ReveLith Serif KR', 'ReveLith Myungjo', 'Noto Serif KR']
   const TC_SANS = ['Microsoft JhengHei', 'PingFang TC', 'ReveLith Heiti TC', 'Noto Sans TC']

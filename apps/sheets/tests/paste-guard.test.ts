@@ -54,7 +54,10 @@ describe('installPasteGuard', () => {
   it('passes format-only pastes (no text payload) through', async () => {
     const { runtime, service, calls } = fakeRuntime()
     installPasteGuard(runtime as never, () => {})
-    const item = { types: [], getType: async () => ({ text: async () => '' }) } as unknown as ClipboardItem
+    const item = {
+      types: [],
+      getType: async () => ({ text: async () => '' }),
+    } as unknown as ClipboardItem
     expect(await service.paste(item, 'special-paste-format')).toBe(true)
     expect(calls).toHaveLength(1)
   })
@@ -79,4 +82,3 @@ describe('installPasteGuard', () => {
     expect(tiled).toBe('A\tB\tA\nC\tD\tC\nA\tB\tA\nC\tD\tC\n')
   })
 })
-

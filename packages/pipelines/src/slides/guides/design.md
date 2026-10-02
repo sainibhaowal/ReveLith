@@ -4,13 +4,13 @@ The same workflow the ReveLith app runs when it generates a presentation, writte
 
 Files of one deck, in a folder of their own (`deck/`):
 
-| Stage         | File                                                         | Check                                                                                                                      |
-| ------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| 1 style sheet | `deck/style.md`                                              | read it back before every page                                                                                             |
+| Stage         | File                                                         | Check                                                                                                                     |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| 1 style sheet | `deck/style.md`                                              | read it back before every page                                                                                            |
 | 2 outline     | `deck/outline.json`                                          | `revelith slides check deck/outline.json --json`                                                                          |
 | 3 pages       | `deck/pages/01.json`, `02.json`, … one file per outline page | `revelith slides check deck/pages/NN.json --json` after writing each (also against the outline entry and the style sheet) |
 | 4 build       | `deck/deck.pptx`                                             | `revelith create --type pptx --spec deck/pages --outline deck/outline.json --out deck/deck.pptx --json`                   |
-| 5 QC          | `deck/shots/*.png`                                           | `revelith slides render`, `revelith slides audit`, `revelith slides replace`                                            |
+| 5 QC          | `deck/shots/*.png`                                           | `revelith slides render`, `revelith slides audit`, `revelith slides replace`                                              |
 
 Never put more than one page in a file, and never write a page before its outline entry exists: the build refuses to run until every outline page has its file, and a page written in one focused step with the style sheet and its brief in front of you is what keeps a 20-page deck consistent. Keep the three files together: `slides check`, `create --spec` and `slides replace` look for `outline.json` and `style.md` beside the page files and one folder up, check every page against its outline entry (file `NN.json` is entry `pages[N-1]`) and against the style sheet's colors, and say so in `detail.notes` when either file is missing.
 

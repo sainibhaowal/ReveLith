@@ -32,10 +32,7 @@ import {
   installInjectorResolutionGuard,
   installWrapMeasureLifecycle,
 } from './univer-sync'
-import {
-  pollUntilReady,
-  runHeadlessRendererExport,
-} from '@revelith/electron-utils/headless-export'
+import { pollUntilReady, runHeadlessRendererExport } from '@revelith/electron-utils/headless-export'
 import {
   commitActiveCellEditor,
   installJournalSuppressionUndoFilter,

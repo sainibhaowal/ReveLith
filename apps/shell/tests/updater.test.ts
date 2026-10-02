@@ -393,10 +393,7 @@ describe('manual download fallback', () => {
     }
   })
 
-  const winFiles = [
-    { url: 'ReveLithSetup-v0.2.0.exe' },
-    { url: 'ReveLithSetup-v0.2.0-arm64.exe' },
-  ]
+  const winFiles = [{ url: 'ReveLithSetup-v0.2.0.exe' }, { url: 'ReveLithSetup-v0.2.0-arm64.exe' }]
 
   it('picks the arm64 installer on Windows arm64', async () => {
     Object.defineProperty(process, 'resourcesPath', { value: '/res', configurable: true })

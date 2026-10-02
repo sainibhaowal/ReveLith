@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  applyVisualEdits,
-  VisualEditError,
-} from '@revelith/xlsx-gateway/gateway/xlsx-drawing-edit'
+import { applyVisualEdits, VisualEditError } from '@revelith/xlsx-gateway/gateway/xlsx-drawing-edit'
 import type { MutablePackage } from '@revelith/xlsx-gateway/gateway/xlsx-drawing-add'
 
 const ANCHOR = {

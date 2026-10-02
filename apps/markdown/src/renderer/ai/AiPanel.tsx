@@ -1261,11 +1261,35 @@ export function ReveLithMark({ size = 18 }: { size?: number }): React.JSX.Elemen
     >
       <g transform="translate(10, 10)">
         <circle cx="50" cy="50" r="7.5" fill="#38bdf8" />
-        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#38bdf8" strokeWidth="6.5" transform="rotate(0 50 50)" />
+        <ellipse
+          cx="50"
+          cy="50"
+          rx="42"
+          ry="18"
+          stroke="#38bdf8"
+          strokeWidth="6.5"
+          transform="rotate(0 50 50)"
+        />
         <circle cx="88" cy="50" r="6.5" fill="#67e8f9" />
-        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#60a5fa" strokeWidth="6.5" transform="rotate(60 50 50)" />
+        <ellipse
+          cx="50"
+          cy="50"
+          rx="42"
+          ry="18"
+          stroke="#60a5fa"
+          strokeWidth="6.5"
+          transform="rotate(60 50 50)"
+        />
         <circle cx="31" cy="17" r="6.5" fill="#93c5fd" />
-        <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#818cf8" strokeWidth="6.5" transform="rotate(120 50 50)" />
+        <ellipse
+          cx="50"
+          cy="50"
+          rx="42"
+          ry="18"
+          stroke="#818cf8"
+          strokeWidth="6.5"
+          transform="rotate(120 50 50)"
+        />
         <circle cx="31" cy="83" r="6.5" fill="#c7d2fe" />
       </g>
     </svg>

@@ -1,11 +1,10 @@
 import {
   activeMediaProvider,
   activeSearchProvider,
-  cloudToolsEnabled,
   imageGenerationAvailable,
   mediaAnalysisAvailable,
 } from '@revelith/ai-provider'
-import { hasGskAuth, readAiSettingsFile } from '@revelith/ai-search'
+import { readAiSettingsFile } from '@revelith/ai-search'
 import { aiSettingsPath, prepareCloud } from '../cloud'
 import type { CommandDef } from '../registry'
 import { appLaunch } from '../resources'

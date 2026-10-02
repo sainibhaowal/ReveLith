@@ -56,15 +56,7 @@ export interface AiProviderMeta {
 
 /** Image generation / media analysis backends (separate from the chat provider) */
 export type AiMediaProviderId =
-  | 'openai'
-  | 'gemini'
-  | 'doubao'
-  | 'glm'
-  | 'xai'
-  | 'qwen'
-  | 'minimax'
-  | 'deepseek'
-  | 'custom'
+  'openai' | 'gemini' | 'doubao' | 'glm' | 'xai' | 'qwen' | 'minimax' | 'deepseek' | 'custom'
 
 /** wire shape of the image endpoint */
 export type AiImageProtocol = 'openai-images' | 'gemini' | 'dashscope' | 'minimax'

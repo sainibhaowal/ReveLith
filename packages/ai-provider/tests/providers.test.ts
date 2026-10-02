@@ -35,8 +35,6 @@ describe('defaultAiSettings', () => {
 })
 
 describe('provider model catalog', () => {
-
-
   it('keeps Responses-only models out of the OpenCode tiers (no such protocol yet)', () => {
     for (const id of ['opencode-zen', 'opencode-go'] as const) {
       const meta = AI_PROVIDERS.find((provider) => provider.id === id)!
@@ -163,8 +161,6 @@ describe('resolveAiSettings', () => {
       expect(resolved.providers.deepseek.model).toBe('deep-seek-v4.1-flash')
     }
   })
-
-
 
   it('leaves a still-supported model id alone', () => {
     const resolved = resolveAiSettings(

@@ -141,14 +141,19 @@ export function parseColorRef(data: Uint8Array): { r: number; g: number; b: numb
   const reader = new BinaryReader(data)
   const val = reader.readUint32()
   return {
-    r: val & 0xFF,
-    g: (val >> 8) & 0xFF,
-    b: (val >> 16) & 0xFF,
+    r: val & 0xff,
+    g: (val >> 8) & 0xff,
+    b: (val >> 16) & 0xff,
     a: 255,
   }
 }
 
-export function parseRect(data: Uint8Array): { left: number; top: number; right: number; bottom: number } {
+export function parseRect(data: Uint8Array): {
+  left: number
+  top: number
+  right: number
+  bottom: number
+} {
   const reader = new BinaryReader(data)
   return {
     left: reader.readInt32(),

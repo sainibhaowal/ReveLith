@@ -46,10 +46,7 @@ function normalizeHttpsBaseUrl(name, value) {
 const updateUrl = process.env.REVELITH_UPDATE_URL
 const ga4MeasurementId = process.env.REVELITH_GA4_MEASUREMENT_ID
 const ga4ApiSecret = process.env.REVELITH_GA4_API_SECRET
-const fontCdnUrl = normalizeHttpsBaseUrl(
-  'REVELITH_FONT_CDN_URL',
-  process.env.REVELITH_FONT_CDN_URL,
-)
+const fontCdnUrl = normalizeHttpsBaseUrl('REVELITH_FONT_CDN_URL', process.env.REVELITH_FONT_CDN_URL)
 
 // REVELITH_MAC_X64=1 — opt into packaging the Intel (x64) dmg/zip alongside
 // arm64. Off by default: Intel packages must only ever ship signed with the

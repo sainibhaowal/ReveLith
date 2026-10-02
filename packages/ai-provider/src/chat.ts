@@ -32,7 +32,10 @@ export async function chatForProvider(
     }
     if (provider === 'lmstudio' && !config.model?.trim()) {
       try {
-        const cat = await listCustomModels(endpoint.baseUrl || 'http://127.0.0.1:1234/v1', config.apiKey)
+        const cat = await listCustomModels(
+          endpoint.baseUrl || 'http://127.0.0.1:1234/v1',
+          config.apiKey,
+        )
         const first = cat.models[0]
         if (first) {
           config = { ...config, model: first }

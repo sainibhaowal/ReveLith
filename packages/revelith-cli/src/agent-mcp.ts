@@ -287,8 +287,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v)
 }
 
-const TOML_HEADER =
-  /^\s*\[\s*mcp_servers\s*\.\s*(?:"revelith"|'revelith'|revelith)\s*(\.[^\]]*)?\]/
+const TOML_HEADER = /^\s*\[\s*mcp_servers\s*\.\s*(?:"revelith"|'revelith'|revelith)\s*(\.[^\]]*)?\]/
 
 /** `env` becomes the `[mcp_servers.revelith.env]` sub-table Codex reads its `env` map from. */
 function tomlTable(launch: McpLaunch): string {

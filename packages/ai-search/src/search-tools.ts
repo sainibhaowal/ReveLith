@@ -18,9 +18,10 @@ export interface SearchOptions {
 export function searchOptionsFromSettings(settings: AiSettings): SearchOptions {
   const provider = activeSearchProvider(settings)
   const searchProviders = settings.search?.providers
-  const key = searchProviders && provider in searchProviders
-    ? (searchProviders as any)[provider]?.apiKey?.trim() ?? ''
-    : ''
+  const key =
+    searchProviders && provider in searchProviders
+      ? ((searchProviders as any)[provider]?.apiKey?.trim() ?? '')
+      : ''
   if (provider === 'parallel') return { useGsk: false, parallelKey: key, prefer: 'parallel' }
   if (provider === 'serply') return { useGsk: false, serplyKey: key, prefer: 'serply' }
   return provider === 'tavily'
@@ -46,4 +47,3 @@ export async function testSearchProvider(
   if (!apiKey && provider !== 'parallel') return { ok: false, error: 'API key is empty' }
   return { ok: true }
 }
-

@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { groupValue } from '@revelith/xlsx-gateway/domain/pivot-grouping'
-import {
-  growPivotDefinition,
-  recomputePivotData,
-} from '@revelith/xlsx-gateway/domain/pivot-engine'
+import { growPivotDefinition, recomputePivotData } from '@revelith/xlsx-gateway/domain/pivot-engine'
 import { parsePivotDefinition } from '@revelith/xlsx-gateway/gateway/xlsx-pivot'
 
 describe('groupValue', () => {

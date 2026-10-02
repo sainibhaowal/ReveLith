@@ -22,7 +22,9 @@ describe('buildValuesXlsx', () => {
     ])
     const zip = await JSZip.loadAsync(bytes)
     // JSZip materializes implicit folder entries; only files matter here
-    const files = Object.keys(zip.files).filter((name) => !name.endsWith('/')).sort()
+    const files = Object.keys(zip.files)
+      .filter((name) => !name.endsWith('/'))
+      .sort()
     expect(files).toEqual([
       '[Content_Types].xml',
       '_rels/.rels',
@@ -71,8 +73,8 @@ describe('file naming', () => {
     await expect(buildGeneratedDocument({ type: 'md', title: 'X', content: '  ' })).rejects.toThrow(
       'must not be empty',
     )
-    await expect(
-      buildGeneratedDocument({ type: 'docx' as 'xlsx', title: 'X' }),
-    ).rejects.toThrow('Unsupported document type')
+    await expect(buildGeneratedDocument({ type: 'docx' as 'xlsx', title: 'X' })).rejects.toThrow(
+      'Unsupported document type',
+    )
   })
 })

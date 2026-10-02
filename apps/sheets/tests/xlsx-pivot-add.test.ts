@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  growPivotDefinition,
-  recomputePivotData,
-} from '@revelith/xlsx-gateway/domain/pivot-engine'
+import { growPivotDefinition, recomputePivotData } from '@revelith/xlsx-gateway/domain/pivot-engine'
 import {
   createBufferEntrySource,
   planCellEditsToXlsx,

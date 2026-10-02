@@ -77,10 +77,7 @@ export function parseRegDefault(stdout: string): string | null {
   return match ? match[1].trim() : null
 }
 
-async function queryDefault(
-  runner: RegRunner,
-  key: string,
-): Promise<string | null> {
+async function queryDefault(runner: RegRunner, key: string): Promise<string | null> {
   try {
     const { stdout } = await runner(['query', key, '/ve'])
     return parseRegDefault(stdout)

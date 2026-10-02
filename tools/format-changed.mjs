@@ -80,17 +80,33 @@ if (changedFiles.length === 0) {
 
 const prettierEntry = join(repoRoot, 'node_modules', 'prettier', 'bin', 'prettier.cjs')
 const prettierMode = mode === '--write' ? '--write' : '--check'
-const result = spawnSync(
-  process.execPath,
-  [prettierEntry, prettierMode, '--ignore-unknown', '--', ...changedFiles],
-  {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  },
-)
 
-if (result.error) {
-  console.error(`Unable to run Prettier: ${result.error.message}`)
-  process.exit(1)
+// A large diff puts thousands of paths on one command line. Windows caps the
+// whole command string at ~32 KB and fails the spawn with ENAMETOOLONG long
+// before that, so the list is chunked. Each chunk stays far below the limit and
+// Prettier is invoked once per chunk.
+const BATCH_SIZE = 150
+let failed = false
+const chunkCount = Math.ceil(changedFiles.length / BATCH_SIZE)
+if (chunkCount > 1) {
+  console.log(`Formatting ${changedFiles.length} changed files in ${chunkCount} Prettier passes.`)
 }
-process.exit(result.status ?? 1)
+
+for (let i = 0; i < changedFiles.length; i += BATCH_SIZE) {
+  const batch = changedFiles.slice(i, i + BATCH_SIZE)
+  const result = spawnSync(
+    process.execPath,
+    [prettierEntry, prettierMode, '--ignore-unknown', '--', ...batch],
+    {
+      cwd: repoRoot,
+      stdio: 'inherit',
+    },
+  )
+  if (result.error) {
+    console.error(`Unable to run Prettier: ${result.error.message}`)
+    process.exit(1)
+  }
+  if ((result.status ?? 1) !== 0) failed = true
+}
+
+process.exit(failed ? 1 : 0)

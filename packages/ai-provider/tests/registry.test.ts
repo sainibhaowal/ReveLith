@@ -6,7 +6,7 @@ import {
   modelHasFixedSampling,
   modelLacksVision,
 } from '../src/registry'
-import { AI_PROVIDERS, REVELITH_LLM_BASE_URLS } from '../src/providers'
+import { AI_PROVIDERS } from '../src/providers'
 import type { AiProviderConfig, AiProviderId } from '../src/types'
 
 function config(model: string, baseUrl?: string): AiProviderConfig {
@@ -248,9 +248,7 @@ describe('provider registry', () => {
 
   it('direct vendors authenticate through api-key while codex uses codex-chatgpt', () => {
     for (const [id, adapter] of Object.entries(AI_PROVIDER_ADAPTERS)) {
-      expect(adapter.capabilities.auth).toBe(
-        id === 'codex' ? 'codex-chatgpt' : 'api-key',
-      )
+      expect(adapter.capabilities.auth).toBe(id === 'codex' ? 'codex-chatgpt' : 'api-key')
     }
   })
 

@@ -49,9 +49,9 @@ describe('mcp launch entry', () => {
     expect(isReveLithLauncher('C:\\ReveLith\\resources\\cli\\revelith.cmd')).toBe(true)
     expect(isReveLithLauncher('C:\\Program Files\\ReveLith\\ReveLith.exe')).toBe(true)
     expect(isReveLithLauncher(WIN_APP.command, WIN_APP.args)).toBe(true)
-    expect(
-      isReveLithLauncher('node', ['C:\\src\\packages\\cli\\dist\\revelith.cjs', 'mcp']),
-    ).toBe(true)
+    expect(isReveLithLauncher('node', ['C:\\src\\packages\\cli\\dist\\revelith.cjs', 'mcp'])).toBe(
+      true,
+    )
     expect(isReveLithLauncher('npx', ['-y', 'other-mcp'])).toBe(false)
     expect(isReveLithLauncher(null)).toBe(false)
   })

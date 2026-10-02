@@ -13,7 +13,9 @@ describe('remoteImageHeaders', () => {
     expect(remoteImageHeaders('https://sspark.revelith.ai/a.png').Referer).toBe(
       'https://www.revelith.ai/',
     )
-    expect(remoteImageHeaders('https://revelith.com/a.png').Referer).toBe('https://www.revelith.ai/')
+    expect(remoteImageHeaders('https://revelith.com/a.png').Referer).toBe(
+      'https://www.revelith.ai/',
+    )
   })
 
   it('sends no Referer for other hosts (including lookalikes)', () => {

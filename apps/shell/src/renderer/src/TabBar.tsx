@@ -226,7 +226,10 @@ export function TabBar() {
 
   useEffect(() => {
     if (window.aiOfficeTabs?.list) {
-      void window.aiOfficeTabs.list().then(setTabs).catch(() => {})
+      void window.aiOfficeTabs
+        .list()
+        .then(setTabs)
+        .catch(() => {})
       return window.aiOfficeTabs.onChanged?.(setTabs)
     }
     return undefined
