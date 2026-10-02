@@ -153,9 +153,22 @@ jobs:
           echo "::error::No Chrome/Chromium binary found. @revelith/html2docx needs one; install google-chrome-stable or set CHROME_PATH."
           exit 1
         shell: bash
+      # Every package in the partition runs, even after one fails, and each
+      # result is reported as its own annotation. Bailing out on the first
+      # failure hid which packages in a partition were actually red.
       - name: Run Test Suite Partition
         run: |
+          failed=""
           for pkg in ${{ matrix.packages }}; do
-            npm run test -w "$pkg"
+            if npm run test -w "$pkg"; then
+              echo "PASS $pkg"
+            else
+              echo "::error title=Test failure::$pkg"
+              failed="$failed $pkg"
+            fi
           done
+          if [ -n "$failed" ]; then
+            echo "Failing packages:$failed"
+            exit 1
+          fi
         shell: bash
