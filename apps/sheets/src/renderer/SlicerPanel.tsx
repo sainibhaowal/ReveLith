@@ -1,4 +1,5 @@
-﻿import { useI18n } from './i18n/locale'
+import { useI18n } from './i18n/locale'
+import { useModalDialog } from './modal-dialog'
 
 /// Slicer: a visual filter control bound to one pivot dimension field. When
 /// members are clicked, App writes the unselected members as the pivot's hidden
@@ -9,7 +10,7 @@
 /// (incl. workbook rels, contentTypes, and x14/x15 extensions) are heavy, so
 /// slicers currently exist only within the session (App state); the hidden
 /// entries and output-area data they drive are persisted through the existing
-/// pivot refresh write-back path : Excel shows the same filtered result on open,
+/// pivot refresh write-back path — Excel shows the same filtered result on open,
 /// just without the slicer control itself.
 
 export interface SlicerMember {
@@ -46,11 +47,13 @@ export function SlicerFieldPicker({
   readonly onClose: () => void
 }): React.JSX.Element {
   const { t } = useI18n()
+  const modal = useModalDialog(onClose)
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
         className="format-cells-dialog slicer-picker"
         role="dialog"
+        {...modal}
         aria-label={t('dlgSlicerInsertTitle')}
         onClick={(event) => event.stopPropagation()}
       >

@@ -1,5 +1,5 @@
-﻿/**
- * Core picture cutout (background removal) algorithm : pure functions, no DOM, unit-testable.
+/**
+ * Core picture cutout (background removal) algorithm — pure functions, no DOM, unit-testable.
  *
  * Approach A: edge flood fill by color tolerance (magic-wand style removal, a simplified
  * take on PowerPoint "Remove Background"):
@@ -33,7 +33,7 @@ export interface CutoutResult {
 /**
  * Tolerance 0..100 → color distance threshold.
  * Distance is per-channel RMS (0..255 scale); at tolerance 100 the threshold is 255,
- * roughly the black-white distance : i.e. at max, almost every color connected to the
+ * roughly the black-white distance — i.e. at max, almost every color connected to the
  * edge is judged as background.
  */
 export function toleranceToThreshold(tolerance: number): number {

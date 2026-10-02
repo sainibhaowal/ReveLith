@@ -1,4 +1,4 @@
-﻿import { readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { hbSubsetWasmPath } from './wasm-path'
 
 /** hb-subset.wasm exports we call (numbers are pointers into its linear memory) */
@@ -106,11 +106,11 @@ function parseCffDict(b: Buffer, start: number, end: number): Map<number, number
  * Rewrite a CID-keyed CFF's charset to the identity mapping, in a copy of the font.
  *
  * PDFium authors text by GID (Identity-H with CID=GID), but a CID-keyed CFF subset keeps
- * the ORIGINAL CIDs in its charset : conforming viewers (Acrobat/mupdf/poppler) resolve
+ * the ORIGINAL CIDs in its charset — conforming viewers (Acrobat/mupdf/poppler) resolve
  * CID→glyph through the charset, find nothing at CID=GID, and render blanks. An identity
  * charset (glyph i ⇔ CID i) makes both interpretations agree. The 5-byte format-2 range
  * always fits over the old charset in place (offsets elsewhere stay valid; the leftover
- * bytes become dead space, which CFF permits). Throws when the font is not rewritable :
+ * bytes become dead space, which CFF permits). Throws when the font is not rewritable —
  * callers fall back to another face. Non-CID CFFs and glyf-flavored fonts pass through.
  */
 export function identityCffCharset(font: Buffer): Buffer {

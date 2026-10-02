@@ -1,10 +1,11 @@
-﻿/**
+/**
  * Picture crop and cutout (background removal) actions. Extracted from
  * App.tsx; functions read the latest App state through ActionCtx.
  */
 import type { PictureRenderNode } from '@revelith/pptx-render'
 import { FIT_WIDTH } from './app-constants'
 import type { ActionCtx } from './action-context'
+import { renderSelectionToPngBase64 } from './selection-image'
 import { t } from './i18n/locale'
 
 /** Enter picture crop mode: find the selected picture node and read its box and srcRect */
@@ -44,7 +45,7 @@ export async function commitCrop(
   ctx.setCropTarget(null)
   // `rect` is relative to the FULL original image (the frame may have been dragged
   // outward past the previous crop); null = frame covers the whole original.
-  if (!rect && !prev) return // never cropped and frame left at full : nothing to do
+  if (!rect && !prev) return // never cropped and frame left at full — nothing to do
   // The element frame moves/resizes to the on-screen crop frame in the same atomic
   // edit: the kept region stays exactly where it was framed (PowerPoint semantics),
   // dragging outward restores original content, and one undo reverts everything.
@@ -94,7 +95,7 @@ export function startCutout(ctx: ActionCtx): void {
 
 /**
  * Apply the cutout result: swap the picture's backing image for the
- * background-removed PNG in place. One atomic IPC : frame, rotation, z-order,
+ * background-removed PNG in place. One atomic IPC — frame, rotation, z-order,
  * border and effects all survive; the crop window is kept because the result
  * PNG shares the source image's pixel geometry.
  */
@@ -124,4 +125,61 @@ export async function applyCutout(ctx: ActionCtx, pngDataUrl: string): Promise<v
   ctx.setSelectedIds([targetId])
   ctx.setDirty(true)
   ctx.setStatus(t('appStatusCutoutDone'))
+}
+
+/** Replace the selected picture's image with a file from disk; frame, z-order and effects survive */
+export async function replacePicture(ctx: ActionCtx): Promise<void> {
+  if (!ctx.slide || ctx.selectedIds.length !== 1) return
+  const targetId = ctx.selectedIds[0]!
+  const node = ctx.slide.nodes.find((n) => n.sourceId === targetId)
+  if (!node || node.type !== 'picture') return
+  const picked = await window.slidesApi.pickPictureFile()
+  if (!picked) return
+  const updated = await window.slidesApi.replacePictureBytes({
+    slideIndex: ctx.current,
+    sourceId: targetId,
+    base64: picked.base64,
+    ext: picked.ext,
+  })
+  if (!updated) return
+  if ('error' in updated) {
+    ctx.setStatus(t('appStatusImageUnsupported', { ext: updated.ext }))
+    return
+  }
+  ctx.applySlide(ctx.current, updated)
+  ctx.setSelectedIds([targetId])
+  ctx.setDirty(true)
+}
+
+/** Only top-level slide nodes render into the selection PNG, so an entered group's children cannot be saved */
+export function canSaveAsPicture(ctx: ActionCtx, sourceIds: readonly string[]): boolean {
+  return !!ctx.slide && sourceIds.length > 0 && !ctx.enteredGroupId
+}
+
+function pictureFileName(ctx: ActionCtx, sourceIds: readonly string[]): string {
+  const node =
+    sourceIds.length === 1 ? ctx.slide?.nodes.find((n) => n.sourceId === sourceIds[0]) : null
+  const name = (node as { name?: string } | undefined)?.name
+    ?.replace(/[\\/:*?"<>|\s]+/g, ' ')
+    .trim()
+  return name || 'Picture'
+}
+
+/** PowerPoint "Save as Picture…": the selected elements as one transparent PNG */
+export async function saveSelectionAsPicture(
+  ctx: ActionCtx,
+  sourceIds: readonly string[] = ctx.selectedIds,
+): Promise<void> {
+  if (!ctx.slide || !canSaveAsPicture(ctx, sourceIds)) return
+  try {
+    const pngBase64 = await renderSelectionToPngBase64(ctx.slide, sourceIds, ctx.images)
+    const r = await window.slidesApi.savePicture({
+      pngBase64,
+      defaultName: pictureFileName(ctx, sourceIds),
+    })
+    if (r.ok && r.path) ctx.setStatus(t('appStatusPictureSaved', { path: r.path }))
+    else if (r.error) ctx.setStatus(t('appStatusPictureSaveFailed', { error: r.error }))
+  } catch (err) {
+    ctx.setStatus(t('appStatusPictureSaveFailed', { error: String(err) }))
+  }
 }

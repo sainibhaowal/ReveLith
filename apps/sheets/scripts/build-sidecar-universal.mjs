@@ -1,7 +1,7 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 // Build the xlsx-sidecar as a macOS universal (fat) binary for release
 // packaging: compile both Apple targets and lipo-merge them into
-// native/xlsx-engine/target/release/xlsx-sidecar : the exact path the shell's
+// native/xlsx-engine/target/release/xlsx-sidecar — the exact path the shell's
 // electron-builder mac extraResources reads, so the host-arch dev build and
 // this fat release build are interchangeable at packaging time. Both mac
 // arch packages (arm64 + x64) ship the same fat sidecar.
@@ -63,6 +63,6 @@ execFileSync(
 
 const archs = execFileSync('lipo', ['-archs', out], { encoding: 'utf8' }).trim()
 if (!archs.includes('x86_64') || !archs.includes('arm64')) {
-  fatal(`merge produced "${archs}" : expected x86_64 + arm64`)
+  fatal(`merge produced "${archs}" — expected x86_64 + arm64`)
 }
 console.log(`[sidecar-universal] ${out} (${archs})`)

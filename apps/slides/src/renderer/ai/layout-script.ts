@@ -1,7 +1,7 @@
-﻿/**
+/**
  * Slide edit script sandbox (modeled on the Google Slides add-in's execute_apps_script idea):
  * instead of blindly sending absolute coordinates / calling fine-grained tools attribute by
- * attribute, the AI submits a synchronous JS-shaped DSL program : at runtime it gets a snapshot of
+ * attribute, the AI submits a synchronous JS-shaped DSL program — at runtime it gets a snapshot of
  * this page's real element geometry and text (els) and the canvas size (canvas), computes
  * algorithmically, then uses setBox/moveBy/resizeBy for geometry and setText/setStyle/setFill/setStroke
  * for content and style. The script only collects operations and never mutates the screen directly;
@@ -9,10 +9,11 @@
  * one batchEditTransform, the rest serially in script order).
  *
  * All precision-number work (reading coordinates, computing spacing) happens at execution site;
- * coordinates never round-trip through LLM tokens : the key to getting layout adjustments right.
+ * coordinates never round-trip through LLM tokens — the key to getting layout adjustments right.
  */
 
 import type { EditParagraph } from '../../shared/ipc'
+import { FONT_SIZE_PT_MIN, FONT_SIZE_PT_MAX } from '@revelith/pptx-ops/font-size'
 import { interpretLayoutScript } from './layout-script-interpreter'
 
 export interface LayoutScriptElement {
@@ -115,7 +116,7 @@ export function runLayoutScript(
     if (!el) throw new Error(`${fn}: element "${key}" does not exist (see the ids in els)`)
     if (el.inGroup && !el.groupId)
       throw new Error(
-        `${fn}: "${key}" is nested inside a sub-group (read-only); ungroup_element the outer group first, or operate on the sub-group as a whole`,
+        `${fn}: "${key}" is nested inside a sub-group (read-only); ungroup the outer group first (apply_ops ungroupElement), or operate on the sub-group as a whole`,
       )
     if (el.locked)
       throw new Error(`${fn}: "${key}" is a layout decoration element, read-only and unmodifiable`)
@@ -224,7 +225,7 @@ export function runLayoutScript(
     })
   }
 
-  /** Replace an element's text wholesale: string or paragraph array (same format as set_element_text's paragraphs) */
+  /** Replace an element's text wholesale: string or paragraph array (same format as apply_ops setText paragraphs) */
   const setText = (id: unknown, textOrParagraphs: unknown) => {
     const key = String(id)
     const el = guard('setText', id)
@@ -244,7 +245,11 @@ export function runLayoutScript(
     const style: SlideStylePatch = {}
     if (p.fontSize !== undefined) {
       const n = reqNum(`setStyle("${key}")`, 'fontSize', p.fontSize)
-      if (n <= 0) throw new Error(`setStyle("${key}"): fontSize must be > 0`)
+      if (n < FONT_SIZE_PT_MIN || n > FONT_SIZE_PT_MAX) {
+        throw new Error(
+          `setStyle("${key}"): fontSize must be ${FONT_SIZE_PT_MIN}..${FONT_SIZE_PT_MAX} (points)`,
+        )
+      }
       style.fontSize = n
     }
     if (p.color !== undefined) {

@@ -1,6 +1,6 @@
-﻿/// Copying a slide between two decks. A bundle carries the slide's XML plus every
+/// Copying a slide between two decks. A bundle carries the slide's XML plus every
 /// package part it depends on (media, charts and their embedded workbooks, …) so
-/// the target deck can be a different file : or a different process.
+/// the target deck can be a different file — or a different process.
 ///
 /// Two things keep this simple. Relationship ids only have to be unique inside one
 /// part's .rels, so the copied slide keeps the source's rIds verbatim and its XML
@@ -9,6 +9,7 @@
 /// paste does.
 
 import { PackageArchive, relsPathFor, resolveTarget, type Relationship } from './zip'
+import { hasContentTypeOverride, maxRelationshipIdNumber } from './xml-utils'
 
 const LAYOUT_REL = '/slideLayout'
 const NOTES_REL = '/notesSlide'
@@ -66,7 +67,7 @@ function defaultContentType(ct: string | null, ext: string): string | undefined 
 }
 
 /** Walks a part's rel graph, collecting bytes + content types for everything reachable. */
-function collectPart(
+export function collectPart(
   archive: PackageArchive,
   partPath: string,
   parts: Record<string, string>,
@@ -219,12 +220,17 @@ function writeParts(
   archive: PackageArchive,
   parts: Readonly<Record<string, string>>,
   contentTypes: Readonly<Record<string, string>>,
+  reusable?: ReadonlySet<string>,
 ): Map<string, string> {
   // rels parts follow their owner, so map the owners first
   const pathMap = new Map<string, string>()
   const taken = new Set<string>()
   for (const sourcePath of Object.keys(parts)) {
     if (sourcePath.includes('/_rels/')) continue
+    if (reusable?.has(sourcePath)) {
+      pathMap.set(sourcePath, sourcePath)
+      continue
+    }
     const dest =
       archive.has(sourcePath) || taken.has(sourcePath)
         ? freePath(archive, sourcePath, taken)
@@ -234,7 +240,7 @@ function writeParts(
   }
 
   for (const [sourcePath, base64] of Object.entries(parts)) {
-    if (sourcePath.includes('/_rels/')) continue
+    if (sourcePath.includes('/_rels/') || reusable?.has(sourcePath)) continue
     const targetPath = pathMap.get(sourcePath)
     if (!targetPath) continue
     archive.entries.set(targetPath, new Uint8Array(Buffer.from(base64, 'base64')))
@@ -254,6 +260,65 @@ function writeParts(
 
   ensureContentTypes(archive, contentTypes, pathMap)
   return pathMap
+}
+
+/**
+ * Parts the target archive already holds byte-identically (same path, same
+ * bytes, same rels, dependencies transitively identical too) — those can be
+ * shared instead of re-imported, so a same-deck paste never duplicates media.
+ */
+function reusableParts(
+  archive: PackageArchive,
+  parts: Readonly<Record<string, string>>,
+): Set<string> {
+  const memo = new Map<string, boolean>()
+  const identical = (sourcePath: string): boolean => {
+    const cached = memo.get(sourcePath)
+    if (cached !== undefined) return cached
+    memo.set(sourcePath, false) // cycle guard
+    let ok = false
+    const existing = archive.readBytes(sourcePath)
+    if (existing && Buffer.from(existing).equals(Buffer.from(parts[sourcePath]!, 'base64'))) {
+      const relsPath = relsPathFor(sourcePath)
+      const bundledRels = parts[relsPath]
+      const existingRels = archive.readText(relsPath)
+      if (bundledRels == null) ok = existingRels == null
+      else if (existingRels != null) {
+        ok = Buffer.from(bundledRels, 'base64').toString('utf8') === existingRels
+        if (ok) {
+          for (const rel of archive.readRels(sourcePath).values()) {
+            if (rel.targetMode === 'External') continue
+            const dep = resolveTarget(sourcePath, rel.target)
+            if (parts[dep] != null && !identical(dep)) {
+              ok = false
+              break
+            }
+          }
+        }
+      }
+    }
+    memo.set(sourcePath, ok)
+    return ok
+  }
+  const reusable = new Set<string>()
+  for (const sourcePath of Object.keys(parts)) {
+    if (!sourcePath.includes('/_rels/') && identical(sourcePath)) reusable.add(sourcePath)
+  }
+  return reusable
+}
+
+/**
+ * Lands an element-clipboard's dependency parts in `archive` (paste target).
+ * Byte-identical parts already present are shared — a same-deck paste writes
+ * nothing; a cross-deck paste imports media/charts under non-conflicting names.
+ * Returns the source→destination path map.
+ */
+export function importClipboardParts(
+  archive: PackageArchive,
+  parts: Readonly<Record<string, string>>,
+  contentTypes: Readonly<Record<string, string>>,
+): Map<string, string> {
+  return writeParts(archive, parts, contentTypes, reusableParts(archive, parts))
 }
 
 export function materializeSlideBundle(
@@ -294,8 +359,8 @@ function ensureContentTypes(
       const targetPath = pathMap.get(key)
       if (!targetPath) continue
       const override = `<Override PartName="/${targetPath}" ContentType="${contentType}"/>`
-      if (!ct.includes(`PartName="/${targetPath}"`))
-        ct = ct.replace('</Types>', `${override}</Types>`)
+      if (!hasContentTypeOverride(ct, targetPath))
+        ct = ct.replace('</Types>', () => `${override}</Types>`)
     } else if (!new RegExp(`<Default[^>]*Extension="${key}"`, 'i').test(ct)) {
       ct = ct.replace(
         '</Types>',
@@ -317,7 +382,7 @@ function partText(parts: Readonly<Record<string, string>>, path: string): string
 
 /**
  * A target layout whose XML, owning master and theme are byte-identical to the
- * bundled chain : i.e. this chain was already imported (or the decks share the
+ * bundled chain — i.e. this chain was already imported (or the decks share the
  * template), so "keep source formatting" can reuse it instead of adding a master.
  */
 function findIdenticalLayout(
@@ -350,8 +415,7 @@ function registerMaster(archive: PackageArchive, masterPath: string): boolean {
   const pres = archive.readText(PRES_PATH)
   const presRels = archive.readText(presRelsPath)
   if (!pres || !presRels || !pres.includes('</p:sldMasterIdLst>')) return false
-  let maxRid = 0
-  for (const m of presRels.matchAll(/Id="rId(\d+)"/g)) maxRid = Math.max(maxRid, Number(m[1]))
+  const maxRid = maxRelationshipIdNumber(presRels)
   const rid = `rId${maxRid + 1}`
   archive.entries.set(
     presRelsPath,
@@ -384,7 +448,7 @@ function registerMaster(archive: PackageArchive, masterPath: string): boolean {
  * "Keep source formatting": land the bundled layout→master→theme chain in the
  * target (registering the master) and return the layout path the pasted slide
  * should point at. Returns null when the bundle has no chain or the target's
- * presentation.xml can't take another master : callers fall back to chooseLayout.
+ * presentation.xml can't take another master — callers fall back to chooseLayout.
  */
 export function importSourceLayout(archive: PackageArchive, bundle: SlideBundle): string | null {
   const chain = bundle.chain

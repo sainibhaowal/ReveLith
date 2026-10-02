@@ -1,5 +1,5 @@
-﻿/**
- * Format Painter : pure functions with no side effects, easy to unit test.
+/**
+ * Format Painter — pure functions with no side effects, easy to unit test.
  *
  * Format scope:
  *  - Shapes/text boxes: the modelable part of spPr (fill / stroke / presetGeometry / adjust)

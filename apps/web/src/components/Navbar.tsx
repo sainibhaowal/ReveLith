@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Download, Menu, X, Star, ChevronDown } from 'lucide-react'
+import { Download, Menu, X, Star } from 'lucide-react'
 import { GithubIcon } from './GithubIcon'
 import { GITHUB_REPO_URL, LATEST_VERSION, APP_MODULES } from '../data/suite-data'
 
@@ -37,10 +37,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownload, onSelectModule }
       <div className="container-xl flex items-center justify-between h-16 gap-2 sm:gap-4">
         {/* Brand */}
         <a href="#" className="flex items-center gap-3 group" aria-label="ReveLith Home">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center border border-[#ddd5ff] bg-gradient-to-br from-[#f3f0ff] to-[#ede9ff] group-hover:border-[#a78bfa] group-hover:shadow-[0_0_14px_rgba(108,71,255,0.2)] transition-all duration-200"
-          >
-            <img src="/revelith-logo.svg" alt="" className="w-5 h-5 object-contain" aria-hidden="true" />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-[#ddd5ff] bg-gradient-to-br from-[#f3f0ff] to-[#ede9ff] group-hover:border-[#a78bfa] group-hover:shadow-[0_0_14px_rgba(108,71,255,0.2)] transition-all duration-200">
+            <img
+              src="/revelith-logo.svg"
+              alt=""
+              className="w-5 h-5 object-contain"
+              aria-hidden="true"
+            />
           </div>
           <div className="flex items-baseline gap-2">
             <span
@@ -80,10 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownload, onSelectModule }
             </span>
           </a>
 
-          <button
-            onClick={onOpenDownload}
-            className="btn-brand px-5 py-2.5 text-sm"
-          >
+          <button onClick={onOpenDownload} className="btn-brand px-5 py-2.5 text-sm">
             <Download className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Download Free</span>
           </button>
@@ -132,7 +132,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDownload, onSelectModule }
             ))}
           </div>
           <button
-            onClick={() => { setMobileOpen(false); onOpenDownload() }}
+            onClick={() => {
+              setMobileOpen(false)
+              onOpenDownload()
+            }}
             className="btn-brand w-full justify-center py-3"
           >
             <Download className="w-4 h-4" aria-hidden="true" />

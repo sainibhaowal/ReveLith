@@ -1,4 +1,4 @@
-﻿import { useI18n } from '../i18n/locale'
+import { useI18n } from '../i18n/locale'
 
 interface Props {
   /** inner YAML text, without the --- fences */
@@ -9,7 +9,7 @@ interface Props {
 
 /**
  * Raw-text properties panel: edits the YAML between the frontmatter fences
- * verbatim. No YAML parsing : whatever the user types is what lands in the
+ * verbatim. No YAML parsing — whatever the user types is what lands in the
  * file, so exotic YAML survives untouched.
  */
 export function FrontmatterPanel({ value, onChange, readOnly }: Props) {

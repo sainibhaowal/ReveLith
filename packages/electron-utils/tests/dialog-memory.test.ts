@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { showOpenDialogWithMemory, showSaveDialogWithMemory } from '../src/index'
+import { saveAsSuggestion, showOpenDialogWithMemory, showSaveDialogWithMemory } from '../src/index'
 
 import type { Dialog } from 'electron'
 
@@ -26,11 +26,10 @@ describe('showOpenDialogWithMemory', () => {
   })
 
   it('remembers the picked directory and injects it as defaultPath next time', async () => {
-    const workDir = join('/work')
     const dialog = fakeDialog({ showOpenDialog: pickedOpen([join('/work', 'report.docx')]) })
     await showOpenDialogWithMemory(dialog, undefined, {})
     await showOpenDialogWithMemory(dialog, undefined, {})
-    expect(dialog.showOpenDialog).toHaveBeenLastCalledWith({ defaultPath: workDir })
+    expect(dialog.showOpenDialog).toHaveBeenLastCalledWith({ defaultPath: '/work' })
   })
 
   it('forwards the parent window when given', async () => {
@@ -41,11 +40,10 @@ describe('showOpenDialogWithMemory', () => {
   })
 
   it('remembers the selected directory itself for openDirectory pickers', async () => {
-    const exportDir = join('/exports/images')
-    const dialog = fakeDialog({ showOpenDialog: pickedOpen([exportDir]) })
+    const dialog = fakeDialog({ showOpenDialog: pickedOpen(['/exports/images']) })
     await showOpenDialogWithMemory(dialog, undefined, { properties: ['openDirectory'] })
     await showOpenDialogWithMemory(dialog, undefined, {})
-    expect(dialog.showOpenDialog).toHaveBeenLastCalledWith({ defaultPath: exportDir })
+    expect(dialog.showOpenDialog).toHaveBeenLastCalledWith({ defaultPath: '/exports/images' })
   })
 
   it('keeps an explicit absolute defaultPath untouched', async () => {
@@ -74,11 +72,10 @@ describe('showSaveDialogWithMemory', () => {
   })
 
   it('shares the remembered directory between save and open dialogs', async () => {
-    const workDir = join('/work')
     const dialog = fakeDialog({ showSaveDialog: pickedSave(join('/work', 'deck.pptx')) })
     await showSaveDialogWithMemory(dialog, undefined, { defaultPath: 'deck.pptx' })
     await showOpenDialogWithMemory(dialog, undefined, {})
-    expect(dialog.showOpenDialog).toHaveBeenCalledWith({ defaultPath: workDir })
+    expect(dialog.showOpenDialog).toHaveBeenCalledWith({ defaultPath: '/work' })
   })
 
   it('keeps an explicit absolute defaultPath untouched', async () => {
@@ -116,5 +113,35 @@ describe('showSaveDialogWithMemory', () => {
     const dialog = fakeDialog()
     await showSaveDialogWithMemory(dialog, undefined, { defaultPath: '/docs/tab.pdf' }, '/default')
     expect(dialog.showSaveDialog).toHaveBeenCalledWith({ defaultPath: '/docs/tab.pdf' })
+  })
+})
+
+describe('saveAsSuggestion', () => {
+  it('suggests the source document folder with the new name (Word parity)', () => {
+    expect(saveAsSuggestion(join('/work', 'report.docx'), 'report.docx')).toBe(
+      join('/work', 'report.docx'),
+    )
+    expect(saveAsSuggestion(join('/work', 'report.docx'), 'copy.docx')).toBe(
+      join('/work', 'copy.docx'),
+    )
+  })
+
+  it('falls back to the bare name for a document that was never on disk', () => {
+    expect(saveAsSuggestion(null, 'Untitled.docx')).toBe('Untitled.docx')
+    expect(saveAsSuggestion(undefined, 'Untitled.docx')).toBe('Untitled.docx')
+    expect(saveAsSuggestion('', 'Untitled.pptx')).toBe('Untitled.pptx')
+  })
+
+  it('beats the remembered directory when threaded through the save dialog', async () => {
+    const dialog = fakeDialog({ showSaveDialog: pickedSave(join('/elsewhere', 'x.docx')) })
+    // a pick in /elsewhere seeds the remembered directory…
+    await showSaveDialogWithMemory(dialog, undefined, { defaultPath: 'x.docx' })
+    // …but Save As of a document living in /work still opens in /work
+    await showSaveDialogWithMemory(dialog, undefined, {
+      defaultPath: saveAsSuggestion(join('/work', 'report.docx'), 'report.docx'),
+    })
+    expect(dialog.showSaveDialog).toHaveBeenLastCalledWith({
+      defaultPath: join('/work', 'report.docx'),
+    })
   })
 })

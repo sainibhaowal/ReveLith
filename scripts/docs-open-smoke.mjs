@@ -148,7 +148,7 @@ async function testOne(file, index) {
       `--user-data-dir=${userData}`,
     ],
     {
-      env: { ...process.env, NODE_ENV: 'production', REVELITH_LANG: 'en' },
+      env: { ...process.env, NODE_ENV: 'production', REVELITH_LANG: 'zh' },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   )

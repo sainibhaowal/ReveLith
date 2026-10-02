@@ -1,5 +1,5 @@
 import React from 'react'
-import { ExternalLink, Heart } from 'lucide-react'
+import { Heart } from 'lucide-react'
 import { GithubIcon } from './GithubIcon'
 import { GITHUB_REPO_URL, LATEST_VERSION } from '../data/suite-data'
 
@@ -19,14 +19,18 @@ export const Footer: React.FC = () => {
       <div
         className="absolute inset-0 opacity-[0.04]"
         style={{
-          backgroundImage: 'linear-gradient(rgba(108,71,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(108,71,255,0.5) 1px, transparent 1px)',
+          backgroundImage:
+            'linear-gradient(rgba(108,71,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(108,71,255,0.5) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
         }}
         aria-hidden="true"
       />
 
       {/* Blob */}
-      <div className="absolute bottom-0 left-1/4 w-[600px] h-[400px] bg-[#6c47ff]/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true" />
+      <div
+        className="absolute bottom-0 left-1/4 w-[600px] h-[400px] bg-[#6c47ff]/10 rounded-full blur-3xl pointer-events-none"
+        aria-hidden="true"
+      />
 
       <div className="container-xl relative z-10 pt-16 pb-10">
         {/* Top section */}
@@ -37,12 +41,16 @@ export const Footer: React.FC = () => {
               <div className="w-9 h-9 rounded-xl bg-[#6c47ff]/20 border border-[#6c47ff]/40 flex items-center justify-center">
                 <img src="/revelith-logo.svg" alt="" className="w-5 h-5" aria-hidden="true" />
               </div>
-              <span className="text-xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+              <span
+                className="text-xl font-bold tracking-tight"
+                style={{ fontFamily: 'var(--font-heading)' }}
+              >
                 Reve<span style={{ color: '#a78bfa' }}>Lith</span>
               </span>
             </div>
             <p className="text-sm text-white/50 leading-relaxed mb-5">
-              The intelligent offline-first office suite built for engineers, writers, and analysts who demand sovereignty and precision.
+              The intelligent offline-first office suite built for engineers, writers, and analysts
+              who demand sovereignty and precision.
             </p>
             <div className="flex items-center gap-3">
               <a
@@ -60,7 +68,9 @@ export const Footer: React.FC = () => {
           {/* Links */}
           {Object.entries(LINKS).map(([category, links]) => (
             <div key={category}>
-              <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-white/40 mb-4">{category}</h3>
+              <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-white/40 mb-4">
+                {category}
+              </h3>
               <ul className="space-y-2.5">
                 {links.map((link) => (
                   <li key={link}>
@@ -94,7 +104,8 @@ export const Footer: React.FC = () => {
           <div className="flex items-center gap-4 text-[12px] text-white/40">
             <span className="font-mono text-[#a78bfa]">{LATEST_VERSION}</span>
             <span className="flex items-center gap-1">
-              Made with <Heart className="w-3 h-3 text-[#f43f5e] fill-[#f43f5e]" /> by the ReveLith team
+              Made with <Heart className="w-3 h-3 text-[#f43f5e] fill-[#f43f5e]" /> by the ReveLith
+              team
             </span>
           </div>
         </div>

@@ -1,6 +1,11 @@
 name: CI
 
 on:
+  # Direct pushes to main must be verified too, otherwise a fast-forward
+  # release lands with no CI run at all.
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -8,12 +13,22 @@ on:
 permissions:
   contents: read
 
+# A newer commit on the same ref makes the in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     name: Quality
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The diff-based checks below need the base revision to exist locally:
+          # a shallow clone has neither HEAD^1 nor the event's base sha.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -24,29 +39,89 @@ jobs:
           npm install --save-optional --include=optional @rollup/rollup-linux-x64-gnu || true
         shell: bash
       - name: Theme colors (CI enforced)
-        run: npm run check:theme-colors
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FORMAT_BASE_REF=$(git rev-parse HEAD^1)
+            export FORMAT_BASE_REF
+          fi
+          npm run check:theme-colors
+        env:
+          FORMAT_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
       - name: Typecheck
         run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Dependency licenses
+        run: npm run licenses
+      - name: English-only comments
+        run: npm run check:english-comments
+      # skills/<name>/SKILL.md are copied into users' agent directories and only
+      # replaced when metadata.version grows, so a body edit without a version
+      # bump would never be offered as an update.
+      - name: Skill version
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FORMAT_BASE_REF=$(git rev-parse HEAD^1)
+            export FORMAT_BASE_REF
+          fi
+          npm run check:skills
+        env:
+          FORMAT_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
+      # Diff-based, so it needs a base to compare against. For a PR the checkout
+      # is the merge commit and HEAD^1 is the exact base it was built against;
+      # event.pull_request.base.sha can lag a fast-moving main and drag unrelated
+      # files into the changed set, failing the check on untouched files.
+      - name: Formatting
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FORMAT_BASE_REF=$(git rev-parse HEAD^1)
+            export FORMAT_BASE_REF
+          fi
+          npm run format:check
+        env:
+          FORMAT_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
 
   tests:
     name: Tests (${{ matrix.group }})
     runs-on: ubuntu-latest
+    # Sheets compiles and runs the Rust sidecar, so it needs the longest budget.
+    timeout-minutes: 45
+    # Only the group explicitly marked allow_failure tolerates a red suite.
+    continue-on-error: ${{ matrix.allow_failure || false }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - group: "Core Engines (Word & Presentation)"
-            packages: "@revelith/docx-engine @revelith/pptx-engine @revelith/pptx-render"
-          - group: "Spreadsheet & Calculation"
-            packages: "@revelith/sheets"
-          - group: "Editors (Docs & Slides)"
-            packages: "@revelith/docs @revelith/slides"
-          - group: "PDF & Markdown"
-            packages: "@revelith/pdf @revelith/markdown"
-          - group: "Shell & Desktop Windowing"
-            packages: "@revelith/shell"
-          - group: "Utilities, AI & Infrastructure"
-            packages: "@revelith/i18n @revelith/electron-utils @revelith/font-metrics @revelith/file-parse @revelith/ai-search @revelith/agent-core @revelith/ai-provider @revelith/project-store"
+          - group: 'Core Engines (Word & Presentation)'
+            packages: '@revelith/docx-engine @revelith/pptx-engine @revelith/pptx-render'
+          - group: 'Spreadsheet & Calculation'
+            packages: '@revelith/sheets'
+          - group: 'Spreadsheet Gateway'
+            packages: '@revelith/xlsx-gateway'
+          - group: 'Editors (Docs & Slides)'
+            packages: '@revelith/docs @revelith/slides'
+          - group: 'HTML App'
+            packages: '@revelith/html'
+          - group: 'PDF & Markdown'
+            packages: '@revelith/pdf @revelith/markdown'
+          - group: 'Converters & Pipelines'
+            packages: '@revelith/html2docx @revelith/pdf2docx @revelith/pipelines @revelith/pptx-ops @revelith/emf-parser'
+          - group: 'UI & Shared Components'
+            packages: '@revelith/ui'
+          # The CLI suite is red on arrival: skills/revelith/SKILL.md documents
+          # 11 commands and 54 flags fewer than the command registry, and the
+          # MCP HTTP tests collide on a Windows named pipe. Reported so the gap
+          # is visible, but it must not block every other group.
+          - group: 'CLI (known failures, non-blocking)'
+            packages: '@revelith/cli'
+            allow_failure: true
+          - group: 'Shell & Desktop Windowing'
+            packages: '@revelith/shell'
+          - group: 'Utilities, AI & Infrastructure'
+            packages: '@revelith/i18n @revelith/electron-utils @revelith/font-metrics @revelith/file-parse @revelith/ai-search @revelith/agent-core @revelith/ai-provider @revelith/project-store'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,11 +132,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         if: matrix.group == 'Spreadsheet & Calculation'
         with:
-          workspaces: "apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target"
+          workspaces: 'apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target'
       - name: Install dependencies
         run: |
           npm ci --include=optional
           npm install --save-optional --include=optional @rollup/rollup-linux-x64-gnu || true
+        shell: bash
+      # @revelith/html2docx drives a real Chrome via playwright-core and hard
+      # fails in beforeAll when it cannot find one. Resolve the binary
+      # explicitly instead of relying on the runner image happening to have it.
+      - name: Resolve Chrome for browser-driven tests
+        run: |
+          for candidate in /usr/bin/google-chrome /usr/bin/google-chrome-stable /usr/bin/chromium /usr/bin/chromium-browser; do
+            if [ -x "$candidate" ]; then
+              echo "CHROME_PATH=$candidate" >> "$GITHUB_ENV"
+              echo "Using $candidate"
+              exit 0
+            fi
+          done
+          echo "::error::No Chrome/Chromium binary found. @revelith/html2docx needs one; install google-chrome-stable or set CHROME_PATH."
+          exit 1
         shell: bash
       - name: Run Test Suite Partition
         run: |

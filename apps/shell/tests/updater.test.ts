@@ -1,15 +1,18 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UpdateUiState } from '../src/shared/update-api'
 
 /**
  * Main-process auto-updater flow (src/main/updater.ts): manual-download policy
- * driven by the strong-guidance update window : the renderer's Download /
+ * driven by the strong-guidance update window — the renderer's Download /
  * Install / Later actions come back through update-window.ts callbacks.
  */
 
 const appState = { isPackaged: true }
 
 const openExternal = vi.hoisted(() => vi.fn())
+const showMessageBox = vi.hoisted(() =>
+  vi.fn<(opts: unknown) => Promise<{ response: number }>>(() => Promise.resolve({ response: 0 })),
+)
 const readFileSyncMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => string>())
 
 vi.mock('electron', () => ({
@@ -21,6 +24,9 @@ vi.mock('electron', () => ({
   },
   shell: {
     openExternal: (url: string) => openExternal(url),
+  },
+  dialog: {
+    showMessageBox: (opts: unknown) => showMessageBox(opts),
   },
 }))
 
@@ -93,6 +99,7 @@ vi.mock('../src/main/update-window', () => ({
   showUpdateWindow: (...args: [unknown, UpdateUiState, UpdateActions]) => showUpdateWindow(...args),
   pushUpdateState: (patch: Partial<UpdateUiState>) => pushUpdateState(patch),
   closeUpdateWindow: () => closeUpdateWindow(),
+  isUpdateWindowOpen: () => false,
 }))
 
 const FIRST_CHECK_DELAY_MS = 15_000
@@ -144,6 +151,8 @@ beforeEach(() => {
   pushUpdateState.mockClear()
   closeUpdateWindow.mockClear()
   openExternal.mockClear()
+  showMessageBox.mockReset()
+  showMessageBox.mockImplementation(() => Promise.resolve({ response: 0 }))
   readFileSyncMock.mockReset()
   readFileSyncMock.mockImplementation(() => {
     throw new Error('no app-update.yml')
@@ -329,10 +338,10 @@ describe('initAutoUpdater', () => {
 
 describe('manual download fallback', () => {
   const macFiles = [
-    { url: 'Revelith-0.2.0-arm64.zip' },
-    { url: 'Revelith-0.2.0.zip' },
-    { url: 'Revelith-0.2.0-arm64.dmg' },
-    { url: 'Revelith-0.2.0.dmg' },
+    { url: 'ReveLith-0.2.0-arm64.zip' },
+    { url: 'ReveLith-0.2.0.zip' },
+    { url: 'ReveLith-0.2.0-arm64.dmg' },
+    { url: 'ReveLith-0.2.0.dmg' },
   ]
 
   function setArch(arch: string): () => void {
@@ -364,7 +373,7 @@ describe('manual download fallback', () => {
       const actions = await failTwiceIntoManual(macFiles)
       actions.onOpenDownload()
       expect(openExternal).toHaveBeenCalledWith(
-        'https://cdn.example.com/mac/Revelith-0.2.0-arm64.dmg',
+        'https://cdn.example.com/mac/ReveLith-0.2.0-arm64.dmg',
       )
     } finally {
       restoreArch()
@@ -378,7 +387,63 @@ describe('manual download fallback', () => {
     try {
       const actions = await failTwiceIntoManual(macFiles)
       actions.onOpenDownload()
-      expect(openExternal).toHaveBeenCalledWith('https://cdn.example.com/mac/Revelith-0.2.0.dmg')
+      expect(openExternal).toHaveBeenCalledWith('https://cdn.example.com/mac/ReveLith-0.2.0.dmg')
+    } finally {
+      restoreArch()
+    }
+  })
+
+  const winFiles = [
+    { url: 'ReveLithSetup-v0.2.0.exe' },
+    { url: 'ReveLithSetup-v0.2.0-arm64.exe' },
+  ]
+
+  it('picks the arm64 installer on Windows arm64', async () => {
+    Object.defineProperty(process, 'resourcesPath', { value: '/res', configurable: true })
+    readFileSyncMock.mockReturnValue('url: https://cdn.example.com/win\n')
+    platformSpy?.restore()
+    setPlatform('win32')
+    const restoreArch = setArch('arm64')
+    try {
+      const actions = await failTwiceIntoManual(winFiles)
+      actions.onOpenDownload()
+      expect(openExternal).toHaveBeenCalledWith(
+        'https://cdn.example.com/win/ReveLithSetup-v0.2.0-arm64.exe',
+      )
+    } finally {
+      restoreArch()
+    }
+  })
+
+  it('picks the arch-less installer on Windows x64 even when arm64 is listed', async () => {
+    Object.defineProperty(process, 'resourcesPath', { value: '/res', configurable: true })
+    readFileSyncMock.mockReturnValue('url: https://cdn.example.com/win\n')
+    platformSpy?.restore()
+    setPlatform('win32')
+    const restoreArch = setArch('x64')
+    try {
+      const actions = await failTwiceIntoManual([...winFiles].reverse())
+      actions.onOpenDownload()
+      expect(openExternal).toHaveBeenCalledWith(
+        'https://cdn.example.com/win/ReveLithSetup-v0.2.0.exe',
+      )
+    } finally {
+      restoreArch()
+    }
+  })
+
+  it('falls back to the x64 installer on Windows arm64 when the feed predates arm64', async () => {
+    Object.defineProperty(process, 'resourcesPath', { value: '/res', configurable: true })
+    readFileSyncMock.mockReturnValue('url: https://cdn.example.com/win\n')
+    platformSpy?.restore()
+    setPlatform('win32')
+    const restoreArch = setArch('arm64')
+    try {
+      const actions = await failTwiceIntoManual([{ url: 'ReveLithSetup-v0.2.0.exe' }])
+      actions.onOpenDownload()
+      expect(openExternal).toHaveBeenCalledWith(
+        'https://cdn.example.com/win/ReveLithSetup-v0.2.0.exe',
+      )
     } finally {
       restoreArch()
     }
@@ -390,13 +455,13 @@ describe('manual download fallback', () => {
     const restoreArch = setArch('arm64')
     try {
       const actions = await failTwiceIntoManual([
-        { url: 'https://attacker.example/Revelith-0.2.0-arm64.zip' },
-        { url: 'https://attacker.example/Revelith-0.2.0-arm64.dmg' },
-        { url: 'https://attacker.example/Revelith-0.2.0.dmg' },
+        { url: 'https://attacker.example/ReveLith-0.2.0-arm64.zip' },
+        { url: 'https://attacker.example/ReveLith-0.2.0-arm64.dmg' },
+        { url: 'https://attacker.example/ReveLith-0.2.0.dmg' },
       ])
       actions.onOpenDownload()
       expect(openExternal).toHaveBeenCalledWith(
-        'https://cdn.example.com/mac/Revelith-0.2.0-arm64.dmg',
+        'https://cdn.example.com/mac/ReveLith-0.2.0-arm64.dmg',
       )
     } finally {
       restoreArch()
@@ -409,18 +474,18 @@ describe('manual download fallback', () => {
     const actions = await failTwiceIntoManual(macFiles)
     actions.onOpenDownload()
     expect(openExternal).toHaveBeenCalledWith(
-      'https://github.com/sainibhaowal/Revelith/releases/latest',
+      'https://github.com/sainibhaowal/ReveLith/releases/latest',
     )
   })
 
   it('falls back to the generic download page when the feed base cannot be read', async () => {
     // readFileSyncMock throws by default (no app-update.yml)
     const actions = await failTwiceIntoManual([
-      { url: 'https://attacker.example/Revelith-0.2.0-arm64.dmg' },
+      { url: 'https://attacker.example/ReveLith-0.2.0-arm64.dmg' },
     ])
     actions.onOpenDownload()
     expect(openExternal).toHaveBeenCalledWith(
-      'https://github.com/sainibhaowal/Revelith/releases/latest',
+      'https://github.com/sainibhaowal/ReveLith/releases/latest',
     )
   })
 })
@@ -459,5 +524,220 @@ describe('initAutoUpdater (fake update preview)', () => {
     lastShownActions().onInstall()
     expect(closeUpdateWindow).toHaveBeenCalledTimes(2)
     expect(quitAndInstall).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkForUpdatesNow (r148 manual check)', () => {
+  function lastDialogOpts(): { type: string; message: string; buttons: string[] } {
+    return showMessageBox.mock.calls.at(-1)![0] as never
+  }
+
+  it('points installs without a self-update mechanism at the download page', async () => {
+    appState.isPackaged = false
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    showMessageBox.mockImplementation(() => Promise.resolve({ response: 1 }))
+
+    await checkForUpdatesNow()
+
+    expect(showMessageBox).toHaveBeenCalledTimes(1)
+    expect(lastDialogOpts().buttons.length).toBe(2)
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://github.com/sainibhaowal/ReveLith/releases/latest',
+    )
+    expect(checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it("shows you're-up-to-date (with the current version) when nothing newer exists", async () => {
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    checkForUpdates.mockImplementation(() => Promise.resolve({ isUpdateAvailable: false } as never))
+
+    await checkForUpdatesNow()
+
+    expect(showMessageBox).toHaveBeenCalledTimes(1)
+    expect(lastDialogOpts().type).toBe('info')
+    expect(lastDialogOpts().message).toContain('0.1.0')
+    expect(showUpdateWindow).not.toHaveBeenCalled()
+  })
+
+  it('does not report up-to-date when the updater skips the check', async () => {
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    checkForUpdates.mockImplementation(() => Promise.resolve(null))
+    await checkForUpdatesNow()
+    expect(lastDialogOpts().type).toBe('warning')
+    expect(showUpdateWindow).not.toHaveBeenCalled()
+    expect(downloadUpdate).not.toHaveBeenCalled()
+  })
+
+  it('ignores duplicate clicks while checking and allows a retry afterwards', async () => {
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    let resolveCheck!: (value: null) => void
+    checkForUpdates.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve
+        }),
+    )
+    const pending = checkForUpdatesNow()
+    await checkForUpdatesNow()
+    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(showMessageBox).not.toHaveBeenCalled()
+    resolveCheck(null)
+    await pending
+    await checkForUpdatesNow()
+    expect(checkForUpdates).toHaveBeenCalledTimes(2)
+    expect(downloadUpdate).not.toHaveBeenCalled()
+  })
+
+  it('re-offers a version the user dismissed with "later" this session', async () => {
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    updaterState.listeners.get('update-available')!({ version: '0.2.0' })
+    expect(showUpdateWindow).toHaveBeenCalledTimes(1)
+    lastShownActions().onLater()
+    // background recheck stays quiet for the dismissed version…
+    updaterState.listeners.get('update-available')!({ version: '0.2.0' })
+    expect(showUpdateWindow).toHaveBeenCalledTimes(1)
+    // …but an explicit user check offers it again, with no extra dialog
+    checkForUpdates.mockImplementation(() => {
+      updaterState.listeners.get('update-available')!({ version: '0.2.0' })
+      return Promise.resolve({ isUpdateAvailable: true } as never)
+    })
+
+    await checkForUpdatesNow()
+
+    expect(showUpdateWindow).toHaveBeenCalledTimes(2)
+    expect(showMessageBox).not.toHaveBeenCalled()
+  })
+
+  it('resumes a downloaded update at Restart & Install instead of re-offering the download', async () => {
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    const available = updaterState.listeners.get('update-available')!
+    available({ version: '0.2.0' })
+    lastShownActions().onDownload()
+    updaterState.listeners.get('update-downloaded')!({ version: '0.2.0' })
+    lastShownActions().onLater()
+    checkForUpdates.mockImplementation(() => {
+      available({ version: '0.2.0' })
+      return Promise.resolve({ isUpdateAvailable: true } as never)
+    })
+
+    await checkForUpdatesNow()
+
+    expect(showUpdateWindow).toHaveBeenCalledTimes(2)
+    expect(lastShownState().phase).toBe('downloaded')
+    expect(lastShownState().percent).toBe(100)
+    lastShownActions().onDownload()
+    expect(downloadUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('resumes an in-flight download with its progress and does not start a second one', async () => {
+    downloadUpdate.mockImplementation(() => new Promise(() => {}))
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    const available = updaterState.listeners.get('update-available')!
+    available({ version: '0.2.0' })
+    lastShownActions().onDownload()
+    updaterState.listeners.get('download-progress')!({ percent: 37 })
+    lastShownActions().onLater()
+    checkForUpdates.mockImplementation(() => {
+      available({ version: '0.2.0' })
+      return Promise.resolve({ isUpdateAvailable: true } as never)
+    })
+
+    await checkForUpdatesNow()
+
+    expect(lastShownState().phase).toBe('downloading')
+    expect(lastShownState().percent).toBe(37)
+    lastShownActions().onDownload()
+    expect(downloadUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a newer version alone while the previous one is downloading or downloaded', async () => {
+    downloadUpdate.mockImplementation(() => new Promise(() => {}))
+    const { initAutoUpdater } = await loadUpdater()
+    initAutoUpdater(() => null)
+    const available = updaterState.listeners.get('update-available')!
+    available({ version: '0.2.0' })
+    lastShownActions().onDownload()
+    available({ version: '0.3.0' })
+    expect(showUpdateWindow).toHaveBeenCalledTimes(1)
+    updaterState.listeners.get('update-downloaded')!({ version: '0.2.0' })
+    available({ version: '0.3.0' })
+    expect(showUpdateWindow).toHaveBeenCalledTimes(1)
+    lastShownActions().onDownload()
+    expect(downloadUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('brings back the in-progress flow when a manual check finds a newer version mid-download', async () => {
+    downloadUpdate.mockImplementation(() => new Promise(() => {}))
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    const available = updaterState.listeners.get('update-available')!
+    available({ version: '0.2.0' })
+    lastShownActions().onDownload()
+    updaterState.listeners.get('download-progress')!({ percent: 58 })
+    lastShownActions().onLater()
+    // background recheck with a newer version stays quiet…
+    available({ version: '0.3.0' })
+    expect(showUpdateWindow).toHaveBeenCalledTimes(1)
+    // …an explicit check re-opens the download that is already running
+    checkForUpdates.mockImplementation(() => {
+      available({ version: '0.3.0' })
+      return Promise.resolve({ isUpdateAvailable: true } as never)
+    })
+
+    await checkForUpdatesNow()
+
+    expect(showUpdateWindow).toHaveBeenCalledTimes(2)
+    expect(lastShownState().version).toBe('0.2.0')
+    expect(lastShownState().phase).toBe('downloading')
+    expect(lastShownState().percent).toBe(58)
+    expect(showMessageBox).not.toHaveBeenCalled()
+  })
+
+  it('offers a newer version from scratch after the previous download failed', async () => {
+    downloadUpdate.mockImplementation(() => Promise.reject(new Error('offline')))
+    const { initAutoUpdater } = await loadUpdater()
+    initAutoUpdater(() => null)
+    const available = updaterState.listeners.get('update-available')!
+    available({ version: '0.2.0' })
+    lastShownActions().onDownload()
+    await flushAsync()
+    expect(pushUpdateState).toHaveBeenCalledWith({ phase: 'error' })
+    available({ version: '0.3.0' })
+    expect(showUpdateWindow).toHaveBeenCalledTimes(2)
+    expect(lastShownState().version).toBe('0.3.0')
+    expect(lastShownState().phase).toBe('available')
+    expect(lastShownState().percent).toBe(0)
+  })
+
+  it('shows the failure dialog when the check itself fails', async () => {
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+    checkForUpdates.mockImplementation(() => Promise.reject(new Error('offline')))
+
+    await checkForUpdatesNow()
+
+    expect(showMessageBox).toHaveBeenCalledTimes(1)
+    expect(lastDialogOpts().type).toBe('warning')
+    expect(showUpdateWindow).not.toHaveBeenCalled()
+  })
+
+  it('re-shows the simulated update window in REVELITH_FAKE_UPDATE runs', async () => {
+    appState.isPackaged = false
+    process.env.REVELITH_FAKE_UPDATE = '9.9.9'
+    const { initAutoUpdater, checkForUpdatesNow } = await loadUpdater()
+    initAutoUpdater(() => null)
+
+    await checkForUpdatesNow()
+
+    expect(showUpdateWindow).toHaveBeenCalledTimes(1)
+    expect(lastShownState().version).toBe('9.9.9')
+    expect(showMessageBox).not.toHaveBeenCalled()
   })
 })

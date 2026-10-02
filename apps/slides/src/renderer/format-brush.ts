@@ -1,5 +1,5 @@
-﻿/**
- * Format painter (renderer side) : extracts formatting from a RenderNode and converts it into
+/**
+ * Format painter (renderer side) — extracts formatting from a RenderNode and converts it into
  * IPC call parameters.
  *
  * Format scope:

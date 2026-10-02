@@ -1,1 +1,1 @@
-declare module 'pptxgenjs';
+declare module 'pptxgenjs'

@@ -1,5 +1,5 @@
-﻿/**
- * Animation pane (right side) : the current page's animation order list: select/reorder/delete/change trigger.
+/**
+ * Animation pane (right side) — the current page's animation order list: select/reorder/delete/change trigger.
  * The source of truth lives in the main process (the pptx <p:timing>); the list is owned by App
  * and written back wholesale (setAnimations overwrite-style); this only displays and sends back intents.
  */
@@ -30,6 +30,9 @@ const EFFECT_KEY: Record<AnimEffectKind, StringKey> = {
   shrink: 'paneAnimEffShrink',
   zoomOut: 'paneAnimEffZoomOut',
   motionPath: 'paneAnimEffMotionPath',
+  mediaPlay: 'paneAnimEffMediaPlay',
+  mediaPause: 'paneAnimEffMediaPause',
+  mediaStop: 'paneAnimEffMediaStop',
 }
 
 const TRIGGER_GLYPH = { onClick: '🖱', withPrev: '⇉', afterPrev: '⏱' } as const

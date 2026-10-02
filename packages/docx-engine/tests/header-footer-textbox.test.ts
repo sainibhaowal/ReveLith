@@ -1,11 +1,11 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { PAGE_MARK, parseDocx } from '../src/index'
 import { buildDocx } from './helpers/build-docx'
 
 /**
  * Chinese government documents (repro) place the footer page number
  * inside a VML textbox: w:p > w:r > w:pict > v:shape > v:textbox > w:txbxContent,
- * with a complex PAGE field (": PAGE :") whose cached result is a literal digit.
+ * with a complex PAGE field ("— PAGE —") whose cached result is a literal digit.
  * The parser must surface the textbox paragraphs instead of dropping the footer.
  */
 
@@ -68,7 +68,7 @@ describe('footer content inside a VML textbox', () => {
     const line = parsed.footerParas!.flatMap((p) => p.runs.map((r) => r.text)).join('')
     expect(line).toBe(`\u2014 ${PAGE_MARK} \u2014`)
     // run formatting from inside the textbox is preserved
-    const firstRun = parsed.footerParas![0].runs[0]
+    const firstRun = parsed.footerParas!.find((p) => p.runs.length > 0)!.runs[0]
     expect(firstRun.font).toBe('SimSun')
     expect(firstRun.sizeHalfPoints).toBe(28)
   })

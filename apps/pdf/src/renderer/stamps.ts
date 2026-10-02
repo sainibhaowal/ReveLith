@@ -1,6 +1,6 @@
-﻿import type { StampInput } from '../shared/ipc'
+import type { StampInput } from '../shared/ipc'
 
-/** Bitmap supersampling factor relative to PDF pt : stays sharp even when enlarged for print */
+/** Bitmap supersampling factor relative to PDF pt — stays sharp even when enlarged for print */
 const SS = 4
 
 export interface WatermarkConfig {

@@ -73,6 +73,15 @@ describe('isSafeRemoteUrl', () => {
     await expect(isSafeRemoteUrl(url)).resolves.toBe(false)
   })
 
+  it.each([
+    'http://localhost./x.png',
+    'http://LOCALHOST./x.png',
+    'http://printer.local./x.png',
+    'http://metadata.internal./x.png',
+  ])('rejects trailing-dot internal hostname %s without DNS', async (url) => {
+    await expect(isSafeRemoteUrl(url)).resolves.toBe(false)
+  })
+
   it('rejects malformed input and non-strings', async () => {
     await expect(isSafeRemoteUrl('not a url')).resolves.toBe(false)
     await expect(isSafeRemoteUrl(undefined)).resolves.toBe(false)
@@ -131,6 +140,16 @@ describe('fetchWithSsrfGuard', () => {
     })
     expect(out).toBeNull()
     expect(fetchImpl).toHaveBeenCalledTimes(4) // initial + 3 hops
+  })
+
+  it('normalizes a non-finite redirect budget instead of looping forever', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(res(302, 'https://8.8.8.8/loop.png'))
+    const out = await fetchWithSsrfGuard('https://8.8.8.8/loop.png', {
+      fetchImpl,
+      maxRedirects: Infinity,
+    })
+    expect(out).toBeNull()
+    expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(11) // default 5, hard cap 10
   })
 
   it('returns null when a redirect has no Location header', async () => {

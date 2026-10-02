@@ -1,0 +1,32 @@
+{
+  "docx": {
+    "sha256": "82d8ffb9b4cc",
+    "pngBytes": 2134,
+    "icoBytes": 3433,
+    "icnsBytes": 3116
+  },
+  "xlsx": {
+    "sha256": "a4761d6b6d59",
+    "pngBytes": 1656,
+    "icoBytes": 2765,
+    "icnsBytes": 2403
+  },
+  "pptx": {
+    "sha256": "d9a9bd7808c8",
+    "pngBytes": 1697,
+    "icoBytes": 2852,
+    "icnsBytes": 2421
+  },
+  "pdf": {
+    "sha256": "9ff928e3ac79",
+    "pngBytes": 1701,
+    "icoBytes": 2850,
+    "icnsBytes": 2526
+  },
+  "md": {
+    "sha256": "7cc0c5cb8220",
+    "pngBytes": 2103,
+    "icoBytes": 3538,
+    "icnsBytes": 3052
+  }
+}

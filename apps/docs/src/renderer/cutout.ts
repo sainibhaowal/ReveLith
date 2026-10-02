@@ -1,5 +1,5 @@
-﻿/**
- * Core image cutout (background removal) algorithm : pure functions, no DOM dependency, easy to unit test.
+/**
+ * Core image cutout (background removal) algorithm — pure functions, no DOM dependency, easy to unit test.
  * Shares its source with apps/slides and apps/pdf src/renderer/cutout.ts (keep the algorithms identical; sync changes to all three).
  *
  * Approach A: edge flood fill with color tolerance (magic-wand style removal, a simplified take on PowerPoint's "Remove Background"):

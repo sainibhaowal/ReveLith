@@ -1,8 +1,8 @@
-﻿import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
 // npm hoists some @tiptap packages to the repo root (shared with docs at a
-// different version) and nests others under this app : dedupe forces every
+// different version) and nests others under this app — dedupe forces every
 // import onto this app's single copy so the bundle never carries two cores.
 const TIPTAP_DEDUPE = [
   '@tiptap/core',
@@ -19,12 +19,13 @@ const TIPTAP_DEDUPE = [
 ]
 
 export default defineConfig({
-  // @revelith/i18n and @revelith/electron-utils ship as TS source : must be bundled
+  // @revelith/i18n and @revelith/electron-utils ship as TS source — must be bundled
   main: {
     plugins: [externalizeDepsPlugin({ exclude: ['@revelith/i18n', '@revelith/electron-utils'] })],
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@revelith/i18n'] })],
+    // same bundling requirement as main (see comment above)
+    plugins: [externalizeDepsPlugin({ exclude: ['@revelith/i18n', '@revelith/electron-utils'] })],
   },
   renderer: {
     plugins: [react()],

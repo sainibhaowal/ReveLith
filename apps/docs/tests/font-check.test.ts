@@ -65,8 +65,8 @@ describe('checkMissingFonts', () => {
   })
 
   it('declared bundled subset faces still count as missing', () => {
-    // 'Revelith Songti SC' (internal alias) resolves but is never reported
-    stubCanvas(['Noto Sans CJK SC', 'Revelith Songti SC', 'STSong'])
+    // 'ReveLith Songti SC' (internal alias) resolves but is never reported
+    stubCanvas(['Noto Sans CJK SC', 'ReveLith Songti SC', 'STSong'])
     expect(checkMissingFonts(['Noto Sans CJK SC'])).toEqual([
       { name: 'Noto Sans CJK SC', substitute: 'STSong' },
     ])

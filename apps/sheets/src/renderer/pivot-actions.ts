@@ -1,19 +1,33 @@
-﻿/**
+/**
  * Pivot-table and slicer actions (create/edit/refresh dialogs, slicer panels).
  * Extracted from App.tsx; the App component passes a PivotActionContext built
  * fresh per call so refs and state never go stale.
  */
-import { columnLabel, parseRange } from '../domain/cell-address'
-import { applyPivotSlicer, growPivotDefinition, recomputePivotData } from '../domain/pivot-engine'
-import { timelineDomainOf, timelineSelection, type MonthKey } from '../domain/pivot-timeline'
+import { columnLabel, parseRange } from '@revelith/xlsx-gateway/domain/cell-address'
+import {
+  applyPivotSlicer,
+  growPivotDefinition,
+  recomputePivotData,
+} from '@revelith/xlsx-gateway/domain/pivot-engine'
+import {
+  timelineDomainOf,
+  timelineSelection,
+  type MonthKey,
+} from '@revelith/xlsx-gateway/domain/pivot-timeline'
 import type { WorkbookFile, WorkbookPivotDefinition } from '../shared/desktop-api'
 import { journalSize, recordPivotCacheRefresh, recordPivotRefreshUpdate } from './edit-journal'
 import { t } from './i18n/locale'
 import type { OoXmlPivotConfig, PivotEditSeed, PivotField } from './PivotDialog'
 import type { SlicerMember, SlicerUiState } from './SlicerPanel'
 import type { TimelineUiState } from './TimelinePanel'
+import { resolvePivotSource } from './pivot-source'
 import type { LazyWorkbookState, UniverRuntime } from './univer-state'
-import { applyAiPivotAdd, applyGrownPivotOutput, pivotConfigToOpParts } from './workbook-ops'
+import {
+  applyAiPivotAdd,
+  applyGrownPivotOutput,
+  pivotConfigToOpParts,
+  readPivotSourceGrid,
+} from './workbook-ops'
 
 /// A3 editing of an existing pivot: context locked when the dialog opens, used
 /// on Apply.
@@ -60,6 +74,13 @@ export interface PivotActionContext {
   setPendingEdits: (count: number) => void
 }
 
+function pivotSourceValueFields(definition: WorkbookPivotDefinition): string[] {
+  return definition.dataFields.flatMap(({ field }) => {
+    const source = definition.fields[field]
+    return source && source.formula === undefined ? [source.name] : []
+  })
+}
+
 export function findPivotAtSelection(ctx: PivotActionContext): {
   sheetId: string
   pivot: WorkbookFile['sheets'][number]['pivotTables'][number]
@@ -95,7 +116,7 @@ export function findPivotAtSelection(ctx: PivotActionContext): {
 
 /// Recomputes every pivot table on the sheet from fresh source values and
 /// writes the data area back (journaled like manual edits). The layout is
-/// the file's own : drift fails closed inside the engine.
+/// the file's own — drift fails closed inside the engine.
 export function refreshPivotTables(ctx: PivotActionContext, sheetId: string): number {
   const state = ctx.lazyWorkbookRef.current
   const runtime = ctx.univerRef.current
@@ -123,9 +144,11 @@ export function refreshPivotTables(ctx: PivotActionContext, sheetId: string): nu
     if (!sourceSheet) {
       throw new Error(t('appPivotSourceSheetMissing', { name: definition.sourceSheet }))
     }
-    const sourceValues = sourceSheet.getRange(definition.sourceRef).getValues() as (
-      string | number | boolean | null | undefined
-    )[][]
+    const sourceValues = readPivotSourceGrid(
+      sourceSheet.getRange(definition.sourceRef),
+      ctx.lazyWorkbookRef.current?.file.date1904 === true,
+      pivotSourceValueFields(definition),
+    )
     // (3) Automatic layout growth: when source data has new categories outside
     // the cache, first fold the new members into the layout (in memory), then
     // recompute; without new categories, take the existing data-area-only
@@ -154,7 +177,7 @@ export function refreshPivotTables(ctx: PivotActionContext, sheetId: string): nu
       if (pivot.cachePath !== null) {
         // On save, the pivotTableDefinition's location ref is widened to the
         // new area; OOXML write-back of rowItems/colItems and sharedItems is
-        // deferred : refreshOnLoad makes Excel rebuild them on open (see the
+        // deferred — refreshOnLoad makes Excel rebuild them on open (see the
         // pivot-engine TODO).
         recordPivotRefreshUpdate(state.editJournal, pivot.cachePath, sheetId, newOutputRef)
       }
@@ -187,10 +210,20 @@ export function refreshPivotTables(ctx: PivotActionContext, sheetId: string): nu
   return refreshed
 }
 
-export function pivotFieldOptions(ctx: PivotActionContext): { label: string; colIndex: number }[] {
-  const range = ctx.univerRef.current?.univerAPI.getActiveWorkbook()?.getActiveRange()
+export function pivotFieldOptions(
+  ctx: PivotActionContext,
+  sourceRange?: string,
+): { label: string; colIndex: number }[] {
+  const workbook = ctx.univerRef.current?.univerAPI.getActiveWorkbook()
+  const range = sourceRange
+    ? workbook?.getActiveSheet()?.getRange(sourceRange)
+    : workbook?.getActiveRange()
   if (!range || range.getHeight() < 2) return []
-  const headerRow = range.getValues()[0] ?? []
+  const headerRow =
+    workbook
+      ?.getActiveSheet()
+      ?.getRange(range.getRow(), range.getColumn(), 1, range.getWidth())
+      .getValues()[0] ?? []
   const start = range.getColumn()
   return headerRow.slice(0, 26).map((header, offset) => ({
     label:
@@ -213,7 +246,7 @@ export function handleCreatePivot(
   const state = ctx.lazyWorkbookRef.current
   if (!state) return t('appOpenXlsxFirst')
   const sheetId = worksheet.getSheetId()
-  const parts = pivotConfigToOpParts(config, pivotFieldOptions(ctx))
+  const parts = pivotConfigToOpParts(config, pivotFieldOptions(ctx, config.sourceRange))
   if (typeof parts === 'string') return parts
   try {
     applyAiPivotAdd(runtime, state, {
@@ -259,7 +292,7 @@ export function pivotEditInitial(ctx: PivotActionContext): PivotEditSeed | null 
     return null
   }
   // MVP boundary: existing grouping/filters/report filters/calculated fields
-  // cannot be prefilled into the dialog, and a layout change would drop them :
+  // cannot be prefilled into the dialog, and a layout change would drop them —
   // fail closed.
   if (
     definition.fields.some(
@@ -365,10 +398,22 @@ export function handleEditPivotApply(
 }
 
 export function getSourceRange(ctx: PivotActionContext): string {
-  const range = ctx.univerRef.current?.univerAPI.getActiveWorkbook()?.getActiveRange()
-  if (!range) return ''
-  const start = `${columnLabel(range.getColumn())}${range.getRow() + 1}`
-  const end = `${columnLabel(range.getColumn() + range.getWidth() - 1)}${range.getRow() + range.getHeight() - 1 + 1}`
+  const workbook = ctx.univerRef.current?.univerAPI.getActiveWorkbook()
+  const worksheet = workbook?.getActiveSheet()
+  const range = workbook?.getActiveRange()
+  if (!range || !worksheet) return ''
+  const source = resolvePivotSource(
+    worksheet,
+    {
+      startRow: range.getRow(),
+      startColumn: range.getColumn(),
+      endRow: range.getRow() + range.getHeight() - 1,
+      endColumn: range.getColumn() + range.getWidth() - 1,
+    },
+    ctx.lazyWorkbookRef.current,
+  )
+  const start = `${columnLabel(source.startColumn)}${source.startRow + 1}`
+  const end = `${columnLabel(source.endColumn)}${source.endRow + 1}`
   return `${start}:${end}`
 }
 
@@ -394,6 +439,24 @@ export function isSelectionInPivot(ctx: PivotActionContext): boolean {
       selCol <= pivot.endColumn &&
       selEndCol >= pivot.startColumn,
   )
+}
+
+/// Data › Refresh All: every pivot table on every sheet, one journaled pass.
+export function handleRefreshAllPivots(ctx: PivotActionContext): string | null {
+  const state = ctx.lazyWorkbookRef.current
+  if (!ctx.univerRef.current || !state) return t('appOpenXlsxFirst')
+  const pivotSheets = state.file.sheets.filter((sheet) => sheet.pivotTables.length > 0)
+  if (pivotSheets.length === 0) return t('appWorkbookNoPivot')
+  let count = 0
+  try {
+    for (const sheet of pivotSheets) {
+      count += refreshPivotTables(ctx, sheet.id)
+    }
+  } catch (e) {
+    return e instanceof Error ? e.message : t('appRefreshFailed')
+  }
+  ctx.setMessage(t('appPivotsRefreshed', { count }))
+  return null
 }
 
 export function handleRefreshPivot(ctx: PivotActionContext): string | null {
@@ -542,9 +605,11 @@ export function applySlicerSelection(
     .find((sheet) => sheet.getSheetName() === definition.sourceSheet)
   if (!sourceSheet) return t('appPivotSourceSheetMissing', { name: definition.sourceSheet })
   try {
-    const sourceValues = sourceSheet.getRange(definition.sourceRef).getValues() as (
-      string | number | boolean | null | undefined
-    )[][]
+    const sourceValues = readPivotSourceGrid(
+      sourceSheet.getRange(definition.sourceRef),
+      ctx.lazyWorkbookRef.current?.file.date1904 === true,
+      pivotSourceValueFields(definition),
+    )
     const next = applyPivotSlicer(definition, sourceValues, slicer.field, selectedMembers)
     if (next === definition) return null
     const { data } = recomputePivotData(next, sourceValues)

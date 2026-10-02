@@ -1,7 +1,7 @@
-﻿/**
+/**
  * Excel-style multi-row AutoFit. Univer's row-header double-click resize
  * autofits only the double-clicked row (the column counterpart already walks
- * the whole selection : upstream asymmetry). When the clicked row lies
+ * the whole selection — upstream asymmetry). When the clicked row lies
  * inside a multi-row full-row selection, the single-row command is cancelled
  * and re-dispatched with every selected row span, so each selected row sizes
  * to its own content, matching Excel.
@@ -10,7 +10,7 @@ import type { IRange } from '@univerjs/core'
 
 import type { UniverRuntime } from './univer-state'
 
-export const SET_ROW_IS_AUTO_HEIGHT_COMMAND = 'sheet.command.set-worksheet-row-is-auto-height'
+export const SET_ROW_IS_AUTO_HEIGHT_COMMAND = 'sheet.command.set-row-is-auto-height'
 
 /// Full-row spans: selections made from the row headers or a select-all.
 function isFullRowSpan(range: IRange, columnCount: number): boolean {
