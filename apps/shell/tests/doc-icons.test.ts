@@ -54,31 +54,37 @@ describe('doc icon artifacts', () => {
 describe('packager wiring', () => {
   it('every fileAssociation has a per-type icon that exists on disk', () => {
     const config = readFileSync(`${SHELL_DIR}/electron-builder.cjs`, 'utf8')
+    // fileAssociations name the icon (icon: 'docx'); electron-builder resolves
+    // that against build/icons/<name>.ico rather than taking a path.
     const entries = [...config.matchAll(/ext: '([^']+)'[\s\S]*?icon: '([^']+)'/g)].map((m) => ({
       ext: m[1],
       icon: m[2],
     }))
     expect(entries.length).toBeGreaterThanOrEqual(8)
     for (const { ext, icon } of entries) {
-      expect(icon, `${ext} icon`).toMatch(/^build\/icons\/[a-z]+\.ico$/)
-      expect(existsSync(`${SHELL_DIR}/${icon}`), `${ext} icon file`).toBe(true)
+      expect(icon, `${ext} icon name`).toMatch(/^[a-z]+$/)
+      const relative = `build/icons/${icon}.ico`
+      expect(existsSync(`${SHELL_DIR}/${relative}`), `${ext} icon file (${relative})`).toBe(true)
     }
   })
 
-  it('windows signing is env-driven (unsigned builds keep working)', () => {
+  it('windows signing is opt-in and unsigned builds keep working', () => {
     const config = readFileSync(`${SHELL_DIR}/electron-builder.cjs`, 'utf8')
+    // Signing moved off the old CSC_LINK / AZURE_* env-var contract onto
+    // REVELITH_WIN_SIGN_MODE, which delegates to scripts/win-sign.cjs for every
+    // binary electron-builder signs. Unset (local and fork builds) must leave
+    // the config with no signing block so packaging stays unsigned.
     for (const key of [
-      'CSC_LINK',
-      'CSC_KEY_PASSWORD',
-      'AZURE_TRUSTED_SIGNING_ENDPOINT',
-      'rfc3161TimeStampServer',
-      'timestamp.digicert.com',
-      // electron-builder >=26.15 schema (signDlls/certificateFile were removed)
-      'signAndEditExecutable',
+      'REVELITH_WIN_SIGN_MODE',
+      'win-sign.cjs',
+      'signingHashAlgorithms',
       'signtoolOptions',
-      'cscLink',
     ]) {
       expect(config, key).toContain(key)
+    }
+    // The retired env-var contract must not creep back in.
+    for (const retired of ['CSC_LINK', 'AZURE_TRUSTED_SIGNING_ENDPOINT', 'timestamp.digicert.com']) {
+      expect(config, retired).not.toContain(retired)
     }
   })
 })
