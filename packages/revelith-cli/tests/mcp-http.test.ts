@@ -243,7 +243,9 @@ describe('remote defaults', () => {
       for (const name of ['render', 'slides_render']) {
         const args: Record<string, unknown> = { file: 'x.pptx' }
         defaultOut(tools.get(name)!, args, ctx)
-        expect(String(args.out).replace(/\\/g, '/')).toMatch(new RegExp(`^${ctx.scratchDir.replace(/\\/g, '/')}/render-`))
+        expect(String(args.out).replace(/\\/g, '/')).toMatch(
+          new RegExp(`^${ctx.scratchDir.replace(/\\/g, '/')}/render-`),
+        )
       }
       const created: Record<string, unknown> = { from: 'notes.md' }
       defaultOut(tools.get('create_pdf')!, created, ctx)

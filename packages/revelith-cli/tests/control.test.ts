@@ -141,53 +141,62 @@ describe('open / selection through the control channel', () => {
     ])
   })
 
-  it.skipIf(process.platform === 'win32')('relays renderer errors as structured CLI errors', { timeout: 120_000 }, async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'revelith-ctl-'))
-    const shell = await fakeShell(dir, () => ({
-      ok: false,
-      error: {
-        reason: 'target_not_found',
-        message: 'no element e_9 on slide 0',
+  it.skipIf(process.platform === 'win32')(
+    'relays renderer errors as structured CLI errors',
+    { timeout: 120_000 },
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'revelith-ctl-'))
+      const shell = await fakeShell(dir, () => ({
+        ok: false,
+        error: {
+          reason: 'target_not_found',
+          message: 'no element e_9 on slide 0',
+          detail: { available: ['e_1', 'e_2'] },
+        },
+      }))
+      const r = await run(['open', PPTX, '--slide', '0', '--el', 'e_9', '--json'], {
+        env: shell.env,
+      })
+      expect(r.code).toBe(1)
+      expect(r.json()).toMatchObject({
+        status: 'error',
+        error: 'target_not_found',
         detail: { available: ['e_1', 'e_2'] },
-      },
-    }))
-    const r = await run(['open', PPTX, '--slide', '0', '--el', 'e_9', '--json'], { env: shell.env })
-    expect(r.code).toBe(1)
-    expect(r.json()).toMatchObject({
-      status: 'error',
-      error: 'target_not_found',
-      detail: { available: ['e_1', 'e_2'] },
-      suggestion: expect.stringContaining('slides read'),
-    })
-  })
+        suggestion: expect.stringContaining('slides read'),
+      })
+    },
+  )
 
-  it.skipIf(process.platform === 'win32')('selection returns the editor selection and explains when the file is not open', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'revelith-ctl-'))
-    const shell = await fakeShell(dir, (request) =>
-      (request as { path: string }).path === DOCX
-        ? { ok: true, result: { blocks: [2, 2], text: 'Second paragraph', collapsed: false } }
-        : {
-            ok: false,
-            error: {
-              reason: 'file_not_open_in_gui',
-              message: 'not open',
-              detail: { suggestion: 'revelith open x' },
+  it.skipIf(process.platform === 'win32')(
+    'selection returns the editor selection and explains when the file is not open',
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'revelith-ctl-'))
+      const shell = await fakeShell(dir, (request) =>
+        (request as { path: string }).path === DOCX
+          ? { ok: true, result: { blocks: [2, 2], text: 'Second paragraph', collapsed: false } }
+          : {
+              ok: false,
+              error: {
+                reason: 'file_not_open_in_gui',
+                message: 'not open',
+                detail: { suggestion: 'revelith open x' },
+              },
             },
-          },
-    )
-    const ok = await run(['selection', DOCX, '--json'], { env: shell.env })
-    expect(ok.code).toBe(0)
-    expect(ok.json()).toMatchObject({
-      summary: 'block 2: Second paragraph',
-      detail: { blocks: [2, 2], text: 'Second paragraph' },
-    })
-    const notOpen = await run(['selection', PPTX, '--json'], { env: shell.env })
-    expect(notOpen.code).toBe(2)
-    expect(notOpen.json()).toMatchObject({
-      error: 'file_not_open_in_gui',
-      suggestion: 'revelith open x',
-    })
-  })
+      )
+      const ok = await run(['selection', DOCX, '--json'], { env: shell.env })
+      expect(ok.code).toBe(0)
+      expect(ok.json()).toMatchObject({
+        summary: 'block 2: Second paragraph',
+        detail: { blocks: [2, 2], text: 'Second paragraph' },
+      })
+      const notOpen = await run(['selection', PPTX, '--json'], { env: shell.env })
+      expect(notOpen.code).toBe(2)
+      expect(notOpen.json()).toMatchObject({
+        error: 'file_not_open_in_gui',
+        suggestion: 'revelith open x',
+      })
+    },
+  )
 
   it('selection without a running shell is app_unavailable with an open hint', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'revelith-ctl-'))
