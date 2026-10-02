@@ -1,5 +1,5 @@
 /* Per-app accent (excel-green family) + sheets-only tokens.
- * Chrome tokens (surface/text/border/…, AI panel --color-*) come from
+ * Chrome tokens (surface/text/border/â€¦, AI panel --color-*) come from
  * @revelith/ui/tokens.css; nothing here may shadow those names. */
 :root {
   --excel-green: #217346;
@@ -10,6 +10,12 @@
   --accent-soft: var(--excel-green-soft);
 
   --surface-hover: #edf1ee;
+  /* Page background fallback. The chrome tokens --color-bg-page and --surface
+   * come from @revelith/ui/tokens.css, which this renderer's main.tsx does not
+   * import, so the var() chain below always lands on this value. Hoisted out of
+   * the usage sites so no raw hex appears there; the resolved colour is
+   * unchanged. */
+  --sheet-page-bg: #ffffff;
   /* ribbon toggle states match the slides ribbon (--hover / --active-bg):
      neutral gray, not the app's green-tinted surface hover */
   --ribbon-hover: var(--color-bg-subtle);
@@ -90,7 +96,7 @@
   --sheets-shadow-toast: 0 4px 16px rgb(0 0 0 / 18%);
   --sheets-shadow-composer: 0 6px 30px rgb(0 0 0 / 8%);
 
-  /* Same stack as docs/slides — an Inter fallback here made ribbon labels
+  /* Same stack as docs/slides â€” an Inter fallback here made ribbon labels
      render in a different face than the other apps on machines with Inter */
   font-family:
     'Segoe UI',
@@ -299,7 +305,7 @@
   font-display: block;
 }
 
-/* Hangul-named cell-font aliases ('맑은 고딕', '돋움') live in
+/* Hangul-named cell-font aliases ('ë§‘ì€ ê³ ë”•', 'ë‹ì›€') live in
  * CELL_FONT_ALIASES (cell-font-fallback.ts), which supports the per-script
  * width correction Malgun Gothic needs. */
 
@@ -353,7 +359,7 @@ textarea:disabled {
 }
 
 /* Go To arrow injected beside Univer's formula-bar Name Box (the
-   defined-name selector) — see the ensure() effect in ExcelShell. */
+   defined-name selector) â€” see the ensure() effect in ExcelShell. */
 .goto-in-bar {
   flex: none;
   align-self: stretch;
@@ -421,7 +427,7 @@ textarea:disabled {
   /* tab-row text ink matches the ribbon band below */
   color: var(--text-primary);
   /* same tab-row metrics as PowerPoint's ribbon (slides app): 5px top inset, no
-     bottom padding, no divider line — the row blends into the band below */
+     bottom padding, no divider line â€” the row blends into the band below */
   padding: 5px 10px 0;
   background: var(--surface);
   /* the tab row doubles as the frameless-window drag region */
@@ -511,7 +517,7 @@ html.revelith-popover-open .ribbon-tabs {
   cursor: default;
 }
 
-/* AutoSave toggle in the tab row — same knob as the docs/slides ribbons,
+/* AutoSave toggle in the tab row â€” same knob as the docs/slides ribbons,
    with the Excel-green accent. */
 .autosave-toggle {
   display: flex;
@@ -584,7 +590,7 @@ html.revelith-popover-open .ribbon-tabs {
 }
 
 /* active underline: about the label's width (insets past the tab padding),
- * ends slightly rounded — same as the slides ribbon */
+ * ends slightly rounded â€” same as the slides ribbon */
 .ribbon-tabs > button:not(.qa-btn).active::after {
   position: absolute;
   right: 13px;
@@ -609,7 +615,7 @@ html.revelith-popover-open .ribbon-tabs {
   display: flex;
   align-items: stretch;
   gap: 2px;
-  /* ribbon text ink, a touch off the app's --text — same shade
+  /* ribbon text ink, a touch off the app's --text â€” same shade
      as the .inline-tools glyphs */
   color: var(--text-primary);
   /* band metrics shared with the slides ribbon */
@@ -617,7 +623,7 @@ html.revelith-popover-open .ribbon-tabs {
   /* Groups must never shrink below content (they would paint over each
      other); anything past the window edge scrolls instead. */
   /* `scroll`, not `auto`: styled scrollbars are classic (non-overlay), so
-     `scroll` keeps the 5px lane reserved even without overflow — the content
+     `scroll` keeps the 5px lane reserved even without overflow â€” the content
      area never changes and crossing the overflow threshold cannot cause a
      vertical layout jump (same reasoning as .ai-attachments). */
   overflow-x: scroll;
@@ -654,7 +660,7 @@ html.revelith-popover-open .ribbon-tabs {
 /* group separator: a hairline inset from the band's top/bottom, like the slides
    ribbon's .ribbon-sep (a plain border-right would span the full 80px band).
    The 2px inset matches the groups' vertical padding, so the line spans exactly
-   the tallest group content (the two 30px rows) — same inset across all three
+   the tallest group content (the two 30px rows) â€” same inset across all three
    apps. */
 .ribbon-group::after {
   content: '';
@@ -703,7 +709,7 @@ html.revelith-popover-open .ribbon-tabs {
   background: var(--ribbon-hover);
 }
 
-/* Icon over label for the tall Insert-tab buttons — same metrics as the
+/* Icon over label for the tall Insert-tab buttons â€” same metrics as the
    slides ribbon's .rb-big. */
 .ribbon-tool.large {
   flex-direction: column;
@@ -726,7 +732,7 @@ html.revelith-popover-open .ribbon-tabs {
 }
 
 .ribbon-tool.large strong {
-  /* labels never wrap, the button hugs its content (slides .rb-big) — a
+  /* labels never wrap, the button hugs its content (slides .rb-big) â€” a
      two-line label would push the icon off the shared center line.
      Default line-height, not a compact 1.1: the label height feeds the
      icon-row flex, so it must match the docs/slides .rb-big label. */
@@ -736,8 +742,8 @@ html.revelith-popover-open .ribbon-tabs {
 }
 
 /* the tall buttons carry the ribbon's big 28px glyph; letterform glyphs
-   (ƒx, $, θ, …) get a 23px face so their cap height (~16.5px) matches the
-   ~17px ink of the drawn 28px svgs beside them, and a regular 400 weight —
+   (Æ’x, $, Î¸, â€¦) get a 23px face so their cap height (~16.5px) matches the
+   ~17px ink of the drawn 28px svgs beside them, and a regular 400 weight â€”
    the base 600 paints ~2.4px stems at this size vs the svgs' 1.5px strokes */
 .ribbon-tool.large .tool-symbol {
   flex: 0 0 28px;
@@ -767,7 +773,7 @@ html.revelith-popover-open .ribbon-tabs {
   margin: 0 -4px;
 }
 
-/* Hovering a tall button tints only its icon row — the label below
+/* Hovering a tall button tints only its icon row â€” the label below
    stays outside the gray (slides .rb-big:hover .rb-big-icon) */
 .ribbon-tool.large:not(.reserved):hover .tool-icon-row {
   background: var(--ribbon-hover);
@@ -829,7 +835,7 @@ html.revelith-popover-open .ribbon-tabs {
   background: transparent;
 }
 
-/* Bare colored ribbon glyphs — no chip background.
+/* Bare colored ribbon glyphs â€” no chip background.
    Icon-beside-label rows use the slides ribbon's .rb-small icon size (14px);
    the tall .large buttons scale theirs up to 28px below. */
 .tool-symbol {
@@ -854,31 +860,31 @@ html.revelith-popover-open .ribbon-tabs {
    1.75px lines while a 14px row paints 0.875px hairlines. These overrides
    pin the painted stroke at ~1.5px for 20px+ glyphs and ~1.25px for the
    small 13-16px ones (a touch lighter so dense glyphs stay legible).
-   stroke-width is in viewBox units: units = 24 / rendered-px × target-px. */
+   stroke-width is in viewBox units: units = 24 / rendered-px Ã— target-px. */
 .tool-symbol svg {
-  stroke-width: 2.15; /* 14px rows → 1.25px */
+  stroke-width: 2.15; /* 14px rows â†’ 1.25px */
 }
 
 .ribbon-tool.large .tool-symbol svg {
-  stroke-width: 1.3; /* 28px → ~1.5px */
+  stroke-width: 1.3; /* 28px â†’ ~1.5px */
 }
 
 .chart-grid .tool-symbol svg {
-  stroke-width: 2.2; /* 13px → ~1.2px */
+  stroke-width: 2.2; /* 13px â†’ ~1.2px */
 }
 
 .chev path {
-  stroke-width: 2.6; /* 10px caret → ~1.1px */
+  stroke-width: 2.6; /* 10px caret â†’ ~1.1px */
 }
 
-/* every inline-row glyph — toggles, dropdown triggers and labeled buttons —
+/* every inline-row glyph â€” toggles, dropdown triggers and labeled buttons â€”
    shares one size so icons sitting side by side read identically. 20px puts
    the padded 24-canvas ink (~61%) at ~12.5px, just under the docs ribbon's
-   optical size (16-canvas at 18px ≈ 14px ink), sized to taste. */
+   optical size (16-canvas at 18px â‰ˆ 14px ink), sized to taste. */
 .inline-tools .tool-symbol svg {
   width: 20px;
   height: 20px;
-  stroke-width: 1.8; /* 20px → 1.5px */
+  stroke-width: 1.8; /* 20px â†’ 1.5px */
 }
 
 .ribbon-tool.reserved .tool-symbol {
@@ -963,7 +969,7 @@ html.revelith-popover-open .ribbon-tabs {
   display: grid;
   min-width: 24px;
   /* 3 stacked mini rows line up with one tall button, as in the slides ribbon's
-     .rb-clip-col (cut / copy / format painter): 24×20 buttons, gap 0, 14px glyph */
+     .rb-clip-col (cut / copy / format painter): 24Ã—20 buttons, gap 0, 14px glyph */
   height: 20px;
   place-items: center;
   border: none;
@@ -1023,7 +1029,7 @@ html.revelith-popover-open .ribbon-tabs {
 }
 
 /* the font combos are buttons inside .inline-tools, whose flat-toggle reset
-   (border: none / transparent) outranks the base .select-like chrome — put
+   (border: none / transparent) outranks the base .select-like chrome â€” put
    the combobox border back on just these two; .compact triggers stay flat */
 .select-like.font-name,
 .select-like.font-size {
@@ -1070,7 +1076,7 @@ html.revelith-popover-open .ribbon-tabs {
 
 /* the glyph span nested inside a toggle / trigger / swatch must not re-apply
    the 28px toggle box (the `.inline-tools span` rule above also matches it),
-   or every icon button inflates to 28px content + UA button padding ≈ 40px;
+   or every icon button inflates to 28px content + UA button padding â‰ˆ 40px;
    width auto drops the 20px glyph box so the svg size rules above govern */
 .inline-tools .tool-symbol {
   min-width: 0;
@@ -1079,7 +1085,7 @@ html.revelith-popover-open .ribbon-tabs {
 }
 
 /* Color swatches: the glyph is the SAME size as its siblings (15px letter /
-   18px svg) so the row's cap line stays level, and the 16×4 bar hangs below
+   18px svg) so the row's cap line stays level, and the 16Ã—4 bar hangs below
    it out of flow (docs' colored-icon pattern) instead of pushing the whole
    stack taller than the neighbouring glyphs. */
 .inline-tools .swatch-letter {
@@ -1103,7 +1109,7 @@ html.revelith-popover-open .ribbon-tabs {
   border-radius: 1px;
 }
 
-/* the 24-canvas svgs carry ~3px of box padding below their ink — tuck the
+/* the 24-canvas svgs carry ~3px of box padding below their ink â€” tuck the
    bar into it so it hugs the glyph like it hugs the letterforms */
 .swatch-letter .tool-symbol ~ i {
   top: calc(100% - 3px);
@@ -1159,7 +1165,7 @@ html.revelith-popover-open .ribbon-tabs {
 
 /* View tab's stacked show/hide checkboxes (the Show group). */
 /* Home Styles group: three stacked dropdown rows. Muted via color, not
- * opacity — opacity spans the subtree and would render the anchored
+ * opacity â€” opacity spans the subtree and would render the anchored
  * .menu-select-drop popups translucent. */
 .styles-stack {
   display: grid;
@@ -1229,7 +1235,7 @@ html.revelith-popover-open .ribbon-tabs {
   appearance: none;
 }
 
-/* ── MenuSelect: custom dropdown replacing native selects ──────────────────
+/* â”€â”€ MenuSelect: custom dropdown replacing native selects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    The panel is fixed + anchored below its trigger (slides .rb-drop pattern),
    so it escapes the ribbon's scroll clip and never covers ribbon content.
    anchor-scope keeps each panel bound to its own wrap. */
@@ -1308,12 +1314,12 @@ html.revelith-popover-open .ribbon-tabs {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* the `.inline-tools span` toggle rule would bump this to 15px — keep the
+  /* the `.inline-tools span` toggle rule would bump this to 15px â€” keep the
      trigger label on the button's 12px ribbon type */
   font: inherit;
 }
 
-/* compact triggers hold an icon beside a short label — flex keeps the pair
+/* compact triggers hold an icon beside a short label â€” flex keeps the pair
    centered; the wide font/number combos stay inline so their labels keep
    ellipsizing */
 .select-like.compact .menu-select-value {
@@ -1367,7 +1373,7 @@ html.revelith-popover-open .ribbon-tabs {
   left: anchor(left);
   /* near the right window edge, right-align to the trigger */
   position-try-fallbacks: flip-inline;
-  /* trigger scrolled out of the ribbon → hide the panel with it */
+  /* trigger scrolled out of the ribbon â†’ hide the panel with it */
   position-visibility: anchors-visible;
   z-index: 60;
   display: flex;
@@ -1448,7 +1454,7 @@ html.revelith-popover-open .ribbon-tabs {
   align-content: center;
 }
 
-/* the 26×17 grid cells hold a 13px icon */
+/* the 26Ã—17 grid cells hold a 13px icon */
 .chart-grid .tool-symbol {
   flex: 0 0 13px;
   width: 13px;
@@ -1835,23 +1841,23 @@ button.check-item:hover {
   overflow: hidden;
   border-left: var(--ai-panel-border-left, 0px) solid var(--color-border-default, var(--border));
   border-right: var(--ai-panel-border-right, 1px) solid var(--color-border-default, var(--border));
-  background: var(--color-bg-page, var(--surface, #ffffff));
-  background-color: var(--color-bg-page, var(--surface, #ffffff));
+  background: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
+  background-color: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
   box-shadow: var(--sheets-shadow-copilot);
   font-family: var(--gs-font-sans);
   color: var(--color-text-primary);
 }
 
-/* Collapsed rail: identical to the slides .ai-rail — plain white strip,
+/* Collapsed rail: identical to the slides .ai-rail â€” plain white strip,
  * hairline right border, no float shadow */
 .copilot.collapsed {
   align-items: stretch;
-  background: var(--color-bg-page, var(--surface, #ffffff));
-  background-color: var(--color-bg-page, var(--surface, #ffffff));
+  background: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
+  background-color: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
   box-shadow: none;
 }
 
-/* drag handle on the panel's right edge — resize the panel horizontally
+/* drag handle on the panel's right edge â€” resize the panel horizontally
  * (.copilot is overflow: hidden, so the handle must sit fully inside the panel) */
 .ai-panel-resizer {
   position: absolute;
@@ -1901,8 +1907,8 @@ button.check-item:hover {
   gap: 8px;
   padding: 10px 12px 10px 14px;
   border-bottom: 1px solid var(--color-border-default, var(--border));
-  background: var(--color-bg-page, var(--surface, #ffffff));
-  background-color: var(--color-bg-page, var(--surface, #ffffff));
+  background: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
+  background-color: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
   font-weight: 600;
   font-size: 14px;
   color: var(--color-text-primary);
@@ -2718,7 +2724,7 @@ textarea:focus {
   border-radius: 2px;
 }
 
-/* Chart context menu (portaled to body — the float DOM clips overflow) */
+/* Chart context menu (portaled to body â€” the float DOM clips overflow) */
 .chart-menu-backdrop {
   position: fixed;
   z-index: 4000;
@@ -3122,7 +3128,7 @@ textarea:focus {
 .inline-tools .color-tool {
   position: relative;
   display: grid;
-  /* same 28×30 box as the sibling toggles, so the row's 3px rhythm holds */
+  /* same 28Ã—30 box as the sibling toggles, so the row's 3px rhythm holds */
   min-width: 28px;
   height: 30px;
   place-items: center;
@@ -3144,7 +3150,7 @@ textarea:focus {
   cursor: pointer;
 }
 
-/* Format Cells dialog (⌘1) */
+/* Format Cells dialog (âŒ˜1) */
 .dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -3159,7 +3165,7 @@ textarea:focus {
   display: grid;
   gap: 10px;
   /* The tab row cannot compress below its labels, and the single grid column
-     sizes every row to that width — with a fixed 420px card, locales with
+     sizes every row to that width â€” with a fixed 420px card, locales with
      long tab labels (fr 490px, pl 528px measured) paint the fields, lists and
      buttons past the card edge. Size the card to its widest incompressible
      row instead; 420px stays the floor (en fits at 407px, so en/zh keep
@@ -3332,7 +3338,7 @@ textarea:focus {
   font-size: 11px;
 }
 
-/* Format Cells → Number tab */
+/* Format Cells â†’ Number tab */
 .numfmt-tab {
   display: grid;
   grid-template-columns: 118px 1fr;
@@ -4110,8 +4116,8 @@ textarea:focus {
   gap: 16px;
   overflow-y: auto;
   padding: 32px 16px;
-  background: var(--color-bg-page, var(--surface, #ffffff));
-  background-color: var(--color-bg-page, var(--surface, #ffffff));
+  background: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
+  background-color: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
   font-family: var(--gs-font-sans);
 }
 
@@ -4190,7 +4196,7 @@ textarea:focus {
   margin-bottom: 0;
 }
 
-/* blank markdown paragraphs would each eat a 16px margin — the stream never renders them */
+/* blank markdown paragraphs would each eat a 16px margin â€” the stream never renders them */
 .ai-md p:empty {
   display: none;
 }
@@ -4584,7 +4590,7 @@ textarea:focus {
 }
 
 /* Thinking indicator (white background, no container):
- * phase one = two bouncing blue dots (alternating small/large); phase two = shimmering "Thinking…" text + streaming caret block */
+ * phase one = two bouncing blue dots (alternating small/large); phase two = shimmering "Thinkingâ€¦" text + streaming caret block */
 .ai-typing {
   display: inline-flex;
   align-items: center;
@@ -4724,20 +4730,20 @@ textarea:focus {
   align-self: stretch;
 }
 
-/* Composer floats over the chat scroll area — no top border (agent-shell §4.6) */
+/* Composer floats over the chat scroll area â€” no top border (agent-shell Â§4.6) */
 .ai-composer {
   border-top: none;
   padding: 8px 12px 12px;
-  background: var(--color-bg-page, var(--surface, #ffffff));
-  background-color: var(--color-bg-page, var(--surface, #ffffff));
+  background: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
+  background-color: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
 }
 
-/* composer card — 16px radius, default border, production float shadow */
+/* composer card â€” 16px radius, default border, production float shadow */
 .ai-input-box {
   border: 1px solid var(--color-border-default, var(--border));
   border-radius: var(--radius-16);
-  background: var(--color-bg-page, var(--surface, #ffffff));
-  background-color: var(--color-bg-page, var(--surface, #ffffff));
+  background: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
+  background-color: var(--color-bg-page, var(--surface, var(--sheet-page-bg)));
   box-shadow: var(--sheets-shadow-composer);
   transition:
     border-color var(--transition-fast),
@@ -4793,7 +4799,7 @@ textarea:focus {
 }
 
 /* icon-only enter key: transparent button chrome, visuals come from brand-supplied PNGs
- * (gray arrow = disabled, black arrow = enabled), size stays 36×36 */
+ * (gray arrow = disabled, black arrow = enabled), size stays 36Ã—36 */
 .ai-send-btn {
   display: inline-flex;
   align-items: center;
@@ -4841,9 +4847,9 @@ textarea:focus {
   filter: brightness(0.92);
 }
 
-/* ─── Chat attachments (📎 button + chips, same structure as docs/slides AI panels) ── */
+/* â”€â”€â”€ Chat attachments (ðŸ“Ž button + chips, same structure as docs/slides AI panels) â”€â”€ */
 
-/* attach — brand-supplied paperclip art, 20×20 (5/9 of the 36px enter button) */
+/* attach â€” brand-supplied paperclip art, 20Ã—20 (5/9 of the 36px enter button) */
 .ai-attach-btn {
   display: inline-flex;
   align-items: center;
@@ -4926,7 +4932,7 @@ textarea:focus {
   overflow-x: scroll;
   /* side insets are transparent borders, not padding: overflow clips at the
      padding edge, so side padding would let scrolled items slide flush against
-     the box edges — borders keep the 14px gaps while scrolling */
+     the box edges â€” borders keep the 14px gaps while scrolling */
   padding: 13px 0 0;
   border-inline: 14px solid transparent;
   margin-bottom: -6px;
@@ -5011,7 +5017,7 @@ textarea:focus {
   height: 26px;
 }
 
-/* Non-image attachments (pdf, xlsx, …): fixed-width bordered card — brand type
+/* Non-image attachments (pdf, xlsx, â€¦): fixed-width bordered card â€” brand type
    icon + truncated name and size, same height and remove button as the thumbs */
 .ai-attachment-card {
   position: relative;
@@ -5161,7 +5167,7 @@ textarea:focus {
   cursor: pointer;
 }
 
-/* ─── Slicer ─────────────────────────────────────────────────────────── */
+/* â”€â”€â”€ Slicer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Field picker: grid of button tiles */
 .slicer-picker-fields {
@@ -5569,13 +5575,13 @@ textarea:focus {
   display: none;
 }
 
-/* ── Shared dropdown (@revelith/ui gs-dd) app sizing ──────────────────────
+/* â”€â”€ Shared dropdown (@revelith/ui gs-dd) app sizing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Ports the old native-select metrics per container so replacing <select>
    with the themed Dropdown doesn't shift layout (reference: the matching
    block in apps/slides styles.css). */
 
 /* dialog fields: fill the grid cell like the old `.dialog-grid select`
-   (100% × 26px) / `.numfmt-field select` rules */
+   (100% Ã— 26px) / `.numfmt-field select` rules */
 .dialog-grid .gs-dd,
 .numfmt-field .gs-dd {
   width: 100%;
@@ -5593,7 +5599,7 @@ textarea:focus {
   min-width: 0;
 }
 
-/* floating chart editor: old `.chart-editor select` was 120px+ × 24px, 11px type */
+/* floating chart editor: old `.chart-editor select` was 120px+ Ã— 24px, 11px type */
 .chart-editor .gs-dd {
   min-width: 120px;
 }
@@ -5626,7 +5632,7 @@ textarea:focus {
 }
 
 /* Excel split color tools: the glyph applies the current color, the slim
-   caret opens the palette. The pair reads as one control — shared hover
+   caret opens the palette. The pair reads as one control â€” shared hover
    tint, individually highlighted halves (docs-ribbon parity). */
 .inline-tools .menu-select.color-split {
   display: inline-flex;
@@ -5664,7 +5670,7 @@ textarea:focus {
 }
 
 /* Border dropdown entries: glyph + label, Excel-style; the drop sits inside
-   .inline-tools, so the span sheds the 28×30 toggle box and its hover */
+   .inline-tools, so the span sheds the 28Ã—30 toggle box and its hover */
 .menu-select-drop .menu-option-icon {
   display: inline-grid;
   place-items: center;

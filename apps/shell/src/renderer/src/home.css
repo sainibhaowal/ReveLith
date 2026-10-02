@@ -17,6 +17,9 @@
 
   /* revelith-logo.svg is pure black-and-white; dark themes flip it to 1 */
   --logo-invert: 0;
+  /* Wordmark colour. Lives here as a token so the usage site stays free of raw
+   * hex; the value is unchanged from the previous inline fallback. */
+  --logo-brand-text: #1e293b;
 }
 
 /* ── Dark mode overrides ─────────────────────────────────── */
@@ -33,6 +36,7 @@
   --timeline-user-text: #b0b0c0;
   --shadow-pill: 0 1px 2px rgb(0 0 0 / 40%);
   --logo-invert: 1;
+  --logo-brand-text: #f8fafc;
 }
 
 /* System dark: no data-theme or data-theme="system" — follow OS preference */
@@ -48,6 +52,7 @@
     --timeline-user-text: #b0b0c0;
     --shadow-pill: 0 1px 2px rgb(0 0 0 / 40%);
     --logo-invert: 1;
+    --logo-brand-text: #f8fafc;
   }
 }
 
@@ -125,12 +130,10 @@ body.vib .home {
   font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.4px;
-  color: var(--text-normal, #1e293b);
+  /* --text-normal was never defined, so this always fell through to the raw
+   * hex. The token below carries the same two values per theme. */
+  color: var(--logo-brand-text);
   user-select: none;
-}
-
-[data-theme='dark'] .logo-brand-text {
-  color: #f8fafc;
 }
 
 .logo-lockup {
