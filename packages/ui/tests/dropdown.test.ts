@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextEnabledIndex, reconcileActiveIndex } from '../src/dropdown'
+import { nextEnabledIndex, reconcileActiveIndex } from '../src/Dropdown'
 
 describe('Dropdown keyboard navigation', () => {
   const options = [{ disabled: true }, {}, { disabled: true }, {}]

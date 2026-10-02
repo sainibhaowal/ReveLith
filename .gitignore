@@ -99,9 +99,11 @@ apps/shell/build/*.icns
 # ...but keep the tracked main app icon
 !apps/shell/build/icon.ico
 !apps/shell/build/icon.icns
-# electron-builder NSIS/Linux hooks
-apps/shell/build/linux-after-install.sh
-apps/shell/build/linux-after-remove.sh
+# electron-builder references these two hooks by path for deb/rpm packaging, and
+# apps/shell/tests/linux-cli-link-scripts.test.ts executes them, so they are
+# hand-written repo assets and must stay tracked.
+# apps/shell/build/linux-after-install.sh
+# apps/shell/build/linux-after-remove.sh
 # generated size ladder in apps/shell/build/icons/ (keeps docx.png, md.png, ...)
 apps/shell/build/icons/[0-9]*x[0-9]*.png
 docs/TASK_PROMPT_TEMPLATE.md

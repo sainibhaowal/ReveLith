@@ -2,7 +2,7 @@
 import { act, createElement, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Dropdown, type DropdownOption } from '../src/dropdown'
+import { Dropdown, type DropdownOption } from '../src/Dropdown'
 
 const OPTIONS: DropdownOption[] = [
   { value: 'a', label: 'Alpha' },
