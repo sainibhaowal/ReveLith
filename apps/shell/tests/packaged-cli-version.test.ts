@@ -9,7 +9,7 @@ const shellRoot = resolve(import.meta.dirname, '..')
 const shellPackage = JSON.parse(readFileSync(resolve(shellRoot, 'package.json'), 'utf-8')) as {
   version: string
 }
-const CLI_BUNDLE_REL = '../../packages/cli/dist/revelith.cjs'
+const CLI_BUNDLE_REL = '../../packages/revelith-cli/dist/revelith.cjs'
 
 interface Rebuild {
   script: string
@@ -82,7 +82,9 @@ describe('packaged CLI version agreement', () => {
     const { config, rebuilds } = loadConfig({ baked: '9.9.9' })
     await config.beforePack({ electronPlatformName: 'linux' })
     expect(rebuilds).toHaveLength(1)
-    expect(rebuilds[0].script.replace(/\\/g, '/').endsWith('packages/cli/build.mjs')).toBe(true)
+    expect(rebuilds[0].script.replace(/\\/g, '/').endsWith('packages/revelith-cli/build.mjs')).toBe(
+      true,
+    )
     expect(rebuilds[0].appVersion).toBe(shellPackage.version)
   })
 

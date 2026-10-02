@@ -27,12 +27,37 @@
   ${EndIf}
 !macroend
 
+; "Open with ReveLith" right-click verbs on SystemFileAssociations (never
+; steals the default app). Runtime repair path for the same keys:
+; src/main/win-shell-menu.ts (SHELL_MENU_EXTS must match the list below).
+!macro REVELITH_ADD_SHELL_VERB EXT
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.${EXT}\shell\ReveLith" "" "Open with ReveLith"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.${EXT}\shell\ReveLith" "Icon" "$INSTDIR\ReveLith.exe,0"
+  WriteRegStr SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.${EXT}\shell\ReveLith\command" "" '"$INSTDIR\ReveLith.exe" "%1"'
+!macroend
+
+!macro REVELITH_REMOVE_SHELL_VERB EXT
+  DeleteRegKey SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.${EXT}\shell\ReveLith"
+!macroend
+
 !macro customInstall
   Push "$INSTDIR\resources\cli"
   Call ReveLithAddToUserPath
   !insertmacro ReveLithRegisterShellNew "docx" "Word Document"
   !insertmacro ReveLithRegisterShellNew "xlsx" "Excel Workbook"
   !insertmacro ReveLithRegisterShellNew "pptx" "PowerPoint Presentation"
+  !insertmacro REVELITH_ADD_SHELL_VERB "docx"
+  !insertmacro REVELITH_ADD_SHELL_VERB "xlsx"
+  !insertmacro REVELITH_ADD_SHELL_VERB "xlsm"
+  !insertmacro REVELITH_ADD_SHELL_VERB "xls"
+  !insertmacro REVELITH_ADD_SHELL_VERB "csv"
+  !insertmacro REVELITH_ADD_SHELL_VERB "tsv"
+  !insertmacro REVELITH_ADD_SHELL_VERB "pptx"
+  !insertmacro REVELITH_ADD_SHELL_VERB "pdf"
+  !insertmacro REVELITH_ADD_SHELL_VERB "md"
+  !insertmacro REVELITH_ADD_SHELL_VERB "markdown"
+  !insertmacro REVELITH_ADD_SHELL_VERB "html"
+  !insertmacro REVELITH_ADD_SHELL_VERB "htm"
   !insertmacro UPDATEFILEASSOC
 !macroend
 
@@ -43,6 +68,18 @@
   !insertmacro ReveLithUnregisterShellNew "docx" "Word Document"
   !insertmacro ReveLithUnregisterShellNew "xlsx" "Excel Workbook"
   !insertmacro ReveLithUnregisterShellNew "pptx" "PowerPoint Presentation"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "docx"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "xlsx"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "xlsm"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "xls"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "csv"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "tsv"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "pptx"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "pdf"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "md"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "markdown"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "html"
+  !insertmacro REVELITH_REMOVE_SHELL_VERB "htm"
   Pop $0
   !insertmacro UPDATEFILEASSOC
 !macroend

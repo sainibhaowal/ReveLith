@@ -91,12 +91,16 @@ describe('verb key/command shapes', () => {
     expect([...SHELL_MENU_EXTS]).toEqual([
       'docx',
       'xlsx',
+      'xlsm',
       'xls',
       'csv',
+      'tsv',
       'pptx',
       'pdf',
       'md',
       'markdown',
+      'html',
+      'htm',
     ])
   })
 })

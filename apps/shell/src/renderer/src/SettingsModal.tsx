@@ -327,39 +327,46 @@ function AiModelPane({ t }: { t: TFunc }) {
   useEffect(() => {
     selectedModelRef.current = endpointConfig?.model ?? ''
   })
+  /** live mirrors so late replies can tell they lost (provider switch or re-probe) */
+  const endpointProviderRef = useRef<string | undefined>(undefined)
+  const endpointBaseUrlRef = useRef('')
+  const endpointApiKeyRef = useRef('')
+  useEffect(() => {
+    endpointProviderRef.current = endpointProvider
+    endpointBaseUrlRef.current = endpointBaseUrl
+    endpointApiKeyRef.current = endpointApiKey
+  })
+  /** sequencing for the probe below: a reply whose id is stale is dropped */
+  const probeSeqRef = useRef(0)
   /** the address that produced the list currently folded in; '' when none is */
   const listedForRef = useRef('')
 
   const probeModels = useCallback(
     async (providerId: AiProviderId, baseUrl: string, apiKey: string) => {
       if (!baseUrl || !window.aiOffice.getCustomModels) return
+      const seq = ++probeSeqRef.current
       try {
         const live = await window.aiOffice.getCustomModels(baseUrl, apiKey)
+        // Superseded (a newer probe went out), the provider moved on, or the
+        // address/key changed while this one was in flight (the re-probe has
+        // not even gone out yet): land nowhere instead of folding stale models
+        // into the picker or, worse, into another provider's entry.
+        if (seq !== probeSeqRef.current) return
+        if (endpointProviderRef.current !== providerId) return
+        if (endpointBaseUrlRef.current !== baseUrl) return
+        if (endpointApiKeyRef.current !== apiKey) return
         if (!live || live.models.length === 0) return
         const selected = selectedModelRef.current.trim()
-        const otherModels = live.models.filter((m) => m !== selected)
-        const models = selected ? [selected, ...otherModels] : live.models
+        // Pin a hand-typed model to the top only when the live list lacks it;
+        // when it is already there the server order stands (no rewrite).
+        const models =
+          selected && !live.models.includes(selected) ? [selected, ...live.models] : live.models
         listedForRef.current = baseUrl
         setCatalog(foldModels(providerId, models))
-        if (!selected && live.models.length > 0) {
-          setSettings((curr) => {
-            if (!curr) return curr
-            const currentCfg = curr.providers[providerId]
-            if (currentCfg?.model) return curr
-            return {
-              ...curr,
-              providers: {
-                ...curr.providers,
-                [providerId]: {
-                  apiKey: currentCfg?.apiKey ?? '',
-                  model: live.models[0],
-                  baseUrl: currentCfg?.baseUrl,
-                  cliPath: currentCfg?.cliPath,
-                },
-              },
-            }
-          })
-        }
+        // Deliberately no default is adopted here: the picker opens with
+        // nothing selected and the user picks. Writing live.models[0] into
+        // settings would silently adopt whatever the server lists first
+        // (often an embedding model) as the chat model.
       } catch {
         // server probe failed / offline
       }
@@ -433,10 +440,9 @@ function AiModelPane({ t }: { t: TFunc }) {
     }
     setSettings(updated)
     touch()
-    if (nextMeta && (nextMeta.needsBaseUrl || id === 'lmstudio' || id === 'ollama')) {
-      const targetBase = (existing?.baseUrl?.trim() || nextMeta.defaultBaseUrl || '').trim()
-      void probeModels(id, targetBase, existing?.apiKey ?? '')
-    }
+    // No direct probe here: the endpoint effect below fires on the provider
+    // switch and owns all probing (debounced). Probing here too would send a
+    // duplicate request whose reply the staleness guard then has to drop.
   }
   const save = () => {
     window.aiOffice
@@ -563,7 +569,7 @@ function AiModelPane({ t }: { t: TFunc }) {
         {meta && meta.models.length > 0 ? (
           <Dropdown
             className="set-dd"
-            value={config.model || meta.models[0] || meta.defaultModel}
+            value={config.model || meta.defaultModel || ''}
             ariaLabel={t('setAiModelId')}
             options={meta.models.map((m) => ({ value: m, label: m }))}
             onPick={(m) => updateConfig({ model: m })}

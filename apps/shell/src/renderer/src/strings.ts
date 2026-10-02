@@ -886,8 +886,6 @@ export const strings = {
     deleteConfirmMany: 'Chuyển {n} tệp này vào Thùng rác?',
     deleteMoreCount: '… tổng cộng {n}',
     delete: 'Xóa',
-    timelineCount: '{n} mục',
-    timelineCountOne: '{n} mục',
     timelineEmpty: 'Chưa có cuộc trò chuyện AI nào trong dự án này.',
     timelineYou: 'Bạn',
     timelineUserAria: 'Người dùng',

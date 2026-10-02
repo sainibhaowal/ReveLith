@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { gskListPastProjects, type GskPastProjectsPage } from '@revelith/ai-search'
 import {
   cloudStoreOwner,
@@ -30,13 +31,20 @@ const PROJECTS = [
 describe('cloud projects store account binding', () => {
   let dir: string
   let storePath: string
-  const envBefore = { key: process.env.GSK_API_KEY, disable: process.env.AI_SEARCH_DISABLE_GSK }
+  const envBefore = {
+    key: process.env.GSK_API_KEY,
+    disable: process.env.AI_SEARCH_DISABLE_GSK,
+    cli: process.env.GSK_CLI_PATH,
+  }
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'cloud-store-'))
     storePath = join(dir, 'cloud-projects.json')
     delete process.env.AI_SEARCH_DISABLE_GSK
     process.env.GSK_API_KEY = 'test-key-account-a'
+    // the CLI's behavior is mocked (gskListPastProjects); declare its presence
+    // so hasGskAuth reflects the logged-in state these tests exercise
+    process.env.GSK_CLI_PATH = fileURLToPath(import.meta.url)
   })
 
   afterEach(() => {
@@ -45,6 +53,8 @@ describe('cloud projects store account binding', () => {
     else process.env.GSK_API_KEY = envBefore.key
     if (envBefore.disable === undefined) delete process.env.AI_SEARCH_DISABLE_GSK
     else process.env.AI_SEARCH_DISABLE_GSK = envBefore.disable
+    if (envBefore.cli === undefined) delete process.env.GSK_CLI_PATH
+    else process.env.GSK_CLI_PATH = envBefore.cli
   })
 
   const writeStore = (owner: string) => {
@@ -92,7 +102,11 @@ describe('cloud projects store account binding', () => {
 describe('cloud projects sync account isolation', () => {
   let dir: string
   let storePath: string
-  const envBefore = { key: process.env.GSK_API_KEY, disable: process.env.AI_SEARCH_DISABLE_GSK }
+  const envBefore = {
+    key: process.env.GSK_API_KEY,
+    disable: process.env.AI_SEARCH_DISABLE_GSK,
+    cli: process.env.GSK_CLI_PATH,
+  }
 
   const pageFor = (title: string): GskPastProjectsPage => ({
     projects: [
@@ -113,6 +127,7 @@ describe('cloud projects sync account isolation', () => {
     storePath = join(dir, 'cloud-projects.json')
     delete process.env.AI_SEARCH_DISABLE_GSK
     process.env.GSK_API_KEY = 'test-key-account-a'
+    process.env.GSK_CLI_PATH = fileURLToPath(import.meta.url)
     listMock.mockReset()
   })
 
@@ -122,6 +137,8 @@ describe('cloud projects sync account isolation', () => {
     else process.env.GSK_API_KEY = envBefore.key
     if (envBefore.disable === undefined) delete process.env.AI_SEARCH_DISABLE_GSK
     else process.env.AI_SEARCH_DISABLE_GSK = envBefore.disable
+    if (envBefore.cli === undefined) delete process.env.GSK_CLI_PATH
+    else process.env.GSK_CLI_PATH = envBefore.cli
   })
 
   it('writes the store bound to the account that synced', async () => {

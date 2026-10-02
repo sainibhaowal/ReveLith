@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, posix as posixPath } from 'node:path'
 import type { DefaultAppStatus } from '../shared/home-api'
 
 // macOS writes the LaunchServices user choice via osascript (no helper binary to
@@ -170,14 +170,16 @@ export function parseRegValue(output: string): string | null {
 }
 
 function linuxDesktopName(id: string, readFile: (p: string) => string): string {
+  // posix join on purpose: these directories only exist on Linux, but the
+  // lookup must also resolve in tests running on Windows/macOS hosts.
   const dirs = [
-    join(homedir(), '.local/share/applications'),
+    posixPath.join(homedir(), '.local/share/applications'),
     '/usr/local/share/applications',
     '/usr/share/applications',
   ]
   for (const dir of dirs) {
     try {
-      const m = /^Name=(.+)$/m.exec(readFile(join(dir, id)))
+      const m = /^Name=(.+)$/m.exec(readFile(posixPath.join(dir, id)))
       if (m) return m[1].trim()
     } catch {
       // not installed there

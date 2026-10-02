@@ -1,5 +1,5 @@
 /**
- * Wrapper around gsk (Genspark CLI, @genspark/cli) — search / image generation /
+ * Wrapper around the revelith CLI (@revelith/cli) — search / image generation /
  * media analysis / upload / transcription.
  *
  * Execution: the main process spawns the CLI's JS entry with
@@ -14,7 +14,7 @@
 import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, unwatchFile, watchFile, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import {
   asRecord,
@@ -37,21 +37,33 @@ const MAX_BUFFER = 32 * 1024 * 1024
 
 let cachedEntry: string | null | undefined
 
-/** JS entry of @genspark/cli (null if not found). Can be overridden via GSK_CLI_PATH. */
+/** JS entry of @revelith/cli (null if not found). Can be overridden via GSK_CLI_PATH. */
 export function resolveGskEntry(): string | null {
   if (process.env.GSK_CLI_PATH) return process.env.GSK_CLI_PATH
   if (cachedEntry !== undefined) return cachedEntry
+  // The package exports map only exposes ./src/*.ts, so a subpath require of
+  // the dist bundle is rejected (ERR_PACKAGE_PATH_NOT_EXPORTED). Resolve the
+  // package main instead (./src/index.ts, always present) and step next to it.
   try {
     const require = createRequire(import.meta.url)
-    cachedEntry = require.resolve('@genspark/cli/dist/index.js')
+    const bundle = join(dirname(require.resolve('@revelith/cli')), '..', 'dist', 'revelith.cjs')
+    if (existsSync(bundle)) {
+      cachedEntry = bundle
+      return cachedEntry
+    }
   } catch {
+    /* not installed as a workspace dependency; try the packed layout below */
+  }
+  try {
     // The packaged app has no node_modules; electron-builder extraResources
     // copies the CLI into Resources/gsk/
     const resourcesPath = (process as { resourcesPath?: string }).resourcesPath
     const packed = resourcesPath
-      ? join(resourcesPath, 'gsk', 'node_modules', '@genspark', 'cli', 'dist', 'index.js')
+      ? join(resourcesPath, 'gsk', 'node_modules', '@revelith', 'cli', 'dist', 'revelith.cjs')
       : null
     cachedEntry = packed && existsSync(packed) ? packed : null
+  } catch {
+    cachedEntry = null
   }
   return cachedEntry
 }
@@ -240,7 +252,7 @@ export function parseGskOutput(stdout: string): unknown {
 
 function runGsk(args: string[], timeoutMs: number, signal?: AbortSignal): Promise<unknown> {
   const entry = resolveGskEntry()
-  if (!entry) return Promise.reject(new Error('@genspark/cli is not installed'))
+  if (!entry) return Promise.reject(new Error('@revelith/cli is not installed'))
   // inject the resolved key so the CLI bills the same identity as our direct HTTP calls
   const key = gskApiKey()
   return new Promise((resolve, reject) => {

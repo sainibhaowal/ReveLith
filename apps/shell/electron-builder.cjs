@@ -656,6 +656,9 @@ const config = {
     installerIcon: 'build/installerIcon.ico',
     uninstallerIcon: 'build/uninstallerIcon.ico',
     installerHeaderIcon: 'build/icon.ico',
+    // Explorer "Open with ReveLith" verbs + ShellNew templates (see
+    // build/installer.nsh customInstall/customUnInstall).
+    include: 'build/installer.nsh',
   },
   beforePack: async (context) => {
     ensurePlatformHelpers()

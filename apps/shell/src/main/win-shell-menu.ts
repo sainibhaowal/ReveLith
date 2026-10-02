@@ -23,18 +23,22 @@ import { execFile } from 'node:child_process'
 
 /**
  * Formats with an "Open with ReveLith" verb. Must stay in sync with
- * fileAssociations in electron-builder.cjs, installer.nsh, and the
- * supported-file regexes in index.ts (docx/xlsx/xls/csv/pptx/pdf/md/markdown).
+ * fileAssociations in electron-builder.cjs, installer.nsh, and
+ * SUPPORTED_LAUNCH_RE in launch-paths.ts.
  */
 export const SHELL_MENU_EXTS = [
   'docx',
   'xlsx',
+  'xlsm',
   'xls',
   'csv',
+  'tsv',
   'pptx',
   'pdf',
   'md',
   'markdown',
+  'html',
+  'htm',
 ] as const
 
 export type ShellMenuExt = (typeof SHELL_MENU_EXTS)[number]
