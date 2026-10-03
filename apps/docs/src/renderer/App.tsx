@@ -18,6 +18,11 @@ import { DOMParser as PmDOMParser, type Mark as PmMark, Slice as PmSlice } from 
 import { NodeSelection, TextSelection, type Command, type Transaction } from '@tiptap/pm/state'
 import { Dropdown, ImageViewer, createZoomWheelClassifier, useAutoSavePref } from '@revelith/ui'
 import { wordRangeAtCaret } from './editor/comments'
+import {
+  requestGhostCompletion,
+  fetchInlineCompletion,
+  clearGhostCompletion,
+} from './editor/ghost-completion'
 import { setFieldInstr, toggleAllFieldCodes, type FieldRange } from './editor/field-codes'
 import { linkTarget } from './editor/link-actions'
 import { FieldDialog } from './components/FieldDialog'
@@ -5953,6 +5958,59 @@ export function App() {
   })
 
   useEffect(() => (editor ? installSelectionBar(editor) : undefined), [editor])
+
+  // Ghost completion (Cursor-style Tab autocomplete)
+  useEffect(() => {
+    if (!editor) return
+    let idleTimer: ReturnType<typeof setTimeout> | null = null
+    let lastSelection = editor.state.selection.from
+
+    const triggerGhost = () => {
+      if (editor.isDestroyed) return
+      const { selection } = editor.state
+      if (!selection.empty) return
+      if (editor.state.selection.from !== lastSelection) {
+        lastSelection = editor.state.selection.from
+        return
+      }
+      // Cursor has been idle at same position
+      requestGhostCompletion(editor, 320)
+    }
+
+    const handleTransaction = () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(triggerGhost, 320)
+    }
+
+    // Trigger on cursor idle
+    editor.on('transaction', handleTransaction)
+
+    // Clear ghost on any user input or cursor move
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab' || event.key === 'Escape' || event.key === 'ArrowRight') {
+        // Let the ghost plugin handle these
+        return
+      }
+      if (idleTimer) clearTimeout(idleTimer)
+      clearGhostCompletion(editor)
+    }
+
+    const handleClick = () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      clearGhostCompletion(editor)
+    }
+
+    editor.view.dom.addEventListener('keydown', handleKeyDown)
+    editor.view.dom.addEventListener('click', handleClick)
+
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      editor.off('transaction', handleTransaction)
+      editor.view.dom.removeEventListener('keydown', handleKeyDown)
+      editor.view.dom.removeEventListener('click', handleClick)
+      clearGhostCompletion(editor)
+    }
+  }, [editor])
 
   // e2e/automation hook: lets tests drive open/edit/save without native dialogs
   useEffect(() => {

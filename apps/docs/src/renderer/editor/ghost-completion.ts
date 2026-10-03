@@ -121,12 +121,19 @@ export const GhostCompletionExtension = Extension.create({
   },
 })
 
+/** Calls the main process for a one-shot inline completion */
+export async function fetchInlineCompletion(before: string, after: string): Promise<string> {
+  try {
+    const { ipcRenderer } = await import('electron')
+    const result = await ipcRenderer.invoke('ai:inline-complete', { before, after })
+    return result?.text ?? ''
+  } catch {
+    return ''
+  }
+}
+
 /** Triggers inline completion request with debouncing */
-export function requestGhostCompletion(
-  editor: any,
-  fetchCompletion: (before: string, after: string) => Promise<string>,
-  delayMs = 320,
-): void {
+export function requestGhostCompletion(editor: any, delayMs = 320): void {
   if (!editor || editor.isDestroyed) return
 
   if (debounceTimer) {
@@ -158,7 +165,7 @@ export function requestGhostCompletion(
       const controller = new AbortController()
       activeAbortController = controller
 
-      const suggestion = await fetchCompletion(textBefore, textAfter)
+      const suggestion = await fetchInlineCompletion(textBefore, textAfter)
       if (controller.signal.aborted) return
 
       if (suggestion && suggestion.trim().length > 0) {

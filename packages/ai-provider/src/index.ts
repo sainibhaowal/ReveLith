@@ -75,6 +75,7 @@ export type {
   ResolvedEndpoint,
 } from './registry'
 export { chatForProvider } from './chat'
+export { resolveAiSettingsForInline, inlineComplete } from './inline'
 export { setAiUserAgent, setRescueFetch } from './fetch'
 export { isAiNetworkError } from './network-error'
 export { isAiOverloadedError } from './overload-error'
