@@ -1,11 +1,16 @@
-﻿import { readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { app, shell } from 'electron'
+import { app, dialog, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
 import { createI18n, getUiLang, htmlLang } from '@revelith/i18n'
-import type { UpdateChannel, UpdateUiState, UpdateUiStrings } from '../shared/update-api'
+import type {
+  UpdateChannel,
+  UpdatePhase,
+  UpdateUiState,
+  UpdateUiStrings,
+} from '../shared/update-api'
 import {
   closeUpdateWindow,
   isUpdateWindowOpen,
@@ -19,17 +24,17 @@ import {
  * The release pipeline publishes `latest.yml` + the versioned installer to
  * the update channel prefix (production builds only). The packaged app reads
  * that URL from resources/app-update.yml, which electron-builder bakes in
- * from the `publish` config in apps/shell/electron-builder.cjs : the URL
+ * from the `publish` config in apps/shell/electron-builder.cjs — the URL
  * itself is injected at build time via the REVELITH_UPDATE_URL env var and
  * is intentionally not committed to the repo.
  *
  * UX is the strong-guidance modal card (update-window.ts), not a native
  * dialog. Windows updates through the NSIS installer (latest.yml); macOS
  * through the zip target (latest-mac.yml); Linux through the AppImage
- * target (latest-linux.yml) : all published by the internal release
+ * target (latest-linux.yml) — all published by the internal release
  * pipeline. On Linux only AppImage runs self-update (electron-updater
  * replaces the .AppImage file in place, no root needed); deb installs have
- * no updater : users upgrade via `apt install ./<new>.deb`.
+ * no updater — users upgrade via `apt install ./<new>.deb`.
  *
  * Dev preview: REVELITH_FAKE_UPDATE=<version> in an unpacked run opens the
  * window with a simulated download so the UI can be exercised end to end.
@@ -47,6 +52,8 @@ const tUpd = createI18n({
     updFailed: '更新下载失败，请检查网络后重试。',
     updRetry: '重试',
     updManual: '自动更新失败，请从下载页面获取最新版本并手动安装。',
+    updUpToDate: '已是最新版本（{version}）。',
+    updCheckFailed: '无法检查更新，请检查网络后重试。',
     updOpenDownload: '前往下载页面',
   },
   en: {
@@ -62,7 +69,26 @@ const tUpd = createI18n({
     updRetry: 'Retry',
     updManual:
       'Automatic update failed. Please get the latest version from the download page and install it manually.',
+    updUpToDate: "You're up to date (version {version}).",
+    updCheckFailed: "Couldn't check for updates. Check your network and try again.",
     updOpenDownload: 'Open Download Page',
+  },
+  vi: {
+    updTitle: 'Cập nhật phần mềm',
+    updHeadline: 'Đã có phiên bản mới',
+    updDesc:
+      'Bản cập nhật này bao gồm các cải tiến hiệu suất và sửa lỗi. Chúng tôi khuyên bạn nên cập nhật ngay bây giờ.',
+    updDownload: 'Cập nhật ngay',
+    updLater: 'Nhắc tôi sau',
+    updInstall: 'Khởi động lại & Cài đặt',
+    updDownloading: 'Đang tải xuống bản cập nhật…',
+    updFailed: 'Tải xuống bản cập nhật thất bại. Kiểm tra mạng của bạn và thử lại.',
+    updRetry: 'Thử lại',
+    updManual:
+      'Cập nhật tự động thất bại. Vui lòng lấy phiên bản mới nhất từ trang tải xuống và cài đặt thủ công.',
+    updUpToDate: 'Bạn đang sử dụng phiên bản mới nhất (phiên bản {version}).',
+    updCheckFailed: 'Không thể kiểm tra bản cập nhật. Kiểm tra mạng của bạn và thử lại.',
+    updOpenDownload: 'Mở trang tải xuống',
   },
   ja: {
     updTitle: 'ソフトウェアアップデート',
@@ -77,6 +103,8 @@ const tUpd = createI18n({
     updRetry: '再試行',
     updManual:
       '自動更新に失敗しました。ダウンロードページから最新バージョンを取得して手動でインストールしてください。',
+    updUpToDate: '最新の状態です（バージョン {version}）。',
+    updCheckFailed: '更新を確認できませんでした。ネットワークを確認して再試行してください。',
     updOpenDownload: 'ダウンロードページを開く',
   },
   ko: {
@@ -92,6 +120,8 @@ const tUpd = createI18n({
     updRetry: '다시 시도',
     updManual:
       '자동 업데이트에 실패했습니다. 다운로드 페이지에서 최신 버전을 받아 직접 설치해 주세요.',
+    updUpToDate: '최신 버전입니다 (버전 {version}).',
+    updCheckFailed: '업데이트를 확인할 수 없습니다. 네트워크를 확인한 후 다시 시도하세요.',
     updOpenDownload: '다운로드 페이지 열기',
   },
   fr: {
@@ -107,6 +137,9 @@ const tUpd = createI18n({
     updRetry: 'Réessayer',
     updManual:
       'La mise à jour automatique a échoué. Téléchargez la dernière version depuis la page de téléchargement et installez-la manuellement.',
+    updUpToDate: 'Vous êtes à jour (version {version}).',
+    updCheckFailed:
+      'Impossible de rechercher les mises à jour. Vérifiez votre réseau et réessayez.',
     updOpenDownload: 'Ouvrir la page de téléchargement',
   },
   de: {
@@ -123,6 +156,9 @@ const tUpd = createI18n({
     updRetry: 'Erneut versuchen',
     updManual:
       'Automatisches Update fehlgeschlagen. Laden Sie die neueste Version von der Download-Seite herunter und installieren Sie sie manuell.',
+    updUpToDate: 'Sie sind auf dem neuesten Stand (Version {version}).',
+    updCheckFailed:
+      'Updates konnten nicht geprüft werden. Prüfen Sie Ihre Netzwerkverbindung und versuchen Sie es erneut.',
     updOpenDownload: 'Download-Seite öffnen',
   },
   es: {
@@ -138,6 +174,8 @@ const tUpd = createI18n({
     updRetry: 'Reintentar',
     updManual:
       'La actualización automática falló. Descargue la última versión desde la página de descargas e instálela manualmente.',
+    updUpToDate: 'Está actualizado (versión {version}).',
+    updCheckFailed: 'No se pudo buscar actualizaciones. Compruebe su red e inténtelo de nuevo.',
     updOpenDownload: 'Abrir página de descargas',
   },
   th: {
@@ -152,6 +190,8 @@ const tUpd = createI18n({
     updRetry: 'ลองอีกครั้ง',
     updManual:
       'การอัปเดตอัตโนมัติล้มเหลว โปรดดาวน์โหลดเวอร์ชันล่าสุดจากหน้าดาวน์โหลดแล้วติดตั้งด้วยตนเอง',
+    updUpToDate: 'คุณใช้เวอร์ชันล่าสุดแล้ว (เวอร์ชัน {version})',
+    updCheckFailed: 'ไม่สามารถตรวจหาการอัปเดตได้ โปรดตรวจสอบเครือข่ายแล้วลองอีกครั้ง',
     updOpenDownload: 'เปิดหน้าดาวน์โหลด',
   },
   id: {
@@ -167,6 +207,8 @@ const tUpd = createI18n({
     updRetry: 'Coba Lagi',
     updManual:
       'Pembaruan otomatis gagal. Silakan unduh versi terbaru dari halaman unduhan dan pasang secara manual.',
+    updUpToDate: 'Sudah versi terbaru (versi {version}).',
+    updCheckFailed: 'Tidak dapat memeriksa pembaruan. Periksa jaringan Anda dan coba lagi.',
     updOpenDownload: 'Buka Halaman Unduhan',
   },
   ru: {
@@ -182,6 +224,8 @@ const tUpd = createI18n({
     updRetry: 'Повторить',
     updManual:
       'Автоматическое обновление не удалось. Скачайте последнюю версию со страницы загрузки и установите её вручную.',
+    updUpToDate: 'У вас последняя версия ({version}).',
+    updCheckFailed: 'Не удалось проверить обновления. Проверьте сеть и повторите попытку.',
     updOpenDownload: 'Открыть страницу загрузки',
   },
   ar: {
@@ -195,6 +239,8 @@ const tUpd = createI18n({
     updFailed: 'فشل تنزيل التحديث. تحقق من الشبكة وحاول مرة أخرى.',
     updRetry: 'إعادة المحاولة',
     updManual: 'فشل التحديث التلقائي. يرجى تنزيل أحدث إصدار من صفحة التنزيل وتثبيته يدويًا.',
+    updUpToDate: 'أنت على أحدث إصدار (الإصدار {version}).',
+    updCheckFailed: 'تعذر التحقق من التحديثات. تحقق من الشبكة وحاول مرة أخرى.',
     updOpenDownload: 'فتح صفحة التنزيل',
   },
   pt: {
@@ -210,6 +256,8 @@ const tUpd = createI18n({
     updRetry: 'Tentar novamente',
     updManual:
       'A atualização automática falhou. Baixe a versão mais recente na página de download e instale manualmente.',
+    updUpToDate: 'Você está atualizado (versão {version}).',
+    updCheckFailed: 'Não foi possível procurar atualizações. Verifique sua rede e tente novamente.',
     updOpenDownload: 'Abrir página de download',
   },
   it: {
@@ -225,6 +273,8 @@ const tUpd = createI18n({
     updRetry: 'Riprova',
     updManual:
       "Aggiornamento automatico non riuscito. Scarica l'ultima versione dalla pagina di download e installala manualmente.",
+    updUpToDate: 'Sei aggiornato (versione {version}).',
+    updCheckFailed: 'Impossibile controllare gli aggiornamenti. Verifica la rete e riprova.',
     updOpenDownload: 'Apri pagina di download',
   },
   pl: {
@@ -240,7 +290,26 @@ const tUpd = createI18n({
     updRetry: 'Spróbuj ponownie',
     updManual:
       'Automatyczna aktualizacja nie powiodła się. Pobierz najnowszą wersję ze strony pobierania i zainstaluj ją ręcznie.',
+    updUpToDate: 'Masz aktualną wersję ({version}).',
+    updCheckFailed: 'Nie udało się sprawdzić aktualizacji. Sprawdź sieć i spróbuj ponownie.',
     updOpenDownload: 'Otwórz stronę pobierania',
+  },
+  cs: {
+    updTitle: 'Aktualizace softwaru',
+    updHeadline: 'Je k dispozici nová verze',
+    updDesc:
+      'Tato aktualizace obsahuje vylepšení výkonu a opravy chyb. Doporučujeme aktualizovat hned.',
+    updDownload: 'Aktualizovat nyní',
+    updLater: 'Připomenout později',
+    updInstall: 'Restartovat a nainstalovat',
+    updDownloading: 'Stahování aktualizace…',
+    updFailed: 'Stažení aktualizace se nezdařilo. Zkontrolujte síť a zkuste to znovu.',
+    updRetry: 'Zkusit znovu',
+    updManual:
+      'Automatická aktualizace se nezdařila. Stáhněte si nejnovější verzi ze stránky pro stažení a nainstalujte ji ručně.',
+    updUpToDate: 'Máte aktuální verzi ({version}).',
+    updCheckFailed: 'Aktualizace se nepodařilo zkontrolovat. Zkontrolujte síť a zkuste to znovu.',
+    updOpenDownload: 'Otevřít stránku pro stažení',
   },
   nl: {
     updTitle: 'Software-update',
@@ -255,6 +324,9 @@ const tUpd = createI18n({
     updRetry: 'Opnieuw proberen',
     updManual:
       'Automatische update mislukt. Download de nieuwste versie via de downloadpagina en installeer deze handmatig.',
+    updUpToDate: 'U bent up-to-date (versie {version}).',
+    updCheckFailed:
+      'Kan niet controleren op updates. Controleer uw netwerk en probeer het opnieuw.',
     updOpenDownload: 'Downloadpagina openen',
   },
   ms: {
@@ -270,6 +342,8 @@ const tUpd = createI18n({
     updRetry: 'Cuba Lagi',
     updManual:
       'Kemas kini automatik gagal. Sila muat turun versi terkini dari halaman muat turun dan pasang secara manual.',
+    updUpToDate: 'Anda menggunakan versi terkini (versi {version}).',
+    updCheckFailed: 'Tidak dapat menyemak kemas kini. Semak rangkaian anda dan cuba lagi.',
     updOpenDownload: 'Buka Halaman Muat Turun',
   },
   he: {
@@ -283,6 +357,8 @@ const tUpd = createI18n({
     updFailed: 'ההורדה נכשלה. בדוק את הרשת ונסה שוב.',
     updRetry: 'נסה שוב',
     updManual: 'העדכון האוטומטי נכשל. הורד את הגרסה העדכנית מדף ההורדות והתקן אותה ידנית.',
+    updUpToDate: 'הגרסה שלך עדכנית (גרסה {version}).',
+    updCheckFailed: 'לא ניתן לבדוק עדכונים. בדקו את הרשת ונסו שוב.',
     updOpenDownload: 'פתח את דף ההורדות',
   },
   hi: {
@@ -298,6 +374,8 @@ const tUpd = createI18n({
     updRetry: 'पुनः प्रयास करें',
     updManual:
       'स्वचालित अपडेट विफल रहा। कृपया डाउनलोड पृष्ठ से नवीनतम संस्करण प्राप्त करें और मैन्युअल रूप से इंस्टॉल करें।',
+    updUpToDate: 'आप अपडेटेड हैं (संस्करण {version}).',
+    updCheckFailed: 'अपडेट जांच नहीं हो सकी। अपना नेटवर्क जांचें और फिर से प्रयास करें।',
     updOpenDownload: 'डाउनलोड पृष्ठ खोलें',
   },
   'zh-TW': {
@@ -311,6 +389,8 @@ const tUpd = createI18n({
     updFailed: '更新下載失敗，請檢查網路後重試。',
     updRetry: '重試',
     updManual: '自動更新失敗，請從下載頁面取得最新版本並手動安裝。',
+    updUpToDate: '已是最新版本（{version}）。',
+    updCheckFailed: '無法檢查更新，請檢查網路後重試。',
     updOpenDownload: '前往下載頁面',
   },
 })
@@ -320,7 +400,7 @@ const RECHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
 
 // After this many failed download/apply attempts for the same version the
 // dialog stops offering "retry" and guides the user to a manual download
-// instead. Covers permanently broken update paths : most importantly a
+// instead. Covers permanently broken update paths — most importantly a
 // code-signing identity (Apple Team ID) change, which Squirrel.Mac rejects
 // on every retry while the error looks like a download failure to the user.
 const MANUAL_FALLBACK_AFTER = 2
@@ -328,7 +408,7 @@ const MANUAL_FALLBACK_AFTER = 2
 // and signing track, so a stable/legacy-track user could land on the wrong
 // build. Preferred is the CDN installer derived from the user's own update
 // feed (see manualDownloadUrlFor), which matches channel, track, and arch.
-const DOWNLOAD_PAGE_URL = 'https://github.com/sainibhaowal/Revelith/releases/latest'
+const DOWNLOAD_PAGE_URL = 'https://github.com/sainibhaowal/ReveLith/releases/latest'
 
 /// Trusted HTTPS base URL baked into resources/app-update.yml. Manual download
 /// links are always rebuilt from this base rather than trusting URLs supplied
@@ -351,7 +431,8 @@ function updateFeedBaseUrl(): string | null {
 
 /// Picks the manual-install artifact for this platform/arch from the update
 /// feed's file list: macOS wants the dmg matching process.arch (the zip is
-/// Squirrel-only), Windows the NSIS exe, Linux the AppImage. Served feeds may
+/// Squirrel-only), Windows the NSIS exe matching process.arch (the arm64 one
+/// carries an -arm64 suffix, the x64 one no arch), Linux the AppImage. Served feeds may
 /// carry either feed-relative names or absolute CDN URLs (mac-release-upload
 /// rewrites every url: entry to absolute), but only their basename is used.
 /// The final URL is always rebuilt against the trusted baked feed base.
@@ -374,7 +455,9 @@ function manualDownloadUrlFor(info: UpdateInfo): string | null {
     const x64 = pick((name) => name.endsWith('.dmg') && !/-(arm64|universal)\.dmg$/.test(name))
     chosen = process.arch === 'arm64' ? (arm ?? x64) : (x64 ?? arm)
   } else if (process.platform === 'win32') {
-    chosen = pick((name) => name.endsWith('.exe'))
+    const arm = pick((name) => name.endsWith('-arm64.exe'))
+    const x64 = pick((name) => name.endsWith('.exe') && !name.endsWith('-arm64.exe'))
+    chosen = process.arch === 'arm64' ? (arm ?? x64) : (x64 ?? arm)
   } else {
     chosen = pick((name) => name.endsWith('.AppImage'))
   }
@@ -384,8 +467,12 @@ function manualDownloadUrlFor(info: UpdateInfo): string | null {
 }
 
 let started = false
-// version the user declined this session : don't nag again until next launch
+// version the user declined this session — don't nag again until next launch
 let dismissedVersion: string | null = null
+// re-shows the REVELITH_FAKE_UPDATE window so the manual check is
+// exercisable in dev runs too
+let fakeShowAgain: (() => void) | null = null
+let manualCheckInFlight = false
 
 // electron-updater feed name per user-facing channel. The platform suffix is
 // appended by electron-updater itself: 'beta' resolves to beta.yml on
@@ -438,6 +525,67 @@ export function applyUpdateChannel(channel: UpdateChannel): void {
   autoUpdater.checkForUpdates().catch((err) => log('check failed:', err?.message ?? err))
 }
 
+/** User-triggered check (Help > Check for Updates… / the About dialog button).
+ * Unlike the silent launch/periodic checks, every outcome gets explicit
+ * feedback: an available update opens the standard update window (even a
+ * version dismissed with "later" this session — the user just asked for it),
+ * up-to-date and failure each get a dialog, and installs with no self-update
+ * mechanism (dev runs, Linux .deb) are pointed at the download page instead
+ * of being told they're current. */
+export async function checkForUpdatesNow(): Promise<void> {
+  if (manualCheckInFlight) return
+  manualCheckInFlight = true
+  try {
+    const lang = getUiLang()
+    if (fakeShowAgain) {
+      fakeShowAgain()
+      return
+    }
+    if (!updaterActive) {
+      const { response } = await dialog.showMessageBox({
+        type: 'info',
+        title: tUpd(lang, 'updTitle'),
+        message: tUpd(lang, 'updManual'),
+        buttons: ['OK', tUpd(lang, 'updOpenDownload')],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      if (response === 1) void shell.openExternal(DOWNLOAD_PAGE_URL)
+      return
+    }
+    dismissedVersion = null
+    let result
+    try {
+      result = await autoUpdater.checkForUpdates()
+      if (result === null) throw new Error('Update check was skipped')
+    } catch (err) {
+      log('manual check failed:', (err as Error)?.message ?? err)
+      await dialog.showMessageBox({
+        type: 'warning',
+        title: tUpd(lang, 'updTitle'),
+        message: tUpd(lang, 'updCheckFailed'),
+        buttons: ['OK'],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      return
+    }
+    // an available update already opened the update window via the
+    // 'update-available' handler; only "nothing new" needs a dialog here
+    if (result.isUpdateAvailable) return
+    await dialog.showMessageBox({
+      type: 'info',
+      title: tUpd(lang, 'updTitle'),
+      message: tUpd(lang, 'updUpToDate', { version: app.getVersion() }),
+      buttons: ['OK'],
+      defaultId: 0,
+      cancelId: 0,
+    })
+  } finally {
+    manualCheckInFlight = false
+  }
+}
+
 export function initAutoUpdater(
   getWindow: () => BrowserWindow | null,
   initialChannel: UpdateChannel = 'stable',
@@ -453,7 +601,7 @@ export function initAutoUpdater(
   // Unpacked runs have no app-update.yml and must not hit the CDN with a
   // dev version. Windows updates via NSIS (latest.yml), macOS via the zip
   // target + latest-mac.yml (Squirrel.Mac requires a signed, notarized app
-  // : dmg is first-install only), Linux via the AppImage target +
+  // — dmg is first-install only), Linux via the AppImage target +
   // latest-linux.yml. On Linux the updater only works for AppImage runs
   // (electron-updater's AppImageUpdater needs the APPIMAGE env var the
   // AppImage runtime sets); deb installs update manually via apt.
@@ -483,18 +631,30 @@ export function initAutoUpdater(
   // paths funnel into failDownload() and the in-flight flag dedupes them
   let failedAttempts = 0
   let downloadInFlight = false
+  // where latestSeenVersion got to, so re-opening the window for the same
+  // version (a manual check after "later") resumes there instead of offering
+  // "Update Now" over a download that is running or already finished
+  let phase: UpdatePhase = 'available'
+  let percent = 0
+
+  const setPhase = (patch: { phase: UpdatePhase; percent?: number }): void => {
+    phase = patch.phase
+    if (patch.percent !== undefined) percent = patch.percent
+    pushUpdateState(patch)
+  }
 
   const failDownload = (): void => {
     if (!downloadInFlight) return
     downloadInFlight = false
     failedAttempts += 1
-    pushUpdateState({ phase: failedAttempts >= MANUAL_FALLBACK_AFTER ? 'manual' : 'error' })
+    setPhase({ phase: failedAttempts >= MANUAL_FALLBACK_AFTER ? 'manual' : 'error' })
   }
 
   const actions = {
     onDownload: () => {
+      if (phase === 'downloading' || phase === 'downloaded') return
       downloadInFlight = true
-      pushUpdateState({ phase: 'downloading', percent: 0 })
+      setPhase({ phase: 'downloading', percent: 0 })
       autoUpdater.downloadUpdate().catch((err) => {
         log('download failed:', err?.message ?? err)
         failDownload()
@@ -524,27 +684,45 @@ export function initAutoUpdater(
   autoUpdater.on('update-available', (info: UpdateInfo) => {
     if (info.version === dismissedVersion) return
     const sameVersionRecheck = info.version === latestSeenVersion
-    if (!sameVersionRecheck) failedAttempts = 0
+    // progress/downloaded/error events carry no version, so a newer release
+    // landing while the previous one is downloading or already downloaded
+    // stays out until that flow ends (it installs on quit and the next launch
+    // picks up the newer one); it must not hijack the open window
+    if (!sameVersionRecheck && (downloadInFlight || phase === 'downloaded')) {
+      log('update available:', info.version, 'ignored while', latestSeenVersion, 'is', phase)
+      // an explicit check still owes feedback: bring back the flow in progress
+      // (a background recheck stays quiet)
+      if (manualCheckInFlight && !isUpdateWindowOpen()) {
+        const version = latestSeenVersion ?? info.version
+        showUpdateWindow(getWindow(), { ...initialState(version), phase, percent }, actions)
+      }
+      return
+    }
+    if (!sameVersionRecheck) {
+      failedAttempts = 0
+      phase = 'available'
+      percent = 0
+    }
     latestSeenVersion = info.version
     manualDownloadUrl = manualDownloadUrlFor(info)
     log('update available:', info.version)
     // a periodic recheck resolving to the version the open dialog already
-    // shows must not reset its phase to 'available' : that would wipe an
+    // shows must not reset its phase to 'available' — that would wipe an
     // in-progress download or a terminal 'manual' fallback back to the
     // "Update Now" offer
     if (sameVersionRecheck && isUpdateWindowOpen()) return
-    showUpdateWindow(getWindow(), initialState(info.version), actions)
+    showUpdateWindow(getWindow(), { ...initialState(info.version), phase, percent }, actions)
   })
 
   autoUpdater.on('download-progress', (progress) => {
-    pushUpdateState({ phase: 'downloading', percent: progress.percent })
+    setPhase({ phase: 'downloading', percent: progress.percent })
   })
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
     log('downloaded:', info.version)
     downloadInFlight = false
     failedAttempts = 0
-    pushUpdateState({ phase: 'downloaded', percent: 100 })
+    setPhase({ phase: 'downloaded', percent: 100 })
   })
 
   const check = (): void => {
@@ -583,5 +761,6 @@ function initFakeUpdate(getWindow: () => BrowserWindow | null, version: string):
       log('[fake] open download page requested')
     },
   }
-  setTimeout(() => showUpdateWindow(getWindow(), initialState(version), actions), 1500)
+  fakeShowAgain = () => showUpdateWindow(getWindow(), initialState(version), actions)
+  setTimeout(() => fakeShowAgain?.(), 1500)
 }

@@ -1,12 +1,13 @@
-﻿import { useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { useI18n, type StringKey } from './i18n/locale'
 
 import type { HeaderFooterParts } from './edit-journal'
+import { useModalDialog } from './modal-dialog'
 
 /// Excel's Insert → Header & Footer as a dialog (the app has no Page Layout
 /// view): three sections each for the printed header and footer. Field codes
-/// travel verbatim : the quick-insert row types them into the focused
+/// travel verbatim — the quick-insert row types them into the focused
 /// section. OK hands both halves to App, which journals them as page-setup
 /// state; all-empty sections clear that half (null).
 
@@ -99,11 +100,13 @@ export function HeaderFooterDialog({
     })
   }
 
+  const modal = useModalDialog(onClose)
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
         className="format-cells-dialog"
         role="dialog"
+        {...modal}
         aria-label={t('dlgHfTitle')}
         onClick={(event) => event.stopPropagation()}
       >

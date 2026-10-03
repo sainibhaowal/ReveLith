@@ -1,5 +1,7 @@
 import { parse } from 'acorn'
 
+import { compileBoundedRegex, type BoundedRegex } from './bounded-regex'
+
 type AstNode = {
   type: string
   start?: number
@@ -31,10 +33,11 @@ class ScriptFunction {
 }
 
 class RegexValue {
-  constructor(
-    readonly source: string,
-    readonly flags: string,
-  ) {}
+  readonly matcher: BoundedRegex
+
+  constructor(source: string, flags: string) {
+    this.matcher = compileBoundedRegex(source, flags)
+  }
 }
 
 class Scope {
@@ -51,11 +54,7 @@ class Scope {
     if (this.values.has(name)) return this.values.get(name)
     if (this.parent) return this.parent.get(name)
     throw new Error(
-      name === 'add_shape' || name === 'add_text_box' || name === 'delete_element'
-        ? `"${name}" is a separate slide tool, not an Edit script command. Call the ${name} tool first, then use Edit script only to modify existing elements through els.`
-        : name === 'document' || name === 'window'
-        ? `"${name}" is a browser API and is not available here. Use els to find slide elements and only setBox/moveBy/resizeBy/setText/setStyle/setFill/setStroke to edit them.`
-        : `Unknown identifier "${name}". Only els, canvas, setBox, moveBy, resizeBy, setText, setStyle, setFill, setStroke, and log are available.`,
+      `Unknown identifier "${name}". Only the documented layout-script API is available.`,
     )
   }
 
@@ -406,8 +405,7 @@ export function interpretLayoutScript(
       throw new Error(`String property "${key}" is not available in layout scripts`)
     }
     if (target instanceof RegexValue) {
-      if (key === 'test')
-        return new Builtin((value) => new RegExp(target.source, target.flags).test(String(value)))
+      if (key === 'test') return new Builtin((value) => target.matcher.test(String(value)))
       throw new Error(`Regular-expression property "${key}" is not available in layout scripts`)
     }
     if (target instanceof Builtin) {

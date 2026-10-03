@@ -1,5 +1,5 @@
-﻿/**
- * Alignment snapping : while dragging, snaps an element's left/center/right and top/middle/bottom
+/**
+ * Alignment snapping — while dragging, snaps an element's left/center/right and top/middle/bottom
  * edges to target edges (page center lines/page edges/other elements' edges), returning the
  * snapped x/y and the guides to draw. Pure functions, unit-testable.
  */

@@ -1,8 +1,8 @@
-﻿/// Data → Consolidate: aggregates several source areas into a target range,
+/// Data → Consolidate: aggregates several source areas into a target range,
 /// either by position or by left-column labels. Output cells are live
 /// formulas referencing the sources, so they journal and save like any edit.
 
-import { columnLabel, parseRange } from '../domain/cell-address'
+import { columnLabel, parseRange } from '@revelith/xlsx-gateway/domain/cell-address'
 import { t } from './i18n/locale'
 
 export type ConsolidateFn = 'sum' | 'count' | 'average' | 'max' | 'min'
@@ -24,18 +24,19 @@ export interface ConsolidateArea {
 const REFERENCE_PATTERN =
   /^(?:('(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_.]*)!)?(\$?[A-Za-z]{1,3}\$?[0-9]+(?::\$?[A-Za-z]{1,3}\$?[0-9]+)?)$/
 
-/// "B2:D9", "Sheet2!A1:C4", or "'My Sheet'!A1" : qualifier optional.
+/// "B2:D9", "Sheet2!A1:C4", or "'My Sheet'!A1" — qualifier optional.
 export function parseConsolidateReference(
   text: string,
 ): { sheetName: string | null; range: ReturnType<typeof parseRange> } | null {
   const match = REFERENCE_PATTERN.exec(text.trim())
   if (!match) return null
   const qualifier = match[1]
-  const sheetName = qualifier === undefined
-    ? null
-    : qualifier.startsWith("'")
-      ? qualifier.slice(1, -1).replaceAll("''", "'")
-      : qualifier
+  const sheetName =
+    qualifier === undefined
+      ? null
+      : qualifier.startsWith("'")
+        ? qualifier.slice(1, -1).replaceAll("''", "'")
+        : qualifier
   try {
     return { sheetName, range: parseRange(match[2]?.toUpperCase().replaceAll('$', '') ?? '') }
   } catch {
@@ -130,7 +131,10 @@ export function buildLabelMatrix(
     const line: OutputCell[] = [{ v: label }]
     for (let column = 0; column < valueColumns; column += 1) {
       const parts = areas
-        .map((area, areaIndex) => ({ area, hasLabel: areaLabels[areaIndex]?.includes(label) ?? false }))
+        .map((area, areaIndex) => ({
+          area,
+          hasLabel: areaLabels[areaIndex]?.includes(label) ?? false,
+        }))
         .filter(({ area, hasLabel }) => hasLabel && column + 1 < area.columns)
         .map(({ area }) => ({
           labelRange: columnRangeRef(area, 0, true),
@@ -142,11 +146,12 @@ export function buildLabelMatrix(
       }
       const sumIfs = parts.map((part) => `SUMIF(${part.labelRange},${criteria},${part.valueRange})`)
       const countIfs = parts.map((part) => `COUNTIF(${part.labelRange},${criteria})`)
-      const formula = fn === 'sum'
-        ? sumIfs.join('+')
-        : fn === 'count'
-          ? countIfs.join('+')
-          : `(${sumIfs.join('+')})/(${countIfs.join('+')})`
+      const formula =
+        fn === 'sum'
+          ? sumIfs.join('+')
+          : fn === 'count'
+            ? countIfs.join('+')
+            : `(${sumIfs.join('+')})/(${countIfs.join('+')})`
       line.push({ f: `=${formula}` })
     }
     matrix.push(line)
@@ -160,10 +165,12 @@ export function targetOverlapsSource(
   activeSheetName: string,
   target: { row: number; column: number; rows: number; columns: number },
 ): boolean {
-  return areas.some((area) =>
-    area.sheetName === activeSheetName &&
-    target.row < area.startRow + area.rows &&
-    area.startRow < target.row + target.rows &&
-    target.column < area.startColumn + area.columns &&
-    area.startColumn < target.column + target.columns)
+  return areas.some(
+    (area) =>
+      area.sheetName === activeSheetName &&
+      target.row < area.startRow + area.rows &&
+      area.startRow < target.row + target.rows &&
+      target.column < area.startColumn + area.columns &&
+      area.startColumn < target.column + target.columns,
+  )
 }

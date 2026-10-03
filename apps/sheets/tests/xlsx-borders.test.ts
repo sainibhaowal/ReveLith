@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 
-import { StylesheetEditor } from '../src/gateway/xlsx-styles'
+import { StylesheetEditor } from '@revelith/xlsx-gateway/gateway/xlsx-styles'
 import { XlsxSidecarClient } from '../src/main/xlsx-sidecar-client'
 import { workbookRangeResultSchema } from '../src/shared/desktop-api'
 import { fromNeutralStyle, toNeutralStyle } from '../src/renderer/edit-journal'
@@ -21,7 +20,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8"?>
   <cellXfs count="2"><xf/><xf borderId="1" applyBorder="1" fillId="1"/></cellXfs>
 </styleSheet>`
 
-describe.skipIf(!existsSync(sidecarBinaryPath()))('StylesheetEditor borders', () => {
+describe('StylesheetEditor borders', () => {
   it('derives a new border with edges in schema order and dedupes', () => {
     const editor = new StylesheetEditor(STYLES)
     const first = editor.resolveStyle(0, {
@@ -60,7 +59,7 @@ describe.skipIf(!existsSync(sidecarBinaryPath()))('StylesheetEditor borders', ()
   })
 })
 
-describe.skipIf(!existsSync(sidecarBinaryPath()))('journal border mapping', () => {
+describe('journal border mapping', () => {
   it('maps Univer bd deltas to neutral border edges and back', () => {
     const neutral = toNeutralStyle({
       bd: {
@@ -84,13 +83,17 @@ describe.skipIf(!existsSync(sidecarBinaryPath()))('journal border mapping', () =
   it('maps fill clearing through bg null', () => {
     const neutral = toNeutralStyle({ bg: null })
     expect(neutral).toEqual({ fillColor: null })
-    expect(fromNeutralStyle(neutral ?? {})).toEqual({ bg: null })
+    // The overlay replays a clear with the same empty-rgb sentinel the
+    // installer uses: bg: null would be stripped by the mutation's
+    // removeNull and let a <col style=> fill compose back through.
+    expect(fromNeutralStyle(neutral ?? {})).toEqual({ bg: { rgb: '' } })
+    expect(toNeutralStyle(fromNeutralStyle(neutral ?? {}))).toEqual({ fillColor: null })
   })
 })
 
 // The sidecar used to drop value-less styled cells, losing borders
 // on blank cells and around merged ranges.
-describe.skipIf(!existsSync(sidecarBinaryPath()))('sidecar read side keeps styled blanks', () => {
+describe('sidecar read side keeps styled blanks', () => {
   it('returns value-less bordered/filled cells with their style index', async () => {
     const zip = new JSZip()
     zip.file(
@@ -151,7 +154,8 @@ describe.skipIf(!existsSync(sidecarBinaryPath()))('sidecar read side keeps style
         .map((cell) => ({ row: cell.row, column: cell.column, styleIndex: cell.styleIndex }))
         .sort((a, b) => a.row - b.row || a.column - b.column)
       expect(shape).toEqual([
-        { row: 0, column: 0, styleIndex: undefined },
+        // No s= is cellXfs[0], not "no style".
+        { row: 0, column: 0, styleIndex: 0 },
         { row: 0, column: 1, styleIndex: 1 },
         { row: 0, column: 2, styleIndex: 1 },
         { row: 1, column: 0, styleIndex: 2 },

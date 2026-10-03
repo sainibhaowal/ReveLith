@@ -135,20 +135,20 @@ describe('accept / reject current + navigation', () => {
   it('gotoRevision selects the next range and wraps', () => {
     const editor = createEditor(revisedDoc())
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 1)))
-    expect(gotoRevision(editor, 1)).toBe(true)
+    expect(gotoRevision(editor, 1)?.kind).toBe('ins')
     const first = editor.state.selection
     expect(editor.state.doc.textBetween(first.from, first.to)).toBe('IN')
-    expect(gotoRevision(editor, 1)).toBe(true)
+    expect(gotoRevision(editor, 1)?.kind).toBe('del')
     expect(
       editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to),
     ).toBe('DE')
     editor.destroy()
   })
 
-  it('returns false with no revisions', () => {
+  it('returns nothing with no revisions', () => {
     const editor = createEditor([para(text('plain'))])
     expect(acceptCurrentRevision(editor)).toBe(false)
-    expect(gotoRevision(editor, 1)).toBe(false)
+    expect(gotoRevision(editor, 1)).toBeNull()
     editor.destroy()
   })
 })
@@ -746,7 +746,9 @@ describe('live structural revisions', () => {
       content: blocksToPmDoc(reopened.blocks),
     })
     rejectAllRevisions(reopenedEditor)
-    expect(reopenedEditor.state.doc.childCount).toBe(1)
+    // the untracked paragraph appended below the inserted table survives the reject
+    expect(reopenedEditor.state.doc.childCount).toBe(2)
+    expect(reopenedEditor.state.doc.lastChild?.textContent).toBe('')
     expect(reopenedEditor.state.doc.textContent).toBe('base')
     imageDoc.editor.destroy()
     reopenedImageEditor.destroy()

@@ -1,4 +1,4 @@
-﻿import type { SelectionFormat } from './selection-format'
+import type { SelectionFormat } from './selection-format'
 
 export type TriState = '' | 'on' | 'off'
 
@@ -75,7 +75,7 @@ function rotationPreset(value: number | null | undefined): string {
 }
 
 /// Ribbon command strings for exactly the settings the user changed relative
-/// to the prefilled draft : untouched settings never emit.
+/// to the prefilled draft — untouched settings never emit.
 export function formatCellsCommands(initial: FormatCellsDraft, edited: FormatCellsDraft): string[] {
   const commands: string[] = []
   if (edited.pattern && edited.pattern !== initial.pattern) {

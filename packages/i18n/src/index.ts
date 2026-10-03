@@ -13,11 +13,13 @@ export type Lang =
   | 'pt'
   | 'it'
   | 'pl'
+  | 'cs'
   | 'nl'
   | 'ms'
   | 'he'
   | 'hi'
   | 'zh-TW'
+  | 'vi'
 
 export const LANGS: readonly Lang[] = [
   'zh',
@@ -34,11 +36,13 @@ export const LANGS: readonly Lang[] = [
   'pt',
   'it',
   'pl',
+  'cs',
   'nl',
   'ms',
   'he',
   'hi',
   'zh-TW',
+  'vi',
 ]
 
 export function isLang(value: unknown): value is Lang {
@@ -52,7 +56,8 @@ export function normalizeLang(raw: string | null | undefined): Lang {
   // traditional-script Chinese variants must win over the generic 'zh' prefix
   if (/^zh[-_](tw|hk|mo|hant)/.test(value)) return 'zh-TW'
   for (const lang of LANGS) {
-    if (lang !== 'en' && lang !== 'zh-TW' && value.startsWith(lang)) return lang
+    if (lang === 'en' || lang === 'zh-TW') continue
+    if (value === lang || value.startsWith(`${lang}-`) || value.startsWith(`${lang}_`)) return lang
   }
   // 'in' is the legacy ISO code for Indonesian still reported by some systems
   if (/^in\b/.test(value) || /^in[-_]/.test(value)) return 'id'
@@ -76,11 +81,13 @@ const HTML_LANGS: Record<Lang, string> = {
   pt: 'pt-BR',
   it: 'it-IT',
   pl: 'pl-PL',
+  cs: 'cs-CZ',
   nl: 'nl-NL',
   ms: 'ms-MY',
   he: 'he-IL',
   hi: 'hi-IN',
   'zh-TW': 'zh-TW',
+  vi: 'vi-VN',
 }
 
 /** BCP-47 tag for document.documentElement.lang (drives CSS :lang() and Chromium's per-language font fallback) */
@@ -143,7 +150,7 @@ export type Params = Record<string, string | number>
 export function format(template: string, params?: Params): string {
   if (!params) return template
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
-    name in params ? String(params[name]) : match,
+    Object.hasOwn(params, name) ? String(params[name]) : match,
   )
 }
 
@@ -164,7 +171,7 @@ export function defineStrings<D extends Record<string, string>>(dicts: LangDicts
 // Used by Electron main-process code (shell + editor main modules share one
 // bundle, so one holder). Renderers get the language over IPC instead.
 
-let uiLang: Lang = 'en'
+let uiLang: Lang = 'zh'
 const langListeners = new Set<(lang: Lang) => void>()
 
 export function getUiLang(): Lang {
@@ -190,5 +197,5 @@ export function onUiLangChange(listener: (lang: Lang) => void): () => void {
  */
 export function createI18n<D extends Record<string, string>>(dicts: LangDicts<D>) {
   return (lang: Lang, key: keyof D, params?: Params): string =>
-    platformShortcuts(format(dicts[lang][key], params))
+    format(platformShortcuts(dicts[lang][key]), params)
 }

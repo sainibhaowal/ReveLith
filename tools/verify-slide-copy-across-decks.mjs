@@ -64,7 +64,7 @@ await new Promise((r) => setTimeout(r, 6000))
 const shellId = await waitFor(shellView, 'shell renderer')
 console.log(
   'open deck B in a second tab:',
-  await run(shellId, `window.aiOffice.openPath(${JSON.stringify(deckB)})`),
+  await run(shellId, `window.revelithApp.openPath(${JSON.stringify(deckB)})`),
 )
 const views = await waitFor(async () => {
   const ids = await slideViews()

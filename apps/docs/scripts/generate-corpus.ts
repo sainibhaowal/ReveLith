@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pagination corpus generation script
  * Run: tsx apps/docs/scripts/generate-corpus.ts
  * Output: apps/docs/tests/pagination-corpus/docx/*.docx
@@ -536,7 +536,7 @@ const specs: DocSpec[] = []
     meta: {
       title: 'Mixed content (headings + tables + body)',
       tags: ['mixed', 'table', 'headings', 'docGrid'],
-      description: 'Headings, tables and body text mixed : the most common report structure',
+      description: 'Headings, tables and body text mixed — the most common report structure',
     },
   })
 }

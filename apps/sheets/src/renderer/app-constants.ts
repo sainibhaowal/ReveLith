@@ -1,14 +1,14 @@
-﻿/**
+/**
  * App-scope constants shared by the App component: chart ribbon command
  * vocabularies, Univer mutation/command names the edit journal listens to,
  * and the Home → Cell Styles presets. Extracted from App.tsx verbatim.
  */
-import type { CellFormatPatch } from '../domain/workbook-dsl'
-import type { WorkbookSnapshot } from '../domain/workbook.types'
+import type { CellFormatPatch } from '@revelith/xlsx-gateway/domain/workbook-dsl'
+import type { WorkbookSnapshot } from '@revelith/xlsx-gateway/domain/workbook.types'
 import type { ChartEditData } from './WorkbookVisuals'
 
 export const CHART_TYPE_COMMANDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'] as const
-/// Demo/session charts bake edits into the visual itself : no pending map.
+/// Demo/session charts bake edits into the visual itself — no pending map.
 export const EMPTY_CHART_EDITS: ReadonlyMap<string, ChartEditData> = new Map()
 export const CHART_LEGEND_COMMANDS = ['right', 'bottom', 'top', 'left', 'none'] as const
 export const CHART_LABEL_COMMANDS = ['value', 'percent', 'category-percent', 'none'] as const
@@ -46,11 +46,23 @@ export const initialSnapshot: WorkbookSnapshot = {
 
 export const FORMULA_MODE_MAX_CELLS = 50_000
 export const SET_RANGE_VALUES_MUTATION = 'sheet.mutation.set-range-values'
+// Command (not mutation) id — the gate where user-typed / facade-set values
+// can still be cancelled before they reach the model and the formula engine.
+export const SET_RANGE_VALUES_COMMAND = 'sheet.command.set-range-values'
 export const SET_NUMFMT_MUTATION = 'sheet.mutation.set.numfmt'
 // Freeze and gridline toggles journal from their mutations so Univer's own
 // undo/redo re-records the restored state (ribbon handlers do not record).
 export const SET_FROZEN_MUTATION = 'sheet.mutation.set-frozen'
 export const TOGGLE_GRIDLINES_MUTATION = 'sheet.mutation.toggle-gridlines'
+export const SET_ZOOM_OPERATION = 'sheet.operation.set-zoom-ratio'
+export const SET_ZOOM_COMMAND = 'sheet.command.set-zoom-ratio'
+export const OPEN_FILTER_PANEL_OPERATION = 'sheet.operation.open-filter-panel'
+/// Full-preload offer cap: loading every cell into the Univer model costs
+/// renderer memory, and formula-dense sheets recalculate on install — a
+/// formula-heavy 480k-cell book blocked the renderer for minutes in testing,
+/// and sheet metadata carries no formula count to gate on. Above this the
+/// filter dialog explains instead of offering.
+export const FULL_LOAD_MAX_CELLS = 250_000
 // Undoing a numfmt set emits the remove mutation; only the ribbon echo cares.
 export const REMOVE_NUMFMT_MUTATION = 'sheet.mutation.remove.numfmt'
 // Row/column inserts/removals and merges are journaled and replayed at save
@@ -73,8 +85,9 @@ export const MERGE_MUTATIONS: Record<string, 'merge-cells' | 'unmerge-cells'> = 
 }
 // Row/column sizing and visibility journal as ordered ops and replay into
 // row/cols attributes at save time. (`set-worksheet-row-auto-height` is
-// derived layout : it fires during rendering and must NOT journal; the user
-// command is `set-worksheet-row-is-auto-height`.)
+// derived layout — it fires during rendering and must NOT journal; the
+// user-intent mutation is `set-worksheet-row-is-auto-height`, dispatched by
+// the `sheet.command.set-row-is-auto-height` command.)
 export const AXIS_ATTR_MUTATIONS: Record<
   string,
   { kind: 'size' | 'hidden' | 'auto-size'; axis: 'row' | 'column'; hidden?: boolean }
@@ -88,10 +101,23 @@ export const AXIS_ATTR_MUTATIONS: Record<
   'sheet.mutation.set-col-visible': { kind: 'hidden', axis: 'column', hidden: false },
 }
 
+/// Max digit width of the workbook's Normal font in px — Excel's column
+/// width unit base. 7 = Calibri 11 (Windows GDI); set per loaded workbook so
+/// both width conversions stay consistent for the session.
+let workbookMdw = 7
+
+export function setWorkbookMdw(mdw: number): void {
+  workbookMdw = Number.isFinite(mdw) && mdw >= 4 && mdw <= 30 ? Math.round(mdw) : 7
+}
+
+export function getWorkbookMdw(): number {
+  return workbookMdw
+}
+
 /// Univer column pixels → OOXML character width (inverse of
 /// characterWidthToPixels), snapped to the format's 1/256 granularity.
 export function pixelsToCharacterWidth(pixels: number): number {
-  return Math.max(Math.round(((pixels - 5) / 7) * 256) / 256, 1 / 256)
+  return Math.max(Math.round((pixels / workbookMdw) * 256) / 256, 1 / 256)
 }
 // Sorting reorders the model in place; the journal snapshots the sorted
 // range afterwards, so the save writes exactly what the screen shows.
@@ -161,6 +187,18 @@ export const MOVE_ROWS_MUTATION = 'sheet.mutation.move-rows'
 // Sheet duplication clones the worksheet part file-side; the journal records
 // the source so the save seeds the new part from it.
 export const COPY_SHEET_COMMAND = 'sheet.command.copy-sheet'
+
+/// Sheet-structure commands blocked while the workbook structure is locked
+/// (Review > Protect Workbook): add/remove/rename/reorder/duplicate/hide.
+export const STRUCTURE_LOCK_COMMANDS = new Set([
+  'sheet.command.insert-sheet',
+  'sheet.command.remove-sheet',
+  'sheet.command.set-worksheet-name',
+  'sheet.command.set-worksheet-order',
+  'sheet.command.copy-sheet',
+  'sheet.command.set-worksheet-hidden',
+  'sheet.command.set-worksheet-show',
+])
 // Autofill lands as plain value mutations (journal-friendly), but dragging
 // into an unstreamed region would overwrite data the user never saw.
 export const AUTO_FILL_COMMAND = 'sheet.command.auto-fill'

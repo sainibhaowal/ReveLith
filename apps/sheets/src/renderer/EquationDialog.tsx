@@ -1,7 +1,8 @@
-﻿import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { latexToOmml, ommlToMathML } from '@revelith/docx-engine/math'
 import { useI18n } from './i18n/locale'
+import { useModalDialog } from './modal-dialog'
 
 /// Excel's Insert → Equation: LaTeX input with a live MathML preview (docs'
 /// LaTeX→OMML pipeline, rendered natively by Chromium). Inserting rasterizes
@@ -37,7 +38,7 @@ function mathmlOf(latex: string): { mathml: string } | { error: string } | null 
 }
 
 /// MathML paints inside <foreignObject> even in the restricted SVG-in-<img>
-/// mode (no external resources : the math font stack is system fonts).
+/// mode (no external resources — the math font stack is system fonts).
 /// The foreignObject subtree is XML-parsed (unlike the HTML live preview,
 /// where the parser infers the namespace), so <math> needs an explicit
 /// MathML xmlns or Chromium renders it as an unknown element.
@@ -105,11 +106,13 @@ export function EquationDialog({
       .catch(() => setBusy(false))
   }
 
+  const modal = useModalDialog(onClose)
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
         className="format-cells-dialog equation-dialog"
         role="dialog"
+        {...modal}
         aria-label={t('dlgEquationTitle')}
         onClick={(event) => event.stopPropagation()}
       >

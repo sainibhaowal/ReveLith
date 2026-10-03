@@ -1,4 +1,4 @@
-﻿import type { AgentSkill } from '@revelith/agent-core'
+import type { AgentSkill } from '@revelith/agent-core'
 import type { AttachmentMeta } from '../../shared/ipc'
 import { ATTACHMENT_IMAGE_EXTS } from '../../shared/ipc'
 import { t } from '../i18n/locale'
@@ -15,7 +15,7 @@ const FILES_SYSTEM_PROMPT = `## Attachments
 The user may attach local files to the conversation (see the "attachment list" in each turn's context).
 - When the user's request involves attachment content, read it with read_attachment first, then answer or write; do not guess content from file names.
 - Long files are read in pages: the result reports the total character count and the current range; to continue, set offset to the end position of the previous slice.
-- Image attachments (png/jpg/gif/webp) are already sent as images with the user message : just look at them; read_attachment is only for text-like attachments.
+- Image attachments (png/jpg/gif/webp) are already sent as images with the user message — just look at them; read_attachment is only for text-like attachments.
 - Do not call read_attachment when there are no attachments or they are unrelated to the request.`
 
 function formatSize(bytes: number): string {

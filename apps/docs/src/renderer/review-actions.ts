@@ -1,31 +1,36 @@
 /**
  * Review-tab actions: footnotes/endnotes, comments, revisions, ink
- * annotations, document protection and compare. Extracted from App.tsx; the
- * App component passes a ReviewContext built fresh per call so state never
- * goes stale.
+ * annotations and compare (document protection lives in ProtectDialog +
+ * App.applyProtectDialog). Extracted from App.tsx; the App component passes a
+ * ReviewContext built fresh per call so state never goes stale.
  */
 import type { Editor } from '@tiptap/core'
-import {
-  hashProtectionPassword,
-  nextNoteId,
-  parseDocx,
-  verifyProtectionPassword,
-  type CommentInfo,
-  type DocProtection,
-  type NoteInfo,
-} from '@revelith/docx-engine'
+import { TextSelection } from '@tiptap/pm/state'
+import { nextNoteId, parseDocx, type CommentInfo, type NoteInfo } from '@revelith/docx-engine'
 import type { Dispatch, SetStateAction } from 'react'
+import { fetchDocBytes } from './doc-bytes'
 import type { DocState } from './doc-state'
 import {
+  addCommentToRange,
   addCommentToSelection,
   addReplyToCommentRange,
+  commentAnchors,
+  commentIdsAt,
   nextCommentId,
   removeCommentFromDoc,
+  removeCommentsFromDoc,
+  wordRangeAtCaret,
 } from './editor/comments'
-import { blockTexts, compareParagraphs, type CompareEntry } from './editor/compare'
+import {
+  blockTexts,
+  compareParagraphs,
+  editorBlockTexts,
+  type CompareEntry,
+} from './editor/compare'
 import { pendingCommentPluginKey } from './editor/extensions'
 import type { InkAnnotation } from './editor/ink'
 import {
+  TRACK_IGNORE,
   acceptAllRevisions,
   acceptCurrentRevision,
   rejectAllRevisions,
@@ -37,13 +42,6 @@ import { t } from './i18n/locale'
 export interface NotePrompt {
   kind: 'footnote' | 'endnote'
   id?: string
-}
-
-/** Protection toggle dialog: set = enable (password may be blank), unlock = removing requires password verification */
-export interface ProtectModalState {
-  mode: 'set' | 'unlock'
-  value: string
-  error?: string
 }
 
 /** The App state the review actions need; built fresh per call. */
@@ -64,13 +62,10 @@ export interface ReviewContext {
   setCommentsDirty: (dirty: boolean) => void
   setCommentComposing: (composing: boolean) => void
   setShowComments: (show: boolean) => void
+  /** highlight one thread in the comments pane (Previous / Next) */
+  setCommentFocus: (focus: { id: string; nonce: number } | null) => void
   setInkAnnotations: Dispatch<SetStateAction<InkAnnotation[]>>
   setInksDirty: (dirty: boolean) => void
-  protection: DocProtection | null
-  setProtection: (value: DocProtection | null) => void
-  setProtectionDirty: (dirty: boolean) => void
-  protectModal: ProtectModalState | null
-  setProtectModal: (value: ProtectModalState | null) => void
   setCompareResult: (value: { otherName: string; entries: CompareEntry[] } | null) => void
 }
 
@@ -142,11 +137,18 @@ export function cancelNewComment(ctx: ReviewContext): void {
 
 /** New comment: open the pane with the composer; the mark is applied on submit */
 export function startNewComment(ctx: ReviewContext): void {
-  if (!ctx.editor || ctx.editor.state.selection.empty) {
-    ctx.setStatus(t('appSelectTextToComment'))
-    return
+  const editor = ctx.editor
+  if (!editor) return
+  if (editor.state.selection.empty) {
+    // Word anchors on the word under a collapsed caret rather than refusing
+    const word = wordRangeAtCaret(editor)
+    if (!word) {
+      ctx.setStatus(t('appSelectTextToComment'))
+      return
+    }
+    editor.commands.setTextSelection(word)
   }
-  const { from, to } = ctx.editor.state.selection
+  const { from, to } = editor.state.selection
   setPendingCommentRange(ctx, { from, to })
   ctx.setShowComments(true)
   ctx.setCommentComposing(true)
@@ -169,19 +171,55 @@ export function submitNewComment(ctx: ReviewContext, text: string): void {
   ctx.setStatus(t('appCommentAdded'))
 }
 
+/** New thread on an explicit range (AI add_comment); the new id, null when the range holds no text */
+export function addCommentAt(
+  ctx: ReviewContext,
+  range: { from: number; to: number },
+  text: string,
+  author: string,
+  initials?: string,
+): string | null {
+  if (!ctx.editor) return null
+  const id = nextCommentId(ctx.comments)
+  if (!addCommentToRange(ctx.editor, range.from, range.to, id)) return null
+  const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  ctx.setComments((prev) => [
+    ...prev,
+    { id, author, date: now, text, ...(initials ? { initials } : {}) },
+  ])
+  ctx.setCommentsDirty(true)
+  ctx.dirtyRef.current = true
+  ctx.setStatus(t('appCommentAdded'))
+  return id
+}
+
 /** Reply to a comment: the new entry carries parentId; the anchor shares the parent comment's range */
-export function replyToComment(ctx: ReviewContext, parentId: string, text: string): void {
-  if (!ctx.editor) return
+export function replyToComment(
+  ctx: ReviewContext,
+  parentId: string,
+  text: string,
+  author = 'User',
+): boolean {
+  if (!ctx.editor) return false
   const id = nextCommentId(ctx.comments)
   if (!addReplyToCommentRange(ctx.editor, parentId, id)) {
     ctx.setStatus(t('appCommentAnchorGone'))
-    return
+    return false
   }
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
-  ctx.setComments((prev) => [...prev, { id, author: 'User', date: now, text, parentId }])
+  ctx.setComments((prev) => [...prev, { id, author, date: now, text, parentId }])
   ctx.setCommentsDirty(true)
   ctx.dirtyRef.current = true
   ctx.setStatus(t('appCommentReplied'))
+  return true
+}
+
+/** Word: comment text edits in place; the author, date and anchor stay */
+export function editComment(ctx: ReviewContext, id: string, text: string): void {
+  ctx.setComments((prev) => prev.map((c) => (c.id === id ? { ...c, text } : c)))
+  ctx.setCommentsDirty(true)
+  ctx.dirtyRef.current = true
+  ctx.setStatus(t('appCommentEdited'))
 }
 
 /** Resolve/reopen: the whole thread (parent + replies) gets done set together */
@@ -202,6 +240,63 @@ export function deleteComment(ctx: ReviewContext, id: string): void {
   ctx.setComments((prev) => prev.filter((c) => !victims.includes(c.id)))
   ctx.setCommentsDirty(true)
   ctx.dirtyRef.current = true
+}
+
+/** the thread under the caret (a reply resolves to its parent) */
+export function commentThreadAtCaret(ctx: ReviewContext): string | null {
+  if (!ctx.editor) return null
+  const ids = commentIdsAt(ctx.editor.state, ctx.editor.state.selection.from)
+  for (const id of ids) {
+    const info = ctx.comments.find((c) => c.id === id)
+    if (info) return info.parentId ?? info.id
+  }
+  return null
+}
+
+export function deleteCommentAtCaret(ctx: ReviewContext): void {
+  const id = commentThreadAtCaret(ctx)
+  if (id) deleteComment(ctx, id)
+}
+
+/** Delete All Comments in Document / Delete All Resolved Comments */
+export function deleteAllComments(ctx: ReviewContext, resolvedOnly: boolean): void {
+  if (!ctx.editor) return
+  // replies never carry done themselves: a resolved thread goes with all of its replies
+  const doneThreads = new Set(ctx.comments.filter((c) => c.done && !c.parentId).map((c) => c.id))
+  const victims = ctx.comments
+    .filter((c) => !resolvedOnly || c.done || (c.parentId && doneThreads.has(c.parentId)))
+    .map((c) => c.id)
+  if (victims.length === 0) return
+  removeCommentsFromDoc(ctx.editor, victims)
+  const gone = new Set(victims)
+  ctx.setComments((prev) => prev.filter((c) => !gone.has(c.id)))
+  ctx.setCommentsDirty(true)
+  ctx.dirtyRef.current = true
+}
+
+/** Previous / Next Comment: select the thread's anchor and light it up in the pane; open threads only */
+export function gotoComment(ctx: ReviewContext, dir: 1 | -1): boolean {
+  const editor = ctx.editor
+  if (!editor) return false
+  const open = new Set(ctx.comments.filter((c) => !c.parentId && !c.done).map((c) => c.id))
+  const anchors = commentAnchors(editor.state.doc).filter((a) => open.has(a.id))
+  if (anchors.length === 0) return false
+  // the thread under the caret is never a stop in either direction
+  const { from } = editor.state.selection
+  const target =
+    dir === 1
+      ? (anchors.find((a) => a.from > from) ?? anchors[0])
+      : ([...anchors].reverse().find((a) => a.to <= from && a.from < from) ??
+        anchors[anchors.length - 1])
+  const tr = editor.state.tr
+  tr.setSelection(TextSelection.between(tr.doc.resolve(target.from), tr.doc.resolve(target.to)))
+  tr.scrollIntoView()
+  tr.setMeta(TRACK_IGNORE, true)
+  editor.view.dispatch(tr)
+  editor.view.focus()
+  ctx.setShowComments(true)
+  ctx.setCommentFocus({ id: target.id, nonce: Date.now() })
+  return true
 }
 
 export function handleRevision(
@@ -244,55 +339,22 @@ export function clearInks(ctx: ReviewContext): void {
   ctx.setStatus(t('appInksCleared'))
 }
 
-export function toggleProtection(ctx: ReviewContext): void {
-  if (ctx.protection?.enforced && ctx.protection.edit === 'readOnly') {
-    if (ctx.protection.hash) {
-      ctx.setProtectModal({ mode: 'unlock', value: '' })
-    } else {
-      ctx.setProtection(null)
-      ctx.setProtectionDirty(true)
-      ctx.dirtyRef.current = true
-    }
-  } else {
-    ctx.setProtectModal({ mode: 'set', value: '' })
-  }
-}
-
-export async function submitProtectModal(ctx: ReviewContext): Promise<void> {
-  if (!ctx.protectModal) return
-  if (ctx.protectModal.mode === 'set') {
-    const pwd = ctx.protectModal.value
-    const creds = pwd ? await hashProtectionPassword(pwd) : {}
-    ctx.setProtection({ edit: 'readOnly', enforced: true, ...creds })
-    ctx.setProtectionDirty(true)
-    ctx.dirtyRef.current = true
-    ctx.setProtectModal(null)
-    ctx.setStatus(pwd ? t('appProtectionEnabledPwd') : t('appProtectionEnabled'))
-  } else {
-    const ok = ctx.protection
-      ? await verifyProtectionPassword(ctx.protectModal.value, ctx.protection)
-      : true
-    if (!ok) {
-      ctx.setProtectModal({ ...ctx.protectModal, error: t('appWrongPassword') })
-      return
-    }
-    ctx.setProtection(null)
-    ctx.setProtectionDirty(true)
-    ctx.dirtyRef.current = true
-    ctx.setProtectModal(null)
-    ctx.setStatus(t('appProtectionRemoved'))
-  }
-}
-
 /** Compare: pick a second .docx and diff it against the open document */
 export async function compareWithFile(ctx: ReviewContext): Promise<void> {
   if (!ctx.doc) return
   const other = await window.desktop.openDocx()
   if (!other) return
+  // password-protected comparison target: not wired through the decrypt prompt (yet)
+  if ('needsPassword' in other) {
+    ctx.setStatus(t('appCompareFailed', { error: t('appDocPwdTitle') }))
+    return
+  }
   try {
-    const otherParsed = await parseDocx(new Uint8Array(other.data))
+    const otherParsed = await parseDocx(await fetchDocBytes(other.dataUrl))
     const entries = compareParagraphs(
-      blockTexts(ctx.doc.parsed.blocks),
+      ctx.editor
+        ? editorBlockTexts(ctx.editor.getJSON(), ctx.doc.parsed.blocks)
+        : blockTexts(ctx.doc.parsed.blocks),
       blockTexts(otherParsed.blocks),
     )
     ctx.setCompareResult({ otherName: other.name, entries })

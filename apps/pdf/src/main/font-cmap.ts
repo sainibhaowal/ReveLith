@@ -1,5 +1,5 @@
-﻿/** Minimal sfnt cmap reader: can the face map every char of a string?
-    Formats 4 and 12 only : which covers every face in EDIT_FONT_PATHS. */
+/** Minimal sfnt cmap reader: can the face map every char of a string?
+    Formats 4 and 12 only — which covers every face in EDIT_FONT_PATHS. */
 
 const u16 = (b: Buffer, o: number) => b.readUInt16BE(o)
 const u32 = (b: Buffer, o: number) => b.readUInt32BE(o)
@@ -69,7 +69,7 @@ const hasGlyph = (font: Buffer, sub: Subtable, cp: number): boolean => glyphId(f
 
 /** True when the font maps every drawn char of text (unparseable font = false).
     Only line breaks are excluded: Unicode spaces (NBSP, U+3000, …) are drawn like any
-    glyph and must be mapped : \s would silently exempt them. */
+    glyph and must be mapped — \s would silently exempt them. */
 export function fontCoversText(font: Buffer, text: string): boolean {
   const chars = [...text.replace(/[\r\n]/g, '')]
   if (chars.length === 0) return true

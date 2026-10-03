@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
@@ -13,11 +13,14 @@ import {
   IconRowInsertBelow,
   IconTableDelete,
 } from './icons'
+import { uiOp, type TableAction } from '../editor/ops'
 
 interface Props {
   editor: Editor | null
   /** scroll container of the editor canvas, for repositioning on scroll */
   scrollRef: React.RefObject<HTMLElement | null>
+  /** Reposition the viewport-anchored menu after document zoom changes. */
+  zoom: number
 }
 
 function Btn({
@@ -50,10 +53,10 @@ function Btn({
 /**
  * Floating table toolbar shown while the caret is inside a table, docked to
  * the table's top-right corner. Only markdown-expressible operations: row/
- * column insert & delete, header-row toggle, delete table (no merge : GFM
+ * column insert & delete, header-row toggle, delete table (no merge — GFM
  * tables cannot serialize spans).
  */
-export function TableMenu({ editor, scrollRef }: Props) {
+export function TableMenu({ editor, scrollRef, zoom }: Props) {
   const { t } = useI18n()
   const [rect, setRect] = useState<{ top: number; left: number } | null>(null)
 
@@ -91,11 +94,11 @@ export function TableMenu({ editor, scrollRef }: Props) {
       scroller?.removeEventListener('scroll', reposition)
       window.removeEventListener('resize', reposition)
     }
-  }, [editor, inTable, scrollRef])
+  }, [editor, inTable, scrollRef, zoom])
 
   if (!editor || !inTable || !rect) return null
-  const run = (fn: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) =>
-    fn(editor.chain().focus()).run()
+  const run = (action: TableAction) =>
+    uiOp(editor, { op: 'editTable', target: 'selection', action })
   const ICON = 15
 
   return (
@@ -104,30 +107,30 @@ export function TableMenu({ editor, scrollRef }: Props) {
       style={{ position: 'fixed', top: rect.top, left: rect.left, transform: 'translateX(-100%)' }}
       onMouseDown={(e) => e.preventDefault()}
     >
-      <Btn title={t('tableRowAbove')} onClick={() => run((c) => c.addRowBefore())}>
+      <Btn title={t('tableRowAbove')} onClick={() => run('addRowBefore')}>
         <IconRowInsertAbove size={ICON} />
       </Btn>
-      <Btn title={t('tableRowBelow')} onClick={() => run((c) => c.addRowAfter())}>
+      <Btn title={t('tableRowBelow')} onClick={() => run('addRowAfter')}>
         <IconRowInsertBelow size={ICON} />
       </Btn>
-      <Btn title={t('tableDeleteRow')} danger onClick={() => run((c) => c.deleteRow())}>
+      <Btn title={t('tableDeleteRow')} danger onClick={() => run('deleteRow')}>
         <IconRowDelete size={ICON} />
       </Btn>
       <span className="tm-sep" />
-      <Btn title={t('tableColLeft')} onClick={() => run((c) => c.addColumnBefore())}>
+      <Btn title={t('tableColLeft')} onClick={() => run('addColumnBefore')}>
         <IconColInsertLeft size={ICON} />
       </Btn>
-      <Btn title={t('tableColRight')} onClick={() => run((c) => c.addColumnAfter())}>
+      <Btn title={t('tableColRight')} onClick={() => run('addColumnAfter')}>
         <IconColInsertRight size={ICON} />
       </Btn>
-      <Btn title={t('tableDeleteCol')} danger onClick={() => run((c) => c.deleteColumn())}>
+      <Btn title={t('tableDeleteCol')} danger onClick={() => run('deleteColumn')}>
         <IconColDelete size={ICON} />
       </Btn>
       <span className="tm-sep" />
-      <Btn title={t('tableToggleHeaderRow')} onClick={() => run((c) => c.toggleHeaderRow())}>
+      <Btn title={t('tableToggleHeaderRow')} onClick={() => run('toggleHeaderRow')}>
         <IconHeaderRow size={ICON} />
       </Btn>
-      <Btn title={t('tableDeleteTable')} danger onClick={() => run((c) => c.deleteTable())}>
+      <Btn title={t('tableDeleteTable')} danger onClick={() => run('deleteTable')}>
         <IconTableDelete size={ICON} />
       </Btn>
     </div>

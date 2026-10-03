@@ -1,6 +1,6 @@
-﻿/**
+/**
  * The main process parses every save through workbookSaveRequestSchema, so its
- * "at least one edit" refine must exempt explicit Save As : a clean workbook
+ * "at least one edit" refine must exempt explicit Save As — a clean workbook
  * saved to a new path is a valid request with nothing to apply.
  */
 import { describe, expect, it } from 'vitest'
@@ -41,5 +41,13 @@ describe('workbookSaveRequestSchema', () => {
 
   it('still rejects an empty ordinary save', () => {
     expect(() => workbookSaveRequestSchema.parse(emptyRequest('save'))).toThrow(/at least one edit/)
+  })
+
+  it('accepts a save whose edits arrive via a chunked transfer', () => {
+    const request = {
+      ...emptyRequest('save'),
+      editsTransferId: '0f9e8d7c-6b5a-4c3d-8e2f-1a0b9c8d7e6f',
+    }
+    expect(() => workbookSaveRequestSchema.parse(request)).not.toThrow()
   })
 })

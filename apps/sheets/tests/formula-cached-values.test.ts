@@ -1,12 +1,12 @@
-﻿/**
+/**
  * Recalculated values lived only on screen, so a saved file had new
- * inputs and stale outputs : readers without a formula engine (openpyxl data_only,
+ * inputs and stale outputs — readers without a formula engine (openpyxl data_only,
  * pandas, preview services) silently got wrong numbers. The save now refreshes each
  * formula cell's cached <v> while leaving its <f> untouched.
  */
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { applyCellEditsToXlsx } from '../src/gateway/xlsx-gateway'
+import { applyCellEditsToXlsx } from '@revelith/xlsx-gateway/gateway/xlsx-gateway'
 import { buildStructureFixture } from './fixture-builder'
 
 const SHEET = 'Data'

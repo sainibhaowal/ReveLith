@@ -1,20 +1,21 @@
 /**
  * Verifies the core replace_at sequence (redo one slide in place):
  * mergeSlideFromPptx (new slide appended at the end) → moveSlide (into position) → deleteSlide (remove old slide).
- * This is the engine-level equivalent of the replace_at branch in slides-main 'slides:html-to-pptx';
- * no Electron dependency : runs the real openPptx → operations → savePptx → openPptx chain.
+ * This is the engine-level equivalent of the replace_at branch in slides-main 'slides:land-generated-pages';
+ * no Electron dependency — runs the real openPptx → operations → savePptx → openPptx chain.
  */
 import { describe, it, expect } from 'vitest'
-import { openPptx, savePptx, createBlankPptx, addElement, mergeSlideFromPptx, moveSlide, deleteSlide } from '../src/index'
+import PptxGenJS from 'pptxgenjs'
+import { openPptx, savePptx, mergeSlideFromPptx, moveSlide, deleteSlide } from '../src/index'
 
 async function onePagePptx(text: string): Promise<Uint8Array> {
-  const opened = await openPptx(await createBlankPptx())
-  addElement(opened.deck.slides[0]!, {
-    kind: 'textbox',
-    offset: { x: 914400, y: 914400, cx: 7315200, cy: 914400 },
-    paragraphs: [{ runs: [{ text, fontSize: 32 }] }],
-  })
-  return savePptx(opened)
+  const p = new PptxGenJS()
+  p.defineLayout({ name: 'W', width: 13.333, height: 7.5 })
+  p.layout = 'W'
+  const s = p.addSlide()
+  s.addText(text, { x: 1, y: 1, w: 8, h: 1, fontSize: 32 })
+  const buf = (await p.write({ outputType: 'nodebuffer' })) as Buffer
+  return new Uint8Array(buf)
 }
 
 /** Readable text per slide (concatenated text/shape elements) */

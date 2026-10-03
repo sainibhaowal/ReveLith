@@ -1,4 +1,4 @@
-﻿import type { ParsedDoc } from '@revelith/docx-engine'
+import type { ParsedDoc } from '@revelith/docx-engine'
 import { BUNDLED_FONTS, cssFontFamily, isBundledFont } from './line-metrics'
 
 const GENERIC = new Set(['serif', 'sans-serif', 'monospace'])
@@ -22,7 +22,7 @@ export function collectDocFonts(parsed: ParsedDoc): string[] {
 }
 
 // document.fonts.check is useless here: Chromium answers true for any family
-// (system-fallback rendering counts). Detect availability by measuring : an
+// (system-fallback rendering counts). Detect availability by measuring — an
 // unresolvable family inherits the exact metrics of the generic fallback.
 const SAMPLE = '永体宋黑Wmg10'
 
@@ -51,7 +51,7 @@ const symbolCoverCache = new Map<string, boolean>()
 const PUA_TOFU = '\uE000'
 
 /**
- * Family installed AND covering every char of text : macOS ships a Symbol.ttf
+ * Family installed AND covering every char of text — macOS ships a Symbol.ttf
  * without the F0xx cmap. An uncovered PUA char renders the stack's .notdef
  * (whose metrics differ from any other stack's), so the only reliable probe is
  * comparing against a known .notdef in the same stack.
@@ -97,7 +97,7 @@ export function checkMissingFonts(names: string[]): FontSubstitution[] {
   if (!cx) return []
   const out: FontSubstitution[] = []
   for (const name of names) {
-    // a declared bundled face resolves in canvas yet still renders the subset fallback : report it
+    // a declared bundled face resolves in canvas yet still renders the subset fallback — report it
     if (!isBundledFont(name) && fontAvailableIn(cx, name)) continue
     const chain = cssFontFamily(name)
       .split(',')

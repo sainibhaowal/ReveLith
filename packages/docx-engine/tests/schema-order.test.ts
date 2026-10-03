@@ -1,6 +1,6 @@
-﻿/**
+/**
  * OOXML schema-order gatekeeper: in the output of mergeRPrModel/mergePPrFormat, known
- * children must appear in CT_RPr/CT_PPr sequence : wrong order makes Word show the
+ * children must appear in CT_RPr/CT_PPr sequence — wrong order makes Word show the
  * "repair" dialog.
  */
 import { describe, expect, it } from 'vitest'

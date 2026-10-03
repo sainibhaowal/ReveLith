@@ -1,5 +1,5 @@
-﻿/**
- * Element alignment and even distribution : pure geometry functions (no IO, no
+/**
+ * Element alignment and even distribution — pure geometry functions (no IO, no
  * model dependencies).
  *
  * Coordinate system: input/output are axis-aligned rects { x, y, w, h } in CSS px

@@ -1,4 +1,5 @@
-﻿import { escapeXmlText } from './xml-utils'
+import { decodeEntities } from './parse-xml-text'
+import { escapeXmlText } from './xml-utils'
 
 /**
  * Paragraph-level surgical text patch (saving edits to rich-text entries such as
@@ -126,15 +127,6 @@ function decodedTextOf(paraXml: string): string {
     .join('')
 }
 
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-}
-
 function patchOneParagraph(paraXml: string, newText: string, skipLeading: boolean): string | null {
   const slices = tSlices(paraXml)
   if (slices.length === 0) return null
@@ -181,7 +173,7 @@ function patchOneParagraph(paraXml: string, newText: string, skipLeading: boolea
     acc = end
   }
   if (first === -1) {
-    // Insertion point falls outside every w:t (in theory only an empty paragraph) :
+    // Insertion point falls outside every w:t (in theory only an empty paragraph) —
     // no anchor, give up
     return null
   }

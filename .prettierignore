@@ -16,3 +16,12 @@ scripts/drivers/driver.*.mjs
 
 # Vendored third-party sources stay byte-identical to upstream.
 packages/*/src/vendor/
+
+# Browser-injected scripts ported from upstream; eslint already excludes these
+# as "not our code to lint", so keep them out of the formatter too. Reformatting
+# them would make every future diff against upstream unreadable.
+packages/html2docx/src/browser/
+
+
+# Reference source used only while porting; not our code to format.
+assets/genoffice-0.11.0/

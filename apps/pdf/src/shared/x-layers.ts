@@ -1,11 +1,11 @@
-﻿/** Assign x-sorted same-baseline extents to z-layers. Two runs drawn over each other
+/** Assign x-sorted same-baseline extents to z-layers. Two runs drawn over each other
     (an earlier multi-line edit that overflowed onto the next line) must not be read as
     one line: heavy x-overlap forbids sharing a chain, and a non-overlapping extent
-    continues the chain whose tail is nearest : glyph spacing beats a cross-layer jump,
+    continues the chain whose tail is nearest — glyph spacing beats a cross-layer jump,
     so a longer stacked run keeps its own tail instead of leaking into the other layer.
 
     `tieMargin`: when two chains' tail gaps are this close, the chain with more members
-    wins : a short overlay ending inside a word gap must not steal the line's next word
+    wins — a short overlay ending inside a word gap must not steal the line's next word
     (the real text line is a many-span chain, an overlay is usually one span). */
 export function chainLayers(extents: { left: number; right: number }[], tieMargin = 0): number[] {
   const assign: number[] = []

@@ -1,4 +1,4 @@
-﻿import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
 
 async function findShellPage(app: ElectronApplication, timeoutMs = 15_000): Promise<Page> {
@@ -27,7 +27,7 @@ test('slides chrome darkens while the slide canvas stays paper-white', async () 
   try {
     const shellPage = await findShellPage(launched.app)
     await shellPage.locator('.quick-card', { hasText: 'AI Slides' }).click()
-    const editorPage = await waitForPageWithUrl(launched.app, 'slides/out')
+    const editorPage = await waitForPageWithUrl(launched.app, '://slides/')
     await editorPage.waitForSelector('.stage-wrap canvas', { timeout: 20_000 })
 
     await shellPage.evaluate(() =>
@@ -49,7 +49,7 @@ test('slides chrome darkens while the slide canvas stays paper-white', async () 
     // the Konva stage still paints the slide paper white: the slide-bg Rect is
     // canvas content, so assert via the stage screenshot's center pixel
     const shot = await editorPage.locator('.stage-wrap').first().screenshot()
-    // PNG: naive check via Playwright : decode through a data URL in the page
+    // PNG: naive check via Playwright — decode through a data URL in the page
     const center = await editorPage.evaluate(async (b64) => {
       const img = new Image()
       img.src = `data:image/png;base64,${b64}`

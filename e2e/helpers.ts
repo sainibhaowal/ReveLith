@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Shared launcher for Electron E2E tests.
  *
  * Each test boots the built shell (`apps/shell/out`) against a scratch
@@ -25,10 +25,14 @@ interface LaunchOptions {
   lang?: string
   /** pre-seed app-settings.json with onboardingSeen=true to start at the home screen */
   onboardingSeen?: boolean
+  /** extra app-settings.json keys (e.g. defaultSaveDir) written before launch */
+  settings?: Record<string, unknown>
   /** subdir of e2e/artifacts to store this launch's video in */
   videoDir: string
   /** absolute document path passed as argv, opened in an editor tab on launch */
   openFile?: string
+  /** extra environment variables for the launched app */
+  env?: Record<string, string>
 }
 
 export interface LaunchedApp {
@@ -39,22 +43,25 @@ export interface LaunchedApp {
 
 export async function launchShell(options: LaunchOptions): Promise<LaunchedApp> {
   if (!existsSync(SHELL_MAIN)) {
-    throw new Error(`Missing build output at ${SHELL_MAIN} : run \`npm run build:all\` first`)
+    throw new Error(`Missing build output at ${SHELL_MAIN} — run \`npm run build:all\` first`)
   }
   const userDataDir = options.userDataDir ?? (await mkdtemp(join(tmpdir(), 'revelith-e2e-')))
-  if (options.onboardingSeen) {
+  if (options.onboardingSeen || options.settings) {
     await writeFile(
       join(userDataDir, 'app-settings.json'),
-      JSON.stringify({ onboardingSeen: true }),
+      JSON.stringify({
+        ...(options.onboardingSeen ? { onboardingSeen: true } : {}),
+        ...options.settings,
+      }),
     )
   }
   const require = createRequire(join(SHELL_DIR, 'package.json'))
   const executablePath = require('electron') as unknown as string
   // ELECTRON_RUN_AS_NODE (set by VS Code/CI hosts) would boot Electron as
-  // plain Node with no windows : strip it so the app always starts as an app
+  // plain Node with no windows — strip it so the app always starts as an app
   const { ELECTRON_RUN_AS_NODE: _electronRunAsNode, ...hostEnv } = process.env
   // Linux CI runners restrict unprivileged user namespaces (no usable SUID
-  // sandbox) and run under xvfb without GPU : without these the window opens
+  // sandbox) and run under xvfb without GPU — without these the window opens
   // but the renderer never loads. The suite drives trusted local builds only.
   // Switches go before the app path so Chromium is guaranteed to consume them
   // and they never leak into the argv the app parses for documents to open.
@@ -68,11 +75,13 @@ export async function launchShell(options: LaunchOptions): Promise<LaunchedApp> 
     env: {
       ...hostEnv,
       REVELITH_USER_DATA: userDataDir,
+      REVELITH_NO_SPARE_VIEW: '1',
       REVELITH_LANG: options.lang ?? 'en',
+      ...(options.env ?? {}),
       ...(process.platform === 'linux' ? { ELECTRON_DISABLE_SANDBOX: '1' } : {}),
     },
     // Playwright's Electron screencast wedges the page CDP session on Linux
-    // (page.url() stays empty, no lifecycle events, evaluate hangs) : record
+    // (page.url() stays empty, no lifecycle events, evaluate hangs) — record
     // only where it works
     recordVideo:
       process.platform === 'linux'
@@ -89,7 +98,7 @@ export async function launchShell(options: LaunchOptions): Promise<LaunchedApp> 
 
 /**
  * Playwright can attach to the Electron window mid-navigation and miss the
- * load lifecycle events entirely (Linux timing) : waitForLoadState then hangs
+ * load lifecycle events entirely (Linux timing) — waitForLoadState then hangs
  * on a page that is actually loaded. Polling through evaluate uses the live
  * CDP session instead of the missed events.
  */
@@ -125,9 +134,9 @@ async function waitForDocumentReady(
  * Close the app and return the recorded video path for the given page.
  *
  * Open editor tabs trigger a native Save/Don't Save/Cancel dialog on close,
- * which would block app.close() forever : stub the dialog to answer
+ * which would block app.close() forever — stub the dialog to answer
  * "Don't Save" (button index 1) so shutdown stays unattended. If close still
- * hangs, kill the process after 20s so the suite never wedges.
+ * hangs, force-kill the process after 20s and wait for close to finish.
  */
 export async function closeAndSaveVideo(
   launched: LaunchedApp,
@@ -142,17 +151,17 @@ export async function closeAndSaveVideo(
       })) as typeof dialog.showMessageBox
     })
     .catch(() => {})
-  let killTimer: NodeJS.Timeout | undefined
-  await Promise.race([
-    launched.app.close(),
-    new Promise<void>((resolvePromise) => {
-      killTimer = setTimeout(() => {
-        launched.app.process().kill()
-        resolvePromise()
-      }, 20_000)
-    }),
-  ])
-  if (killTimer) clearTimeout(killTimer)
+  const child = launched.app.process()
+  const killTimer = setTimeout(() => {
+    // SIGTERM can enter Electron's graceful quit path and leave it alive.
+    // child.killed only means a signal was sent, not that the process exited.
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+  }, 20_000)
+  try {
+    await launched.app.close()
+  } finally {
+    clearTimeout(killTimer)
+  }
   if (!video) return undefined
   const target = join(ARTIFACTS_DIR, 'videos', `${name}.webm`)
   try {

@@ -40,17 +40,33 @@ jobs:
         id: custom_tag
         if: steps.semantic.outputs.new_release_published != 'true'
         run: |
+          set -euo pipefail
           if [ -n "${{ inputs.force_version }}" ]; then
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "version=${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
             echo "git_tag=v${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
           else
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.1.0")
+            # Never re-publish an existing tag. Bump the patch component of the
+            # newest tag so the fallback always yields a fresh 0.10.<N+1>.
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.10.100")
             echo "Latest tag: $LATEST_TAG"
             CLEAN_VER="${LATEST_TAG#v}"
+            MAJOR="${CLEAN_VER%%.*}"
+            REST="${CLEAN_VER#*.}"
+            MINOR="${REST%%.*}"
+            PATCH="${REST##*.}"
+            case "$PATCH" in
+              ''|*[!0-9]*)
+                echo "::error::Cannot parse patch component from tag '$LATEST_TAG'"
+                exit 1
+                ;;
+            esac
+            NEXT_PATCH=$((PATCH + 1))
+            NEXT_VER="$MAJOR.$MINOR.$NEXT_PATCH"
+            echo "Next version: $NEXT_VER"
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "version=$CLEAN_VER" >> "$GITHUB_OUTPUT"
-            echo "git_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+            echo "version=$NEXT_VER" >> "$GITHUB_OUTPUT"
+            echo "git_tag=v$NEXT_VER" >> "$GITHUB_OUTPUT"
           fi
         shell: bash
 
@@ -83,7 +99,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target"
+          workspaces: 'apps/sheets/native/xlsx-engine -> apps/sheets/native/xlsx-engine/target'
 
       - name: Install Linux Build Dependencies
         if: runner.os == 'Linux'
@@ -111,7 +127,7 @@ jobs:
             npm install --prefix apps/markdown --save-optional @rollup/rollup-linux-x64-gnu || true
             npm install --prefix apps/shell --save-optional @rollup/rollup-linux-x64-gnu || true
           elif [ "${{ runner.os }}" = "Windows" ]; then
-            npm install --save-optional --include=optional @rollup/rollup-win32-x64-msvc
+            npm install --save-optional --include=optional @rollup/rollup-win32-x64-msvc @rollup/rollup-win32-arm64-msvc || true
           fi
         shell: bash
 
@@ -130,8 +146,9 @@ jobs:
       - name: Build Native Rust Sidecars
         run: |
           if [ "${{ matrix.platform }}" = "win" ]; then
-            rustup target add x86_64-pc-windows-gnu || true
+            rustup target add x86_64-pc-windows-gnu aarch64-pc-windows-msvc || true
             cargo build --release --target x86_64-pc-windows-gnu --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml || cargo build --release --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml
+            cargo build --release --target aarch64-pc-windows-msvc --manifest-path apps/sheets/native/xlsx-engine/Cargo.toml || true
           elif [ "${{ matrix.platform }}" = "mac" ]; then
             rustup target add x86_64-apple-darwin aarch64-apple-darwin
             npm run native:build:universal -w @revelith/sheets
@@ -143,10 +160,60 @@ jobs:
       - name: Build All Workspaces
         run: npm run build:all
 
+      - name: Prepare Windows signing (if secrets provided)
+        if: matrix.platform == 'win'
+        env:
+          CSC_LINK_B64: ${{ secrets.CSC_LINK_B64 }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+        run: |
+          # electron-builder.cjs only signs under REVELITH_WIN_SIGN_MODE (see
+          # scripts/win-sign.cjs) and never reads CSC_LINK directly: exporting it
+          # alone used to produce unsigned installers that looked signed.
+          if [ -n "$CSC_LINK_B64" ]; then
+            echo "$CSC_LINK_B64" | base64 -d > "$RUNNER_TEMP/cert.pfx"
+            echo "CSC_LINK=$RUNNER_TEMP/cert.pfx" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$AZURE_TRUSTED_SIGNING_ENDPOINT" ] || [ -n "$CSC_LINK_B64" ]; then
+            echo "REVELITH_WIN_SIGN_MODE=production" >> "$GITHUB_ENV"
+          fi
+        shell: bash
+
+      - name: Pre-sign static Windows binaries (sidecar + OCR helper)
+        if: matrix.platform == 'win' && env.REVELITH_WIN_SIGN_MODE != ''
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          # electron-builder does not sign extraResources: without this the
+          # unsigned xlsx-sidecar.exe dies with "spawn UNKNOWN" on machines with
+          # Smart App Control / WDAC, even when the installer itself is signed.
+          node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "apps/sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe" || node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar.exe"
+          node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "packages/pdf2docx/ocr-helper/win-ocr.exe" || true
+        shell: bash
+
       - name: Package Desktop Artifacts (${{ matrix.platform }})
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REVELITH_UPDATE_URL: ${{ secrets.REVELITH_UPDATE_URL }}
+          REVELITH_WIN_SIGN_MODE: ${{ env.REVELITH_WIN_SIGN_MODE }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEYCHAIN_PROFILE: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
         run: |
           if [ "${{ matrix.platform }}" = "win" ]; then
             npm run dist:win
@@ -168,12 +235,16 @@ jobs:
             apps/shell/release/*.rpm
             apps/shell/release/*.dmg
             apps/shell/release/*.zip
+            apps/shell/release/*.yml
+            apps/shell/release/*.blockmap
             apps/shell/dist/*.exe
             apps/shell/dist/*.deb
             apps/shell/dist/*.AppImage
             apps/shell/dist/*.rpm
             apps/shell/dist/*.dmg
             apps/shell/dist/*.zip
+            apps/shell/dist/*.yml
+            apps/shell/dist/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -194,8 +265,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}
         run: |
-          mkdir -p /tmp/revelith-build
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name]' > /tmp/revelith-build/assets.json || echo "[]" > /tmp/revelith-build/assets.json
+          echo "RELEASE_ASSETS=$(gh release view \"$TAG\" --repo \"$GITHUB_REPOSITORY\" --json assets --jq '[.assets[].name]')" >> "$GITHUB_ENV"
 
       - name: Build website with current release manifest
         env:
@@ -205,12 +275,7 @@ jobs:
           npm ci --prefix apps/web
           node - <<'NODE'
           const fs = require('fs')
-          let assets = []
-          try {
-            assets = JSON.parse(fs.readFileSync('/tmp/revelith-build/assets.json', 'utf8'))
-          } catch (e) {
-            assets = []
-          }
+          const assets = JSON.parse(process.env.RELEASE_ASSETS)
           const releaseTag = process.env.TAG
           const repo = process.env.GITHUB_REPOSITORY
           const downloads = assets.map((format) => {
@@ -234,8 +299,6 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_WEB_PATH: /opt/revelith_web
         run: |
-          VPS_HOST="$(echo "$VPS_HOST" | tr -d '\r\n[:space:]')"
-          VPS_USER="$(echo "$VPS_USER" | tr -d '\r\n[:space:]')"
           test -n "$VPS_HOST" && test -n "$VPS_USER" && test -n "$VPS_WEB_PATH"
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Grow/shrink font while editing: sizes step along the PowerPoint ladder (no ×1.2
  * fractional drift) and the DOM selection survives the span replacement so the
  * highlight stays and repeated clicks keep working.
@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest'
 import { resizeSelectionFont, setSelectionFontSizePt } from '../src/renderer/TextEditOverlay'
 
-// jsdom has no execCommand: emulate the browser product : wrap the selection in <font size="7">.
+// jsdom has no execCommand: emulate the browser product — wrap the selection in <font size="7">.
 // An element-only selection (what reselectSpans produces) wraps that element's contents, matching
 // how Chromium nests the font inside the styled span.
 beforeAll(() => {
@@ -73,14 +73,22 @@ describe('resizeSelectionFont ladder stepping', () => {
     expect(currentSizePx(root)).toBe((44 * 96) / 72)
   })
 
-  it('steps ±10pt beyond the ladder and clamps at 8pt', () => {
+  it('steps by 8pt beyond the ladder and by 1pt below it', () => {
     const { root } = setupEditor((100 * 96) / 72)
     resizeSelectionFont(1)
-    expect(currentSizePx(root)).toBe((110 * 96) / 72)
+    expect(currentSizePx(root)).toBe((108 * 96) / 72)
 
     const { root: small } = setupEditor((8 * 96) / 72)
     resizeSelectionFont(-1)
-    expect(currentSizePx(small)).toBe((8 * 96) / 72)
+    expect(currentSizePx(small)).toBe((7 * 96) / 72)
+  })
+
+  it('moves one point at a time in point mode (⌘] / ⌘[)', () => {
+    const { root } = setupEditor(60) // 45pt
+    resizeSelectionFont(1, 'point')
+    expect(currentSizePx(root)).toBe((46 * 96) / 72)
+    resizeSelectionFont(-1, 'point')
+    expect(currentSizePx(root)).toBe(60)
   })
 
   it('keeps the text selected after each step', () => {

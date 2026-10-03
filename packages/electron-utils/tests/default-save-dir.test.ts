@@ -53,13 +53,22 @@ describe('resolveDefaultSaveDir', () => {
   })
 
   it('creates and returns the fallback when nothing is configured', () => {
-    const fallback = join(root, 'Documents', 'Revelith')
+    const fallback = join(root, 'Documents', 'ReveLith')
     expect(resolveDefaultSaveDir(null, fallback)).toBe(fallback)
     expect(existsSync(fallback)).toBe(true)
   })
 
   it('degrades to the fallback when the configured folder is not writable', () => {
-    if (process.platform === 'win32') return // chmod on Windows directory does not revoke write permissions
+    // chmod-based read-only dirs only restrict writes on POSIX; on Windows the
+    // mode is a no-op so the dir stays usable. There a file at the configured
+    // path exercises the same degrade-to-fallback contract (mkdir fails).
+    if (process.platform === 'win32') {
+      const blocker = join(root, 'read-only-blocker')
+      writeFileSync(blocker, 'x')
+      const fallback = join(root, 'fallback')
+      expect(resolveDefaultSaveDir(blocker, fallback)).toBe(fallback)
+      return
+    }
     const readOnly = join(root, 'read-only')
     mkdirSync(readOnly)
     chmodSync(readOnly, 0o500)
@@ -69,6 +78,12 @@ describe('resolveDefaultSaveDir', () => {
     } finally {
       chmodSync(readOnly, 0o700)
     }
+  })
+
+  it('throws a descriptive error when the fallback itself is unusable', () => {
+    const blocker = join(root, 'blocker')
+    writeFileSync(blocker, 'x')
+    expect(() => resolveDefaultSaveDir(null, blocker)).toThrow(/default save dir not usable/)
   })
 })
 
@@ -85,14 +100,14 @@ describe('configuredDefaultSaveDir', () => {
     expect(configuredDefaultSaveDir(app)).toBe(custom)
   })
 
-  it('falls back to <Documents>/Revelith without a setting', () => {
+  it('falls back to <Documents>/ReveLith without a setting', () => {
     const userData = join(root, 'userData')
     const documents = join(root, 'Documents')
     mkdirSync(userData, { recursive: true })
     const app = {
       getPath: (name: 'userData' | 'documents') => (name === 'userData' ? userData : documents),
     }
-    expect(configuredDefaultSaveDir(app)).toBe(join(documents, 'Revelith'))
-    expect(existsSync(join(documents, 'Revelith'))).toBe(true)
+    expect(configuredDefaultSaveDir(app)).toBe(join(documents, 'ReveLith'))
+    expect(existsSync(join(documents, 'ReveLith'))).toBe(true)
   })
 })

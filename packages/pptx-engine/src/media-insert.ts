@@ -1,7 +1,7 @@
-﻿/**
- * Audio/video / 3D model insertion : media part surgery.
+/**
+ * Audio/video / 3D model insertion — media part surgery.
  *
- * Video/audio: the modern PowerPoint dual-relationship form :
+ * Video/audio: the modern PowerPoint dual-relationship form —
  *   <a:videoFile r:link> (2007 semantics) + p14:media r:embed (2010 semantics),
  *   both relationships pointing at the same embedded ppt/media/mediaN.ext part;
  *   blipFill is the poster frame.
@@ -13,7 +13,7 @@
  */
 import { deflateSync } from 'node:zlib'
 import type { EmuRect, Slide } from './types'
-import { escapeXmlAttr } from './xml-utils'
+import { creationIdXml, escapeXmlAttr, maxRelationshipIdNumber } from './xml-utils'
 import { relsPathFor } from './zip'
 import { appendRawElements, type OpenedPptx } from './index'
 import { nextCNvPrId } from './insert'
@@ -101,7 +101,13 @@ function ensureDefaultContentType(opened: OpenedPptx, ext: string, mime: string)
   const ct = opened.archive.readText(ctPath)
   if (ct && !new RegExp(`<Default Extension="${ext}"`).test(ct)) {
     const dflt = `<Default Extension="${ext}" ContentType="${mime}"/>`
-    opened.archive.entries.set(ctPath, Buffer.from(ct.replace('</Types>', `${dflt}</Types>`), 'utf8'))
+    opened.archive.entries.set(
+      ctPath,
+      Buffer.from(
+        ct.replace('</Types>', () => `${dflt}</Types>`),
+        'utf8',
+      ),
+    )
   }
 }
 
@@ -127,8 +133,7 @@ function appendRels(
   let xml =
     opened.archive.readText(relsPath) ??
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
-  let maxRid = 0
-  for (const m of xml.matchAll(/Id="rId(\d+)"/g)) maxRid = Math.max(maxRid, Number(m[1]))
+  let maxRid = maxRelationshipIdNumber(xml)
   const rids: string[] = []
   for (const rel of rels) {
     const rid = `rId${++maxRid}`
@@ -173,9 +178,10 @@ export function addMedia(
   const mediaPath = newMediaPart(opened, 'media', ext, opts.bytes)
   ensureDefaultContentType(opened, ext, mime)
 
-  // 2) Poster frame part (solid color by default)
+  // 2) Poster frame part (solid color by default; square for audio, whose frame is PowerPoint's 64 pt icon)
   const poster = opts.poster ?? {
-    bytes: solidPng(16, 9, opts.kind === 'video' ? [38, 38, 44] : [240, 240, 244]),
+    bytes:
+      opts.kind === 'video' ? solidPng(16, 9, [38, 38, 44]) : solidPng(16, 16, [240, 240, 244]),
     ext: 'png',
   }
   const posterExt = poster.ext.toLowerCase()
@@ -200,7 +206,7 @@ export function addMedia(
   const fileTag = opts.kind === 'video' ? 'a:videoFile' : 'a:audioFile'
   const o = opts.offset
   const xml =
-    `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${escapeXmlAttr(name)}"/>` +
+    `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${escapeXmlAttr(name)}">${creationIdXml()}</p:cNvPr>` +
     '<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>' +
     `<p:nvPr><${fileTag} xmlns:r="${R_NS}" r:link="${ridLegacy}"/>` +
     `<p:extLst><p:ext uri="${MEDIA_EXT_URI}">` +
@@ -262,7 +268,7 @@ export function addModel3d(
   const name = opts.name ?? `3D Model ${id}`
   const o = opts.offset
   const xml =
-    `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${escapeXmlAttr(name)}" descr="${escapeXmlAttr(`aislides-3d:${modelPath}`)}"/>` +
+    `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${escapeXmlAttr(name)}" descr="${escapeXmlAttr(`aislides-3d:${modelPath}`)}">${creationIdXml()}</p:cNvPr>` +
     '<p:cNvPicPr/><p:nvPr/></p:nvPicPr>' +
     `<p:blipFill><a:blip r:embed="${ridPoster}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
     `<p:spPr><a:xfrm><a:off x="${o.x}" y="${o.y}"/><a:ext cx="${o.cx}" cy="${o.cy}"/></a:xfrm>` +

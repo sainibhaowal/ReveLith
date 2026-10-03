@@ -1,5 +1,5 @@
-﻿/**
- * Show ink overlay : the presenter view's pen/laser pointer, with the audience window mirroring
+/**
+ * Show ink overlay — the presenter view's pen/laser pointer, with the audience window mirroring
  * the same data. Coordinates are normalized 0..1 relative to the slide frame; each side restores
  * them at its own frame size.
  */
@@ -53,10 +53,7 @@ export function InkLayer({
     <div className="ink-layer" style={{ width, height }}>
       <canvas ref={canvasRef} style={{ width, height }} />
       {laser && (
-        <div
-          className="ink-laser"
-          style={{ left: laser.x * width, top: laser.y * height }}
-        />
+        <div className="ink-laser" style={{ left: laser.x * width, top: laser.y * height }} />
       )}
     </div>
   )

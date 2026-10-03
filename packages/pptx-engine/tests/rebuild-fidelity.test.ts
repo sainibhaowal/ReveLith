@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Fidelity of the rebuildTxBody fallback path: on text-structure changes (run add/remove),
  * explicit paragraph properties (bullet/marL/indent/lnSpc/spcBef/spcAft) and run-level
  * hlinkClick/strike/cs are written back; display values inherited from lstStyle are not baked in.
@@ -65,7 +65,7 @@ describe('rebuild path: explicit paragraph properties written back', () => {
     )
     forceRebuild(el)
     const out = patchTextElementXml(el, el.anchor.originalXml)
-    expect(out).toContain('<a:buAutoNum type="romanLcPeriod"/>')
+    expect(out).toContain('<a:buAutoNum type="romanLcPeriod" startAt="3"/>')
   })
 
   it('buNone preserved (explicitly turning off the inherited bullet)', () => {
@@ -111,7 +111,7 @@ describe('rebuild path: inherited values not materialized', () => {
     forceRebuild(el)
     const out = patchTextElementXml(el, el.anchor.originalXml)
     // Only the schemeClr run materializes srgbClr (without a theme, resolveColorNode may fail to
-    // resolve the color : then neither is written; assert the inherited run never writes fill)
+    // resolve the color — then neither is written; assert the inherited run never writes fill)
     const firstRun = /<a:r><a:rPr[^>]*\/?>(?:<\/a:rPr>)?<a:t>a<\/a:t>/.exec(out)
     expect(firstRun).toBeTruthy()
   })

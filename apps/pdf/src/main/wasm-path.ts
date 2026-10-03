@@ -1,10 +1,10 @@
-﻿import { existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
 /**
  * Runtime wasm assets live in node_modules during dev/tests but the packaged app
- * ships no node_modules (everything is bundled) : electron-builder copies them
+ * ships no node_modules (everything is bundled) — electron-builder copies them
  * into Resources/wasm instead (see apps/shell/electron-builder.cjs extraResources).
  */
 const packagedPath = (fileName: string) => join(process.resourcesPath, 'wasm', fileName)

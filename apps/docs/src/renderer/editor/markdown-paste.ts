@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Plain-text Markdown paste. Clipboards that carry only text/plain (fenced
  * code blocks, terminals, .md files in a text editor, LLM output) lose all
  * structure when pasted literally: "## Heading" keeps its hashes, "**bold**"
@@ -18,7 +18,7 @@ const STRONG_SIGNALS: readonly RegExp[] = [
   /^#{1,6}\s+\S/m, // ATX heading
   /^\s{0,3}```/m, // fenced code block
   /\[[^\]\n]+\]\([^\s)]+\)/, // [text](url) link
-  // **bold** only : the __bold__ form is indistinguishable from Python
+  // **bold** only — the __bold__ form is indistinguishable from Python
   // dunder identifiers (__init__, __name__) and would convert pasted code.
   /(?:^|\W)\*\*[^*\n]+\*\*(?:\W|$)/,
   /^\s{0,3}\|.+\|\s*$\n^\s{0,3}\|[\s:|-]+\|\s*$/m, // table header + separator row

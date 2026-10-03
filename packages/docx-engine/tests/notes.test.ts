@@ -9,6 +9,7 @@ import {
   type SaveBlock,
 } from '../src/index'
 import { buildDocx } from './helpers/build-docx'
+import { parseNotesXml } from '../src/notes'
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
 
@@ -46,6 +47,55 @@ const originalOrder = (doc: Awaited<ReturnType<typeof parseDocx>>): SaveBlock[] 
   doc.blocks
     .filter((b) => !b.hidden && b.docxIndex !== null)
     .map((b) => ({ kind: 'original', docxIndex: b.docxIndex! }))
+
+describe('single-quoted note attributes', () => {
+  it('skips single-quoted separators and reads single-quoted ids', () => {
+    const xml =
+      XML_DECL +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      "<w:footnote w:type='separator' w:id='-1'><w:p><w:r><w:separator/></w:r></w:p></w:footnote>" +
+      "<w:footnote w:id='2'><w:p><w:r><w:footnoteRef/></w:r><w:r><w:t>detail</w:t></w:r></w:p></w:footnote>" +
+      '</w:footnotes>'
+    const notes = parseNotesXml(xml, 'footnote')
+    expect(notes.map((n) => [n.id, n.text])).toEqual([['2', 'detail']])
+  })
+})
+
+describe('self-closing note entries', () => {
+  it('does not swallow the next entry when an empty note is written as <w:footnote w:id="1"/>', () => {
+    const xml =
+      XML_DECL +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:footnote w:id="1"/>' +
+      '<w:footnote w:id="2"><w:p><w:r><w:footnoteRef/></w:r><w:r><w:t>second</w:t></w:r></w:p></w:footnote>' +
+      '</w:footnotes>'
+    const notes = parseNotesXml(xml, 'footnote')
+    expect(notes.map((n) => [n.id, n.text])).toEqual([['2', 'second']])
+  })
+})
+
+describe('Zotero fields inside notes', () => {
+  it('flags notes whose body carries a Zotero citation field', () => {
+    const zoteroNote =
+      '<w:footnote w:id="3"><w:p><w:r><w:footnoteRef/></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+      '<w:r><w:instrText xml:space="preserve"> ADDIN ZOTERO_ITEM CSL_CITATION {} </w:instrText></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>(Doe 2020)</w:t></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:footnote>'
+    const cslNote = zoteroNote
+      .replace('w:id="3"', 'w:id="4"')
+      .replace('ADDIN ZOTERO_ITEM CSL_CITATION', 'ADDIN CSL_CITATION')
+    const notes = parseNotesXml(
+      FOOTNOTES_XML.replace('</w:footnotes>', zoteroNote + cslNote + '</w:footnotes>'),
+      'footnote',
+    )
+    expect(notes.map((note) => [note.id, note.zoteroField ?? false])).toEqual([
+      ['2', false],
+      ['3', true],
+      ['4', true],
+    ])
+  })
+})
 
 describe('footnotes / endnotes', () => {
   it('parses word/footnotes.xml and keeps the reference paragraph editable', async () => {
@@ -248,7 +298,15 @@ describe('captions', () => {
     const doc = await parseDocx(await buildDocx({ bodyXml: generateCaptionXml('图', 1, '测试') }))
     const p = doc.blocks[0]
     expect(p.type).toBe('passthrough')
-    expect(p.fieldDisplay).toEqual({ kind: 'text', left: '图 1 测试' })
+    expect(p.fieldDisplay).toEqual({
+      kind: 'text',
+      left: '图 1 测试',
+      szHalfPoints: 18,
+      align: 'center',
+      runs: [{ text: '图 1 测试', color: '44546A', sizeHalfPoints: 18 }],
+      spaceBeforeTwips: 80,
+      spaceAfterTwips: 200,
+    })
   })
 })
 
@@ -277,5 +335,138 @@ describe('rich-text footnote display runs', () => {
     ])
     expect(notes[1].richParas).toBeUndefined()
     expect(notes[1].text).toBe('纯文本')
+  })
+
+  it('recovers the direct Latin font of a run (w:ascii, else w:hAnsi); font alone makes the note rich', async () => {
+    const footnotesXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:footnote w:id="1"><w:p>' +
+      '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="18"/></w:rPr><w:footnoteRef/></w:r>' +
+      '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve"> Source ANSD</w:t></w:r>' +
+      '<w:r><w:rPr><w:rFonts w:hAnsi="Garamond" w:eastAsia="MS Mincho"/></w:rPr><w:t>, 2023</w:t></w:r>' +
+      '</w:p></w:footnote>' +
+      '<w:footnote w:id="2"><w:p><w:r><w:footnoteRef/></w:r><w:r><w:rPr><w:rFonts w:ascii="Arial"/></w:rPr><w:t>font only</w:t></w:r></w:p></w:footnote>' +
+      '</w:footnotes>'
+    const { parseNotesXml } = await import('../src/notes')
+    const notes = parseNotesXml(footnotesXml, 'footnote')
+    expect(notes[0].richParas?.[0]).toEqual([
+      { text: 'Source ANSD', sizeHalfPoints: 18, fontAscii: 'Times New Roman' },
+      { text: ', 2023', fontAscii: 'Garamond' },
+    ])
+    expect(notes[1].richParas?.[0]).toEqual([{ text: 'font only', fontAscii: 'Arial' }])
+  })
+
+  it('does not bold runs whose b/i carry off, uppercase, or single-quoted falsy vals', async () => {
+    const footnotesXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:footnote w:id="1"><w:p>' +
+      '<w:r><w:rPr><w:b w:val="off"/></w:rPr><w:t>plain1</w:t></w:r>' +
+      '<w:r><w:rPr><w:b w:val="OFF"/></w:rPr><w:t>plain2</w:t></w:r>' +
+      `<w:r><w:rPr><w:b w:val='false'/></w:rPr><w:t>plain3</w:t></w:r>` +
+      '<w:r><w:rPr><w:b/></w:rPr><w:t>bold</w:t></w:r>' +
+      '</w:p></w:footnote>' +
+      '</w:footnotes>'
+    const { parseNotesXml } = await import('../src/notes')
+    const notes = parseNotesXml(footnotesXml, 'footnote')
+    expect(notes[0].richParas?.[0]).toEqual([
+      { text: 'plain1' },
+      { text: 'plain2' },
+      { text: 'plain3' },
+      { text: 'bold', bold: true },
+    ])
+  })
+
+  it('flags notes without a self-reference mark run (Word renders those entries numberless)', async () => {
+    const endnotesXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:endnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:endnote>' +
+      '<w:endnote w:id="1"><w:p><w:pPr><w:pStyle w:val="ad"/></w:pPr></w:p></w:endnote>' +
+      '<w:endnote w:id="2"><w:p><w:r><w:t>text without ref mark</w:t></w:r></w:p></w:endnote>' +
+      '<w:endnote w:id="3"><w:p><w:r><w:endnoteRef/></w:r><w:r><w:t>normal</w:t></w:r></w:p></w:endnote>' +
+      '</w:endnotes>'
+    const { parseNotesXml } = await import('../src/notes')
+    const notes = parseNotesXml(endnotesXml, 'endnote')
+    expect(notes.map((n) => n.noRefMark)).toEqual([true, true, undefined])
+  })
+
+  it('recognises the spaced / paired ref-mark forms other producers write', async () => {
+    // Open XML SDK & .NET XmlWriter emit "<w:footnoteRef />"; some writers pair the tag.
+    const footnotesXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:footnote w:id="1"><w:p><w:r><w:footnoteRef /></w:r><w:r><w:t>spaced</w:t></w:r></w:p></w:footnote>' +
+      '<w:footnote w:id="2"><w:p><w:r><w:footnoteRef></w:footnoteRef></w:r><w:r><w:t>paired</w:t></w:r></w:p></w:footnote>' +
+      '<w:footnote w:id="3"><w:p><w:r><w:footnoteReference w:id="1"/></w:r><w:r><w:t>only a cross-ref</w:t></w:r></w:p></w:footnote>' +
+      '</w:footnotes>'
+    const { parseNotesXml } = await import('../src/notes')
+    const notes = parseNotesXml(footnotesXml, 'footnote')
+    expect(notes.map((n) => n.noRefMark)).toEqual([undefined, undefined, true])
+    // the ref-mark run is still dropped from the display text
+    expect(notes.map((n) => n.text)).toEqual(['spaced', 'paired', 'only a cross-ref'])
+  })
+
+  it('keeps a spaced self-closing <w:p/> as its own (empty) paragraph', () => {
+    // the same producers write an empty note paragraph as <w:p w:rsidR="..."/>
+    const footnotesXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:footnote w:id="1">' +
+      '<w:p w:rsidR="00AB1234" w:rsidRDefault="00AB1234"/>' +
+      '<w:p><w:r><w:footnoteRef/></w:r>' +
+      '<w:r><w:rPr><w:b/></w:rPr><w:t>bold tail</w:t></w:r></w:p>' +
+      '</w:footnote>' +
+      '</w:footnotes>'
+    const notes = parseNotesXml(footnotesXml, 'footnote')
+    expect(notes[0].richParas).toEqual([[], [{ text: 'bold tail', bold: true }]])
+  })
+
+  it('serializes richParas runs with size/font formatting for fresh notes (P17)', async () => {
+    const { buildNotesXml, parseNotesXml } = await import('../src/notes')
+    const xml = buildNotesXml(
+      'footnote',
+      [
+        {
+          id: '201',
+          text: 'small note tail',
+          richParas: [
+            [
+              { text: 'small note', sizeHalfPoints: 16, fontAscii: 'Arial', bold: true },
+              { text: ' tail', sizeHalfPoints: 16, color: '1F4E79' },
+            ],
+          ],
+        },
+      ],
+      null,
+    )
+    expect(xml).toContain('<w:sz w:val="16"/>')
+    expect(xml).toContain('w:ascii="Arial"')
+    expect(xml).toContain('<w:b/>')
+    expect(xml).toContain('<w:color w:val="1F4E79"/>')
+    // the self-reference mark + spacer shrink to the note's own size
+    expect(xml).toContain('<w:vertAlign w:val="superscript"/><w:sz w:val="16"/>')
+    // rich rebuilds pin single spacing so template docDefaults cannot inflate the area
+    expect(xml).toContain('<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>')
+    const notes = parseNotesXml(xml, 'footnote')
+    expect(notes[0]!.text).toBe('small note tail')
+    expect(notes[0]!.richParas?.[0]).toEqual([
+      { text: 'small note', bold: true, sizeHalfPoints: 16, fontAscii: 'Arial' },
+      { text: ' tail', color: '1F4E79', sizeHalfPoints: 16 },
+    ])
+  })
+
+  it('decodes numeric char refs in note display text like the body path does', async () => {
+    const footnotesXml =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+      '<w:footnote w:id="1"><w:p><w:r><w:footnoteRef/></w:r>' +
+      '<w:r><w:t>A &#8212; B</w:t></w:r></w:p></w:footnote>' +
+      '</w:footnotes>'
+    const { parseNotesXml } = await import('../src/notes')
+    const notes = parseNotesXml(footnotesXml, 'footnote')
+    expect(notes).toHaveLength(1)
+    expect(notes[0]!.text).toBe('A — B')
   })
 })

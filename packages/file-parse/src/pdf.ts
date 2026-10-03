@@ -1,10 +1,10 @@
-﻿import { createRequire } from 'node:module'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
 // pdfjs needs the standard_fonts data directory for non-embedded standard fonts
 // (Helvetica etc.); under Node a filesystem path works (same usage as the official
 // Node example). The packaged build may fail require.resolve (only out/** is bundled),
-// so return undefined and omit it : degrading to "non-embedded standard fonts may be
+// so return undefined and omit it — degrading to "non-embedded standard fonts may be
 // slightly incomplete" (most embedded-font PDFs unaffected) instead of crashing parsing.
 function standardFontDataUrl(): string | undefined {
   try {
@@ -18,7 +18,7 @@ function standardFontDataUrl(): string | undefined {
 
 /**
  * pdfjs's Node compat layer borrows DOMMatrix from the optional dep @napi-rs/canvas,
- * and pdf.mjs calls `new DOMMatrix()` at module top level : in the packaged build
+ * and pdf.mjs calls `new DOMMatrix()` at module top level — in the packaged build
  * (no node_modules inside asar) the require fails, so the import throws
  * "DOMMatrix is not defined" and PDF attachment parsing breaks entirely (not
  * reproducible in dev since the dep happens to be present). Text extraction only
@@ -138,7 +138,7 @@ function installDomMatrixPolyfill(): void {
 export async function pdfToText(bytes: Uint8Array): Promise<string> {
   installDomMatrixPolyfill()
   // Explicitly import the worker module (its top level registers globalThis.pdfjsWorker,
-  // which the fake worker prefers) : otherwise pdfjs looks up pdf.worker.mjs by path at
+  // which the fake worker prefers) — otherwise pdfjs looks up pdf.worker.mjs by path at
   // runtime, the file isn't next to the bundled chunk, and it fails with "Setting up fake
   // worker failed". A literal specifier lets the bundler include it in the output.
   // @ts-expect-error the worker build artifact has no type declarations; imported only for its top-level side effect (registering globalThis.pdfjsWorker)

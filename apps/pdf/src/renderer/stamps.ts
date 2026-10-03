@@ -1,6 +1,6 @@
-﻿import type { StampInput } from '../shared/ipc'
+import type { StampInput } from '../shared/ipc'
 
-/** Bitmap supersampling factor relative to PDF pt : stays sharp even when enlarged for print */
+/** Bitmap supersampling factor relative to PDF pt — stays sharp even when enlarged for print */
 const SS = 4
 
 export interface WatermarkConfig {
@@ -162,7 +162,11 @@ export function buildStamps(
     const margin = Math.min(p.ph * 0.035, 26)
 
     const header = renderBar(
-      [hf.headerLeft, hf.headerCenter, hf.headerRight].map((s) => fill(s, no, total)) as [string, string, string],
+      [hf.headerLeft, hf.headerCenter, hf.headerRight].map((s) => fill(s, no, total)) as [
+        string,
+        string,
+        string,
+      ],
       p.pw,
       hf.fontSize,
       hf.color,

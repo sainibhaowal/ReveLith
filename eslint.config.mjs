@@ -18,6 +18,11 @@ export default tseslint.config(
       'scripts/drivers/**',
       'apps/*/build/**',
       'packages/*/src/vendor/**',
+      // Browser-injected scripts (port from upstream, not our code to lint)
+      'packages/html2docx/src/browser/**',
+      // Reference source kept locally for porting; upstream's own lint rules
+      // and upstream branding, so neither of our gates reads it.
+      'assets/genoffice-0.11.0/**',
     ],
   },
   js.configs.recommended,
@@ -65,6 +70,18 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    // The html2docx generation layer was ported verbatim from untyped JS and is
+    // being typed file by file, without logic changes. Every one of those files
+    // carries a whole-file type-check opt-out plus that note, which is what
+    // keeps strict consumers (apps/html, apps/shell) building against it today.
+    // The ban is relaxed only here, and only for that directive, so a new
+    // whole-file opt-out or a new @ts-ignore anywhere else is still an error.
+    files: ['packages/html2docx/src/generate.ts', 'packages/html2docx/src/generate/**/*.ts'],
+    rules: {
+      '@typescript-eslint/ban-ts-comment': ['error', { 'ts-nocheck': false }],
     },
   },
 )

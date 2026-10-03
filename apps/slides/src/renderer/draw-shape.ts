@@ -1,6 +1,6 @@
-﻿/**
+/**
  * Geometry for the shape draw mode (PowerPoint/WPS parity): after picking a shape in
- * the ribbon gallery the cursor becomes a crosshair : a single click inserts the
+ * the ribbon gallery the cursor becomes a crosshair — a single click inserts the
  * PowerPoint default size (1x1 inch square), a drag draws a custom rectangle, and
  * holding Shift constrains shapes to a square / lines to 45-degree increments.
  * Coordinates are slide px in the FIT_WIDTH viewport (96px = 1 inch).
@@ -15,6 +15,8 @@ export interface DrawRect {
   h: number
   flipH?: boolean
   flipV?: boolean
+  /** Plain click (no drag): the box is the kind's default size */
+  click?: boolean
 }
 
 const STRAIGHT_LINE_KINDS = new Set(['line', 'lineArrow', 'lineArrowDouble'])

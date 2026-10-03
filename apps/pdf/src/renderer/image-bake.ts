@@ -1,7 +1,7 @@
-﻿/**
+/**
  * Pure pixel/geometry helpers for baked image edits (flip / transparency / crop).
  * PDF content-stream images are plain bitmaps, so these edits rewrite pixels and land
- * as replaceImage ops; no DOM here : App owns the canvas decode/encode glue.
+ * as replaceImage ops; no DOM here — App owns the canvas decode/encode glue.
  */
 import type { PixelImage } from './cutout'
 
@@ -14,6 +14,16 @@ export interface CropFractions {
   r: number
   b: number
 }
+
+/** Remove-background tolerance (0..100) shared by the dialog slider and the AI tool */
+export const DEFAULT_CUTOUT_TOLERANCE = 30
+
+/** Pixel edits the AI can apply to an existing page image (same bakes as the floating bar) */
+export type ImageBakeOp =
+  | { kind: 'flip'; axis: 'h' | 'v' }
+  | { kind: 'opacity'; alpha: number }
+  | { kind: 'crop'; crop: CropFractions }
+  | { kind: 'cutout'; tolerance: number }
 
 /** Mirror pixels horizontally ('h') or vertically ('v'); returns a new array */
 export function flipPixels(img: PixelImage, axis: 'h' | 'v'): Uint8ClampedArray<ArrayBuffer> {
@@ -43,7 +53,7 @@ export function multiplyAlpha(img: PixelImage, factor: number): Uint8ClampedArra
 /**
  * PDF user-space footprint of the kept crop region. Fractions are in the image's
  * displayed orientation (top-left origin), so the display top edge maps to y2 (PDF y-up).
- * Object-space math : exact for existing images, whose bounds-based ops treat the
+ * Object-space math — exact for existing images, whose bounds-based ops treat the
  * bitmap as axis-aligned in page space.
  */
 export function cropRect(rect: Rect, crop: CropFractions): [number, number, number, number] {

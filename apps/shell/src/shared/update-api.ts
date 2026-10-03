@@ -1,4 +1,4 @@
-﻿// Contract between the update window renderer (update.html) and the shell
+// Contract between the update window renderer (update.html) and the shell
 // main process. Update-dialog IPC surface:
 // get-state / download / install / later + a state-changed push event.
 
@@ -12,7 +12,7 @@ export const UPDATE_CHANNELS = {
 } as const
 
 /** 'manual' = automatic updating is not working for this version (repeated
- * failures, e.g. a signing-identity change the installed app refuses) : the
+ * failures, e.g. a signing-identity change the installed app refuses) — the
  * dialog guides the user to download the installer from the releases page */
 export type UpdatePhase = 'available' | 'downloading' | 'downloaded' | 'error' | 'manual'
 

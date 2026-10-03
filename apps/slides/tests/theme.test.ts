@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Design-tab theme gallery round-trip verification (= the engine path of the slides:apply-theme handler):
  * bake unsaved edits -> rewrite theme*.xml + remap explicit colors (entry surgery) ->
  * savePptx -> openPptx reparse. Scheme-referenced colors follow the new theme; explicit colors
@@ -107,7 +107,7 @@ describe('buildColorMap / recolorXml (explicit color remapping)', () => {
     const map = buildColorMap(
       new Map([
         ['1E5C31', 6], // dark green
-        ['E8F2EB', 4], // light green tint : low saturation but not gray; a light-tier neutral verdict is acceptable
+        ['E8F2EB', 4], // light green tint — low saturation but not gray; a light-tier neutral verdict is acceptable
         ['3C9A5F', 2], // mid green
       ]),
       spec,
@@ -146,7 +146,7 @@ describe('apply-theme round trip (bake → surgical patch → save → reopen an
       offset: { x: 914400, y: 914400, cx: 1828800, cy: 914400 },
       fillColor: '#217346',
     })
-    setSlideBackground(opened.deck.slides[0]!, '#FFFFFF')
+    setSlideBackground(opened, opened.deck.slides[0]!, '#FFFFFF')
 
     // = handler flow: bake unsaved edits first, then do the entry surgery
     opened = await openPptx(await savePptx(opened))

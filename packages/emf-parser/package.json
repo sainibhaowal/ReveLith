@@ -1,0 +1,24 @@
+{
+  "name": "@revelith/emf-parser",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "description": "EMF/EMF+ vector graphics parser for ReveLith",
+  "exports": {
+    ".": "./src/index.ts",
+    "./emf": "./src/emf.ts",
+    "./emfp": "./src/emfp.ts",
+    "./svg": "./src/svg.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

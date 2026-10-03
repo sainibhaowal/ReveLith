@@ -11,9 +11,22 @@ import {
   type ICellData,
   type IStyleData,
 } from '@univerjs/core'
-import { columnLabel } from '../domain/cell-address'
-import { transposeChartSeries, type ChartSeriesVisualState } from '../domain/chart-visual'
-import { applyFlashFillTemplate, inferFlashFillTemplate } from '../domain/flash-fill'
+import { IRenderManagerService, SHEET_VIEWPORT_KEY } from '@univerjs/engine-render'
+import { SheetSkeletonManagerService } from '@univerjs/preset-sheets-core'
+import { columnLabel, formatAddress } from '@revelith/xlsx-gateway/domain/cell-address'
+import type { WorkbookOperation } from '@revelith/xlsx-gateway/domain/workbook-dsl'
+import type { ApplyOutcome } from '@revelith/xlsx-gateway/domain/workbook.types'
+import { SET_ROW_IS_AUTO_HEIGHT_COMMAND } from './autofit-multi-row'
+import { fullColumnSpans, fullRowSpans } from './autofit-selection'
+import { nextSheetName } from './op-executor'
+import {
+  transposeChartSeries,
+  type ChartSeriesVisualState,
+} from '@revelith/xlsx-gateway/domain/chart-visual'
+import {
+  applyFlashFillTemplate,
+  inferFlashFillTemplate,
+} from '@revelith/xlsx-gateway/domain/flash-fill'
 import type {
   WorkbookChartEdit,
   WorkbookStyleEdit,
@@ -27,6 +40,8 @@ import {
   CHART_TYPE_COMMANDS,
 } from './app-constants'
 import {
+  handleApplyFormula,
+  handleCreateNamesFromSelection,
   handleFormatAsTable,
   handleImportCsv,
   handleOutline,
@@ -34,32 +49,42 @@ import {
   type DataToolsContext,
 } from './data-tools-actions'
 import { dedupeRows } from './dedupe'
+import { runStreamedErrorCheck } from './error-checking'
 import {
   isSheetRemoved,
   journalSize,
-  recordHyperlinkEdit,
+  NO_FILL_STYLE,
   recordNeutralStyleEdit,
   recordPageSetup,
-  recordSheetProtection,
   recordSparklineAdd,
+  recordStructuralOp,
+  removeStructuralOp,
+  recordWorkbookProtection,
   removeSparklineAdd,
 } from './edit-journal'
 import { applyShowFormulasView, formulaViewSheets } from './formula-view'
 import { t } from './i18n/locale'
+import { mergeWorkbooksIntoCurrent } from './merge-workbooks'
 import {
   handleOpenSlicerPicker,
   handleOpenTimelinePicker,
+  handleRefreshAllPivots,
   type PivotActionContext,
 } from './pivot-actions'
-import { INDENT_STEP_PX } from './selection-format'
+import { INDENT_STEP_PX, normalizeHexColor } from './selection-format'
 import { collectDependents, collectPrecedents, installTraceArrows } from './trace-arrows'
 import {
   absRangeRef,
   applyFormatPatchToRange,
   characterWidthToPixels,
+  attachVisualUndoToLastStep,
+  getScrollAnchor,
   normalizeLinkTarget,
+  topUndoElement,
   pushVisualUndo,
+  revealCellBelowFreeze,
   queueSparklineInstall,
+  workbookStructureLocked,
 } from './univer-sync'
 import {
   BORDER_COMMAND_TYPES,
@@ -81,6 +106,12 @@ import type { ChartDialogKind, ChartEditData, ShapeEditChanges } from './Workboo
 export interface RibbonCommandContext {
   univerRef: { readonly current: UniverRuntime | null }
   lazyWorkbookRef: { current: LazyWorkbookState | null }
+  /// Imported workbooks: run workbook DSL ops through the shared executor
+  /// (op-executor.ts), the same path AI proposals take.
+  runOps: (
+    ops: readonly WorkbookOperation[],
+    successMessage?: string | null,
+  ) => Promise<ApplyOutcome>
   traceArrowsRef: { current: { disposables: { dispose(): void }[]; nextId: number } }
   sparklineDisposablesRef: { current: { dispose(): void }[] }
   sparklineTimerRef: { current: ReturnType<typeof setTimeout> | null }
@@ -108,10 +139,10 @@ export interface RibbonCommandContext {
   dataToolsContext: () => DataToolsContext
   pivotContext: () => PivotActionContext
   handlePageLayoutCommand: (rest: string) => void
-  handleExportPdf: () => Promise<void>
+  handleExportPdf: () => Promise<boolean>
 }
 
-/// Resolves interned style references and merges row/col/sheet styles :
+/// Resolves interned style references and merges row/col/sheet styles —
 /// raw getCellData().s can be a style-id string with no fields on it.
 function selectionStyle(
   range: NonNullable<ReturnType<ActiveWorkbook['getActiveRange']>>,
@@ -124,6 +155,15 @@ function selectionStyle(
 /// the argument, because arguments like number-format patterns
 /// ("h:mm:ss AM/PM") legitimately contain colons.
 const EXTRA_SEGMENT_COMMANDS = new Set(['cellprot', 'sort-custom', 'border'])
+
+/// Univer's built-in header sizes, restored when headings toggle back on.
+const DEFAULT_ROW_HEADER_WIDTH = 46
+const DEFAULT_COLUMN_HEADER_HEIGHT = 20
+
+/// OOXML error literals (Formulas › Error Checking scans display values).
+const ERROR_VALUE_PATTERN = /^#(DIV\/0!|N\/A|NAME\?|NULL!|NUM!|REF!|VALUE!|SPILL!|CALC!)/
+/// Row-major ordinal for "next error after the active cell" (> max columns).
+const COLUMN_LIMIT = 20_000
 
 /// ST_BorderStyle names accepted by the Format Cells line-style picker.
 const BORDER_LINE_STYLE_TYPES: Record<string, BorderStyleTypes> = {
@@ -190,7 +230,7 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       if (legend) ctx.chartEditRef.current(editKey, { legend })
     } else if (command.startsWith('chart-labels:')) {
       const labels = CHART_LABEL_COMMANDS.find((mode) => command === `chart-labels:${mode}`)
-      // scatter/radar cannot save plot-level labels : fail here, not at ⌘S.
+      // scatter/radar cannot save plot-level labels — fail here, not at ⌘S.
       if (labels && ctx.selectedChart?.canLabel) {
         ctx.chartEditRef.current(editKey, { dataLabels: labels })
       }
@@ -302,6 +342,15 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
     case 'insert-sheet': {
       const workbook = runtime.univerAPI.getActiveWorkbook()
       if (!workbook) return
+      if (ctx.lazyWorkbookRef.current) {
+        const taken = workbook.getSheets().map((sheet) => sheet.getSheetName())
+        void ctx.runOps([{ op: 'add_sheet', name: nextSheetName(taken) }], t('appSheetAdded'))
+        return
+      }
+      if (workbookStructureLocked(ctx.lazyWorkbookRef.current)) {
+        ctx.setMessage(t('appWorkbookStructureLocked'))
+        return
+      }
       try {
         workbook.insertSheet()
         ctx.setMessage(t('appSheetAdded'))
@@ -335,21 +384,34 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       }
       const sheetId = worksheet?.getSheetId()
       if (!sheetId || isSheetRemoved(state.editJournal, sheetId)) return
-      const isAdded = state.editJournal.sheets.added.has(sheetId)
-      const file = state.sheetProtections.get(sheetId)
-      if (!file && !isAdded) {
-        ctx.setMessage(t('appProtectionNeedsIndexed'))
-        return
-      }
-      const original = file?.protected ?? false
+      const original = state.sheetProtections.get(sheetId)?.protected ?? false
       const current = state.editJournal.sheetProtection.get(sheetId) ?? original
-      if (current && file?.hasPassword) {
-        ctx.setMessage(t('appProtectedWithPassword'))
+      void ctx.runOps(
+        [{ op: 'protect_sheet', sheetId, protected: !current }],
+        !current ? t('appProtectionWillWrite') : t('appProtectionWillRemove'),
+      )
+      return
+    }
+    case 'workbook-protect': {
+      const state = ctx.lazyWorkbookRef.current
+      if (!state) {
+        ctx.setMessage(t('appProtectionNeedsFile'))
         return
       }
-      recordSheetProtection(state.editJournal, sheetId, !current, original)
+      const file = state.file.workbookProtection
+      const original = file?.lockStructure ?? false
+      const current = state.editJournal.workbookProtection.desired ?? original
+      // Locking would be as irreversible as unlocking is impossible: the
+      // gateway refuses to touch a password-bearing element either way.
+      if (file?.hasPassword) {
+        ctx.setMessage(t('appWorkbookProtectedWithPassword'))
+        return
+      }
+      recordWorkbookProtection(state.editJournal, !current, original)
       ctx.setPendingEdits(journalSize(state.editJournal))
-      ctx.setMessage(!current ? t('appProtectionWillWrite') : t('appProtectionWillRemove'))
+      ctx.setMessage(
+        !current ? t('appWorkbookProtectionWillWrite') : t('appWorkbookProtectionWillRemove'),
+      )
       return
     }
     case 'outline-group:rows':
@@ -395,6 +457,91 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       return
     case 'filter-toggle':
       void runtime.univerAPI.executeCommand('sheet.command.smart-toggle-filter')
+      return
+    case 'autofit-row-height':
+    case 'autofit-col-width': {
+      if (!worksheet) return
+      const selections = (worksheet.getSelection()?.getActiveRangeList() ?? []).map((range) =>
+        range.getRange(),
+      )
+      if (selections.length === 0) return
+      const ranges =
+        command === 'autofit-row-height'
+          ? fullRowSpans(selections, worksheet.getMaxColumns())
+          : fullColumnSpans(selections, worksheet.getMaxRows())
+      void runtime.univerAPI.executeCommand(
+        command === 'autofit-row-height'
+          ? SET_ROW_IS_AUTO_HEIGHT_COMMAND
+          : 'sheet.command.set-col-auto-width',
+        { ranges },
+      )
+      return
+    }
+    case 'refresh-all': {
+      const error = handleRefreshAllPivots(ctx.pivotContext())
+      if (error) ctx.setMessage(error)
+      return
+    }
+    case 'error-checking': {
+      const workbook = runtime.univerAPI.getActiveWorkbook()
+      if (!workbook || !worksheet) return
+      const lazyState = ctx.lazyWorkbookRef.current
+      if (lazyState && !lazyState.flags.preloadComplete) {
+        // Streamed: the cell matrix only holds loaded regions, so page the
+        // whole underlying file instead (same approach as Ctrl+F). The jump
+        // loads the hit's range before scrolling to it.
+        void runStreamedErrorCheck({
+          runtime,
+          lazyWorkbookRef: ctx.lazyWorkbookRef,
+          setMessage: ctx.setMessage,
+          refreshSelectionEcho: () => ctx.refreshSelectionFormatRef.current(),
+        })
+        return
+      }
+      const errors: { row: number; column: number; value: string }[] = []
+      worksheet
+        .getSheet()
+        .getCellMatrix()
+        .forValue((row, column, cell) => {
+          const value = cell?.v
+          if (typeof value === 'string' && ERROR_VALUE_PATTERN.test(value)) {
+            errors.push({ row, column, value })
+          }
+          return undefined
+        })
+      if (errors.length === 0) {
+        ctx.setMessage(t('appNoErrorsFound'))
+        return
+      }
+      // Step to the first error after the active cell, wrapping around, so
+      // repeated clicks cycle through all of them.
+      const active = workbook.getActiveRange()
+      const afterActive = active ? active.getRow() * COLUMN_LIMIT + active.getColumn() : -1
+      const next =
+        errors.find((error) => error.row * COLUMN_LIMIT + error.column > afterActive) ?? errors[0]
+      if (!next) return
+      worksheet.getRange(next.row, next.column, 1, 1).activate()
+      // Programmatic selection emits no SelectionChanged; refresh the echo.
+      ctx.refreshSelectionFormatRef.current()
+      void runtime.univerAPI.executeCommand('sheet.command.scroll-to-cell', {
+        range: {
+          startRow: next.row,
+          endRow: next.row,
+          startColumn: next.column,
+          endColumn: next.column,
+        },
+      })
+      ctx.setMessage(
+        t('appErrorsFound', {
+          count: errors.length,
+          cell: formatAddress(next.row, next.column),
+          value: next.value,
+        }),
+      )
+      return
+    }
+    case 'filter-reapply':
+      void runtime.univerAPI.executeCommand('sheet.command.re-calc-filter')
       return
     case 'filter-clear':
       void runtime.univerAPI.executeCommand('sheet.command.clear-filter-criteria')
@@ -445,9 +592,25 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       // journal snapshots the sheet's notes and ⌘S writes legacy comments.
       void runtime.univerAPI.executeCommand('sheet.operation.add-note-popup')
       return
-    case 'note-delete':
+    case 'note-delete': {
+      const active = runtime.univerAPI.getActiveWorkbook()?.getActiveRange()
+      if (ctx.lazyWorkbookRef.current && worksheet && active) {
+        void ctx.runOps(
+          [
+            {
+              op: 'set_note',
+              sheetId: worksheet.getSheetId(),
+              address: formatAddress(active.getRow(), active.getColumn()),
+              text: null,
+            },
+          ],
+          null,
+        )
+        return
+      }
       void runtime.univerAPI.executeCommand('sheet.command.delete-note')
       return
+    }
     case 'note-prev':
     case 'note-next': {
       const workbook = runtime.univerAPI.getActiveWorkbook()
@@ -472,7 +635,7 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
             notes[notes.length - 1])
       if (!target) return
       sheet.getRange(target.row, target.col, 1, 1).activate()
-      sheet.scrollToCell(target.row, target.col)
+      void revealCellBelowFreeze(sheet, target.row, target.col)
       void runtime.univerAPI.executeCommand('sheet.operation.add-note-popup')
       return
     }
@@ -492,19 +655,129 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       ctx.setMessage(t('appZoom', { percent: Math.round(next * 100) }))
       return
     }
+    case 'zoom-to-selection': {
+      const workbook = runtime.univerAPI.getActiveWorkbook()
+      const selection = workbook?.getActiveRange()?.getRange()
+      if (!workbook || !worksheet || !selection) {
+        ctx.setMessage(t('appSelectCellFirst'))
+        return
+      }
+      const render = runtime.univer
+        .__getInjector()
+        .get(IRenderManagerService)
+        .getRenderById(workbook.getId())
+      const skeleton = render?.with(SheetSkeletonManagerService).getCurrentSkeleton()
+      if (!render || !skeleton) return
+      const rows = skeleton.rowHeightAccumulation
+      const columns = skeleton.columnWidthAccumulation
+      // Accumulation arrays are unscaled; entry i is the bottom/right edge of
+      // line i, so the selection's extent is end-edge minus start-1-edge.
+      const top = selection.startRow > 0 ? (rows[selection.startRow - 1] ?? 0) : 0
+      const bottom = rows[Math.min(selection.endRow, rows.length - 1)] ?? 0
+      const left = selection.startColumn > 0 ? (columns[selection.startColumn - 1] ?? 0) : 0
+      const right = columns[Math.min(selection.endColumn, columns.length - 1)] ?? 0
+      const viewWidth = render.engine.width - skeleton.rowHeaderWidthAndMarginLeft
+      const viewHeight = render.engine.height - skeleton.columnHeaderHeightAndMarginTop
+      if (right <= left || bottom <= top || viewWidth <= 0 || viewHeight <= 0) return
+      const ratio = Math.min(
+        4,
+        Math.max(0.5, Math.min(viewWidth / (right - left), viewHeight / (bottom - top))),
+      )
+      // Scroll only after the zoom lands: the scroll target clamps against
+      // the viewport extents, and at the old ratio a selection near the grid
+      // edge clamps short and ends up off-screen.
+      void runtime.univerAPI
+        .executeCommand('sheet.command.set-zoom-ratio', {
+          unitId: workbook.getId(),
+          subUnitId: worksheet.getSheetId(),
+          zoomRatio: Number(ratio.toFixed(2)),
+        })
+        .then(() =>
+          runtime.univerAPI.executeCommand('sheet.command.scroll-to-cell', {
+            range: selection,
+            forceTop: true,
+            forceLeft: true,
+          }),
+        )
+      ctx.setMessage(t('appZoom', { percent: Math.round(ratio * 100) }))
+      return
+    }
+    case 'toggle-headings': {
+      const workbook = runtime.univerAPI.getActiveWorkbook()
+      if (!workbook || !worksheet) return
+      const sheetId = worksheet.getSheetId()
+      const config = worksheet.getSheet().getConfig()
+      const nextHidden = config.rowHeader.hidden !== BooleanNumber.TRUE
+      // The skeleton reads these on every rebuild (sheet switches, reloads);
+      // the two size commands below repaint the current view.
+      config.rowHeader.hidden = nextHidden ? BooleanNumber.TRUE : BooleanNumber.FALSE
+      config.columnHeader.hidden = nextHidden ? BooleanNumber.TRUE : BooleanNumber.FALSE
+      const unitId = workbook.getId()
+      // Univer's set-row-header-width infers the horizontal shift from the
+      // corner viewport's width with a `|| 46` fallback; after hiding, that
+      // reads 46 either way (stale value, or the fallback swallowing 0), so
+      // re-showing computes a zero shift and leaves the grid under the
+      // row-header strip. Record the expected viewport lefts and correct
+      // after the commands — a no-op whenever Univer shifts correctly.
+      const render = runtime.univer.__getInjector().get(IRenderManagerService).getRenderById(unitId)
+      const scene = render?.scene
+      const skeleton = render?.with(SheetSkeletonManagerService).getCurrentSkeleton()
+      const viewMain = scene?.getViewport(SHEET_VIEWPORT_KEY.VIEW_MAIN)
+      const viewColumnRight = scene?.getViewport(SHEET_VIEWPORT_KEY.VIEW_COLUMN_RIGHT)
+      const nextWidth = nextHidden ? 0 : DEFAULT_ROW_HEADER_WIDTH
+      const shift = skeleton ? nextWidth - skeleton.rowHeaderWidth : 0
+      const mainLeft = (viewMain?.left ?? 0) + shift
+      const columnRightLeft = (viewColumnRight?.left ?? 0) + shift
+      void Promise.all([
+        runtime.univerAPI.executeCommand('sheet.command.set-row-header-width', {
+          unitId,
+          subUnitId: sheetId,
+          size: nextWidth,
+        }),
+        runtime.univerAPI.executeCommand('sheet.command.set-col-header-height', {
+          unitId,
+          subUnitId: sheetId,
+          size: nextHidden ? 0 : DEFAULT_COLUMN_HEADER_HEIGHT,
+        }),
+      ]).then(() => {
+        if (!viewMain || viewMain.left === mainLeft) return
+        viewMain.left = mainLeft
+        viewColumnRight?.setViewportSize({ left: columnRightLeft })
+        scene?.makeDirty(true)
+      })
+      const state = ctx.lazyWorkbookRef.current
+      if (state && !isSheetRemoved(state.editJournal, sheetId)) {
+        recordPageSetup(state.editJournal, sheetId, { showHeadings: !nextHidden })
+        ctx.setPendingEdits(journalSize(state.editJournal))
+      }
+      ctx.setMessage(t(nextHidden ? 'appHeadingsHidden' : 'appHeadingsShown'))
+      return
+    }
     case 'freeze-top-row':
+      if (!worksheet) return
+      if (ctx.lazyWorkbookRef.current) {
+        void ctx.runOps(
+          [{ op: 'set_freeze', sheetId: worksheet.getSheetId(), rows: 1, columns: 0 }],
+          t('appTopRowFrozen'),
+        )
+        return
+      }
       // Freeze/gridline changes journal from their mutations (App listener),
       // so Univer's undo/redo keeps the journal in step.
-      if (worksheet) {
-        worksheet.setFreeze({ startRow: 1, startColumn: -1, xSplit: 0, ySplit: 1 })
-        ctx.setMessage(t('appTopRowFrozen'))
-      }
+      worksheet.setFreeze({ startRow: 1, startColumn: -1, xSplit: 0, ySplit: 1 })
+      ctx.setMessage(t('appTopRowFrozen'))
       return
     case 'freeze-first-col':
-      if (worksheet) {
-        worksheet.setFreeze({ startRow: -1, startColumn: 1, xSplit: 1, ySplit: 0 })
-        ctx.setMessage(t('appFirstColFrozen'))
+      if (!worksheet) return
+      if (ctx.lazyWorkbookRef.current) {
+        void ctx.runOps(
+          [{ op: 'set_freeze', sheetId: worksheet.getSheetId(), rows: 0, columns: 1 }],
+          t('appFirstColFrozen'),
+        )
+        return
       }
+      worksheet.setFreeze({ startRow: -1, startColumn: 1, xSplit: 1, ySplit: 0 })
+      ctx.setMessage(t('appFirstColFrozen'))
       return
     case 'replace':
       // Replacing over a partially streamed workbook would silently skip
@@ -597,8 +870,7 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
         )
         return
       }
-      const wbSnapshot = typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
-      const result = collectDependents(wbSnapshot, worksheet.getSheetName(), {
+      const result = collectDependents(workbook.getSnapshot(), worksheet.getSheetName(), {
         row,
         column,
       })
@@ -641,7 +913,7 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
     case 'workbook-statistics': {
       const workbook = runtime.univerAPI.getActiveWorkbook()
       if (!workbook) return
-      const snapshot = typeof workbook.save === 'function' ? workbook.save() : workbook.getSnapshot()
+      const snapshot = workbook.getSnapshot()
       let cells = 0
       let formulas = 0
       for (const sheet of Object.values(snapshot.sheets)) {
@@ -670,19 +942,43 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
     }
     case 'freeze-here': {
       const active = runtime.univerAPI.getActiveWorkbook()?.getActiveRange()
+      if (worksheet && active && ctx.lazyWorkbookRef.current) {
+        void ctx.runOps(
+          [
+            {
+              op: 'set_freeze',
+              sheetId: worksheet.getSheetId(),
+              rows: active.getRow(),
+              columns: active.getColumn(),
+            },
+          ],
+          t('appFrozenAtSelection'),
+        )
+        return
+      }
       if (worksheet && active) {
+        const rows = active.getRow()
+        const columns = active.getColumn()
         worksheet.setFreeze({
-          startRow: active.getRow(),
-          startColumn: active.getColumn(),
-          xSplit: active.getColumn(),
-          ySplit: active.getRow(),
+          startRow: rows > 0 ? rows : -1,
+          startColumn: columns > 0 ? columns : -1,
+          xSplit: columns,
+          ySplit: rows,
         })
         ctx.setMessage(t('appFrozenAtSelection'))
       }
       return
     }
     case 'unfreeze':
-      if (worksheet) worksheet.cancelFreeze()
+      if (!worksheet) return
+      if (ctx.lazyWorkbookRef.current) {
+        void ctx.runOps(
+          [{ op: 'set_freeze', sheetId: worksheet.getSheetId(), rows: 0, columns: 0 }],
+          null,
+        )
+        return
+      }
+      worksheet.cancelFreeze()
       return
     case 'insert-row-here':
     case 'delete-row-here':
@@ -691,6 +987,21 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       const active = runtime.univerAPI.getActiveWorkbook()?.getActiveRange()
       if (!worksheet || !active) {
         ctx.setMessage(t('appSelectCellFirst'))
+        return
+      }
+      if (ctx.lazyWorkbookRef.current) {
+        const sheetId = worksheet.getSheetId()
+        const row = active.getRow() + 1
+        const column = columnLabel(active.getColumn())
+        const op: WorkbookOperation =
+          command === 'insert-row-here'
+            ? { op: 'insert_rows', sheetId, row, count: 1 }
+            : command === 'delete-row-here'
+              ? { op: 'delete_rows', sheetId, row, count: 1 }
+              : command === 'insert-col-here'
+                ? { op: 'insert_cols', sheetId, column, count: 1 }
+                : { op: 'delete_cols', sheetId, column, count: 1 }
+        void ctx.runOps([op], null)
         return
       }
       try {
@@ -709,6 +1020,37 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
   }
   if (command.startsWith('format-as-table:')) {
     handleFormatAsTable(ctx.dataToolsContext(), command.slice('format-as-table:'.length))
+    return
+  }
+  if (command.startsWith('use-in-formula:')) {
+    // Unlike Excel, this commits immediately instead of opening the editor,
+    // so a non-empty cell (say, the header a Create-from-Selection left
+    // selected) would silently lose its formula or value — refuse instead.
+    const workbook = runtime.univerAPI.getActiveWorkbook()
+    const active = workbook?.getActiveRange()
+    if (!workbook || !worksheet || !active) {
+      ctx.setMessage(t('appSelectCellFirst'))
+      return
+    }
+    const cell = worksheet.getRange(active.getRow(), active.getColumn(), 1, 1)
+    const value = cell.getValue()
+    if (cell.getFormula() || (value != null && value !== '')) {
+      ctx.setMessage(t('appUseInFormulaNeedsEmptyCell'))
+      return
+    }
+    // Defined names contain no colons, so the remainder is the whole name.
+    const error = handleApplyFormula(
+      ctx.dataToolsContext(),
+      `=${command.slice('use-in-formula:'.length)}`,
+    )
+    if (error) ctx.setMessage(error)
+    return
+  }
+  if (command === 'create-names:top' || command === 'create-names:left') {
+    handleCreateNamesFromSelection(
+      ctx.dataToolsContext(),
+      command === 'create-names:top' ? 'top' : 'left',
+    )
     return
   }
   if (command.startsWith('cell-style:')) {
@@ -798,12 +1140,109 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
     }
     return
   }
+  // Excel's PageUp/PageDown (Alt+ = one screen left/right): move the active
+  // cell by one viewport of rows/columns and scroll the view with it, keeping
+  // the cell's on-screen position.
+  if (command.startsWith('page-row:') || command.startsWith('page-col:')) {
+    const horizontal = command.startsWith('page-col:')
+    const direction = command.endsWith(':-1') ? -1 : 1
+    const workbook = runtime.univerAPI.getActiveWorkbook()
+    const sheet = workbook?.getActiveSheet()
+    const active = workbook?.getActiveRange()
+    if (!workbook || !sheet || !active) return
+    // typing in a cell: PageUp/Down belongs to the editor, not navigation
+    const editing = workbook as unknown as { isCellEditing?(): boolean }
+    if (editing.isCellEditing?.()) return
+    let visible: {
+      startRow: number
+      endRow: number
+      startColumn: number
+      endColumn: number
+    } | null = null
+    try {
+      visible = sheet.getVisibleRange()
+    } catch {
+      /* no scroll render controller yet (still booting) */
+    }
+    if (!visible) return
+    const page = horizontal
+      ? Math.max(1, visible.endColumn - visible.startColumn)
+      : Math.max(1, visible.endRow - visible.startRow)
+    const maxRow = sheet.getMaxRows() - 1
+    const maxColumn = sheet.getMaxColumns() - 1
+    const clamp = (value: number, max: number): number => Math.min(max, Math.max(0, value))
+    const row = horizontal ? active.getRow() : clamp(active.getRow() + direction * page, maxRow)
+    const column = horizontal
+      ? clamp(active.getColumn() + direction * page, maxColumn)
+      : active.getColumn()
+    // Anchor from the scroll state, not visible.start*: on RTL sheets
+    // getVisibleRange().startColumn is not what scrollToCell anchors, and a
+    // vertical page must keep the horizontal scroll bit-exact (and vice
+    // versa). Paging keeps logical direction, like the arrow keys.
+    const rtl = sheet.getSheet().getConfig().rightToLeft === BooleanNumber.TRUE
+    const anchor = getScrollAnchor(workbook, sheet) ?? {
+      row: visible.startRow,
+      column: rtl ? visible.endColumn : visible.startColumn,
+    }
+    // The RTL scroll state records home as a flush-right sentinel (column 0).
+    // scrollToCell round-trips it absolutely (vertical pages keep it so the
+    // horizontal position stays capped at exactly flush), but horizontal page
+    // arithmetic needs the true visually-left column.
+    const anchorColumn =
+      rtl && horizontal ? Math.max(anchor.column, visible.endColumn) : anchor.column
+    const viewRow = horizontal ? anchor.row : clamp(anchor.row + direction * page, maxRow)
+    const viewColumn = horizontal
+      ? clamp(anchorColumn + direction * page, maxColumn)
+      : anchor.column
+    workbook.setActiveRange(sheet.getRange(row, column))
+    sheet.scrollToCell(viewRow, viewColumn)
+    return
+  }
   const range = runtime.univerAPI.getActiveWorkbook()?.getActiveRange()
   if (!range) {
     ctx.setMessage(t('appSelectRangeFirst'))
     return
   }
   const { name, argument, extra } = parseStyleCommand(command)
+  // Excel persists select-all / full-column formatting as the columns'
+  // DEFAULT format: new cells inherit it at any row, forever. Univer only
+  // materializes styles onto cells within the current grid bounds, so
+  // without this a reopened workbook types in the theme font again (r124),
+  // and a column whose <col style=> carried a fill shows it again below the
+  // grid after No Fill.
+  const recordFullHeightColumnStyle = (delta: WorkbookStyleEdit, undoTopBefore: unknown): void => {
+    const state = ctx.lazyWorkbookRef.current
+    const sheet = runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()
+    const sheetId = sheet?.getSheetId()
+    if (!state || !sheet || !sheetId || isSheetRemoved(state.editJournal, sheetId)) return
+    if (range.getRow() !== 0 || range.getHeight() < sheet.getMaxRows()) return
+    const op = {
+      kind: 'set-col-style' as const,
+      start: range.getColumn(),
+      end: range.getColumn() + range.getWidth() - 1,
+      style: delta,
+    }
+    recordStructuralOp(state.editJournal, sheetId, op)
+    ctx.setPendingEdits(journalSize(state.editJournal))
+    // ⌘Z must also retract the column default, or a save after undo would
+    // still write <col style> and new cells would inherit the undone format.
+    // Attached to the font command's own undo entry: one press reverts the
+    // whole action, and no extra undo-carry truncation point appears
+    attachVisualUndoToLastStep(
+      runtime,
+      {
+        undo: () => {
+          removeStructuralOp(state.editJournal, sheetId, op)
+          ctx.setPendingEdits(journalSize(state.editJournal))
+        },
+        redo: () => {
+          recordStructuralOp(state.editJournal, sheetId, op)
+          ctx.setPendingEdits(journalSize(state.editJournal))
+        },
+      },
+      undoTopBefore,
+    )
+  }
   try {
     const style = selectionStyle(range)
     switch (name) {
@@ -867,8 +1306,8 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       case 'align':
         // justify/distributed set the raw style key (same mutation shape,
         // journals identically). The facade helper only accepts
-        // 'left' | 'center' | 'normal' : and 'normal' (confusingly) maps to
-        // RIGHT : so translate 'right' before calling it; anything else
+        // 'left' | 'center' | 'normal' — and 'normal' (confusingly) maps to
+        // RIGHT — so translate 'right' before calling it; anything else
         // would hit its throwing default branch.
         if (argument === 'justify' || argument === 'distributed') {
           range.setValue({
@@ -898,7 +1337,7 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
         break
       }
       case 'cellprot': {
-        // No Univer model for cell protection : journal the neutral delta
+        // No Univer model for cell protection — journal the neutral delta
         // directly. File-only: not rendered, not undoable.
         const state = ctx.lazyWorkbookRef.current
         if (!state) {
@@ -930,7 +1369,37 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
         ctx.setMessage(t('appProtectionFlagsRecorded'))
         return
       }
-      case 'merge':
+      case 'merge': {
+        const sheet = runtime.univerAPI.getActiveWorkbook()?.getActiveSheet()
+        // Merge Across stays on Univer's command: there is no merge_across op
+        // yet, and one merge_cells per row would fan a whole-column selection
+        // out into a million ops.
+        if (ctx.lazyWorkbookRef.current && sheet && argument !== 'across') {
+          const sheetId = sheet.getSheetId()
+          const top = range.getRow()
+          const left = range.getColumn()
+          const bottom = top + range.getHeight() - 1
+          const right = left + range.getWidth() - 1
+          const a1 = `${columnLabel(left)}${top + 1}:${columnLabel(right)}${bottom + 1}`
+          const ops: WorkbookOperation[] =
+            argument === 'unmerge'
+              ? [{ op: 'unmerge_cells', sheetId, range: a1 }]
+              : [{ op: 'merge_cells', sheetId, range: a1 }]
+          if (argument === 'center') {
+            // The merged cell renders its anchor's format; formatting only the
+            // anchor also keeps whole-column merges under the range-op cap.
+            ops.push({
+              op: 'format_range',
+              sheetId,
+              range: `${columnLabel(left)}${top + 1}`,
+              format: { horizontalAlign: 'center' },
+            })
+          }
+          // return, not break: the post-switch notice must not land before
+          // the async apply (or over a gate refusal)
+          void ctx.runOps(ops, t('appAppliedToSelection'))
+          return
+        }
         if (argument === 'unmerge') {
           range.breakApart()
         } else if (argument === 'across') {
@@ -940,22 +1409,56 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
           if (argument === 'center') range.setHorizontalAlignment('center')
         }
         break
+      }
       case 'format':
         range.setNumberFormat(argument)
         break
-      case 'font-family':
+      case 'font-family': {
+        const undoTopBefore = topUndoElement(runtime)
         range.setFontFamily(argument)
+        if (argument.length > 0 && argument.length <= 128) {
+          recordFullHeightColumnStyle({ fontFamily: argument }, undoTopBefore)
+        }
         break
-      case 'font-size':
-        range.setFontSize(Number(argument))
+      }
+      case 'font-size': {
+        const sizePt = Number(argument)
+        const undoTopBefore = topUndoElement(runtime)
+        range.setFontSize(sizePt)
+        if (Number.isFinite(sizePt) && sizePt > 0 && sizePt <= 409) {
+          recordFullHeightColumnStyle({ fontSize: sizePt }, undoTopBefore)
+        }
         break
-      case 'fill':
-        // The facade types demand a string, but null is the documented way
-        // to clear the background (mirrors setFontWeight(null) above).
-        range.setBackground((argument === 'none' ? null : argument) as unknown as string)
+      }
+      case 'fill': {
+        const undoTopBefore = topUndoElement(runtime)
+        if (argument === 'none') {
+          // setBackground(null) reaches the mutation as bg: { rgb: null },
+          // which removeNull strips to a MISSING bg — and a <col style=> fill
+          // composes straight back through the cell the user just cleared.
+          // Pin the clear with the empty-rgb sentinel instead. SetStyleCommand
+          // (not range.setValue) so filtered-out rows stay untouched, exactly
+          // like the facade helper.
+          const workbook = runtime.univerAPI.getActiveWorkbook()
+          if (!workbook || !worksheet) return
+          runtime.univerAPI.syncExecuteCommand('sheet.command.set-style', {
+            unitId: workbook.getId(),
+            subUnitId: worksheet.getSheetId(),
+            range: range.getRange(),
+            style: { type: 'bg', value: { ...NO_FILL_STYLE } },
+          })
+          recordFullHeightColumnStyle({ fillColor: null }, undoTopBefore)
+        } else {
+          range.setBackground(argument)
+          const fillColor = normalizeHexColor(argument)
+          if (fillColor) recordFullHeightColumnStyle({ fillColor }, undoTopBefore)
+        }
         break
+      }
       case 'font-color':
-        range.setFontColor(argument)
+        // 'auto' clears the explicit color back to the default (Excel's
+        // Automatic); null is the documented reset, same as setBackground
+        range.setFontColor((argument === 'auto' ? null : argument) as unknown as string)
         break
       case 'sort': {
         if (range.getHeight() < 2) {
@@ -999,6 +1502,52 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
             .setFormula(`=${argument}(${letter}${startRow + 1}:${letter}${lastRow + 1})`)
         }
         ctx.setMessage(t('appAutofnInserted', { fn: argument }))
+        return
+      }
+      case 'merge-workbooks': {
+        const runtime = ctx.univerRef.current
+        if (!runtime) return
+        void mergeWorkbooksIntoCurrent({
+          runtime,
+          lazyWorkbookRef: ctx.lazyWorkbookRef,
+          setMessage: ctx.setMessage,
+        })
+        return
+      }
+      case 'insert-now': {
+        // Excel's Ctrl+; / Ctrl+Shift+;: static current date / time into the
+        // ACTIVE cell (not the selection origin) as a real serial with a
+        // date/time format (silent, like Excel — typing-equivalent write, so
+        // the streaming guards apply).
+        if (!worksheet) return
+        const now = new Date()
+        const localAsUtc = Date.UTC(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          now.getHours(),
+          now.getMinutes(),
+          now.getSeconds(),
+        )
+        const serial = (localAsUtc - Date.UTC(1899, 11, 30)) / 86400000
+        const primary = ctx.univerRef.current?.univerAPI
+          .getActiveWorkbook()
+          ?.getActiveSheet()
+          ?.getSelection()
+          ?.getCurrentCell()
+        const cell = worksheet.getRange(
+          primary?.actualRow ?? range.getRow(),
+          primary?.actualColumn ?? range.getColumn(),
+        )
+        if (argument === 'time') {
+          cell.setValue(serial - Math.floor(serial))
+          cell.setNumberFormat('h:mm')
+        } else {
+          // 1904-system workbooks store serials 1462 days lower
+          const dayShift = ctx.lazyWorkbookRef.current?.file.date1904 === true ? 1462 : 0
+          cell.setValue(Math.floor(serial) - dayShift)
+          cell.setNumberFormat('yyyy/m/d')
+        }
         return
       }
       case 'sort-custom': {
@@ -1066,7 +1615,7 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
           worksheet
             .getRange(startRow + offset, startColumn, 1, range.getWidth())
             // null clears the cell (the facade type omits it, the runtime
-            // treats it as a full delete : same as Clear All).
+            // treats it as a full delete — same as Clear All).
             .setValues([[...row]] as unknown as ICellData[][])
         }
         ctx.setMessage(t('appDuplicatesRemoved', { count: removed }))
@@ -1080,28 +1629,21 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
           return
         }
         const sheetId = worksheet.getSheetId()
-        const row = range.getRow()
-        const column = range.getColumn()
-        if (name === 'link-remove') {
-          recordHyperlinkEdit(state.editJournal, sheetId, row, column, null)
-          state.hyperlinkTargets.get(sheetId)?.delete(`${row}:${column}`)
-          // Excel's Remove Hyperlink also clears the link look.
-          range.setValue({ s: { ul: null, cl: null } } as unknown as ICellData)
-          ctx.setMessage(t('appLinkRemoved'))
-        } else {
-          const target = normalizeLinkTarget(decodeURIComponent(argument))
+        const address = formatAddress(range.getRow(), range.getColumn())
+        let target: string | null = null
+        if (name === 'link-set') {
+          target = normalizeLinkTarget(decodeURIComponent(argument))
           if (target === null) {
             ctx.setMessage(t('appLinkInvalid'))
             return
           }
-          recordHyperlinkEdit(state.editJournal, sheetId, row, column, target)
-          range.setValue({
-            s: { cl: { rgb: '#0563C1' }, ul: { s: BooleanNumber.TRUE } },
-          } as unknown as ICellData)
-          ctx.setMessage(t('appLinkSaved'))
         }
-        ctx.setPendingEdits(journalSize(state.editJournal))
-        ctx.refreshSelectionFormatRef.current()
+        void ctx
+          .runOps(
+            [{ op: 'set_hyperlink', sheetId, address, target }],
+            target === null ? t('appLinkRemoved') : t('appLinkSaved'),
+          )
+          .then(() => ctx.refreshSelectionFormatRef.current())
         return
       }
       case 'rotate': {
@@ -1233,7 +1775,6 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
             ctx.lazyWorkbookRef,
             ctx.sparklineDisposablesRef,
             ctx.sparklineTimerRef,
-            sheetId,
           )
         }
         pushVisualUndo(runtime, {
@@ -1273,7 +1814,7 @@ export function handleRibbonCommand(ctx: RibbonCommandContext, command: string):
       case 'border': {
         const type = BORDER_COMMAND_TYPES[argument]
         if (!type) return
-        // `extra` is "<#color>[:<line-style>]" : the ribbon sends only the
+        // `extra` is "<#color>[:<line-style>]" — the ribbon sends only the
         // color, the Format Cells dialog appends an ST_BorderStyle name
         const [colorPart = '', stylePart = ''] = extra.split(':')
         const borderStyle =

@@ -1,4 +1,4 @@
-﻿/// Electron 43 pins file dialogs without an explicit `defaultPath` to the
+/// Electron 43 pins file dialogs without an explicit `defaultPath` to the
 /// user's Downloads folder and no longer lets the OS restore the last-used
 /// directory between invocations (electron/electron#49868). These wrappers
 /// restore the pre-43 behavior the way the Electron breaking-changes guide
@@ -17,7 +17,7 @@ import type {
 
 // Keyed by the dialog module so tests with fake dialogs stay isolated. Each
 // app bundles its own copy of this module, so the memory is scoped per
-// editor : close enough to the per-app directory tracking the OS did before.
+// editor — close enough to the per-app directory tracking the OS did before.
 const lastUsedDirectoryByDialog = new WeakMap<Dialog, string>()
 
 function withRememberedDirectory<T extends OpenDialogOptions | SaveDialogOptions>(
@@ -56,6 +56,20 @@ export async function showOpenDialogWithMemory(
     )
   }
   return result
+}
+
+/**
+ * Save As suggestion for a document that was opened from `sourcePath`: the
+ * same folder with the suggested name (Word parity — Save As starts where the
+ * document lives, not in the last-used or default folder). Falls back to the
+ * bare name, which `withRememberedDirectory` then anchors, when the document
+ * has never been on disk.
+ */
+export function saveAsSuggestion(
+  sourcePath: string | null | undefined,
+  defaultName: string,
+): string {
+  return sourcePath ? join(dirname(sourcePath), defaultName) : defaultName
 }
 
 export async function showSaveDialogWithMemory(

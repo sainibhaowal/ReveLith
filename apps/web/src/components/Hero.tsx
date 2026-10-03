@@ -1,5 +1,5 @@
 import React from 'react'
-import { Download, ArrowRight, CheckCircle2, Lock, Cpu, Zap, Shield, Star } from 'lucide-react'
+import { Download, ArrowRight, CheckCircle2, Lock, Cpu, Shield, Star } from 'lucide-react'
 import { GithubIcon } from './GithubIcon'
 import { GITHUB_REPO_URL, LATEST_VERSION, APP_MODULES } from '../data/suite-data'
 
@@ -14,17 +14,26 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
       {/* Background blobs */}
       <div
         className="absolute top-[-100px] left-[-150px] w-[700px] h-[700px] rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse, rgba(108,71,255,0.1) 0%, transparent 70%)', filter: 'blur(40px)' }}
+        style={{
+          background: 'radial-gradient(ellipse, rgba(108,71,255,0.1) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }}
         aria-hidden="true"
       />
       <div
         className="absolute top-[10%] right-[-100px] w-[500px] h-[500px] rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse, rgba(0,180,216,0.08) 0%, transparent 70%)', filter: 'blur(40px)' }}
+        style={{
+          background: 'radial-gradient(ellipse, rgba(0,180,216,0.08) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }}
         aria-hidden="true"
       />
       <div
         className="absolute bottom-0 left-[50%] w-[600px] h-[400px] rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse, rgba(255,107,53,0.07) 0%, transparent 70%)', filter: 'blur(40px)' }}
+        style={{
+          background: 'radial-gradient(ellipse, rgba(255,107,53,0.07) 0%, transparent 70%)',
+          filter: 'blur(40px)',
+        }}
         aria-hidden="true"
       />
 
@@ -37,7 +46,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#6c47ff] opacity-60" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#6c47ff]" />
             </span>
-            <span className="text-xs font-semibold text-[#4a3d6d]">New — Offline-First Native AI Architecture</span>
+            <span className="text-xs font-semibold text-[#4a3d6d]">
+              New — Offline-First Native AI Architecture
+            </span>
             <span className="text-[11px] font-mono font-bold text-[#6c47ff] bg-[#f3f0ff] px-2 py-0.5 rounded-full border border-[#ddd5ff]">
               {LATEST_VERSION}
             </span>
@@ -56,11 +67,24 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
           {/* Subtext */}
           <p className="text-[15px] sm:text-[18px] text-[#4a3d6d] max-w-[580px] mx-auto mb-6 sm:mb-7 leading-[1.6] sm:leading-[1.7]">
             Edit real{' '}
-            <span className="font-mono font-semibold text-[#0077b6] bg-[#dff0fb] px-1.5 py-0.5 rounded-md">.docx</span>,{' '}
-            <span className="font-mono font-semibold text-[#059669] bg-[#d1fae5] px-1.5 py-0.5 rounded-md">.xlsx</span>,{' '}
-            <span className="font-mono font-semibold text-[#d97706] bg-[#fef3c7] px-1.5 py-0.5 rounded-md">.pptx</span>,{' '}
-            <span className="font-mono font-semibold text-[#e11d48] bg-[#ffe4e6] px-1.5 py-0.5 rounded-md">.pdf</span>{' '}
-            &amp; Markdown with <strong className="text-[#1a0a3d]">100% byte-preserving fidelity</strong> — powered by Rust &amp; local AI.
+            <span className="font-mono font-semibold text-[#0077b6] bg-[#dff0fb] px-1.5 py-0.5 rounded-md">
+              .docx
+            </span>
+            ,{' '}
+            <span className="font-mono font-semibold text-[#059669] bg-[#d1fae5] px-1.5 py-0.5 rounded-md">
+              .xlsx
+            </span>
+            ,{' '}
+            <span className="font-mono font-semibold text-[#d97706] bg-[#fef3c7] px-1.5 py-0.5 rounded-md">
+              .pptx
+            </span>
+            ,{' '}
+            <span className="font-mono font-semibold text-[#e11d48] bg-[#ffe4e6] px-1.5 py-0.5 rounded-md">
+              .pdf
+            </span>{' '}
+            &amp; Markdown with{' '}
+            <strong className="text-[#1a0a3d]">100% byte-preserving fidelity</strong> — powered by
+            Rust &amp; local AI.
           </p>
 
           {/* CTAs */}
@@ -93,9 +117,15 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
               { icon: <Lock className="w-3 h-3 text-[#059669]" />, label: 'Zero Telemetry' },
               { icon: <Cpu className="w-3 h-3 text-[#d97706]" />, label: 'Local AI' },
               { icon: <Shield className="w-3 h-3 text-[#e11d48]" />, label: 'Apache 2.0' },
-              { icon: <Star className="w-3 h-3 text-[#6c47ff] fill-[#6c47ff]" />, label: 'Open Source' },
+              {
+                icon: <Star className="w-3 h-3 text-[#6c47ff] fill-[#6c47ff]" />,
+                label: 'Open Source',
+              },
             ].map((b, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-[#e4e0f7]">
+              <span
+                key={i}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-[#e4e0f7]"
+              >
                 {b.icon}
                 {b.label}
               </span>
@@ -121,7 +151,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
                     key={mod.id}
                     onClick={() => {
                       onSelectModule(mod.id)
-                      document.getElementById('suite-preview')?.scrollIntoView({ behavior: 'smooth' })
+                      document
+                        .getElementById('suite-preview')
+                        ?.scrollIntoView({ behavior: 'smooth' })
                     }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition-all duration-150 animate-fade-in-up"
                     style={{
@@ -140,8 +172,12 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
               </div>
               {/* Status indicators */}
               <div className="flex items-center gap-3 shrink-0">
-                <span className="text-[10px] font-mono text-[#7c6fa0]">Save Drift: <span className="text-[#059669] font-bold">0.00%</span></span>
-                <span className="text-[10px] font-mono text-[#7c6fa0]">Parse: <span className="text-[#6c47ff] font-bold">14ms</span></span>
+                <span className="text-[10px] font-mono text-[#7c6fa0]">
+                  Save Drift: <span className="text-[#059669] font-bold">0.00%</span>
+                </span>
+                <span className="text-[10px] font-mono text-[#7c6fa0]">
+                  Parse: <span className="text-[#6c47ff] font-bold">14ms</span>
+                </span>
                 <div className="flex items-center gap-1 text-[10px] font-semibold text-[#059669]">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
                   AI Ready
@@ -153,20 +189,35 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
             <div className="flex h-[300px] sm:h-[340px]">
               {/* Sidebar */}
               <div className="w-[180px] shrink-0 border-r border-[#f0ecff] bg-[#fafbff] p-3 hidden sm:block">
-                <div className="text-[9px] font-bold uppercase tracking-widest text-[#b4abcc] mb-2 px-1">Documents</div>
-                {['Q3_Architecture.docx', 'Financials_2026.xlsx', 'Pitch_Deck.pptx', 'Contract_v4.pdf'].map((f, i) => (
+                <div className="text-[9px] font-bold uppercase tracking-widest text-[#b4abcc] mb-2 px-1">
+                  Documents
+                </div>
+                {[
+                  'Q3_Architecture.docx',
+                  'Financials_2026.xlsx',
+                  'Pitch_Deck.pptx',
+                  'Contract_v4.pdf',
+                ].map((f, i) => (
                   <div
                     key={f}
                     className={`flex items-center gap-2 px-2 py-1.5 rounded-lg mb-0.5 text-[11px] ${i === 0 ? 'bg-[#f3f0ff] text-[#6c47ff] font-semibold' : 'text-[#7c6fa0] hover:bg-[#f9f7ff]'} transition-colors`}
                   >
-                    <img src={APP_MODULES[Math.min(i, APP_MODULES.length - 1)].icon} alt="" className="w-3 h-3 shrink-0" />
+                    <img
+                      src={APP_MODULES[Math.min(i, APP_MODULES.length - 1)].icon}
+                      alt=""
+                      className="w-3 h-3 shrink-0"
+                    />
                     <span className="truncate">{f}</span>
                   </div>
                 ))}
                 <div className="mt-4 px-1">
-                  <div className="text-[9px] font-bold uppercase tracking-widest text-[#b4abcc] mb-2">AI Copilot</div>
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-[#b4abcc] mb-2">
+                    AI Copilot
+                  </div>
                   <div className="text-[10px] text-[#7c6fa0] leading-relaxed bg-[#f3f0ff] rounded-lg p-2 border border-[#ddd5ff]">
-                    ✦ Local Llama 3.1<br />✦ Zero telemetry<br />✦ Context-aware
+                    ✦ Local Llama 3.1
+                    <br />✦ Zero telemetry
+                    <br />✦ Context-aware
                   </div>
                 </div>
               </div>
@@ -174,23 +225,41 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
               {/* Document editor */}
               <div className="flex-1 bg-white p-5 overflow-hidden">
                 <div className="max-w-lg">
-                  <div className="text-[11px] font-mono text-[#b4abcc] mb-3">Q3_Engineering_Architecture_Report.docx</div>
+                  <div className="text-[11px] font-mono text-[#b4abcc] mb-3">
+                    Q3_Engineering_Architecture_Report.docx
+                  </div>
 
                   {/* Simulated rich document content */}
-                  <h2 className="text-[18px] font-bold text-[#1a0a3d] mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+                  <h2
+                    className="text-[18px] font-bold text-[#1a0a3d] mb-2"
+                    style={{ fontFamily: 'var(--font-heading)' }}
+                  >
                     Executive Architecture Summary
                   </h2>
                   <div className="flex items-center gap-4 mb-3">
-                    <span className="text-[10px] px-2 py-0.5 bg-[#f3f0ff] text-[#6c47ff] rounded font-semibold border border-[#ddd5ff]">v3.2.1 Final</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-[#f3f0ff] text-[#6c47ff] rounded font-semibold border border-[#ddd5ff]">
+                      v3.2.1 Final
+                    </span>
                     <span className="text-[10px] text-[#7c6fa0]">Updated: Aug 24 · 42 MB</span>
                     <span className="text-[10px] font-semibold text-[#059669]">✓ Byte-Match</span>
                   </div>
                   <div className="space-y-2 text-[12px] text-[#4a3d6d] leading-relaxed">
-                    <p>ReveLith implements a <strong className="text-[#1a0a3d]">micro-kernel document model</strong> that maps OOXML blocks into isolated memory structures. By generating delta-patches on save, all embedded macros, shapes, and custom XML parts remain <strong className="text-[#059669]">100% byte-for-byte identical</strong>.</p>
+                    <p>
+                      ReveLith implements a{' '}
+                      <strong className="text-[#1a0a3d]">micro-kernel document model</strong> that
+                      maps OOXML blocks into isolated memory structures. By generating delta-patches
+                      on save, all embedded macros, shapes, and custom XML parts remain{' '}
+                      <strong className="text-[#059669]">100% byte-for-byte identical</strong>.
+                    </p>
                     <div className="pl-3 border-l-2 border-[#6c47ff]/30 text-[#7c6fa0] italic text-[11px]">
-                      "Zero re-serialization. Only the delta patch stream touches the source container."
+                      "Zero re-serialization. Only the delta patch stream touches the source
+                      container."
                     </div>
-                    <p>The patented zero-drift engine verifies every save with a cryptographic checksum against the original ZIP stream, <strong>guaranteeing</strong> no format corruption even across 10,000 round-trips.</p>
+                    <p>
+                      The patented zero-drift engine verifies every save with a cryptographic
+                      checksum against the original ZIP stream, <strong>guaranteeing</strong> no
+                      format corruption even across 10,000 round-trips.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -198,7 +267,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
               {/* AI panel */}
               <div className="w-[220px] shrink-0 border-l border-[#f0ecff] bg-[#fafbff] p-4 hidden lg:flex flex-col">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-6 h-6 rounded-lg bg-[#f3f0ff] flex items-center justify-center text-[10px]">✦</div>
+                  <div className="w-6 h-6 rounded-lg bg-[#f3f0ff] flex items-center justify-center text-[10px]">
+                    ✦
+                  </div>
                   <div>
                     <div className="text-[11px] font-bold text-[#1a0a3d]">AI Copilot</div>
                     <div className="text-[9px] text-[#059669] font-semibold">● Online · Local</div>
@@ -209,9 +280,13 @@ export const Hero: React.FC<HeroProps> = ({ onOpenDownload, onSelectModule }) =>
                 </div>
                 <div className="text-[10px] text-[#1a0a3d] bg-white rounded-xl p-2.5 border border-[#6c47ff]/20 leading-relaxed flex-1">
                   <span className="text-[#6c47ff] font-bold">↳ </span>
-                  Generated executive summary. Document roundtrips preserve 100% fidelity. Risk mitigation achieved through isolated memory virtualization.
+                  Generated executive summary. Document roundtrips preserve 100% fidelity. Risk
+                  mitigation achieved through isolated memory virtualization.
                 </div>
-                <button className="mt-3 w-full py-2 rounded-xl text-white text-[11px] font-bold" style={{ background: '#6c47ff' }}>
+                <button
+                  className="mt-3 w-full py-2 rounded-xl text-white text-[11px] font-bold"
+                  style={{ background: '#6c47ff' }}
+                >
                   ✦ Run Copilot
                 </button>
               </div>

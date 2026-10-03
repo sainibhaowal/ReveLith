@@ -1,8 +1,8 @@
-﻿# Formatting guide (formatting)
+# Formatting guide (formatting)
 
 ## Operation definition
 
-`{op:"format_range", sheetId, range:"A1:C1", format:{…}}` : format needs at least one field; a field value of **null clears that property**:
+`{op:"format_range", sheetId, range:"A1:C1", format:{…}}` — format needs at least one field; a field value of **null clears that property**:
 
 - `bold` / `italic` / `underline` / `strikethrough`: boolean or null
 - `fontFamily`: font name (e.g. "Calibri", "微软雅黑") or null
@@ -14,9 +14,9 @@
 - `wrapText`: boolean or null (word wrap)
 - `textRotation`: integer from -90 to 90 (positive = counterclockwise) or "vertical" (stacked vertical text) or null
 - `indent`: indent level 0–250 (0 clears), rendered on screen as left padding and written into the file
-- `border`: {type:"all"|"top"|"bottom"|"left"|"right"|"none", color?:"#RRGGBB"} : **per-cell edge** semantics (every cell in the range gets that edge); "none" clears all borders
+- `border`: {type:"all"|"top"|"bottom"|"left"|"right"|"none", color?:"#RRGGBB"} — **per-cell edge** semantics (every cell in the range gets that edge); "none" clears all borders
 
-One operation per range; when you need to "reuse the format from somewhere", read the current state with read_formats first.
+One operation per range (range-level, up to 200,000 cells — formatting a whole data column of a large file is fine); when you need to "reuse the format from somewhere", read the current state with read_formats first.
 
 ## Number formats
 
@@ -26,7 +26,7 @@ One operation per range; when you need to "reuse the format from somewhere", rea
 
 ### Currency must be locale-locked (critical, most common mistake)
 
-**Never use bare `$#,##0.00`** : Chinese-locale Excel remaps a bare `$` to `¥`, making a USD table display CNY symbols. Always force the currency symbol with a bracketed locale prefix:
+**Never use bare `$#,##0.00`** — Chinese-locale Excel remaps a bare `$` to `¥`, making a USD table display CNY symbols. Always force the currency symbol with a bracketed locale prefix:
 
 - USD: `[$$-409]#,##0.00` (or integer `[$$-409]#,##0`)
 - CNY: `[$¥-804]#,##0.00`
@@ -45,7 +45,7 @@ At thousand/million scale, decimals are usually 0 (`[$$-409]#,##0`) and the unit
 
 ## Table style rules (when the user has no explicit styling requirements)
 
-- **Headers are mandatory**: no data grid may be a bare matrix of numbers : column headers (dimension/period/metric names) are required, and cross-tabs also need row headers. Headers bold + light fill (e.g. #F2F2F2 or #D6E4F0).
+- **Headers are mandatory**: no data grid may be a bare matrix of numbers — column headers (dimension/period/metric names) are required, and cross-tabs also need row headers. Headers bold + light fill (e.g. #F2F2F2 or #D6E4F0).
 - **Alignment**: numbers right-aligned, text left-aligned, dates centered or left-aligned; strictly consistent within a column and within a table.
 - **Restrained font sizes**: one size for body text; section titles at most one step larger; never mix multiple font sizes within one table body.
 - **Total/subtotal rows**: highlight with bold or a light fill; don't over-decorate.
