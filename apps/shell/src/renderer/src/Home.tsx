@@ -26,6 +26,7 @@ import { useI18n } from './locale'
 import type { I18n, StringKey } from './locale'
 import { SettingsModal } from './SettingsModal'
 import type { SettingsTarget } from './SettingsModal'
+import { MatrixModal } from './MatrixModal'
 import { skillUpdateDue } from './IntegrationsPane'
 import { onFilesChanged } from './file-events'
 
@@ -1059,6 +1060,7 @@ export function Home() {
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null)
   // unavailable recent entry (missing flag) the user clicked — offer list removal
   const [confirmMissing, setConfirmMissing] = useState<RecentEntry | null>(null)
+  const [matrixModalOpen, setMatrixModalOpen] = useState(false)
   // name in the greeting; omitted when logged out
   const [accountName] = useState('')
   const [greetAskKey] = useState(
@@ -1750,6 +1752,17 @@ export function Home() {
             </span>
           </button>
         ))}
+        {/* Matrix Project - separate button */}
+        <button className="quick-card" onClick={() => setMatrixModalOpen(true)}>
+          <FileBadge ext="xlsx" size={30} />
+          <span className="quick-text">
+            <span className="quick-title-row">
+              <span className="quick-title">AI Matrix</span>
+              <span className="ai-chip">AI</span>
+            </span>
+            <span className="quick-sub">Matrix</span>
+          </span>
+        </button>
         <button
           className="quick-card"
           onClick={() => void window.aiOffice.browse()}
@@ -3050,6 +3063,24 @@ export function Home() {
             else void doMove(conflict.paths, conflict.targetDir, policy)
           }}
         />
+      )}
+
+      {matrixModalOpen && (
+        <div className="modal-overlay" onClick={() => setMatrixModalOpen(false)}>
+          <div
+            className="modal modal-large"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <MatrixModal
+              onClose={() => setMatrixModalOpen(false)}
+              onGenerate={async () => {
+                setMatrixModalOpen(false)
+              }}
+            />
+          </div>
+        </div>
       )}
 
       <DropToOpenOverlay />

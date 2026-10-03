@@ -12,7 +12,7 @@ const MIME_ICONS: Record<string, string> = {
   'text/plain': 'file-text',
 }
 
-export function SourceTray() {
+export function SourceTray({ onClose }: { onClose?: () => void }) {
   const t = useI18n()
   const {
     sources,
@@ -155,6 +155,11 @@ export function SourceTray() {
           {sources.length > 0 && (
             <button className="button ghost sm" onClick={clearAll}>
               {'Clear All'}
+            </button>
+          )}
+          {onClose && (
+            <button className="button ghost sm" onClick={onClose} aria-label="Close Source Tray">
+              ✕
             </button>
           )}
         </div>

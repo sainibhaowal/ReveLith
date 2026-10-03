@@ -121,6 +121,8 @@ import { CommentsPanel } from './components/CommentsPanel'
 import { EquationModal } from './components/EquationModal'
 import { HeaderFooterArea } from './components/HeaderFooterArea'
 import { PageFootnotes, PageEndnotes } from './components/PageNoteAreas'
+import { SourceTray } from './components/SourceTray'
+import { SourceStoreProvider, useSourceStore } from './sources/source-store'
 import { noteMarkText, type NoteKind } from './note-format'
 import { PaginationPreview } from './components/PaginationPreview'
 import { paraPaginationMeta } from './editor/para-flags'
@@ -742,7 +744,8 @@ function replacesDocument(result: NonNullable<OpenDocxResult>): boolean {
   return !('needsPassword' in result)
 }
 
-export function App() {
+// Inner component that has access to SourceStore
+function AppInner() {
   // subscribe to language switches for re-render; strings all go through module-level t, so memoized callbacks never capture stale closures
   const { lang } = useI18n()
   const [doc, setDoc] = useState<DocState | null>(null)
@@ -926,6 +929,8 @@ export function App() {
   }>({})
   const [showComments, setShowComments] = useState(false)
   const [showStylesPane, setShowStylesPane] = useState(false)
+  const [showSourceTray, setShowSourceTray] = useState(false)
+  const { groundedWrite, getGroundedContext, setDocSessionId } = useSourceStore()
   const [commentFocus, setCommentFocus] = useState<{ id: string; nonce: number } | null>(null)
   /** Style definitions pending write-back (key = styleId), saved via SaveOptions.styleUpserts */
   const [defaultFonts, setDefaultFonts] = useState<DefaultFonts>()
@@ -5959,7 +5964,12 @@ export function App() {
 
   useEffect(() => (editor ? installSelectionBar(editor) : undefined), [editor])
 
-  // Ghost completion (Cursor-style Tab autocomplete)
+  // Keep Source Tray session bound to the open document
+  useEffect(() => {
+    setDocSessionId(doc?.filePath ?? null)
+  }, [doc?.filePath, setDocSessionId])
+
+  // Ghost completion (Cursor-style Tab autocomplete, grounded when enabled)
   useEffect(() => {
     if (!editor) return
     let idleTimer: ReturnType<typeof setTimeout> | null = null
@@ -5973,8 +5983,10 @@ export function App() {
         lastSelection = editor.state.selection.from
         return
       }
-      // Cursor has been idle at same position
-      requestGhostCompletion(editor, 320)
+      // Cursor has been idle at same position; include tray sources when grounded
+      requestGhostCompletion(editor, 320, () =>
+        groundedWrite ? getGroundedContext(4000) : undefined,
+      )
     }
 
     const handleTransaction = () => {
@@ -6010,7 +6022,7 @@ export function App() {
       editor.view.dom.removeEventListener('click', handleClick)
       clearGhostCompletion(editor)
     }
-  }, [editor])
+  }, [editor, groundedWrite, getGroundedContext])
 
   // e2e/automation hook: lets tests drive open/edit/save without native dialogs
   useEffect(() => {
@@ -7311,6 +7323,8 @@ export function App() {
                 onClose={() => setCompareResult(null)}
               />
             )}
+            {/* Source Tray - Grounded Sources sidebar */}
+            {doc && showSourceTray && <SourceTray onClose={() => setShowSourceTray(false)} />}
           </div>
 
           <footer className="status-bar">
@@ -7342,6 +7356,14 @@ export function App() {
                     onClick={() => setTrackChanges((v) => !v)}
                   >
                     {t(trackChanges ? 'appTrackChangesOn' : 'appTrackChangesOff')}
+                  </button>
+                  <button
+                    className={`status-item status-btn${showSourceTray ? ' on' : ''}`}
+                    data-tip="Source Tray"
+                    aria-pressed={showSourceTray}
+                    onClick={() => setShowSourceTray((v) => !v)}
+                  >
+                    Sources
                   </button>
                 </>
               )}
@@ -7800,3 +7822,13 @@ export function App() {
     </div>
   )
 }
+
+function AppWrapper() {
+  return (
+    <SourceStoreProvider>
+      <AppInner />
+    </SourceStoreProvider>
+  )
+}
+
+export { AppWrapper as App }

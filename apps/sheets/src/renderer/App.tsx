@@ -1,4 +1,5 @@
 import { focusWorksheet } from './sheet-focus'
+import { useMatrixCitationOverlay } from './MatrixCitationOverlay'
 import {
   activateFormulaClosure,
   applyDefinedNames,
@@ -520,6 +521,9 @@ export function App({
   useEffect(() => {
     recomputeSheetContent()
   }, [workbookFile, recomputeSheetContent])
+  // Matrix citations: clicking a cell with a revelith-source:// hyperlink
+  // opens the source PDF at the cited page/snippet.
+  useMatrixCitationOverlay(univerRef.current)
   // The close guard lives in the main process; keep it fed with the badge count.
   useEffect(() => {
     window.desktopApi?.notifyPendingEdits?.(

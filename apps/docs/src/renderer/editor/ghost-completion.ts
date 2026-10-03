@@ -122,10 +122,18 @@ export const GhostCompletionExtension = Extension.create({
 })
 
 /** Calls the main process for a one-shot inline completion */
-export async function fetchInlineCompletion(before: string, after: string): Promise<string> {
+export async function fetchInlineCompletion(
+  before: string,
+  after: string,
+  groundedContext?: string,
+): Promise<string> {
   try {
     const { ipcRenderer } = await import('electron')
-    const result = await ipcRenderer.invoke('ai:inline-complete', { before, after })
+    const result = await ipcRenderer.invoke('ai:inline-complete', {
+      before,
+      after,
+      ...(groundedContext ? { groundedContext } : {}),
+    })
     return result?.text ?? ''
   } catch {
     return ''
@@ -133,7 +141,11 @@ export async function fetchInlineCompletion(before: string, after: string): Prom
 }
 
 /** Triggers inline completion request with debouncing */
-export function requestGhostCompletion(editor: any, delayMs = 320): void {
+export function requestGhostCompletion(
+  editor: any,
+  delayMs = 320,
+  getGroundedContext?: () => string | undefined,
+): void {
   if (!editor || editor.isDestroyed) return
 
   if (debounceTimer) {
@@ -165,7 +177,8 @@ export function requestGhostCompletion(editor: any, delayMs = 320): void {
       const controller = new AbortController()
       activeAbortController = controller
 
-      const suggestion = await fetchInlineCompletion(textBefore, textAfter)
+      const grounded = getGroundedContext?.()
+      const suggestion = await fetchInlineCompletion(textBefore, textAfter, grounded)
       if (controller.signal.aborted) return
 
       if (suggestion && suggestion.trim().length > 0) {

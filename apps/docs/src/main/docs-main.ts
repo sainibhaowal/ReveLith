@@ -3871,7 +3871,10 @@ export function registerAiIpc(): void {
   // Inline completion (ghost text): fast one-shot completion for Cursor-style Tab autocomplete
   ipcMain.handle(
     'ai:inline-complete',
-    async (_event, input: { before: string; after: string }): Promise<{ text: string | null }> => {
+    async (
+      _event,
+      input: { before: string; after: string; groundedContext?: string },
+    ): Promise<{ text: string | null }> => {
       const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
       const settings = resolveAiSettings(stored, defaultAiSettings())
       settings.provider = activeProvider(settings)
@@ -3879,6 +3882,8 @@ export function registerAiIpc(): void {
         settings,
         String(input.before ?? ''),
         String(input.after ?? ''),
+        undefined,
+        typeof input.groundedContext === 'string' ? input.groundedContext : undefined,
       )
       return { text }
     },

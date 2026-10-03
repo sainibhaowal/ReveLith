@@ -2440,6 +2440,24 @@ export function registerSheetsIpc(): void {
     waiter(ok === true)
   })
 
+  // Matrix citations: renderer clicked a cell with a revelith-source:// hyperlink.
+  // Forward to the shell/PDF viewer when available; otherwise log and ignore.
+  ipcMain.on(
+    'sheets:open-source-citation',
+    (_event, payload: { filePath?: unknown; page?: unknown; snippet?: unknown }) => {
+      const filePath = typeof payload?.filePath === 'string' ? payload.filePath : ''
+      const page = typeof payload?.page === 'number' ? payload.page : 1
+      const snippet = typeof payload?.snippet === 'string' ? payload.snippet : ''
+      if (!filePath) return
+      try {
+        // Open the source file; the PDF viewer handles page/snippet when it can.
+        void shell.openPath(filePath)
+      } catch (err) {
+        console.warn('[sheets] open-source-citation failed:', filePath, page, snippet, err)
+      }
+    },
+  )
+
   // shared with the other editor modules — last (identical) registration wins
   ipcMain.removeHandler('app:get-language')
   ipcMain.handle('app:get-language', () => getUiLang())

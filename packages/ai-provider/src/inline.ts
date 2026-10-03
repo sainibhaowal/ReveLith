@@ -39,6 +39,7 @@ export async function inlineComplete(
   before: string,
   after: string,
   signal?: AbortSignal,
+  groundedContext?: string,
 ): Promise<string | null> {
   const resolved = await resolveAiSettingsForInline(settings)
   if (!resolved) return null
@@ -50,9 +51,9 @@ export async function inlineComplete(
   const system = `You are an inline text completion engine for a document editor.
 Complete the user's text naturally. Output ONLY the continuation text, no explanations, no formatting, no markdown.
 Keep it concise: 1-3 sentences or a single formula.
-Match the user's language, tone, and style.`
+Match the user's language, tone, and style.${groundedContext ? '\nUse ONLY facts from the provided sources when relevant.' : ''}`
 
-  const user = `Text before cursor:
+  const user = `${groundedContext ? `Grounded sources (only use these facts):\n${groundedContext.slice(0, 4000)}\n\n` : ''}Text before cursor:
 ${before.slice(-800)}
 
 Text after cursor:
