@@ -127,13 +127,14 @@ export function formatInTextCitation(
       }
       return `(${firstAuthorLast} et al. ${year}${pageOrNum ? `: ${pageOrNum}` : ''})`
 
-    case 'mla':
+    case 'mla': {
       const p = pageOrNum ? ` ${pageOrNum}` : ''
       if (authors.length <= 2) {
         const authStr = authors.map((a) => a.lastName).join(' and ') || firstAuthorLast
         return `(${authStr}${p})`
       }
       return `(${firstAuthorLast} et al.${p})`
+    }
 
     case 'ieee':
       return `[${pageOrNum || 1}]`
