@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   buildCompatibilityFixture,
@@ -19,11 +20,13 @@ const FIXTURES: ReadonlyArray<[string, () => Promise<Buffer>]> = [
   ['compatibility-macro.xlsm', buildMacroFixture],
 ]
 
+const HERE = dirname(fileURLToPath(import.meta.url))
+const OUTPUT_DIR = resolve(HERE, '..', 'fixtures', 'generated')
+
 async function main(): Promise<void> {
-  const outputDirectory = resolve('fixtures/generated')
-  await mkdir(outputDirectory, { recursive: true })
+  await mkdir(OUTPUT_DIR, { recursive: true })
   for (const [name, build] of FIXTURES) {
-    await writeFile(resolve(outputDirectory, name), await build())
+    await writeFile(resolve(OUTPUT_DIR, name), await build())
     process.stdout.write(`Generated fixtures/generated/${name}\n`)
   }
 }

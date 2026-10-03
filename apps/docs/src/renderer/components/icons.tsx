@@ -1887,3 +1887,34 @@ export function IconSelectAll(props: IconProps) {
     </Svg>
   )
 }
+
+export function IconGhost(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M 3 8 C 3 4.5 5.5 2.5 8 2.5 C 10.5 2.5 13 4.5 13 8 L 13 13.5 L 11 12 L 8 13.5 L 5 12 L 3 13.5 Z" />
+      <circle cx="6" cy="7" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="7" r="0.8" fill="currentColor" stroke="none" />
+    </Svg>
+  )
+}
+
+export function IconSourceNotebook(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="2.5" y="2" width="11" height="12" rx="1.5" />
+      <path d="M 5 2 L 5 14" />
+      <path d="M 7.5 5.5 H 11" />
+      <path d="M 7.5 8 H 11" />
+      <path d="M 7.5 10.5 H 9.5" />
+    </Svg>
+  )
+}
+
+export function IconMatrix(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="2" y="2" width="12" height="12" rx="1.5" />
+      <path d="M 2 6 H 14 M 2 10 H 14 M 6 2 V 14 M 10 2 V 14" />
+    </Svg>
+  )
+}

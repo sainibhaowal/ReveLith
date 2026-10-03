@@ -344,7 +344,12 @@ async function readSourceRows(
     const row: SourceValue[] = []
     for (let c = startColumn; c <= endColumn; c++) {
       const address = `${columnLabel(c)}${r + 1}`
-      row.push(extractCellValue(worksheetXml, address, sharedStrings))
+      const value = extractCellValue(worksheetXml, address, sharedStrings)
+      // Reject source data containing Excel error values (#DIV/0!, #N/A, #VALUE!, etc.)
+      if (typeof value === 'string' && value.startsWith('#')) {
+        throw new PivotAddError(`source formula(s) ${address} evaluate to an error`)
+      }
+      row.push(value)
     }
     rows.push(row)
   }
@@ -377,6 +382,7 @@ function extractCellValue(
     return sharedStrings[idx] ?? null
   }
   if (type === 'str') return decodePivotXmlEntities(rawValue)
+  if (type === 'e') return decodePivotXmlEntities(rawValue)
   if (type === 'b') return rawValue === '1' ? 1 : 0
   const n = Number(rawValue)
   return Number.isFinite(n) ? n : decodePivotXmlEntities(rawValue)

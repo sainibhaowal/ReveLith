@@ -98,6 +98,8 @@ import { dropActiveSubEditor, notifySubEditorState, setActiveSubEditor } from '.
 import { type BorderLine, borderDrawnPx, borderTruePx, cellPadPx } from './border-metrics'
 import { borderLineCss, paraBorderCss, paraBorderPadding, paraBorderPaddingDecls } from './hf-dom'
 import { paraFrameCss } from './para-frame'
+import { GhostCompletionExtension } from './ghost-completion'
+import './ghost-completion.css'
 
 installProseMirrorPerf()
 
@@ -6521,4 +6523,5 @@ export const editorExtensions = [
   ParaMarkDelExtension,
   RevisionOriginalExtension,
   AutoDirectionExtension,
+  GhostCompletionExtension,
 ]

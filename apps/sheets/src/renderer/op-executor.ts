@@ -1235,6 +1235,7 @@ async function executeOp(op: PlannedOp, run: OpRun): Promise<void> {
     // only the formula cells, one command per chunk — non-formula
     // cells, including rich text, are never touched.
     const targetSheet = sheetById(op.sheetId)
+    let errorConversionCount = 0
     await applyRangeInLoadedChunks(
       runtime,
       lazyWorkbookRef,
@@ -1272,6 +1273,9 @@ async function executeOp(op: PlannedOp, run: OpRun): Promise<void> {
             let value = (raw?.v as string | number | boolean | null | undefined) ?? null
             let keepType = true
             const engineError = typeof value === 'string' && value.startsWith('#')
+            if (engineError) {
+              errorConversionCount += 1
+            }
             if ((value === null || engineError) && display !== null && display !== value) {
               value = display
               keepType = false
@@ -1289,6 +1293,9 @@ async function executeOp(op: PlannedOp, run: OpRun): Promise<void> {
       },
       setMessage,
     )
+    if (errorConversionCount > 0) {
+      setMessage(t('appConvertToValuesErrorWarning', { count: errorConversionCount }))
+    }
   } else if (op.op === 'find_replace') {
     // Range-level replace (>MAX_EXPANDED_CELL_OPS cells): scan loaded
     // chunks and rewrite only the matching text cells with a sparse
