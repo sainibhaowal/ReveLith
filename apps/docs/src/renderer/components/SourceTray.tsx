@@ -1,7 +1,15 @@
 import { useState, useMemo } from 'react'
 import { useSourceStore } from '../sources/source-store'
+import type { SourceItem } from '../sources/source-store'
 import { Dropdown } from '@revelith/ui'
-import { useI18n } from '../i18n/locale'
+import {
+  formatCitation,
+  generateBibliography,
+  traySourceToCitationSource,
+  CITATION_STYLES,
+  CITATION_STYLE_LABELS,
+  type CitationStyle,
+} from '@revelith/agent-core'
 import type { TextChunk } from '../../main/source-session'
 
 const MIME_ICONS: Record<string, string> = {
@@ -12,8 +20,41 @@ const MIME_ICONS: Record<string, string> = {
   'text/plain': 'file-text',
 }
 
-export function SourceTray({ onClose }: { onClose?: () => void }) {
-  const t = useI18n()
+interface SourceTrayProps {
+  onClose?: () => void
+  /** Tiptap editor instance: citations insert at the cursor when present. */
+  editor?: any
+}
+
+function copyText(text: string): void {
+  try {
+    void navigator.clipboard.writeText(text)
+  } catch {
+    /* clipboard unavailable (headless test env): insertion is the primary path */
+  }
+}
+
+/** Insert plain text at the cursor; falls back to clipboard when no editor is mounted. */
+function insertAtCursor(editor: any | undefined, text: string): boolean {
+  try {
+    if (editor && !editor.isDestroyed) {
+      editor.chain().focus().insertContent(text).run()
+      return true
+    }
+  } catch {
+    /* fall through to clipboard */
+  }
+  copyText(text)
+  return false
+}
+
+/** 1-based footnote number for a source within the currently visible list. */
+function footnoteNumber(visible: SourceItem[], sourceId: string): number {
+  const idx = visible.findIndex((s) => s.id === sourceId)
+  return idx >= 0 ? idx + 1 : 1
+}
+
+export function SourceTray({ onClose, editor }: SourceTrayProps) {
   const {
     sources,
     groundedWrite,
@@ -29,8 +70,23 @@ export function SourceTray({ onClose }: { onClose?: () => void }) {
 
   const [dragActive, setDragActive] = useState(false)
   const [sortBy, setSortBy] = useState<string>('date')
+  const [bibStyle, setBibStyle] = useState<CitationStyle>('apa')
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const categories = ['Contract', 'Invoice', 'Report', 'Research', 'Legal', 'Financial', 'Other']
+  const typeOptions = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/markdown',
+    'text/plain',
+  ]
 
   const filteredSources = useMemo(() => getFilteredSources(), [getFilteredSources])
+
+  const flash = (message: string) => {
+    setNotice(message)
+    window.setTimeout(() => setNotice((current) => (current === message ? null : current)), 4000)
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -75,69 +131,60 @@ export function SourceTray({ onClose }: { onClose?: () => void }) {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   }
 
-  const handleCategoryChange = (cat: string) => {
-    if (cat === 'all') setFilters({ categories: [] })
-    else
-      setFilters({
-        categories: filters.categories.includes(cat)
-          ? filters.categories.filter((x) => x !== cat)
-          : [...filters.categories, cat],
-      })
+  /** Insert an in-text citation for one source and copy its full reference. */
+  const citeSource = (source: SourceItem, style: CitationStyle) => {
+    const citation = traySourceToCitationSource(source)
+    const formatted = formatCitation(citation, style, footnoteNumber(filteredSources, source.id))
+    const inserted = insertAtCursor(editor, formatted.inText)
+    copyText(formatted.fullReference)
+    flash(
+      inserted
+        ? `Inserted ${formatted.inText} — full reference copied`
+        : 'Editor unavailable — full reference copied instead',
+    )
   }
 
-  const handleTypeChange = (t: string) => {
-    if (t === 'all') setFilters({ types: [] })
-    else
-      setFilters({
-        types: filters.types.includes(t)
-          ? filters.types.filter((x) => x !== t)
-          : [...filters.types, t],
-      })
+  const copyReference = (source: SourceItem, style: CitationStyle) => {
+    const citation = traySourceToCitationSource(source)
+    const formatted = formatCitation(citation, style, footnoteNumber(filteredSources, source.id))
+    copyText(formatted.fullReference)
+    flash(`Copied ${CITATION_STYLE_LABELS[style]} reference for ${source.fileName}`)
   }
 
-  const handleSortChange = (sort: string) => setSortBy(sort)
+  /** Insert a numbered footnote marker plus its reference text at the cursor. */
+  const insertFootnote = (source: SourceItem) => {
+    const n = footnoteNumber(filteredSources, source.id)
+    const citation = traySourceToCitationSource(source)
+    const formatted = formatCitation(citation, 'chicago', n)
+    const inserted = insertAtCursor(editor, ` [${n}] ${formatted.fullReference}`)
+    flash(inserted ? `Inserted footnote [${n}]` : 'Editor unavailable — footnote copied instead')
+    if (!inserted) copyText(`[${n}] ${formatted.fullReference}`)
+  }
 
-  const categories = ['Contract', 'Invoice', 'Report', 'Research', 'Legal', 'Financial', 'Other']
-  const typeOptions = [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/markdown',
-    'text/plain',
-  ]
+  /** Insert the full bibliography for the visible sources at the cursor. */
+  const insertBibliography = (style: CitationStyle) => {
+    if (filteredSources.length === 0) {
+      flash('No sources to include in the bibliography')
+      return
+    }
+    const citationSources = filteredSources.map(traySourceToCitationSource)
+    const body = generateBibliography(citationSources, style)
+    const text = `References (${CITATION_STYLE_LABELS[style]})\n\n${body}`
+    const inserted = insertAtCursor(editor, text)
+    if (!inserted) copyText(text)
+    flash(
+      inserted
+        ? `Inserted ${CITATION_STYLE_LABELS[style]} bibliography (${filteredSources.length} sources)`
+        : 'Editor unavailable — bibliography copied instead',
+    )
+  }
 
   return (
     <div
       className="revelith-source-tray"
-      onDragOver={(e) => {
-        e.preventDefault()
-        setDragActive(true)
-      }}
-      onDragLeave={(e) => {
-        e.preventDefault()
-        setDragActive(false)
-      }}
-      onDrop={async (e: React.DragEvent) => {
-        e.preventDefault()
-        setDragActive(false)
-        const files = Array.from(e.dataTransfer.files)
-        for (const file of files) {
-          try {
-            const text = await file.text()
-            const chunks = chunkText(text)
-            await addSource({
-              fileName: file.name,
-              filePath: '',
-              mimeType: file.type || 'text/plain',
-              size: file.size,
-              extractedText: text,
-              chunks: chunkText(text),
-              metadata: { category: 'Other' },
-            })
-          } catch (err) {
-            console.error('Failed to add source:', err)
-          }
-        }
-      }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{ opacity: dragActive ? 0.95 : 1 }}
     >
       <div className="source-tray-header">
@@ -164,6 +211,12 @@ export function SourceTray({ onClose }: { onClose?: () => void }) {
           )}
         </div>
       </div>
+
+      {notice && (
+        <div className="source-tray-notice" role="status">
+          {notice}
+        </div>
+      )}
 
       <div className="source-tray-toolbar">
         <input
@@ -242,15 +295,45 @@ export function SourceTray({ onClose }: { onClose?: () => void }) {
                   {source.fileName}
                 </div>
                 <div className="source-meta">
-                  <span>{new Date(source.addedAt).toLocaleDateString()}</span>
+                  <span>{formatDate(source.addedAt)}</span>
                   <span>•</span>
                   <span>{formatSize(source.size)}</span>
                   {source.chunks.length > 0 && <span>• {source.chunks.length} chunks</span>}
                 </div>
+                <div className="source-cite-row">
+                  {CITATION_STYLES.map((style) => (
+                    <button
+                      key={style}
+                      className="button ghost xs"
+                      title={`Insert ${CITATION_STYLE_LABELS[style]} citation at cursor (full reference copied)`}
+                      onClick={() => citeSource(source, style)}
+                    >
+                      {CITATION_STYLE_LABELS[style]}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="source-actions">
-                <button className="button ghost sm" title="More actions">
-                  ⋮
+                <button
+                  className="button ghost sm"
+                  title="Copy full reference (APA)"
+                  onClick={() => copyReference(source, 'apa')}
+                >
+                  Copy ref
+                </button>
+                <button
+                  className="button ghost sm"
+                  title="Insert numbered footnote at cursor"
+                  onClick={() => insertFootnote(source)}
+                >
+                  Footnote
+                </button>
+                <button
+                  className="button ghost sm"
+                  title="Remove source"
+                  onClick={() => void removeSource(source.id)}
+                >
+                  ✕
                 </button>
               </div>
             </div>
@@ -265,13 +348,30 @@ export function SourceTray({ onClose }: { onClose?: () => void }) {
               type="checkbox"
               checked={groundedWrite}
               onChange={(e) => setGroundedWrite(e.target.checked)}
-              id="grounded-write"
             />
             <span>{'Grounded Write'}</span>
           </label>
           <span className="context-chars">
             {getGroundedContext(200).length} chars available for grounded generation
           </span>
+        </div>
+        <div className="bibliography-row">
+          <Dropdown
+            value={bibStyle}
+            options={CITATION_STYLES.map((style) => ({
+              value: style,
+              label: CITATION_STYLE_LABELS[style],
+            }))}
+            onPick={(v) => setBibStyle(v as CitationStyle)}
+          />
+          <button
+            className="button secondary sm"
+            onClick={() => insertBibliography(bibStyle)}
+            disabled={filteredSources.length === 0}
+            title="Insert the full reference list for the visible sources at the cursor"
+          >
+            Generate Bibliography
+          </button>
         </div>
       </div>
     </div>

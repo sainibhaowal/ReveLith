@@ -80,6 +80,8 @@ export const IPC_CHANNELS = {
   /** AI create_document: new standalone file in the default folder (no dialog) */
   createDocument: 'workbook:create-document',
   openExternal: 'shell:open-external',
+  /** Matrix citations: renderer clicked a revelith-source:// cell hyperlink */
+  openSourceCitation: 'sheets:open-source-citation',
   menuAction: 'menu:action',
   aiGetSettings: 'ai:get-settings',
   aiSetSettings: 'ai:set-settings',

@@ -116,6 +116,22 @@ import {
   startReveLithLogin,
   watchGskApiKey,
 } from '@revelith/ai-search'
+import {
+  activeProvider,
+  chatForProvider,
+  defaultAiSettings,
+  resolveAiSettings,
+  type AiSettings,
+  type LegacyAiSettings,
+} from '@revelith/ai-provider'
+import { parseFileToText } from '@revelith/file-parse'
+import {
+  buildMatrixExtractionPrompt,
+  buildMatrixXlsx,
+  createMatrixProject,
+  parseMatrixExtractionResponse,
+  type MatrixColumnDef,
+} from '@revelith/agent-core'
 
 import {
   buildDocsMenu,
@@ -3740,6 +3756,137 @@ function registerHomeIpc(): void {
     rememberPendingDir('pdf', opts)
     void newPdfTab()
   })
+
+  // Hebbia Matrix: extract a comparison grid from source files into a live .xlsx.
+  // Flow: validate → parse each file to text → one AI extraction per file →
+  // buildMatrixXlsx → save to the default folder → open in Sheets.
+  ipcMain.handle(
+    HOME_CHANNELS.generateMatrix,
+    async (
+      event,
+      input: {
+        files?: Array<{ name?: unknown; path?: unknown }>
+        columns?: Array<{ id?: unknown; name?: unknown; description?: unknown; dataType?: unknown }>
+        projectName?: unknown
+      },
+    ): Promise<{ ok: boolean; path?: string; error?: string }> => {
+      const sendProgress = (current: number, total: number, currentFile: string) => {
+        try {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send(HOME_CHANNELS.matrixProgress, { current, total, currentFile })
+          }
+        } catch {
+          /* progress is best-effort */
+        }
+      }
+      try {
+        const rawFiles = Array.isArray(input?.files) ? input.files : []
+        const rawColumns = Array.isArray(input?.columns) ? input.columns : []
+        if (rawFiles.length === 0) return { ok: false, error: 'Add at least one source file.' }
+        if (rawFiles.length > 20) return { ok: false, error: 'Matrix supports at most 20 files.' }
+        if (rawColumns.length === 0) return { ok: false, error: 'Define at least one column.' }
+        if (rawColumns.length > 12)
+          return { ok: false, error: 'Matrix supports at most 12 columns.' }
+
+        const files = rawFiles.map((f) => ({
+          name: typeof f?.name === 'string' && f.name ? f.name : 'document',
+          path: typeof f?.path === 'string' ? f.path : '',
+        }))
+        for (const f of files) {
+          if (!f.path || !existsSync(f.path))
+            return { ok: false, error: `Source not found: ${f.name}` }
+        }
+
+        const validTypes = new Set(['text', 'number', 'date', 'boolean'])
+        const columns: MatrixColumnDef[] = rawColumns.map((c, i) => ({
+          id:
+            typeof c?.id === 'string' && c.id
+              ? c.id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || `col-${i + 1}`
+              : `col-${i + 1}`,
+          name: typeof c?.name === 'string' ? c.name.slice(0, 80) : `Column ${i + 1}`,
+          description: typeof c?.description === 'string' ? c.description.slice(0, 300) : '',
+          dataType: validTypes.has(c?.dataType as string)
+            ? (c!.dataType as MatrixColumnDef['dataType'])
+            : 'text',
+        }))
+        if (columns.some((c) => !c.name.trim())) {
+          return { ok: false, error: 'Every column needs a name.' }
+        }
+
+        // AI settings (shared userData/ai-settings.json across every editor)
+        let stored: Partial<AiSettings> & LegacyAiSettings = {}
+        try {
+          const raw = readFileSync(join(app.getPath('userData'), 'ai-settings.json'), 'utf-8')
+          stored = JSON.parse(raw)
+        } catch {
+          stored = {}
+        }
+        const settings = resolveAiSettings(stored, defaultAiSettings())
+        settings.provider = activeProvider(settings)
+
+        const projectName =
+          typeof input?.projectName === 'string' && input.projectName.trim()
+            ? input.projectName.trim().slice(0, 60)
+            : `Matrix ${new Date().toISOString().slice(0, 10)}`
+        const project = createMatrixProject(
+          projectName,
+          columns,
+          files.map((f) => ({ name: f.name, path: f.path })),
+        )
+
+        const total = files.length
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]!
+          sendProgress(i, total, file.name)
+          const parsed = await parseFileToText(file.path)
+          if (!parsed.ok || parsed.kind !== 'text' || !parsed.text?.trim()) {
+            project.rows[i]!.status = 'error'
+            project.rows[i]!.error = parsed.error ?? 'No extractable text in this file.'
+            sendProgress(i + 1, total, file.name)
+            continue
+          }
+          project.rows[i]!.status = 'processing'
+          const prompt = buildMatrixExtractionPrompt(parsed.text, columns)
+          const response = await chatForProvider(
+            settings.provider,
+            settings.providers[settings.provider],
+            prompt.system,
+            prompt.user,
+          )
+          if (!response.ok || !response.content) {
+            project.rows[i]!.status = 'error'
+            project.rows[i]!.error = response.error ?? 'AI extraction failed.'
+            sendProgress(i + 1, total, file.name)
+            continue
+          }
+          project.rows[i]!.cells = parseMatrixExtractionResponse(response.content, columns)
+          project.rows[i]!.status = 'completed'
+          sendProgress(i + 1, total, file.name)
+        }
+
+        const completed = project.rows.filter((r) => r.status === 'completed').length
+        if (completed === 0) {
+          const firstError = project.rows.find((r) => r.error)?.error
+          return { ok: false, error: firstError ?? 'Extraction failed for every file.' }
+        }
+
+        const result = await buildMatrixXlsx(project)
+        const safeName = `${
+          projectName
+            .replace(/[^a-zA-Z0-9_-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 50) || 'matrix'
+        }-matrix.xlsx`
+        const outPath = uniquePathIn(defaultSaveDir(), safeName)
+        await atomicWriteFile(outPath, result.buffer)
+        recordRecentFile(outPath)
+        openDocumentPath(outPath)
+        return { ok: true, path: outPath }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+  )
 
   ipcMain.handle(HOME_CHANNELS.removeRecent, (_event, paths: unknown) => {
     const list = stringPaths(paths)

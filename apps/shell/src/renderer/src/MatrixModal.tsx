@@ -1,6 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Dropdown } from '@revelith/ui'
-import { useI18n } from './locale'
 
 interface MatrixColumnConfig {
   id: string
@@ -9,9 +8,15 @@ interface MatrixColumnConfig {
   dataType: 'text' | 'number' | 'date' | 'boolean'
 }
 
+export interface MatrixGenerateResult {
+  ok: boolean
+  path?: string
+  error?: string
+}
+
 interface MatrixModalProps {
   onClose: () => void
-  onGenerate: (files: File[], columns: MatrixColumnConfig[]) => Promise<void>
+  onGenerate: (files: File[], columns: MatrixColumnConfig[]) => Promise<MatrixGenerateResult>
 }
 
 const DEFAULT_CONTRACT_COLUMNS = [
@@ -95,7 +100,6 @@ const DEFAULT_INVOICE_COLUMNS = [
 ]
 
 export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
-  const t = useI18n()
   const [files, setFiles] = useState<File[]>([])
   const [columns, setColumns] = useState<MatrixColumnConfig[]>(DEFAULT_CONTRACT_COLUMNS)
   const [preset, setPreset] = useState<'contracts' | 'invoices' | 'custom'>('contracts')
@@ -103,6 +107,18 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
   const [progress, setProgress] = useState({ current: 0, total: 0, currentFile: '' })
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [donePath, setDonePath] = useState<string | null>(null)
+
+  // Live progress pushed by the main process while extraction runs.
+  useEffect(() => {
+    const api = (window as unknown as { aiOffice?: { onMatrixProgress?: unknown } }).aiOffice
+    if (typeof api?.onMatrixProgress !== 'function') return
+    return (
+      api.onMatrixProgress as (
+        h: (p: { current: number; total: number; currentFile: string }) => void,
+      ) => () => void
+    )((p) => setProgress({ current: p.current, total: p.total, currentFile: p.currentFile }))
+  }, [])
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -158,10 +174,16 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
 
     setIsGenerating(true)
     setError(null)
+    setDonePath(null)
     setProgress({ current: 0, total: files.length, currentFile: '' })
 
     try {
-      await onGenerate(files, columns)
+      const result = await onGenerate(files, columns)
+      if (!result.ok) {
+        setError(result.error ?? 'Generation failed')
+      } else if (result.path) {
+        setDonePath(result.path)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation failed')
     } finally {
@@ -176,13 +198,6 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
     else setColumns([{ id: `col-${Date.now()}`, name: '', description: '', dataType: 'text' }])
   }
 
-  const handleProgress = useCallback(
-    (p: { current: number; total: number; currentFile: string }) => {
-      setProgress(p)
-    },
-    [],
-  )
-
   return (
     <div className="matrix-modal">
       <div className="modal-header">
@@ -194,6 +209,12 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
 
       <div className="modal-body">
         {error && <div className="error-banner">{error}</div>}
+        {donePath && !error && (
+          <div className="success-banner" role="status">
+            {'Matrix saved and opened: '}
+            {donePath}
+          </div>
+        )}
 
         <div className="section">
           <h3>{'Source Files'}</h3>

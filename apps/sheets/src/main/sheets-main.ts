@@ -2441,17 +2441,19 @@ export function registerSheetsIpc(): void {
   })
 
   // Matrix citations: renderer clicked a cell with a revelith-source:// hyperlink.
-  // Forward to the shell/PDF viewer when available; otherwise log and ignore.
-  ipcMain.on(
-    'sheets:open-source-citation',
-    (_event, payload: { filePath?: unknown; page?: unknown; snippet?: unknown }) => {
+  // Opens the source file so the user can verify the cited passage.
+  ipcMain.handle(
+    IPC_CHANNELS.openSourceCitation,
+    async (
+      _event,
+      payload: { filePath?: unknown; page?: unknown; snippet?: unknown },
+    ): Promise<void> => {
       const filePath = typeof payload?.filePath === 'string' ? payload.filePath : ''
       const page = typeof payload?.page === 'number' ? payload.page : 1
       const snippet = typeof payload?.snippet === 'string' ? payload.snippet : ''
       if (!filePath) return
       try {
-        // Open the source file; the PDF viewer handles page/snippet when it can.
-        void shell.openPath(filePath)
+        await shell.openPath(filePath)
       } catch (err) {
         console.warn('[sheets] open-source-citation failed:', filePath, page, snippet, err)
       }

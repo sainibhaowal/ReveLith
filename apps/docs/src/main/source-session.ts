@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, writeFile, unlink, stat, readdir } from 'node:fs/promises'
+import { mkdir, readFile, unlink, stat, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { atomicWriteFile } from './atomic-write'

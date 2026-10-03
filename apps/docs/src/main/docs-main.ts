@@ -111,7 +111,6 @@ import {
   type ReveLithAccountStatus,
   type LegacyAiSettings,
   inlineComplete,
-  resolveAiSettingsForInline,
 } from '@revelith/ai-provider'
 import { listCodexModels, shutdownCodexAppServers } from '@revelith/ai-provider/codex-app-server'
 import { listCustomModelsForIpc } from '@revelith/ai-provider/custom-models'

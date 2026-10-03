@@ -3075,8 +3075,32 @@ export function Home() {
           >
             <MatrixModal
               onClose={() => setMatrixModalOpen(false)}
-              onGenerate={async () => {
-                setMatrixModalOpen(false)
+              onGenerate={async (files, columns) => {
+                const resolved = files.map((file) => ({
+                  name: file.name,
+                  path: window.aiOffice.pathForFile(file),
+                }))
+                const missing = resolved.filter((f) => !f.path)
+                if (missing.length > 0) {
+                  return {
+                    ok: false,
+                    error: 'Could not resolve local paths for the dropped files.',
+                  }
+                }
+                const result = await window.aiOffice.generateMatrix({
+                  files: resolved as Array<{ name: string; path: string }>,
+                  columns: columns.map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    description: c.description,
+                    dataType: c.dataType,
+                  })),
+                })
+                if (result.ok && result.path) {
+                  await window.aiOffice.openPath(result.path)
+                  setMatrixModalOpen(false)
+                }
+                return result
               }}
             />
           </div>

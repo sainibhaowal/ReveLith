@@ -38,6 +38,7 @@ export type { IpcStreamChunk, IpcStreamStart, IpcTransportOptions } from './elec
 export * from './citations/types'
 export * from './citations/citation-engine'
 export * from './citations/source-store'
+export * from './citations/source-adapter'
 
 // Hebbia Matrix Multi-Document Extraction
 export * from './matrix/types'

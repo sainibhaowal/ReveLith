@@ -18,11 +18,7 @@ import { DOMParser as PmDOMParser, type Mark as PmMark, Slice as PmSlice } from 
 import { NodeSelection, TextSelection, type Command, type Transaction } from '@tiptap/pm/state'
 import { Dropdown, ImageViewer, createZoomWheelClassifier, useAutoSavePref } from '@revelith/ui'
 import { wordRangeAtCaret } from './editor/comments'
-import {
-  requestGhostCompletion,
-  fetchInlineCompletion,
-  clearGhostCompletion,
-} from './editor/ghost-completion'
+import { requestGhostCompletion, clearGhostCompletion } from './editor/ghost-completion'
 import { setFieldInstr, toggleAllFieldCodes, type FieldRange } from './editor/field-codes'
 import { linkTarget } from './editor/link-actions'
 import { FieldDialog } from './components/FieldDialog'
@@ -7324,7 +7320,9 @@ function AppInner() {
               />
             )}
             {/* Source Tray - Grounded Sources sidebar */}
-            {doc && showSourceTray && <SourceTray onClose={() => setShowSourceTray(false)} />}
+            {doc && showSourceTray && (
+              <SourceTray editor={editor} onClose={() => setShowSourceTray(false)} />
+            )}
           </div>
 
           <footer className="status-bar">
