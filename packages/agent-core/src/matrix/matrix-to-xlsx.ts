@@ -35,7 +35,7 @@ export async function buildMatrixXlsx(project: MatrixProject): Promise<MatrixXls
       row: 0,
       column: c,
       writeValue: true,
-      cell: { value: headers[c] },
+      cell: { value: headers[c]! },
       style: {
         bold: true,
         fill: { pattern: 'solid', fg: '#4472C4' },
@@ -48,7 +48,7 @@ export async function buildMatrixXlsx(project: MatrixProject): Promise<MatrixXls
 
   // Data rows
   for (let r = 0; r < project.rows.length; r++) {
-    const row = project.rows[r]
+    const row = project.rows[r]!
     // Column 0: Document name
     edits.push({
       sheetName: project.name,
@@ -60,7 +60,7 @@ export async function buildMatrixXlsx(project: MatrixProject): Promise<MatrixXls
 
     // Data columns
     for (let c = 0; c < project.columns.length; c++) {
-      const col = project.columns[c]
+      const col = project.columns[c]!
       const cell = row.cells[col.id]
       const cellRow = r + 1
       const cellCol = c + 1
