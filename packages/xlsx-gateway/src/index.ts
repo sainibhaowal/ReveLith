@@ -83,3 +83,26 @@ export type {
   WorkbookStyleEdit,
   WorkbookVisualEdit,
 } from './shared/edit-schemas'
+
+export {
+  createBufferEntrySource,
+  assembleWithJsZip,
+  planCellEditsToXlsx,
+  readBasicWorkbook,
+  inventoryXlsx,
+  loadSafeZip,
+} from './gateway/xlsx-gateway'
+export type {
+  EntrySource,
+  MutationPlan,
+  XlsxMutation,
+  CellEdit,
+  SheetStructuralOps,
+  BulkConstantFill,
+  SheetFormulaValues,
+  SheetProtectedRangesState,
+} from './gateway/xlsx-gateway'
+export type { SheetFilterState } from './gateway/xlsx-filter'
+export type { SheetPageSetupState } from './gateway/xlsx-page-setup'
+export type { SheetEditPlan, SheetAllocation } from './gateway/xlsx-sheets'
+export { SheetEditError } from './gateway/xlsx-sheets'

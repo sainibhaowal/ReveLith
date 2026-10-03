@@ -1,4 +1,4 @@
-import { FORMULA_REFERENCE_PATTERN, qualifierMatches } from './xlsx-structure'
+﻿import { FORMULA_REFERENCE_PATTERN, qualifierMatches } from './xlsx-structure'
 import { ensureRelationshipNamespace } from './xlsx-namespace'
 
 /// '>' is legal inside XML attribute values (sheet names can carry it), so
@@ -14,7 +14,7 @@ const TAG_ATTRIBUTES = `(?:"[^"]*"|'[^']*'|[^>"'])*?`
 export class SheetEditError extends Error {}
 
 export interface SheetEditPlan {
-  /// original file name → new name, for sheets already in the package
+  /// original file name â†’ new name, for sheets already in the package
   readonly renames: readonly { readonly sheetName: string; readonly newName: string }[]
   /// final names of new sheets; a sourceSheetName means the part is seeded by
   /// cloning that sheet's part instead of a blank template
@@ -28,7 +28,7 @@ export interface SheetEditPlan {
   readonly order: readonly string[]
   /// visibility toggles, keyed by original (pre-rename) or added name
   readonly hiddenChanges?: readonly { readonly sheetName: string; readonly hidden: boolean }[]
-  /// True when the tab order differs from the file — calcChain sheet indexes
+  /// True when the tab order differs from the file â€” calcChain sheet indexes
   /// go stale, so the save drops it for Excel to rebuild.
   readonly orderChanged?: boolean
 }
@@ -190,7 +190,7 @@ export function chartReferencesSheet(chartXml: string, sheetName: string): boole
 /// Prepares a source sheet's relationships part for its duplicate. Hyperlink
 /// relationships clone verbatim (ids are part-scoped, targets are external or
 /// workbook-internal anchors). Printer settings reference a part the copy
-/// must not share, so they are dropped — the caller strips the matching
+/// must not share, so they are dropped â€” the caller strips the matching
 /// r:id attributes. Anything else (drawings, tables, comments, pivots) would
 /// leave the clone pointing at parts that cannot be shared: fail closed.
 export function prepareClonedSheetRels(
@@ -207,7 +207,7 @@ export function prepareClonedSheetRels(
       continue
     }
     throw new SheetEditError(
-      `Sheet "${sourceName}" carries charts, images, tables, or comments — ` +
+      `Sheet "${sourceName}" carries charts, images, tables, or comments â€” ` +
         'duplicating it is not supported yet.',
     )
   }
@@ -243,7 +243,7 @@ export function assertNoSheetScopedDefinedNames(workbookXml: string, sourceName:
   if (index < 0) throw new SheetEditError(`Sheet "${sourceName}" was not found in the workbook.`)
   if (new RegExp(`<definedName\\b[^>]*?\\blocalSheetId="${index}"`).test(workbookXml)) {
     throw new SheetEditError(
-      `Sheet "${sourceName}" has sheet-scoped defined names — duplicating it is ` +
+      `Sheet "${sourceName}" has sheet-scoped defined names â€” duplicating it is ` +
         'not supported yet.',
     )
   }
@@ -281,7 +281,7 @@ export function parseSheetElements(workbookXml: string): SheetElement[] {
       name: decodeAttribute(name),
       hidden: state === 'hidden' || state === 'veryHidden',
       // The relationships namespace is conventionally bound to "r", but any
-      // prefix is legal — fall back to whatever prefix the producer chose.
+      // prefix is legal â€” fall back to whatever prefix the producer chose.
       relationshipId:
         readAttribute(xml, 'r:id') ?? /(?:^|\s)[A-Za-z_][\w.-]*:id="([^"]*)"/.exec(xml)?.[1],
     })
@@ -421,7 +421,7 @@ export function applySheetPlanToWorkbookXml(
 }
 
 /// Toggles a `<sheet>` element's state attribute. Unhiding also clears
-/// veryHidden — the only way a user reaches such a sheet is on purpose.
+/// veryHidden â€” the only way a user reaches such a sheet is on purpose.
 function setSheetStateAttribute(sheetXml: string, hidden: boolean): string {
   const withoutState = sheetXml.replace(/\s+state="[^"]*"/, '')
   if (!hidden) return withoutState
@@ -509,7 +509,7 @@ export function partPathForRels(relsPath: string): string {
 
 /// Returns the (unresolved) targets of a removed sheet's owned satellite
 /// parts, for the caller to cascade-delete. Relationships that never block a
-/// removal are skipped; anything else — pivot tables, slicers, OLE objects —
+/// removal are skipped; anything else â€” pivot tables, slicers, OLE objects â€”
 /// fails closed rather than leave dangling references for Excel to repair.
 export function classifyRemovedSheetRels(relsXml: string, sheetName: string): string[] {
   const owned: string[] = []
@@ -523,13 +523,13 @@ export function classifyRemovedSheetRels(relsXml: string, sheetName: string): st
       ? 'a pivot table'
       : `a part this build cannot delete safely (${entry.type})`
     throw new SheetEditError(
-      `Sheet "${sheetName}" carries ${kind} — deleting it is not supported yet.`,
+      `Sheet "${sheetName}" carries ${kind} â€” deleting it is not supported yet.`,
     )
   }
   return owned
 }
 
-/// displayName of the table defined in a table part — the token surviving
+/// displayName of the table defined in a table part â€” the token surviving
 /// formulas would use in structured references (Table1[Amount]).
 export function tableDisplayName(tableXml: string): string | undefined {
   const openTag = /<table\b[^>]*>/.exec(tableXml)?.[0]
@@ -576,7 +576,7 @@ export function pivotCacheReadsFromSheet(cacheXml: string, sheetName: string): b
 }
 
 /// Rewrites worksheetSource@sheet in a pivotCacheDefinition part when the
-/// pivot's source sheet is renamed — the attribute holds the plain sheet
+/// pivot's source sheet is renamed â€” the attribute holds the plain sheet
 /// name, so the formula-oriented rename helpers never see it.
 export function renameSheetInPivotCacheSource(
   cacheXml: string,
@@ -623,7 +623,7 @@ const NAMED_ENTITIES: Record<string, string> = {
 }
 
 /// Single-pass decode of the XML named entities plus numeric character
-/// references (&#dd; / &#xhh;) — producers may encode non-ASCII sheet names
+/// references (&#dd; / &#xhh;) â€” producers may encode non-ASCII sheet names
 /// as numeric references, which sequential replaceAll would miss.
 function decodeEntities(input: string): string {
   return input.replace(

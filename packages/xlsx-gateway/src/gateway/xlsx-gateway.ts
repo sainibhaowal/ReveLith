@@ -1824,7 +1824,7 @@ function canonicalEntryName(raw: string): string | null {
   return name && /[/\\]$/.test(raw) ? `${name}/` : name
 }
 
-async function loadSafeZip(buffer: Buffer): Promise<JSZip> {
+export async function loadSafeZip(buffer: Buffer): Promise<JSZip> {
   const zip = await JSZip.loadAsync(buffer, { checkCRC32: true })
   const paths = Object.keys(zip.files)
   if (paths.length > MAX_ENTRY_COUNT) throw new Error('Workbook contains too many ZIP entries.')
