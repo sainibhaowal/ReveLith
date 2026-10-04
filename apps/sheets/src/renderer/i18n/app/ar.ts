@@ -1303,4 +1303,6 @@ export const ar = {
   appFindTitle: 'بحث وتحديد ⌘F',
   appReplace: 'استبدال',
   appGoTo: 'الانتقال إلى',
+  appConvertToValuesErrorWarning:
+    'Converted {count} formula(s) that evaluate to errors - their displayed values were used instead.',
 } satisfies Record<keyof typeof zh, string>

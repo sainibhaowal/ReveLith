@@ -81,6 +81,13 @@ import { parseFileToText } from '@revelith/file-parse'
 import { convertHtmlToDocx } from '../../../../packages/html2docx/src'
 import { ElectronBrowserDriver } from '../../../../packages/html2docx/src/drivers/electron'
 import {
+  addSourceToSession,
+  getSessionSources,
+  removeSourceFromSession,
+  clearSession,
+  SourceItem,
+} from './source-session'
+import {
   AiCreditsError,
   AiTimeoutError,
   isAiNetworkError,
@@ -103,6 +110,7 @@ import {
   type AiStreamRequest,
   type ReveLithAccountStatus,
   type LegacyAiSettings,
+  inlineComplete,
 } from '@revelith/ai-provider'
 import { listCodexModels, shutdownCodexAppServers } from '@revelith/ai-provider/codex-app-server'
 import { listCustomModelsForIpc } from '@revelith/ai-provider/custom-models'
@@ -3859,6 +3867,27 @@ export function registerAiIpc(): void {
     activeAiStreams.get(requestId)?.abort()
   })
 
+  // Inline completion (ghost text): fast one-shot completion for Cursor-style Tab autocomplete
+  ipcMain.handle(
+    'ai:inline-complete',
+    async (
+      _event,
+      input: { before: string; after: string; groundedContext?: string },
+    ): Promise<{ text: string | null }> => {
+      const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
+      const settings = resolveAiSettings(stored, defaultAiSettings())
+      settings.provider = activeProvider(settings)
+      const text = await inlineComplete(
+        settings,
+        String(input.before ?? ''),
+        String(input.after ?? ''),
+        undefined,
+        typeof input.groundedContext === 'string' ? input.groundedContext : undefined,
+      )
+      return { text }
+    },
+  )
+
   // shared search tools (content + images): Serper with DuckDuckGo fallback (same source as slides/sheets)
   ipcMain.handle('ai:web-search', async (_event, query: string, maxResults?: number) => {
     try {
@@ -5164,6 +5193,38 @@ export function registerDocsIpc(): void {
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
+  })
+
+  // Source Tray session management
+  ipcMain.handle(
+    'docs:source-add',
+    async (
+      _event,
+      docSessionId: string,
+      item: Omit<SourceItem, 'id' | 'docSessionId' | 'addedAt' | 'contentHash'>,
+    ) => {
+      return addSourceToSession(
+        docSessionId,
+        item.filePath,
+        item.fileName,
+        item.mimeType,
+        item.extractedText,
+        item.chunks,
+        item.metadata,
+      )
+    },
+  )
+
+  ipcMain.handle('docs:source-list', async (_event, docSessionId: string) => {
+    return getSessionSources(docSessionId)
+  })
+
+  ipcMain.handle('docs:source-remove', async (_event, docSessionId: string, sourceId: string) => {
+    removeSourceFromSession(docSessionId, sourceId)
+  })
+
+  ipcMain.handle('docs:source-clear', async (_event, docSessionId: string) => {
+    clearSession(docSessionId)
   })
 }
 

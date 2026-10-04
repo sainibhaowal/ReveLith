@@ -1373,4 +1373,6 @@ export const nl = {
   appFindTitle: 'Zoeken en selecteren ⌘F',
   appReplace: 'Vervangen',
   appGoTo: 'Ga naar',
+  appConvertToValuesErrorWarning:
+    'Converted {count} formula(s) that evaluate to errors - their displayed values were used instead.',
 } satisfies Record<keyof typeof zh, string>

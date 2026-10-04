@@ -262,6 +262,10 @@ interface RibbonProps {
   onSaveAs: () => void
   showAi: boolean
   onToggleAi: () => void
+  ghostCompletion?: boolean
+  onToggleGhostCompletion?: () => void
+  showSourceTray?: boolean
+  onToggleSourceTray?: () => void
   section: SectionSettings | null
   onSection: (next: SectionSettings) => void
   /** Multi-section documents: index of the cursor's section (0-based); null for single-section */
@@ -701,6 +705,10 @@ function RibbonInner({
   onSaveAs,
   showAi,
   onToggleAi,
+  ghostCompletion,
+  onToggleGhostCompletion,
+  showSourceTray,
+  onToggleSourceTray,
   section,
   onSection,
   activeSection,
@@ -4103,6 +4111,10 @@ function RibbonInner({
             onZoomDialog={onZoomDialog}
             showAi={showAi}
             onToggleAi={onToggleAi}
+            ghostCompletion={ghostCompletion}
+            onToggleGhostCompletion={onToggleGhostCompletion}
+            showSourceTray={showSourceTray}
+            onToggleSourceTray={onToggleSourceTray}
             darkPage={darkPage}
             onDarkPage={onDarkPage}
             showRuler={showRuler}

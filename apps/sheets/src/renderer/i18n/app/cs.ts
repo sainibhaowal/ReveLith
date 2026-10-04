@@ -1341,4 +1341,6 @@ export const cs = {
   appFindTitle: 'Najít a vybrat ⌘F',
   appReplace: 'Nahradit',
   appGoTo: 'Přejít na',
+  appConvertToValuesErrorWarning:
+    'Converted {count} formula(s) that evaluate to errors - their displayed values were used instead.',
 } satisfies Record<keyof typeof zh, string>

@@ -1328,4 +1328,6 @@ export const vi = {
   appFindTitle: 'Tìm & Chọn ⌘F',
   appReplace: 'Thay thế',
   appGoTo: 'Đi tới',
+  appConvertToValuesErrorWarning:
+    'Converted {count} formula(s) that evaluate to errors - their displayed values were used instead.',
 } satisfies Record<keyof typeof zh, string>

@@ -1281,4 +1281,6 @@ export const he = {
   appFindTitle: 'חפש ובחר ⌘F',
   appReplace: 'החלף',
   appGoTo: 'עבור אל',
+  appConvertToValuesErrorWarning:
+    'Converted {count} formula(s) that evaluate to errors - their displayed values were used instead.',
 } satisfies Record<keyof typeof zh, string>

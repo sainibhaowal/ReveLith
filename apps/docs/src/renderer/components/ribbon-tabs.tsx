@@ -33,6 +33,8 @@ import type { RevisionDisplayMode } from '../editor/revision-view'
 import {
   IconAccept,
   IconAiPanel,
+  IconGhost,
+  IconSourceNotebook,
   IconCaret,
   IconComment,
   IconCommentNext,
@@ -1284,6 +1286,10 @@ interface ViewTabProps {
   onZoomDialog: () => void
   showAi: boolean
   onToggleAi: () => void
+  ghostCompletion?: boolean
+  onToggleGhostCompletion?: () => void
+  showSourceTray?: boolean
+  onToggleSourceTray?: () => void
   darkPage: boolean
   onDarkPage: (v: boolean) => void
   showRuler: boolean
@@ -1310,6 +1316,10 @@ export function ViewTab({
   onZoomDialog,
   showAi,
   onToggleAi,
+  ghostCompletion,
+  onToggleGhostCompletion,
+  showSourceTray,
+  onToggleSourceTray,
   darkPage,
   onDarkPage,
   showRuler,
@@ -1497,6 +1507,33 @@ export function ViewTab({
             </span>
             <span>{t('ribbonAiPanel')}</span>
           </button>
+          {onToggleGhostCompletion && (
+            <button
+              className={`rb-big ${ghostCompletion ? 'active' : ''}`}
+              data-tip={(t as any)('ribbonGhostCompletionTip') ?? 'Real-time ambient autocomplete'}
+              onClick={onToggleGhostCompletion}
+            >
+              <span className="rb-big-icon">
+                <IconGhost size={BIG} />
+              </span>
+              <span>{(t as any)('ribbonGhostCompletion') ?? 'Inline Ghost Text'}</span>
+            </button>
+          )}
+          {onToggleSourceTray && (
+            <button
+              className={`rb-big ${showSourceTray ? 'active' : ''}`}
+              data-tip={
+                (t as any)('ribbonSourceTrayTip') ??
+                'Dedicated research sources & grounded notebook citations'
+              }
+              onClick={onToggleSourceTray}
+            >
+              <span className="rb-big-icon">
+                <IconSourceNotebook size={BIG} />
+              </span>
+              <span>{(t as any)('ribbonSourceTray') ?? 'Source Tray'}</span>
+            </button>
+          )}
           <button
             className={`rb-big ${darkPage ? 'active' : ''}`}
             data-tip={t('ribbonDarkModeTip')}

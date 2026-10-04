@@ -382,6 +382,13 @@ const desktopApi: DesktopApi = {
     }
     await ipcRenderer.invoke(IPC_CHANNELS.openExternal, url)
   },
+  async openSourceCitation(request) {
+    const filePath = typeof request?.filePath === 'string' ? request.filePath : ''
+    const page = typeof request?.page === 'number' ? request.page : 1
+    const snippet = typeof request?.snippet === 'string' ? request.snippet : ''
+    if (!filePath) throw new Error('Invalid source file.')
+    await ipcRenderer.invoke(IPC_CHANNELS.openSourceCitation, { filePath, page, snippet })
+  },
   onMenuAction(callback) {
     const listener = (_event: unknown, action: unknown): void => {
       if (

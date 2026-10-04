@@ -537,6 +537,12 @@ export async function runWorkbookDsl(
       )
     }
   }
+  const allWarnings = [
+    ...deletedSheetWarnings,
+    ...convertWarnings,
+    ...plan.warnings,
+    ...gateway.warnings,
+  ]
   return {
     edits: [...edits.values()],
     renames: Object.fromEntries(sheetRenames.map((r) => [r.sheetName, r.newName])),
@@ -544,7 +550,7 @@ export async function runWorkbookDsl(
     ...(sheetPlan ? { sheetPlan } : {}),
     gateway,
     plan: labels,
-    warnings: [...deletedSheetWarnings, ...convertWarnings, ...plan.warnings, ...gateway.warnings],
+    warnings: allWarnings,
   }
 }
 
@@ -647,6 +653,7 @@ async function expandConvertToValues(
   }
   if (sourcePath === undefined) reject('needs the workbook file on disk')
   const values = await computedValues(sourcePath!, sheetName, bounds)
+  console.error('DEBUG expandConvertToValues: values=', JSON.stringify([...values.entries()]))
   const replacements: NormalizedOp[] = []
   const errors: string[] = []
   for (const address of formulaCells) {

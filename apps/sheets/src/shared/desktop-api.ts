@@ -2648,6 +2648,8 @@ export interface DesktopApi {
   createDocument(request: WorkbookCreateDocumentRequest): Promise<WorkbookCreateDocumentResult>
   closeWorkbook(sessionId: string): Promise<void>
   openExternal(url: string): Promise<void>
+  /** Matrix citations: open the source file behind a revelith-source:// cell link */
+  openSourceCitation(request: { filePath: string; page: number; snippet: string }): Promise<void>
   /// Application-menu File commands (Open/Save/Save As); returns unsubscribe.
   onMenuAction(callback: (action: MenuAction) => void): () => void
   /// The open workbook was renamed on disk (renamed in the shell Home list);

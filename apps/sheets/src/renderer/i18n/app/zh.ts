@@ -1279,4 +1279,5 @@ export const zh = {
   appFindTitle: '查找和选择 ⌘F',
   appReplace: '替换',
   appGoTo: '定位',
+  appConvertToValuesErrorWarning: '已将 {count} 个计算结果为错误的公式转换为值。',
 }

@@ -179,6 +179,8 @@ interface RecalcResult {
     formatted: string
     number?: number
     isError?: boolean
+    isFormula?: boolean
+    formula?: string
   }[]
 }
 
@@ -1269,14 +1271,16 @@ async function evaluateFormulas(
     const out: SheetFormulaValues[] = []
     const uncached: string[] = []
     const unparsed: string[] = []
+    // Map from "sheet row column" to formula text for string formula detection
+    const formulaTextMap = new Map<string, string>()
+    for (const e of formulaCells) {
+      formulaTextMap.set(`${e.sheetName} ${e.row} ${e.column}`, e.cell.formula ?? '')
+    }
     for (const [sheet, cells] of bySheet) {
       const evaluated = await recalcRange(client, path, renames[sheet] ?? sheet, boundingBox(cells))
       const values = evaluated
         .filter((cell) => wanted.has(`${originalName(cell.sheet)} ${cell.row} ${cell.column}`))
         .map((cell) => {
-          // Both leave the cell without a cached value — the file is correct
-          // and Excel recomputes on open — but they have different causes and
-          // the caller reports them apart.
           if (cell.formatted === UNKNOWN_FUNCTION_RESULT) {
             uncached.push(`${sheet}!${toA1Address(cell.row, cell.column)}`)
             return { row: cell.row, column: cell.column, value: null }
@@ -1285,7 +1289,20 @@ async function evaluateFormulas(
             unparsed.push(`${sheet}!${toA1Address(cell.row, cell.column)}`)
             return { row: cell.row, column: cell.column, value: null }
           }
-          if (cell.isError) {
+          // Detect string formulas from the original formula text
+          const key = `${originalName(cell.sheet)} ${cell.row} ${cell.column}`
+          const formulaText = formulaTextMap.get(key) ?? ''
+          const isStringFormula = formulaText.startsWith('="') || formulaText.startsWith("='")
+          // Detect error values: IronCalc may not set isError for computed errors
+          // like #DIV/0!. But it correctly returns isError=false for string formulas
+          // like ="#N/A". We only apply the fallback for non-string formulas.
+          const isError =
+            cell.isError === true ||
+            (cell.isFormula &&
+              !isStringFormula &&
+              typeof cell.formatted === 'string' &&
+              cell.formatted.startsWith('#'))
+          if (isError) {
             return { row: cell.row, column: cell.column, value: { error: cell.formatted } }
           }
           return {
@@ -1294,7 +1311,6 @@ async function evaluateFormulas(
             value: (cell.number ?? (cell.formatted === '' ? null : cell.formatted)) as Scalar,
           }
         })
-      // the refresh is keyed like the edits, by the file's original sheet name
       if (values.length) out.push({ sheetName: sheet, cells: values })
     }
     return { values: out, uncached, unparsed }
@@ -1371,9 +1387,16 @@ export async function computedValues(
   const out = new Map<string, { value: Scalar; isError: boolean }>()
   await withSidecar(async (client) => {
     for (const cell of await recalcRange(client, path, sheet, bounds)) {
+      const formatted = cell.formatted
+      // Detect error values: formatted starts with # (like #DIV/0!, #N/A, #VALUE!, etc.)
+      // and the cell has a formula (is_formula). IronCalc may not set isError correctly.
+      const isError = !!(
+        cell.isError === true ||
+        (cell.isFormula && typeof formatted === 'string' && formatted.startsWith('#'))
+      )
       out.set(`${cell.row}|${cell.column}`, {
-        value: cell.number ?? (cell.formatted === '' ? null : cell.formatted),
-        isError: cell.isError === true,
+        value: cell.number ?? (formatted === '' ? null : formatted),
+        isError,
       })
     }
   })

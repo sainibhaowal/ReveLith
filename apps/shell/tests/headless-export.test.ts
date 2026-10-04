@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -13,9 +14,12 @@ import type { HeadlessExportRequest } from '@revelith/electron-utils'
  * injected, so no Electron window is ever created here.
  */
 
+/** Resolve a POSIX-style path so it matches what validateHeadlessPaths resolves on every OS. */
+const p = (...parts: string[]) => resolve(...parts)
+
 const request = (
   input: string,
-  outPath = '/out/a.pdf',
+  outPath = p('/out/a.pdf'),
   targetFormat: HeadlessExportRequest['targetFormat'] = 'pdf',
 ): HeadlessExportRequest => ({
   input,
@@ -49,52 +53,58 @@ function stubExporters(): { exporters: HeadlessExporters; calls: string[] } {
 
 describe('validateHeadlessPaths', () => {
   it('routes a readable input to its module', () => {
-    const result = validateHeadlessPaths(request('/docs/a.docx'), fsWith(['/docs/a.docx', '/out']))
+    const result = validateHeadlessPaths(
+      request(p('/docs/a.docx')),
+      fsWith([p('/docs/a.docx'), p('/out')]),
+    )
     expect(result).toEqual({
       ok: true,
-      input: '/docs/a.docx',
-      outPath: '/out/a.pdf',
+      input: p('/docs/a.docx'),
+      outPath: p('/out/a.pdf'),
       module: 'docs',
     })
   })
 
   it('rejects a target the input module does not render as bad args (exit 1)', () => {
-    const fs = fsWith(['/docs/a.docx', '/decks/a.pptx', '/out'])
+    const fs = fsWith([p('/docs/a.docx'), p('/decks/a.pptx'), p('/out')])
     expect(
-      validateHeadlessPaths(request('/decks/a.pptx', '/out/a.docx', 'docx'), fs),
+      validateHeadlessPaths(request(p('/decks/a.pptx'), p('/out/a.docx'), 'docx'), fs),
     ).toMatchObject({ ok: false, code: 1, message: expect.stringContaining('pdf') })
-    expect(validateHeadlessPaths(request('/docs/a.docx', '/out/a.html', 'html'), fs)).toMatchObject(
-      { ok: true, module: 'docs' },
-    )
+    expect(
+      validateHeadlessPaths(request(p('/docs/a.docx'), p('/out/a.html'), 'html'), fs),
+    ).toMatchObject({ ok: true, module: 'docs' })
   })
 
   it('reports a missing input as an input-file error (exit 2)', () => {
-    expect(validateHeadlessPaths(request('/nope.docx'), fsWith([]))).toEqual({
+    expect(validateHeadlessPaths(request(p('/nope.docx')), fsWith([]))).toEqual({
       ok: false,
       code: 2,
-      message: expect.stringContaining('/nope.docx'),
+      message: expect.stringContaining('nope.docx'),
     })
   })
 
   it('rejects a directory handed in as the input', () => {
     const result = validateHeadlessPaths(
-      request('/docs/a.docx'),
-      fsWith(['/docs/a.docx', '/out'], false),
+      request(p('/docs/a.docx')),
+      fsWith([p('/docs/a.docx'), p('/out')], false),
     )
     expect(result).toMatchObject({ ok: false, code: 2, message: expect.stringContaining('file') })
   })
 
   it('rejects an extension no module can render', () => {
-    const result = validateHeadlessPaths(request('/docs/a.pdf'), fsWith(['/docs/a.pdf', '/out']))
+    const result = validateHeadlessPaths(
+      request(p('/docs/a.pdf')),
+      fsWith([p('/docs/a.pdf'), p('/out')]),
+    )
     expect(result).toMatchObject({ ok: false, code: 2 })
   })
 
   it('treats a missing output directory as a bad argument (exit 1)', () => {
     const result = validateHeadlessPaths(
-      request('/docs/a.docx', '/gone/a.pdf'),
-      fsWith(['/docs/a.docx']),
+      request(p('/docs/a.docx'), p('/gone/a.pdf')),
+      fsWith([p('/docs/a.docx')]),
     )
-    expect(result).toMatchObject({ ok: false, code: 1, message: expect.stringContaining('/gone') })
+    expect(result).toMatchObject({ ok: false, code: 1, message: expect.stringContaining('gone') })
   })
 })
 
@@ -102,12 +112,12 @@ describe('runHeadlessExport', () => {
   it('calls the module that owns the extension and reports success', async () => {
     const { exporters, calls } = stubExporters()
     const outcome = await runHeadlessExport(
-      request('/decks/a.pptx'),
+      request(p('/decks/a.pptx')),
       exporters,
-      fsWith(['/decks/a.pptx', '/out', '/out/a.pdf']),
+      fsWith([p('/decks/a.pptx'), p('/out'), p('/out/a.pdf')]),
     )
-    expect(calls).toEqual(['slides:/decks/a.pptx->/out/a.pdf:pdf'])
-    expect(outcome).toEqual({ ok: true, input: '/decks/a.pptx', outPath: '/out/a.pdf' })
+    expect(calls).toEqual([`slides:${p('/decks/a.pptx')}->${p('/out/a.pdf')}:pdf`])
+    expect(outcome).toEqual({ ok: true, input: p('/decks/a.pptx'), outPath: p('/out/a.pdf') })
   })
 
   it.each([
@@ -118,7 +128,12 @@ describe('runHeadlessExport', () => {
     ['/a.html', 'html'],
   ])('routes %s to the %s exporter', async (input, module) => {
     const { exporters, calls } = stubExporters()
-    await runHeadlessExport(request(input), exporters, fsWith([input, '/out', '/out/a.pdf']))
+    const resolved = p(input)
+    await runHeadlessExport(
+      request(resolved),
+      exporters,
+      fsWith([resolved, p('/out'), p('/out/a.pdf')]),
+    )
     expect(calls[0]?.startsWith(`${module}:`)).toBe(true)
   })
 
@@ -126,9 +141,9 @@ describe('runHeadlessExport', () => {
     const { exporters } = stubExporters()
     exporters.docs = vi.fn(() => Promise.reject(new Error('renderer stopped')))
     const outcome = await runHeadlessExport(
-      request('/a.docx'),
+      request(p('/a.docx')),
       exporters,
-      fsWith(['/a.docx', '/out']),
+      fsWith([p('/a.docx'), p('/out')]),
     )
     expect(outcome).toEqual({ ok: false, code: 3, message: 'renderer stopped' })
   })
@@ -136,20 +151,20 @@ describe('runHeadlessExport', () => {
   it('fails when the exporter resolves but wrote nothing', async () => {
     const { exporters } = stubExporters()
     const outcome = await runHeadlessExport(
-      request('/a.docx'),
+      request(p('/a.docx')),
       exporters,
-      fsWith(['/a.docx', '/out']),
+      fsWith([p('/a.docx'), p('/out')]),
     )
     expect(outcome).toMatchObject({
       ok: false,
       code: 3,
-      message: expect.stringContaining('/out/a.pdf'),
+      message: expect.stringContaining('a.pdf'),
     })
   })
 
   it('never reaches an exporter when the input is unusable', async () => {
     const { exporters, calls } = stubExporters()
-    const outcome = await runHeadlessExport(request('/gone.docx'), exporters, fsWith([]))
+    const outcome = await runHeadlessExport(request(p('/gone.docx')), exporters, fsWith([]))
     expect(calls).toEqual([])
     expect(outcome).toMatchObject({ ok: false, code: 2 })
   })

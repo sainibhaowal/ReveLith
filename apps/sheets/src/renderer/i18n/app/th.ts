@@ -1303,4 +1303,6 @@ export const th = {
   appFindTitle: 'ค้นหาและเลือก ⌘F',
   appReplace: 'แทนที่',
   appGoTo: 'ไปที่',
+  appConvertToValuesErrorWarning:
+    'Converted {count} formula(s) that evaluate to errors - their displayed values were used instead.',
 } satisfies Record<keyof typeof zh, string>

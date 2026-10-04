@@ -23,6 +23,7 @@
     "@revelith/agent-core": "*",
     "@revelith/ai-provider": "*",
     "@revelith/ai-search": "*",
+    "@revelith/file-parse": "*",
     "@revelith/docs": "*",
     "@revelith/docx-engine": "*",
     "@revelith/electron-utils": "*",

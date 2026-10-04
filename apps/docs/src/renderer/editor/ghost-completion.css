@@ -1,0 +1,13 @@
+.revelith-ghost-text {
+  color: var(--text-muted) !important;
+  opacity: 0.52 !important;
+  font-style: italic !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  white-space: pre-wrap !important;
+  display: inline !important;
+}
+
+[data-theme='dark'] .revelith-ghost-text {
+  opacity: 0.48 !important;
+}

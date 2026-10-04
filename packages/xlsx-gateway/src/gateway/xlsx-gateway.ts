@@ -1824,7 +1824,7 @@ function canonicalEntryName(raw: string): string | null {
   return name && /[/\\]$/.test(raw) ? `${name}/` : name
 }
 
-async function loadSafeZip(buffer: Buffer): Promise<JSZip> {
+export async function loadSafeZip(buffer: Buffer): Promise<JSZip> {
   const zip = await JSZip.loadAsync(buffer, { checkCRC32: true })
   const paths = Object.keys(zip.files)
   if (paths.length > MAX_ENTRY_COUNT) throw new Error('Workbook contains too many ZIP entries.')
@@ -2786,6 +2786,8 @@ function serializeStyledCell(
     return styleIndex === undefined ? '' : `<c r="${address}"${style}/>`
   }
   if (typeof cell.value === 'string') {
+    // Check if it's an Excel error value (starts with # like #DIV/0!, #N/A, #VALUE!, etc.)
+    const isError = cell.value.startsWith('#')
     if (rich && rich.length > 0) {
       const runs = rich
         .map(
@@ -2794,6 +2796,9 @@ function serializeStyledCell(
         )
         .join('')
       return `<c r="${address}"${style} t="inlineStr"><is>${runs}</is></c>`
+    }
+    if (isError) {
+      return `<c r="${address}"${style} t="e"><v>${escapeCellText(cell.value)}</v></c>`
     }
     return `<c r="${address}"${style} t="inlineStr"><is><t xml:space="preserve">${escapeCellText(cell.value)}</t></is></c>`
   }

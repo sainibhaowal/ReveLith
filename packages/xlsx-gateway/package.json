@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "description": "xlsx write gateway and workbook domain logic (OOXML patching, CSV import, workbook DSL, pivots, charts) shared by the sheets app and the revelith CLI; no Electron, no Univer",
+  "main": "./src/index.ts",
   "exports": {
+    ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {

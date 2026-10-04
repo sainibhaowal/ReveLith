@@ -33,3 +33,14 @@ export { createIpcTransport, IPC_STREAM_SILENCE_TIMEOUT_MS } from './electron-tr
 export { streamText } from './stream-text'
 export type { StreamTextOptions, StreamTextOutcome } from './stream-text'
 export type { IpcStreamChunk, IpcStreamStart, IpcTransportOptions } from './electron-transport'
+
+// Citations & Grounded Sources
+export * from './citations/types'
+export * from './citations/citation-engine'
+export * from './citations/source-store'
+export * from './citations/source-adapter'
+
+// Hebbia Matrix Multi-Document Extraction
+export * from './matrix/types'
+export * from './matrix/matrix-extractor'
+export * from './matrix/matrix-to-xlsx'
