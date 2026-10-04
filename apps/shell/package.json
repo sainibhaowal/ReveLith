@@ -17,6 +17,7 @@
     "start": "electron-vite build && electron .",
     "dist:mac": "npm run notices && electron-vite build && electron-builder --mac",
     "dist:win": "npm run notices && electron-vite build && electron-builder --win",
+    "dist:win:pack-only": "electron-builder --win",
     "dist:linux": "npm run notices && electron-vite build && electron-builder --linux"
   },
   "devDependencies": {

@@ -656,6 +656,10 @@ const config = {
     installerIcon: 'build/installerIcon.ico',
     uninstallerIcon: 'build/uninstallerIcon.ico',
     installerHeaderIcon: 'build/icon.ico',
+    // Arch-qualified artifact name for the ARM64 pass so both installers can
+    // be published side by side. The x64 string reproduces electron-builder's
+    // default exactly (existing download links keep working).
+    artifactName: 'ReveLith Setup ${version}' + (winArm64 ? '-arm64' : '') + '.${ext}',
     // Explorer "Open with ReveLith" verbs + ShellNew templates (see
     // build/installer.nsh customInstall/customUnInstall).
     include: 'build/installer.nsh',

@@ -94,6 +94,10 @@ Thumbs.db
 apps/shell/build/THIRD-PARTY-NOTICES.txt
 # per-filetype Windows/mac icons baked into OS file associations
 # (tools/gen-file-association-icons.mjs -> apps/shell/build/<type>.{ico,icns})
+# NOTE: the current set is intentionally COMMITTED (git add -f) because the
+# release workflow needs them on every runner and the generator requires
+# macOS iconutil + Chrome. Regenerate on macOS after changing file-*.svg
+# and commit the result.
 apps/shell/build/*.ico
 apps/shell/build/*.icns
 # ...but keep the tracked main app icon
