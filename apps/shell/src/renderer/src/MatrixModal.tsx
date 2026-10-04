@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Dropdown } from '@revelith/ui'
+import './matrix-modal.css'
 
 interface MatrixColumnConfig {
   id: string
@@ -201,10 +202,48 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
   return (
     <div className="matrix-modal">
       <div className="modal-header">
-        <h2>{'Generate Comparison Matrix'}</h2>
+        <h2>{'AI Matrix - Document Comparison'}</h2>
         <button className="modal-close" onClick={onClose} aria-label="Close">
           ✕
         </button>
+      </div>
+
+      {/* Ribbon-style toolbar */}
+      <div className="matrix-ribbon">
+        <div className="matrix-ribbon-group">
+          <span className="matrix-ribbon-label">Templates</span>
+          <Dropdown
+            value={preset}
+            options={[
+              { value: 'contracts', label: 'Contracts' },
+              { value: 'invoices', label: 'Invoices' },
+              { value: 'custom', label: 'Custom' },
+            ]}
+            onPick={handlePresetChange}
+          />
+        </div>
+        <div className="matrix-ribbon-group">
+          <span className="matrix-ribbon-label">Actions</span>
+          <button className="matrix-ribbon-btn" onClick={addColumn} disabled={isGenerating}>
+            <span>+</span> Add Column
+          </button>
+          <button
+            className="matrix-ribbon-btn"
+            onClick={() => setFiles([])}
+            disabled={isGenerating || files.length === 0}
+          >
+            Clear Files
+          </button>
+        </div>
+        <div className="matrix-ribbon-group" style={{ borderRight: 'none', marginLeft: 'auto' }}>
+          <button
+            className="matrix-ribbon-btn primary"
+            onClick={handleGenerate}
+            disabled={isGenerating || files.length === 0}
+          >
+            {isGenerating ? 'Generating...' : 'Generate Matrix'}
+          </button>
+        </div>
       </div>
 
       <div className="modal-body">
@@ -217,7 +256,7 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
         )}
 
         <div className="section">
-          <h3>{'Source Files'}</h3>
+          <h3>{'Source Files (PDF, DOCX, XLSX)'}</h3>
           <div
             className={`drop-zone ${dragActive ? 'active' : ''}`}
             onDragOver={handleDragOver}
@@ -226,21 +265,20 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
           >
             <input
               type="file"
-              accept=".pdf"
+              accept=".pdf,.docx,.xlsx"
               multiple
               onChange={handleFileSelect}
               id="matrix-files"
               style={{ display: 'none' }}
-              ref={(el) => el?.click()}
             />
             <label htmlFor="matrix-files" className="drop-label">
-              <span style={{ fontSize: 32 }}>📤</span>
+              <span style={{ fontSize: 32 }}>�</span>
               <p>
                 {files.length === 0
-                  ? 'Drag PDFs here or click to select'
+                  ? 'Drag & drop files here or click to browse'
                   : `${files.length} file(s) selected`}
               </p>
-              <p className="hint">{'PDF, DOCX, XLSX supported'}</p>
+              <p className="hint">{'Supports: PDF, DOCX, XLSX (max 20 files)'}</p>
             </label>
           </div>
           {files.length > 0 && (
@@ -248,105 +286,90 @@ export function MatrixModal({ onClose, onGenerate }: MatrixModalProps) {
               {files.map((file, i) => (
                 <li key={i} className="file-item">
                   <span>{file.name}</span>
-                  <button className="ghost sm" onClick={() => removeFile(i)}>
+                  <button
+                    className="ghost sm"
+                    onClick={() => removeFile(i)}
+                    disabled={isGenerating}
+                  >
                     ✕
                   </button>
                 </li>
               ))}
             </ul>
           )}
+        </div>
 
-          <div className="section">
-            <h3>{'Column Configuration'}</h3>
-            <Dropdown
-              value={preset}
-              options={[
-                { value: 'contracts', label: 'Contracts Template (7 columns)' },
-                { value: 'invoices', label: 'Invoices Template (7 columns)' },
-                { value: 'custom', label: 'Custom Columns' },
-              ]}
-              onPick={handlePresetChange}
-            />
-
-            <div className="column-editor">
-              {columns.map((col, i) => (
-                <div key={col.id} className="column-row">
-                  <input
-                    type="text"
-                    placeholder="Column Name"
-                    value={col.name}
-                    onChange={(e) => updateColumn(i, 'name', e.target.value)}
-                    style={{ flex: 2 }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Description (optional)"
-                    value={col.description}
-                    onChange={(e) => updateColumn(i, 'description', e.target.value)}
-                    style={{ flex: 3 }}
-                  />
-                  <select
-                    value={col.dataType}
-                    onChange={(e) =>
-                      updateColumn(i, 'dataType', e.target.value as MatrixColumnConfig['dataType'])
-                    }
-                    style={{ width: 140 }}
-                  >
-                    <option value="text">Text</option>
-                    <option value="number">Number</option>
-                    <option value="date">Date</option>
-                    <option value="boolean">Yes/No</option>
-                  </select>
-                  <button
-                    className="ghost xs"
-                    onClick={() => removeColumn(i)}
-                    title="Remove column"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <button className="button secondary" onClick={addColumn}>
-                <span>+</span> {'Add Column'}
-              </button>
-            </div>
-          </div>
-
-          <div className="section">
-            <h3>{'Source Tray Integration'}</h3>
-            <label>
-              <input type="checkbox" checked={false} onChange={() => {}} />
-              <span>{'Include sources from Source Tray as additional context'}</span>
-            </label>
-          </div>
-
-          {isGenerating && (
-            <div className="progress-section">
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${(progress.current / progress.total) * 100}%` }}
+        <div className="section">
+          <h3>{'Column Configuration (max 12 columns)'}</h3>
+          <div className="column-editor">
+            {columns.map((col, i) => (
+              <div key={col.id} className="column-row">
+                <input
+                  type="text"
+                  placeholder="Column Name *"
+                  value={col.name}
+                  onChange={(e) => updateColumn(i, 'name', e.target.value)}
+                  disabled={isGenerating}
                 />
+                <input
+                  type="text"
+                  placeholder="Description"
+                  value={col.description}
+                  onChange={(e) => updateColumn(i, 'description', e.target.value)}
+                  disabled={isGenerating}
+                />
+                <select
+                  value={col.dataType}
+                  onChange={(e) =>
+                    updateColumn(i, 'dataType', e.target.value as MatrixColumnConfig['dataType'])
+                  }
+                  disabled={isGenerating}
+                >
+                  <option value="text">Text</option>
+                  <option value="number">Number</option>
+                  <option value="date">Date</option>
+                  <option value="boolean">Yes/No</option>
+                </select>
+                <button
+                  className="ghost xs"
+                  onClick={() => removeColumn(i)}
+                  title="Remove column"
+                  disabled={isGenerating}
+                >
+                  ✕
+                </button>
               </div>
-              <p className="progress-text">
-                {'Processing'} {progress.currentFile} ({progress.current}/{progress.total})
-              </p>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="button ghost" onClick={onClose} disabled={isGenerating}>
-            {'Cancel'}
-          </button>
-          <button
-            className="button primary"
-            onClick={handleGenerate}
-            disabled={isGenerating || files.length === 0}
-          >
-            {isGenerating ? 'Generating...' : 'Generate Matrix'}
-          </button>
+        <div className="section">
+          <h3>{'Advanced Options'}</h3>
+          <label>
+            <input type="checkbox" checked={false} onChange={() => {}} disabled={isGenerating} />
+            <span>{'Include sources from Source Tray as additional context'}</span>
+          </label>
         </div>
+
+        {isGenerating && (
+          <div className="progress-section">
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+            <p className="progress-text">
+              {'Processing'} {progress.currentFile} ({progress.current}/{progress.total})
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="modal-footer">
+        <button className="button ghost" onClick={onClose} disabled={isGenerating}>
+          {'Cancel'}
+        </button>
       </div>
     </div>
   )

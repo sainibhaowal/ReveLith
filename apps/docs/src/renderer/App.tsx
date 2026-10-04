@@ -22,7 +22,15 @@ import {
   requestGhostStream,
   clearGhostCompletion,
   clearGhostStream,
+  setGhostAcceptHook,
+  citedNumbers,
+  ensureBibliography,
 } from './editor/ghost-completion'
+import {
+  traySourceToCitationSource,
+  CITATION_STYLE_LABELS,
+} from '@revelith/agent-core/citations/source-adapter'
+import { formatFullReference } from '@revelith/agent-core/citations/citation-engine'
 import { setFieldInstr, toggleAllFieldCodes, type FieldRange } from './editor/field-codes'
 import { linkTarget } from './editor/link-actions'
 import { FieldDialog } from './components/FieldDialog'
@@ -932,7 +940,8 @@ function AppInner() {
   const [showSourceTray, setShowSourceTray] = useState(false)
   const [ghostEnabled, setGhostEnabled] = useState(true)
   const [ghostAuto, setGhostAuto] = useState(false)
-  const { groundedWrite, getGroundedContext, setDocSessionId } = useSourceStore()
+  const { groundedWrite, getGroundedContext, setDocSessionId, getFilteredSources, citationStyle } =
+    useSourceStore()
   const [commentFocus, setCommentFocus] = useState<{ id: string; nonce: number } | null>(null)
   /** Style definitions pending write-back (key = styleId), saved via SaveOptions.styleUpserts */
   const [defaultFonts, setDefaultFonts] = useState<DefaultFonts>()
@@ -5974,6 +5983,29 @@ function AppInner() {
   // Ghost completion: live-streaming Tab autocomplete (grounded + auto modes).
   // Paused via the status-bar Ghost toggle; Auto mode streams longer
   // structured continuations and auto-inserts them after 6s idle.
+  // Every accept maintains the trailing References section from cited [n]s.
+  // Entry numbers mirror the inline markers (appearance order), so [n] in
+  // the text always matches [n] in References.
+  useEffect(() => {
+    setGhostAcceptHook((acceptedText) => {
+      if (!groundedWrite) return
+      const numbers = citedNumbers(acceptedText)
+      if (numbers.length === 0) return
+      const visible = getFilteredSources()
+      const lines: string[] = []
+      for (const n of numbers) {
+        const source = visible[n - 1]
+        if (!source) continue
+        lines.push(
+          `[${n}] ${formatFullReference(traySourceToCitationSource(source), citationStyle, n)}`,
+        )
+      }
+      if (lines.length === 0) return
+      ensureBibliography(editorRef.current, lines)
+    })
+    return () => setGhostAcceptHook(null)
+  }, [groundedWrite, citationStyle, getFilteredSources])
+
   useEffect(() => {
     if (!editor || !ghostEnabled) return
     let idleTimer: ReturnType<typeof setTimeout> | null = null
@@ -5992,6 +6024,9 @@ function AppInner() {
         delayMs: 0,
         mode: ghostAuto ? 'auto' : 'short',
         getGroundedContext: () => (groundedWrite ? getGroundedContext(4000) : undefined),
+        getSources: () =>
+          groundedWrite ? getFilteredSources().map((s) => ({ fileName: s.fileName })) : [],
+        citationStyleLabel: CITATION_STYLE_LABELS[citationStyle],
         webSearch: ghostAuto,
         autoAcceptMs: ghostAuto ? 6000 : 0,
       })
@@ -6033,7 +6068,15 @@ function AppInner() {
       clearGhostCompletion(editor)
       clearGhostStream(true)
     }
-  }, [editor, ghostEnabled, ghostAuto, groundedWrite, getGroundedContext])
+  }, [
+    editor,
+    ghostEnabled,
+    ghostAuto,
+    groundedWrite,
+    getGroundedContext,
+    getFilteredSources,
+    citationStyle,
+  ])
 
   // e2e/automation hook: lets tests drive open/edit/save without native dialogs
   useEffect(() => {

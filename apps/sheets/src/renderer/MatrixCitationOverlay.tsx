@@ -24,15 +24,30 @@ function parseCitationLink(
  * Matrix citations: clicking a cell carrying a revelith-source:// hyperlink
  * opens the source file through the sheets desktop bridge so the cited
  * passage can be verified at its page.
+ *
+ * This hook intercepts clicks on cells with revelith-source:// hyperlinks
+ * and routes them through the desktop bridge instead of the default browser.
  */
 export function useMatrixCitationOverlay(editor: any) {
   const handleCellClick = useCallback((event: MouseEvent) => {
     const target = event.target as HTMLElement
-    const cell = target.closest('[data-revelith-source]')
+
+    // Try multiple selectors to find cells with citations
+    const cell =
+      target.closest('[data-revelith-source]') ||
+      target.closest('.univer-cell[data-hyperlink]') ||
+      target.closest('a[href*="revelith-source://"]')
+
     if (!cell) return
 
-    const hyperlink = cell.getAttribute('data-revelith-source') || cell.getAttribute('href')
-    if (!hyperlink) return
+    // Get hyperlink from various possible attributes
+    const hyperlink =
+      cell.getAttribute('data-revelith-source') ||
+      cell.getAttribute('data-hyperlink') ||
+      cell.getAttribute('href')
+
+    if (!hyperlink || !hyperlink.startsWith('revelith-source://')) return
+
     const citation = parseCitationLink(hyperlink)
     if (!citation) return
 

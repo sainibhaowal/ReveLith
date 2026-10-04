@@ -28,7 +28,7 @@ export async function buildMatrixXlsx(project: MatrixProject): Promise<MatrixXls
   const headers = ['Document', ...project.columns.map((c) => c.name)]
   const colCount = headers.length
 
-  // Row 0: Headers
+  // Row 0: Headers with professional styling
   for (let c = 0; c < colCount; c++) {
     edits.push({
       sheetName: project.name,
@@ -38,10 +38,11 @@ export async function buildMatrixXlsx(project: MatrixProject): Promise<MatrixXls
       cell: { value: headers[c]! },
       style: {
         bold: true,
-        fill: { pattern: 'solid', fg: '#4472C4' },
+        fill: { pattern: 'solid', fg: '#2E5090' }, // Professional dark blue
         fontColor: '#FFFFFF',
         fontSize: 11,
         fontFamily: 'Calibri',
+        horizontalAlignment: 'center',
       },
     })
   }

@@ -2442,6 +2442,7 @@ export function registerSheetsIpc(): void {
 
   // Matrix citations: renderer clicked a cell with a revelith-source:// hyperlink.
   // Opens the source file so the user can verify the cited passage.
+  // For PDFs, we append #page=N to the URL to jump to the specific page.
   ipcMain.handle(
     IPC_CHANNELS.openSourceCitation,
     async (
@@ -2453,7 +2454,12 @@ export function registerSheetsIpc(): void {
       const snippet = typeof payload?.snippet === 'string' ? payload.snippet : ''
       if (!filePath) return
       try {
-        await shell.openPath(filePath)
+        // For PDF files, append page anchor to jump to specific page
+        if (filePath.toLowerCase().endsWith('.pdf')) {
+          await shell.openPath(`${filePath}#page=${page}`)
+        } else {
+          await shell.openPath(filePath)
+        }
       } catch (err) {
         console.warn('[sheets] open-source-citation failed:', filePath, page, snippet, err)
       }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import type { DocSourceInput, DocSourceItem } from '../../shared/ipc'
+import type { CitationStyle } from '@revelith/agent-core/citations/types'
 
 export type { DocSourceInput, DocSourceItem }
 export interface TextChunk {
@@ -27,6 +28,9 @@ interface SourceStoreState {
   removeSource: (sourceId: string) => Promise<void>
   clearAll: () => Promise<void>
   setGroundedWrite: (enabled: boolean) => void
+  /** citation style shared by the tray and the ghost writer (default APA) */
+  citationStyle: CitationStyle
+  setCitationStyle: (style: CitationStyle) => void
   setDocSessionId: (id: string | null) => void
   setFilters: (filters: Partial<SourceStoreState['filters']>) => void
   getFilteredSources: () => SourceItem[]
@@ -45,6 +49,7 @@ export function SourceStoreProvider({
   const [docSessionId, setDocSessionId] = useState<string | null>(initialDocSessionId ?? null)
   const [sources, setSources] = useState<SourceItem[]>([])
   const [groundedWrite, setGroundedWrite] = useState(false)
+  const [citationStyle, setCitationStyle] = useState<CitationStyle>('apa')
   const [filters, setFilters] = useState<SourceStoreState['filters']>({
     dateRange: { from: null, to: null },
     categories: [],
@@ -150,6 +155,8 @@ export function SourceStoreProvider({
     docSessionId,
     sources,
     groundedWrite,
+    citationStyle,
+    setCitationStyle,
     filters,
     addSource,
     removeSource,

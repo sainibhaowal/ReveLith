@@ -1,0 +1,497 @@
+/* Matrix Modal - AI-powered document comparison tool
+ * Professional ribbon interface matching ReveLith design system
+ * Uses semantic theme tokens for light/dark/system support */
+
+/* ── Modal Container ─────────────────────────────────── */
+
+.matrix-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+/* ── Header with Ribbon-style Toolbar ─────────────────── */
+
+.matrix-modal .modal-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.matrix-modal .modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.matrix-modal .modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.matrix-modal .modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── Ribbon Toolbar ───────────────────────────────────── */
+
+.matrix-ribbon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+}
+
+.matrix-ribbon-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.matrix-ribbon-group:last-child {
+  border-right: none;
+}
+
+.matrix-ribbon-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+
+.matrix-ribbon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.matrix-ribbon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.matrix-ribbon-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.matrix-ribbon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.matrix-ribbon-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.matrix-ribbon-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.matrix-ribbon-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* ── Modal Body ──────────────────────────────────────── */
+
+.matrix-modal .modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+  background: var(--bg-content);
+}
+
+/* ── Status Banners ──────────────────────────────────── */
+
+.matrix-modal .error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.matrix-modal .success-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success);
+  font-size: 14px;
+}
+
+/* ── Sections ────────────────────────────────────────── */
+
+.matrix-modal .section {
+  margin-bottom: 24px;
+}
+
+.matrix-modal .section:last-child {
+  margin-bottom: 0;
+}
+
+.matrix-modal .section h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+/* ── Drop Zone ──────────────────────────────────────── */
+
+.matrix-modal .drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.matrix-modal .drop-zone:hover {
+  border-color: var(--accent);
+  background: var(--surface-subtle);
+}
+
+.matrix-modal .drop-zone.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.matrix-modal .drop-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.matrix-modal .drop-label p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.matrix-modal .drop-label .hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ── File List ──────────────────────────────────────── */
+
+.matrix-modal .file-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.matrix-modal .file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+}
+
+.matrix-modal .file-item span {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix-modal .file-item .ghost {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.matrix-modal .file-item .ghost:hover {
+  background: var(--bg-hover);
+  color: var(--danger);
+}
+
+.matrix-modal .file-item .ghost.sm {
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+}
+
+/* ── Column Editor ──────────────────────────────────── */
+
+.matrix-modal .column-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.matrix-modal .column-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.matrix-modal .column-row input,
+.matrix-modal .column-row select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.matrix-modal .column-row input:focus,
+.matrix-modal .column-row select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.matrix-modal .column-row input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ── Buttons ────────────────────────────────────────── */
+
+.matrix-modal .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.matrix-modal .button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.matrix-modal .button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.matrix-modal .button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.matrix-modal .button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.matrix-modal .button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.matrix-modal .button.secondary {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.matrix-modal .button.ghost {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+}
+
+.matrix-modal .button.ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.matrix-modal .button.xs {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+/* ── Checkbox ──────────────────────────────────────── */
+
+.matrix-modal label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.matrix-modal input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  appearance: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.matrix-modal input[type='checkbox']:checked {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.4 2.4 4.6-5' stroke='%23fff' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 10px 10px no-repeat;
+}
+
+/* ── Progress Section ───────────────────────────────── */
+
+.matrix-modal .progress-section {
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.matrix-modal .progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.matrix-modal .progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+.matrix-modal .progress-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ── Modal Footer ──────────────────────────────────── */
+
+.matrix-modal .modal-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .matrix-ribbon {
+    flex-wrap: wrap;
+  }
+
+  .matrix-ribbon-group {
+    border-right: none;
+  }
+
+  .matrix-modal .column-row {
+    flex-wrap: wrap;
+  }
+
+  .matrix-modal .column-row input,
+  .matrix-modal .column-row select {
+    flex: 1;
+    min-width: 120px;
+  }
+}

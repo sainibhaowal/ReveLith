@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   buildGhostSystemPrompt,
   buildGhostUserMessage,
+  citedNumbers,
   extractDocOutline,
+  hasGhostStructure,
+  parseGhostBlocks,
   takeFirstWord,
 } from '../src/renderer/editor/ghost-completion'
 
@@ -50,6 +53,57 @@ describe('ghost streaming helpers', () => {
     )
     expect(bare).toContain('Hi there.')
     expect(bare).not.toContain('outline')
+  })
+
+  it('includes the numbered source index and style for auto citations', () => {
+    const msg = buildGhostUserMessage(
+      {
+        before: 'Market analysis.',
+        after: '',
+        outline: [],
+        grounded: '',
+        web: '',
+        sourceIndex: '[1] gartner-2024.pdf\n[2] forrester-wave.pdf',
+        citationStyleLabel: 'APA 7th',
+      },
+      'auto',
+    )
+    expect(msg).toContain('[1] gartner-2024.pdf')
+    expect(msg).toContain('APA 7th')
+  })
+
+  it('parses headings, bullets, and paragraphs from ghost text', () => {
+    expect(
+      parseGhostBlocks(
+        '# Results\n\nRevenue grew 18% this quarter.\n\n- Enterprise sales\n  - Renewals\n- SMB growth',
+      ),
+    ).toEqual([
+      { kind: 'heading', level: 1, text: 'Results' },
+      { kind: 'paragraph', text: 'Revenue grew 18% this quarter.' },
+      { kind: 'bullet', ilvl: 0, text: 'Enterprise sales' },
+      { kind: 'bullet', ilvl: 1, text: 'Renewals' },
+      { kind: 'bullet', ilvl: 0, text: 'SMB growth' },
+    ])
+    expect(parseGhostBlocks('## Deep dive\n### Details')).toEqual([
+      { kind: 'heading', level: 2, text: 'Deep dive' },
+      { kind: 'heading', level: 3, text: 'Details' },
+    ])
+    expect(parseGhostBlocks('just prose\nsecond line')).toEqual([
+      { kind: 'paragraph', text: 'just prose second line' },
+    ])
+    expect(parseGhostBlocks('\n\n')).toEqual([])
+  })
+
+  it('detects structured ghost text', () => {
+    expect(hasGhostStructure('# Title\nbody')).toBe(true)
+    expect(hasGhostStructure('- item one')).toBe(true)
+    expect(hasGhostStructure('plain prose only')).toBe(false)
+  })
+
+  it('extracts cited source numbers in order of appearance', () => {
+    expect(citedNumbers('Growth was 18% [1] while churn fell [2], confirming [1].')).toEqual([1, 2])
+    expect(citedNumbers('No citations here.')).toEqual([])
+    expect(citedNumbers('[10] out of range style [0] ignored')).toEqual([10])
   })
 
   it('extracts a bounded heading outline', () => {
