@@ -18,7 +18,11 @@ import { DOMParser as PmDOMParser, type Mark as PmMark, Slice as PmSlice } from 
 import { NodeSelection, TextSelection, type Command, type Transaction } from '@tiptap/pm/state'
 import { Dropdown, ImageViewer, createZoomWheelClassifier, useAutoSavePref } from '@revelith/ui'
 import { wordRangeAtCaret } from './editor/comments'
-import { requestGhostCompletion, clearGhostCompletion } from './editor/ghost-completion'
+import {
+  requestGhostStream,
+  clearGhostCompletion,
+  clearGhostStream,
+} from './editor/ghost-completion'
 import { setFieldInstr, toggleAllFieldCodes, type FieldRange } from './editor/field-codes'
 import { linkTarget } from './editor/link-actions'
 import { FieldDialog } from './components/FieldDialog'
@@ -926,6 +930,8 @@ function AppInner() {
   const [showComments, setShowComments] = useState(false)
   const [showStylesPane, setShowStylesPane] = useState(false)
   const [showSourceTray, setShowSourceTray] = useState(false)
+  const [ghostEnabled, setGhostEnabled] = useState(true)
+  const [ghostAuto, setGhostAuto] = useState(false)
   const { groundedWrite, getGroundedContext, setDocSessionId } = useSourceStore()
   const [commentFocus, setCommentFocus] = useState<{ id: string; nonce: number } | null>(null)
   /** Style definitions pending write-back (key = styleId), saved via SaveOptions.styleUpserts */
@@ -5965,9 +5971,11 @@ function AppInner() {
     setDocSessionId(doc?.filePath ?? null)
   }, [doc?.filePath, setDocSessionId])
 
-  // Ghost completion (Cursor-style Tab autocomplete, grounded when enabled)
+  // Ghost completion: live-streaming Tab autocomplete (grounded + auto modes).
+  // Paused via the status-bar Ghost toggle; Auto mode streams longer
+  // structured continuations and auto-inserts them after 6s idle.
   useEffect(() => {
-    if (!editor) return
+    if (!editor || !ghostEnabled) return
     let idleTimer: ReturnType<typeof setTimeout> | null = null
     let lastSelection = editor.state.selection.from
 
@@ -5979,10 +5987,14 @@ function AppInner() {
         lastSelection = editor.state.selection.from
         return
       }
-      // Cursor has been idle at same position; include tray sources when grounded
-      requestGhostCompletion(editor, 320, () =>
-        groundedWrite ? getGroundedContext(4000) : undefined,
-      )
+      // Cursor has been idle at same position: stream tokens live.
+      requestGhostStream(editor, {
+        delayMs: 0,
+        mode: ghostAuto ? 'auto' : 'short',
+        getGroundedContext: () => (groundedWrite ? getGroundedContext(4000) : undefined),
+        webSearch: ghostAuto,
+        autoAcceptMs: ghostAuto ? 6000 : 0,
+      })
     }
 
     const handleTransaction = () => {
@@ -5993,7 +6005,7 @@ function AppInner() {
     // Trigger on cursor idle
     editor.on('transaction', handleTransaction)
 
-    // Clear ghost on any user input or cursor move
+    // Clear ghost on any user input or cursor move (also aborts the stream)
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Tab' || event.key === 'Escape' || event.key === 'ArrowRight') {
         // Let the ghost plugin handle these
@@ -6001,11 +6013,13 @@ function AppInner() {
       }
       if (idleTimer) clearTimeout(idleTimer)
       clearGhostCompletion(editor)
+      clearGhostStream(true)
     }
 
     const handleClick = () => {
       if (idleTimer) clearTimeout(idleTimer)
       clearGhostCompletion(editor)
+      clearGhostStream(true)
     }
 
     editor.view.dom.addEventListener('keydown', handleKeyDown)
@@ -6017,8 +6031,9 @@ function AppInner() {
       editor.view.dom.removeEventListener('keydown', handleKeyDown)
       editor.view.dom.removeEventListener('click', handleClick)
       clearGhostCompletion(editor)
+      clearGhostStream(true)
     }
-  }, [editor, groundedWrite, getGroundedContext])
+  }, [editor, ghostEnabled, ghostAuto, groundedWrite, getGroundedContext])
 
   // e2e/automation hook: lets tests drive open/edit/save without native dialogs
   useEffect(() => {
@@ -7362,6 +7377,30 @@ function AppInner() {
                     onClick={() => setShowSourceTray((v) => !v)}
                   >
                     Sources
+                  </button>
+                  <button
+                    className={`status-item status-btn${ghostEnabled ? ' on' : ''}`}
+                    data-tip="Ghost writing: live Tab completions (click to pause/resume)"
+                    aria-pressed={ghostEnabled}
+                    onClick={() => {
+                      setGhostEnabled((v) => {
+                        if (v && editor) {
+                          clearGhostCompletion(editor)
+                          clearGhostStream(true)
+                        }
+                        return !v
+                      })
+                    }}
+                  >
+                    {ghostEnabled ? 'Ghost: On' : 'Ghost: Off'}
+                  </button>
+                  <button
+                    className={`status-item status-btn${ghostAuto ? ' on' : ''}`}
+                    data-tip="Auto ghost: writes ahead on its own after 6s idle (any key cancels)"
+                    aria-pressed={ghostAuto}
+                    onClick={() => setGhostAuto((v) => !v)}
+                  >
+                    {ghostAuto ? 'Auto: On' : 'Auto'}
                   </button>
                 </>
               )}
