@@ -11,6 +11,7 @@ import {
   CITATION_STYLES,
   CITATION_STYLE_LABELS,
 } from '@revelith/agent-core/citations/source-adapter'
+import { ensureBibliography } from '../editor/ghost-completion'
 import type { CitationStyle } from '@revelith/agent-core/citations/types'
 import type { TextChunk } from '../sources/source-store'
 
@@ -595,6 +596,15 @@ export function SourceTray({ onClose, editor }: SourceTrayProps) {
     }
     const citationSources = filteredSources.map(traySourceToCitationSource)
     const body = generateBibliography(citationSources, bibStyle)
+    const entries = body
+      .split('\n\n')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+    // Managed References section (real heading, replaced on repeat — never duplicated).
+    if (editor && !editor.isDestroyed && ensureBibliography(editor, entries)) {
+      flash(`Inserted ${CITATION_STYLE_LABELS[bibStyle]} bibliography (${entries.length} sources)`)
+      return
+    }
     const text = `References (${CITATION_STYLE_LABELS[bibStyle]})\n\n${body}`
     const inserted = insertAtCursor(editor, text)
     if (!inserted) copyText(text)
