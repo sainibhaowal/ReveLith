@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
-import { ipcRenderer } from 'electron'
+import type { DocSourceInput, DocSourceItem } from '../../shared/ipc'
 
+export type { DocSourceInput, DocSourceItem }
 export interface TextChunk {
   id: string
   text: string
@@ -8,19 +9,7 @@ export interface TextChunk {
   bbox?: { x: number; y: number; width: number; height: number }
 }
 
-export interface SourceItem {
-  id: string
-  docSessionId: string
-  fileName: string
-  filePath: string
-  mimeType: string
-  size: number
-  addedAt: number
-  contentHash: string
-  extractedText: string
-  chunks: TextChunk[]
-  metadata: Record<string, unknown>
-}
+export type SourceItem = DocSourceItem
 
 interface SourceStoreState {
   docSessionId: string | null
@@ -34,9 +23,7 @@ interface SourceStoreState {
     sortBy: 'date' | 'name' | 'type' | 'size'
     sortOrder: 'asc' | 'desc'
   }
-  addSource: (
-    item: Omit<SourceItem, 'id' | 'docSessionId' | 'addedAt' | 'contentHash'>,
-  ) => Promise<SourceItem>
+  addSource: (item: DocSourceInput) => Promise<SourceItem>
   removeSource: (sourceId: string) => Promise<void>
   clearAll: () => Promise<void>
   setGroundedWrite: (enabled: boolean) => void
@@ -78,31 +65,28 @@ export function SourceStoreProvider({
   const loadSources = async () => {
     if (!docSessionId) return
     try {
-      const result = await ipcRenderer.invoke('docs:source-list', docSessionId)
-      setSources(result)
+      setSources(await window.desktop.sourceList(docSessionId))
     } catch (e) {
       console.error('Failed to load sources:', e)
     }
   }
 
-  const addSource = async (
-    item: Omit<SourceItem, 'id' | 'docSessionId' | 'addedAt' | 'contentHash'>,
-  ): Promise<SourceItem> => {
+  const addSource = async (item: DocSourceInput): Promise<SourceItem> => {
     if (!docSessionId) throw new Error('No document session')
-    const result = await ipcRenderer.invoke('docs:source-add', docSessionId, item)
+    const result = await window.desktop.sourceAdd(docSessionId, item)
     await loadSources()
     return result
   }
 
   const removeSource = async (sourceId: string): Promise<void> => {
     if (!docSessionId) return
-    await ipcRenderer.invoke('docs:source-remove', docSessionId, sourceId)
+    await window.desktop.sourceRemove(docSessionId, sourceId)
     await loadSources()
   }
 
   const clearAll = async (): Promise<void> => {
     if (!docSessionId) return
-    await ipcRenderer.invoke('docs:source-clear', docSessionId)
+    await window.desktop.sourceClear(docSessionId)
     await loadSources()
   }
 

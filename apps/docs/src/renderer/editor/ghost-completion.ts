@@ -128,12 +128,7 @@ export async function fetchInlineCompletion(
   groundedContext?: string,
 ): Promise<string> {
   try {
-    const { ipcRenderer } = await import('electron')
-    const result = await ipcRenderer.invoke('ai:inline-complete', {
-      before,
-      after,
-      ...(groundedContext ? { groundedContext } : {}),
-    })
+    const result = await window.desktop.inlineComplete({ before, after, groundedContext })
     return result?.text ?? ''
   } catch {
     return ''

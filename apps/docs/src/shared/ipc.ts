@@ -477,6 +477,12 @@ export interface DesktopApi {
   /** Native context menu "View Image" on a chrome surface such as the AI panel */
   onViewImage(handler: (src: string) => void): () => void
   aiChat(request: AiChatRequest): Promise<AiChatResponse>
+  /** one-shot inline completion for Cursor-style ghost text (null text = no suggestion) */
+  inlineComplete(input: {
+    before: string
+    after: string
+    groundedContext?: string
+  }): Promise<{ text: string | null }>
   /** start a streaming AI call; deltas arrive via onAiStream with the same requestId */
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
@@ -540,6 +546,11 @@ export interface DesktopApi {
   openNewTab(openPath?: string | null): Promise<void>
   /** all open docs tabs, for View → Switch Tab */
   listDocsTabs(): Promise<DocsTabInfo[]>
+  /** Source Tray: research sources bound to the open document's session */
+  sourceAdd(docSessionId: string, item: DocSourceInput): Promise<DocSourceItem>
+  sourceList(docSessionId: string): Promise<DocSourceItem[]>
+  sourceRemove(docSessionId: string, sourceId: string): Promise<void>
+  sourceClear(docSessionId: string): Promise<void>
   focusDocsTab(id: string): Promise<void>
   /** subscribe to AI stream chunks; returns unsubscribe */
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
@@ -557,3 +568,28 @@ export interface DesktopApi {
 
 /** mirrors VIEW_IMAGE_CHANNEL in @revelith/electron-utils (kept literal so the preload stays free of main-only deps) */
 export const VIEW_IMAGE_CHANNEL = 'revelith:view-image'
+
+/** one chunk of extracted source text (renderer-safe copy of the main-process shape) */
+export interface DocSourceChunk {
+  id: string
+  text: string
+  pageNumber?: number
+}
+
+/** a research source bound to a document session (renderer-safe shape) */
+export interface DocSourceItem {
+  id: string
+  docSessionId: string
+  fileName: string
+  filePath: string
+  mimeType: string
+  size: number
+  addedAt: number
+  contentHash: string
+  extractedText: string
+  chunks: DocSourceChunk[]
+  metadata: Record<string, unknown>
+}
+
+/** fields the renderer supplies when adding a source (ids/hashes assigned in main) */
+export type DocSourceInput = Omit<DocSourceItem, 'id' | 'docSessionId' | 'addedAt' | 'contentHash'>

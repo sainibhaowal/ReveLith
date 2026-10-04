@@ -6,7 +6,13 @@
   "type": "module",
   "description": "Generic ReAct agent loop: pluggable skills (tools + prompt + context), pluggable LLM transport; shared by AI Docs and future apps (Excel / PPT)",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./citations/citation-engine": "./src/citations/citation-engine.ts",
+    "./citations/source-adapter": "./src/citations/source-adapter.ts",
+    "./citations/types": "./src/citations/types.ts",
+    "./matrix/matrix-to-xlsx": "./src/matrix/matrix-to-xlsx.ts",
+    "./matrix/matrix-extractor": "./src/matrix/matrix-extractor.ts",
+    "./matrix/types": "./src/matrix/types.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

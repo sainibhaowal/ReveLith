@@ -41,6 +41,8 @@ export * from './citations/source-store'
 export * from './citations/source-adapter'
 
 // Hebbia Matrix Multi-Document Extraction
+// NOTE: matrix-to-xlsx is intentionally NOT re-exported here: it pulls in
+// @revelith/xlsx-gateway's Node-only writer, which breaks browser bundles.
+// Node consumers (shell main, CLI) import '@revelith/agent-core/matrix/matrix-to-xlsx'.
 export * from './matrix/types'
 export * from './matrix/matrix-extractor'
-export * from './matrix/matrix-to-xlsx'

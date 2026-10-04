@@ -8,6 +8,7 @@ import type {
   AiStreamChunk,
   AiStreamRequest,
   DesktopApi,
+  DocSourceInput,
   MenuCommand,
   AutoSaveDefault,
   ContextMenuRequest,
@@ -173,6 +174,8 @@ const api: DesktopApi = {
   aiChat: (request: AiChatRequest) => ipcRenderer.invoke('ai:chat', request),
   aiStream: (request: AiStreamRequest) => ipcRenderer.invoke('ai:stream', request),
   aiStreamCancel: (requestId: string) => ipcRenderer.invoke('ai:stream-cancel', requestId),
+  inlineComplete: (input: { before: string; after: string; groundedContext?: string }) =>
+    ipcRenderer.invoke('ai:inline-complete', input),
   aiGskStatus: (withEmail?: boolean) => ipcRenderer.invoke('ai:gsk-status', withEmail),
   aiGskLogin: () => ipcRenderer.invoke('ai:gsk-login'),
   webSearch: (query: string, maxResults?: number) =>
@@ -195,6 +198,12 @@ const api: DesktopApi = {
   readAttachmentImage: (path: string) => ipcRenderer.invoke('files:read-image', path),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   openNewTab: (openPath?: string | null) => ipcRenderer.invoke('win:new', openPath ?? null),
+  sourceAdd: (docSessionId: string, item: DocSourceInput) =>
+    ipcRenderer.invoke('docs:source-add', docSessionId, item),
+  sourceList: (docSessionId: string) => ipcRenderer.invoke('docs:source-list', docSessionId),
+  sourceRemove: (docSessionId: string, sourceId: string) =>
+    ipcRenderer.invoke('docs:source-remove', docSessionId, sourceId),
+  sourceClear: (docSessionId: string) => ipcRenderer.invoke('docs:source-clear', docSessionId),
   listDocsTabs: () => ipcRenderer.invoke('win:list'),
   focusDocsTab: (id: string) => ipcRenderer.invoke('win:focus', id),
   onAiStream: (handler: (chunk: AiStreamChunk) => void) => {

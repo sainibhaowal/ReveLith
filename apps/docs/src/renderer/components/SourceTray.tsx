@@ -5,12 +5,14 @@ import { Dropdown } from '@revelith/ui'
 import {
   formatCitation,
   generateBibliography,
+} from '@revelith/agent-core/citations/citation-engine'
+import {
   traySourceToCitationSource,
   CITATION_STYLES,
   CITATION_STYLE_LABELS,
-  type CitationStyle,
-} from '@revelith/agent-core'
-import type { TextChunk } from '../../main/source-session'
+} from '@revelith/agent-core/citations/source-adapter'
+import type { CitationStyle } from '@revelith/agent-core/citations/types'
+import type { TextChunk } from '../sources/source-store'
 
 const MIME_ICONS: Record<string, string> = {
   'application/pdf': 'file-text',
