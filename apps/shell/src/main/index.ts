@@ -127,11 +127,11 @@ import {
 import { parseFileToText } from '@revelith/file-parse'
 import {
   buildMatrixExtractionPrompt,
-  buildMatrixXlsx,
   createMatrixProject,
   parseMatrixExtractionResponse,
   type MatrixColumnDef,
 } from '@revelith/agent-core'
+import { buildMatrixXlsx } from '@revelith/agent-core/matrix/matrix-to-xlsx'
 
 import {
   buildDocsMenu,
