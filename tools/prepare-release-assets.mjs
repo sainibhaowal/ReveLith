@@ -39,8 +39,7 @@ export async function prepareReleaseAssets(sourceDirectory, destinationDirectory
   for (const path of files) {
     const normalizedPath = path.replaceAll('\\', '/')
     const name = normalizedPath.split('/').at(-1)
-    if (!normalizedPath.includes('/desktop-linux-arm64/') || !name.endsWith('.AppImage'))
-      continue
+    if (!normalizedPath.includes('/desktop-linux-arm64/') || !name.endsWith('.AppImage')) continue
     if (!/(?:-|\.)arm64\.AppImage$/i.test(name)) {
       linuxArmAppImages.set(name, name.replace(/\.AppImage$/i, '-arm64.AppImage'))
     }
