@@ -54,6 +54,8 @@ jobs:
         run: npm run lint
       - name: Dependency licenses
         run: npm run licenses
+      - name: Release version policy
+        run: npm run test:release-policy
       - name: English-only comments
         run: npm run check:english-comments
       # skills/<name>/SKILL.md are copied into users' agent directories and only

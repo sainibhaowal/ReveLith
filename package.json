@@ -21,6 +21,7 @@
     "postinstall": "install-electron",
     "format": "node tools/format-changed.mjs --write",
     "format:check": "node tools/format-changed.mjs --check",
+    "test:release-policy": "node --test tools/release-version.test.mjs tools/prepare-release-assets.test.mjs apps/web/scripts/release-manifest.test.mjs",
     "check:theme-colors": "node tools/check-theme-colors.mjs",
     "lint": "node tools/run-lint.mjs",
     "fixtures": "npm run fixtures -w @revelith/docx-engine",
@@ -82,6 +83,14 @@
         {
           "preset": "angular",
           "releaseRules": [
+            {
+              "breaking": true,
+              "release": "minor"
+            },
+            {
+              "type": "feat",
+              "release": "patch"
+            },
             {
               "release": "patch"
             }

@@ -50,6 +50,7 @@ export {
   type RibbonCollapseLabels,
 } from './ribbon-collapse'
 export { AiTypingIndicator } from './AiTypingIndicator'
+export { LocalFirstNotice, type LocalFirstNoticeProps } from './LocalFirstNotice'
 export { LoadingScreen, type LoadingScreenProps } from './LoadingScreen'
 export {
   AiMessageActions,

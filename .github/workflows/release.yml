@@ -3,24 +3,31 @@ name: Release & Publish
 on:
   workflow_dispatch:
     inputs:
+      release_type:
+        description: 'Release only a 0.x patch or minor version'
+        type: choice
+        options:
+          - patch
+          - minor
+        required: true
+        default: patch
       force_version:
-        description: 'Optional: Force specific version (e.g. 1.1.5). Leave empty for auto-semantic bump'
+        description: 'Optional override, must be a newer 0.x.x version (for example 0.11.0)'
         required: false
         default: ''
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
 
 jobs:
   semantic-release:
-    name: Semantic Release & Changelog
+    name: Validate 0.x version and create release
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
-      new_release_published: ${{ steps.semantic.outputs.new_release_published == 'true' || steps.custom_tag.outputs.published == 'true' }}
-      new_release_version: ${{ steps.semantic.outputs.new_release_version || steps.custom_tag.outputs.version }}
-      new_release_git_tag: ${{ steps.semantic.outputs.new_release_git_tag || steps.custom_tag.outputs.git_tag }}
+      new_release_published: ${{ steps.release.outputs.published }}
+      new_release_version: ${{ steps.release.outputs.version }}
+      new_release_git_tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,44 +37,21 @@ jobs:
         with:
           node-version: 22
 
-      - name: Run semantic-release
-        id: semantic
-        uses: cycjimmy/semantic-release-action@v4
+      - name: Resolve a patch/minor version and create the GitHub release
+        id: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Determine fallback version
-        id: custom_tag
-        if: steps.semantic.outputs.new_release_published != 'true'
+          FORCE_VERSION: ${{ inputs.force_version }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -n "${{ inputs.force_version }}" ]; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "version=${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
-            echo "git_tag=v${{ inputs.force_version }}" >> "$GITHUB_OUTPUT"
-          else
-            # Never re-publish an existing tag. Bump the patch component of the
-            # newest tag so the fallback always yields a fresh 0.10.<N+1>.
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.10.100")
-            echo "Latest tag: $LATEST_TAG"
-            CLEAN_VER="${LATEST_TAG#v}"
-            MAJOR="${CLEAN_VER%%.*}"
-            REST="${CLEAN_VER#*.}"
-            MINOR="${REST%%.*}"
-            PATCH="${REST##*.}"
-            case "$PATCH" in
-              ''|*[!0-9]*)
-                echo "::error::Cannot parse patch component from tag '$LATEST_TAG'"
-                exit 1
-                ;;
-            esac
-            NEXT_PATCH=$((PATCH + 1))
-            NEXT_VER="$MAJOR.$MINOR.$NEXT_PATCH"
-            echo "Next version: $NEXT_VER"
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "version=$NEXT_VER" >> "$GITHUB_OUTPUT"
-            echo "git_tag=v$NEXT_VER" >> "$GITHUB_OUTPUT"
-          fi
+          VERSION="$(node tools/release-version.mjs)"
+          TAG="v$VERSION"
+          echo "Creating release $TAG ($RELEASE_TYPE policy)"
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "ReveLith $TAG" --generate-notes
+          echo "published=true" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         shell: bash
 
   build-desktop:
@@ -243,36 +227,49 @@ jobs:
           fi
         shell: bash
 
-      - name: Upload Release Binaries to GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Save this platform's build for one release publisher
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ needs.semantic-release.outputs.new_release_git_tag }}
-          files: |
-            apps/shell/release/*.exe
-            apps/shell/release/*.deb
-            apps/shell/release/*.AppImage
-            apps/shell/release/*.rpm
-            apps/shell/release/*.dmg
-            apps/shell/release/*.zip
-            apps/shell/release/*.yml
-            apps/shell/release/*.blockmap
-            apps/shell/release-arm64/*.exe
-            apps/shell/release-arm64/*.yml
-            apps/shell/release-arm64/*.blockmap
-            apps/shell/dist/*.exe
-            apps/shell/dist/*.deb
-            apps/shell/dist/*.AppImage
-            apps/shell/dist/*.rpm
-            apps/shell/dist/*.dmg
-            apps/shell/dist/*.zip
-            apps/shell/dist/*.yml
-            apps/shell/dist/*.blockmap
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            apps/shell/release/
+            apps/shell/release-arm64/
+          if-no-files-found: error
+          retention-days: 2
+
+  publish-release-assets:
+    name: Publish all desktop assets (single writer)
+    needs: [semantic-release, build-desktop]
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: release-artifacts
+
+      - name: Prepare unique, user-facing release assets
+        run: node tools/prepare-release-assets.mjs release-artifacts release-assets
+
+      - name: Upload assets once and verify the release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' ASSETS < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
+          test "${#ASSETS[@]}" -gt 0
+          gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          ASSET_COUNT="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')"
+          test "$ASSET_COUNT" -gt 0
+          echo "Verified $ASSET_COUNT release assets on $TAG."
+        shell: bash
 
   deploy-web:
     name: Deploy website with GitHub-hosted downloads
-    needs: [semantic-release, build-desktop]
+    needs: [semantic-release, publish-release-assets]
     if: needs.semantic-release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -300,7 +297,10 @@ jobs:
           const assets = JSON.parse(process.env.RELEASE_ASSETS)
           const releaseTag = process.env.TAG
           const repo = process.env.GITHUB_REPOSITORY
-          const downloads = assets.map((format) => {
+          if (!/^v0\.\d+\.\d+$/.test(releaseTag)) throw new Error(`Refusing non-0.x release ${releaseTag}`)
+          const installable = assets.filter((format) => /\.(exe|deb|appimage|rpm|dmg|zip)$/i.test(format))
+          if (!installable.length) throw new Error(`Release ${releaseTag} has no downloadable installers`)
+          const downloads = installable.map((format) => {
             const lower = format.toLowerCase()
             const isArm =
               lower.includes('arm64') ||
@@ -339,9 +339,14 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_WEB_PATH: /opt/revelith_web
+          VERSION: ${{ needs.semantic-release.outputs.new_release_version }}
         run: |
+          set -euo pipefail
           test -n "$VPS_HOST" && test -n "$VPS_USER" && test -n "$VPS_WEB_PATH"
+          test "$VPS_WEB_PATH" = "/opt/revelith_web"
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          ssh "$VPS_USER@$VPS_HOST" "if [ -d '/var/www/revelith.averqel.com' ]; then rm -rf '/var/www/revelith.averqel.com'; fi; mkdir -p '$VPS_WEB_PATH'"
-          rsync -az --delete apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"
+          ssh "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_WEB_PATH'"
+          rsync -az --delete-delay --delay-updates apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors "https://revelith.averqel.com/release.json" -o "$RUNNER_TEMP/deployed-release.json"
+          EXPECTED_VERSION="v${VERSION}" node --input-type=module -e "const m=JSON.parse(await (await import('node:fs/promises')).readFile(process.argv[1],'utf8')); if(m.version !== process.env.EXPECTED_VERSION || !m.downloads.length) process.exit(1)" "$RUNNER_TEMP/deployed-release.json"
