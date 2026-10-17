@@ -230,7 +230,7 @@ body.overlay-title-bar .tab-bar-drag-spacer {
 }
 
 .tab-dirty-dot {
-  color: var(--accent, #2563eb);
+  color: var(--accent);
   font-size: 9px;
 }
 

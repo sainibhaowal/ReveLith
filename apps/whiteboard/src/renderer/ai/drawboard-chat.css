@@ -136,9 +136,9 @@
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface, #fff);
+  background: var(--surface);
   color: var(--text-primary);
-  box-shadow: 0 12px 32px rgb(15 23 42 / 18%);
+  box-shadow: var(--draw-chat-panel-shadow);
 }
 .board-tool-browser-heading {
   display: flex;
@@ -163,7 +163,7 @@
   height: 28px;
   flex-shrink: 0;
   padding: 0 8px;
-  border: 1px solid var(--border, #e3e6ea);
+  border: 1px solid var(--border);
   border-radius: 7px;
   font-size: 12px;
   white-space: nowrap;
@@ -174,10 +174,10 @@
   height: 28px;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--border, #e3e6ea);
+  border: 1px solid var(--border);
   border-radius: 50%;
-  background: var(--surface, #fff);
-  color: var(--text-secondary, #667085);
+  background: var(--surface);
+  color: var(--text-secondary);
   font:
     700 13px/1 system-ui,
     sans-serif;
@@ -185,12 +185,12 @@
 }
 .board-tool-browser-info:hover,
 .board-tool-browser-info[aria-pressed='true'] {
-  border-color: var(--accent, #4f46e5);
-  background: var(--surface-subtle, #f6f7f8);
-  color: var(--accent, #4f46e5);
+  border-color: var(--accent, var(--draw-chat-accent));
+  background: var(--surface-subtle);
+  color: var(--accent, var(--draw-chat-accent));
 }
 .board-tool-browser-info:focus-visible {
-  outline: 2px solid var(--accent, #4f46e5);
+  outline: 2px solid var(--accent, var(--draw-chat-accent));
   outline-offset: 2px;
 }
 .board-tool-browser-heading h3,
@@ -213,7 +213,7 @@
   padding: 6px 9px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: var(--surface, #fff);
+  background: var(--surface);
   color: var(--text-primary);
 }
 .board-tool-browser-list {
@@ -237,20 +237,20 @@
 .board-skill-card {
   min-width: 0;
   padding: 10px 11px;
-  border: 1px solid var(--border, #e3e6ea);
+  border: 1px solid var(--border);
   border-radius: 9px;
-  background: var(--surface, #fff);
+  background: var(--surface);
 }
 .board-skill-card h4 {
   margin: 0 0 4px;
-  color: var(--text-primary, #232425);
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 650;
   line-height: 1.35;
 }
 .board-skill-card p {
   margin: 0;
-  color: var(--text-secondary, #667085);
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -266,13 +266,13 @@
   padding: 9px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface, #fff);
+  background: var(--surface);
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
 }
 .board-tool-browser-item:hover:not(:disabled) {
-  border-color: var(--accent, #4f46e5);
+  border-color: var(--accent, var(--draw-chat-accent));
   background: var(--surface-subtle);
 }
 .board-tool-browser-item:disabled {
@@ -294,7 +294,7 @@
   overflow-wrap: anywhere;
 }
 .board-tool-browser-unavailable {
-  color: var(--danger, #b42318);
+  color: var(--danger);
 }
 .board-image-setup-backdrop {
   position: absolute;
@@ -305,7 +305,7 @@
   box-sizing: border-box;
   padding: 12px;
   overflow: auto;
-  background: rgb(0 0 0 / 48%);
+  background: var(--draw-chat-overlay);
   isolation: isolate;
 }
 .board-image-setup {
@@ -321,12 +321,12 @@
   gap: 12px;
   overflow: auto;
   padding: clamp(14px, 4vw, 20px);
-  border: 1px solid var(--border, #e3e6ea);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background-color: var(--surface, #fff);
-  color: var(--text-primary, #232425);
+  background-color: var(--surface);
+  color: var(--text-primary);
   opacity: 1;
-  box-shadow: 0 20px 60px rgb(0 0 0 / 28%);
+  box-shadow: var(--draw-chat-dialog-shadow);
 }
 .board-image-setup header,
 .board-image-setup footer {
@@ -367,8 +367,8 @@
   padding: 7px 9px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: var(--surface, #fff);
-  color: var(--text-primary, #232425);
+  background: var(--surface);
+  color: var(--text-primary);
   font: inherit;
 }
 .board-image-setup footer button {
@@ -381,9 +381,9 @@
   cursor: pointer;
 }
 .board-image-setup footer button:last-child {
-  border-color: var(--accent, #4f46e5);
-  background: var(--accent, #4f46e5);
-  color: white;
+  border-color: var(--accent, var(--draw-chat-accent));
+  background: var(--accent, var(--draw-chat-accent));
+  color: var(--text-on-dark);
 }
 .board-image-setup footer button:disabled {
   opacity: 0.6;
@@ -392,9 +392,9 @@
 .board-image-setup-status {
   margin: 0;
   padding: 9px 10px;
-  border: 1px solid var(--border, #e3e6ea);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface-subtle, #f6f7f8);
+  background: var(--surface-subtle);
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.45;
@@ -479,7 +479,7 @@
 }
 .revelith-board-chat .ai-msg-error-text,
 .revelith-board-chat .ai-msg-error {
-  color: var(--danger, #b91c1c);
+  color: var(--danger);
 }
 .revelith-board-chat .ai-tool-chip-caret {
   flex: none;
@@ -549,11 +549,11 @@
   border: 1px solid var(--color-border-default);
   border-radius: 16px;
   background: var(--color-bg-page);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  box-shadow: var(--draw-chat-control-shadow);
 }
 .revelith-board-chat .ai-input-box:focus-within {
   border-color: var(--color-border-brand);
-  box-shadow: 0 2px 10px rgb(0 0 0 / 12%);
+  box-shadow: var(--draw-chat-control-hover-shadow);
 }
 .revelith-board-chat .ai-input-box textarea {
   display: block;
@@ -723,8 +723,8 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgb(0 0 0 / 55%);
-  color: #fff;
+  background: var(--draw-chat-attachment-overlay);
+  color: var(--text-on-dark);
   cursor: pointer;
   opacity: 0;
 }
@@ -820,6 +820,6 @@
   margin: 0;
 }
 .revelith-board-chat .board-chat-log[data-drag-over='true'] {
-  outline: 2px dashed var(--accent, #4f46e5);
+  outline: 2px dashed var(--accent, var(--draw-chat-accent));
   outline-offset: -6px;
 }

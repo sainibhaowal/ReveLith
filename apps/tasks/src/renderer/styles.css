@@ -23,6 +23,19 @@ body {
   --tasks-priority-high: #8a4b00;
   --tasks-priority-medium: #1d4ed8;
   --tasks-priority-low: #157347;
+  --tasks-shadow-ink-5: rgb(15 23 42 / 5%);
+  --tasks-shadow-ink-6: rgb(15 23 42 / 6%);
+  --tasks-shadow-ink-7: rgb(15 23 42 / 7%);
+  --tasks-shadow-ink-8: rgb(15 23 42 / 8%);
+  --tasks-shadow-ink-9: rgb(15 23 42 / 9%);
+  --tasks-shadow-ink-10: rgb(15 23 42 / 10%);
+  --tasks-shadow-ink-12: rgb(15 23 42 / 12%);
+  --tasks-shadow-ink-17: rgb(15 23 42 / 17%);
+  --tasks-shadow-ink-18: rgb(15 23 42 / 18%);
+  --tasks-shadow-ink-20: rgb(15 23 42 / 20%);
+  --tasks-shadow-ink-22: rgb(15 23 42 / 22%);
+  --tasks-shadow-ink-28: rgb(15 23 42 / 28%);
+  --tasks-shadow-highlight: rgb(255 255 255 / 35%);
 }
 
 [data-theme='dark'] {
@@ -46,31 +59,56 @@ body {
 }
 
 @keyframes tasks-view-in {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes tasks-dialog-in {
-  from { opacity: 0; transform: translateY(8px) scale(.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes tasks-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes tasks-drop-pulse {
-  from { box-shadow: 0 0 0 0 var(--tasks-accent-ring); }
-  to { box-shadow: 0 0 0 7px transparent; }
+  from {
+    box-shadow: 0 0 0 0 var(--tasks-accent-ring);
+  }
+  to {
+    box-shadow: 0 0 0 7px transparent;
+  }
 }
 
 button,
 input,
 textarea,
 select {
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease,
-    color 160ms ease, transform 160ms ease, opacity 160ms ease;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    opacity 160ms ease;
 }
 
 button:active:not(:disabled) {
@@ -99,7 +137,9 @@ button:active:not(:disabled) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
@@ -178,7 +218,7 @@ select {
 }
 
 .tasks-ribbon-shell .revelith-app-ribbon {
-  box-shadow: 0 2px 7px rgb(15 23 42 / 6%);
+  box-shadow: 0 2px 7px var(--tasks-shadow-ink-6);
 }
 
 .tasks-ribbon-shell .revelith-app-ribbon-tabs {
@@ -204,13 +244,13 @@ select {
   padding: 5px 12px;
   border-radius: 4px !important;
   background: var(--tasks-accent) !important;
-  color: #fff !important;
+  color: var(--text-on-dark) !important;
 }
 
 .tasks-ribbon-shell .revelith-app-ribbon-file:hover,
 .tasks-ribbon-shell .revelith-app-ribbon-file.active {
   background: var(--tasks-accent-strong) !important;
-  color: #fff !important;
+  color: var(--text-on-dark) !important;
 }
 
 .tasks-ribbon-shell .revelith-app-ribbon-file.active::after {
@@ -256,7 +296,10 @@ select {
   font: inherit;
   font-size: 12px;
   outline: none;
-  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
 }
 
 .tasks-ribbon-select.project-select {
@@ -283,7 +326,9 @@ select {
   color: var(--text-tertiary);
   font-size: 15px;
   line-height: 1;
-  transition: transform 160ms ease, color 160ms ease;
+  transition:
+    transform 160ms ease,
+    color 160ms ease;
 }
 
 .tasks-dropdown-trigger[aria-expanded='true'] .tasks-dropdown-chevron {
@@ -301,8 +346,8 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   background: var(--surface);
-  box-shadow: 0 12px 28px rgb(15 23 42 / 18%);
-  animation: tasks-dialog-in 150ms cubic-bezier(.2,.8,.2,1) both;
+  box-shadow: 0 12px 28px var(--tasks-shadow-ink-18);
+  animation: tasks-dialog-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transform-origin: top center;
 }
 
@@ -374,7 +419,10 @@ select {
   cursor: pointer;
   font: inherit;
   font-size: 11px;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
 }
 
 .tasks-autosave-toggle:hover,
@@ -407,7 +455,7 @@ select {
   height: 12px;
   border-radius: 50%;
   background: var(--surface);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 20%);
+  box-shadow: 0 1px 2px var(--tasks-shadow-ink-20);
   transition: transform 140ms ease;
 }
 
@@ -446,14 +494,19 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   background: var(--surface);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  box-shadow: 0 1px 2px var(--tasks-shadow-ink-5);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
 }
 
 .tasks-filter-search:focus-within {
   border-color: var(--tasks-accent);
   background: var(--surface);
-  box-shadow: 0 0 0 3px var(--tasks-accent-ring), 0 3px 10px rgb(15 23 42 / 7%);
+  box-shadow:
+    0 0 0 3px var(--tasks-accent-ring),
+    0 3px 10px var(--tasks-shadow-ink-7);
 }
 
 .tasks-filter-search-icon {
@@ -519,7 +572,7 @@ select {
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+  box-shadow: 0 1px 2px var(--tasks-shadow-ink-5);
 }
 
 .tasks-sort-trigger:hover,
@@ -558,8 +611,8 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   background: var(--surface);
-  box-shadow: 0 14px 32px rgb(15 23 42 / 20%);
-  animation: tasks-dialog-in 150ms cubic-bezier(.2,.8,.2,1) both;
+  box-shadow: 0 14px 32px var(--tasks-shadow-ink-20);
+  animation: tasks-dialog-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transform-origin: top right;
 }
 
@@ -610,7 +663,11 @@ select {
   font: inherit;
   font-size: 12px;
   text-align: left;
-  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .tasks-select-trigger:hover,
@@ -647,9 +704,9 @@ select {
   width: 13px;
   height: 13px;
   flex: 0 0 13px;
-  border: 1px solid rgb(15 23 42 / 22%);
+  border: 1px solid var(--tasks-shadow-ink-22);
   border-radius: 4px;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 35%);
+  box-shadow: inset 0 0 0 1px var(--tasks-shadow-highlight);
 }
 
 .tasks-native-select {
@@ -671,8 +728,8 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   background: var(--surface);
-  box-shadow: 0 14px 32px rgb(15 23 42 / 22%);
-  animation: tasks-dialog-in 150ms cubic-bezier(.2,.8,.2,1) both;
+  box-shadow: 0 14px 32px var(--tasks-shadow-ink-22);
+  animation: tasks-dialog-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transform-origin: top center;
 }
 
@@ -787,7 +844,7 @@ select {
   left: 0;
   z-index: 3;
   background: var(--surface) !important;
-  box-shadow: 4px 0 8px rgb(15 23 42 / 5%);
+  box-shadow: 4px 0 8px var(--tasks-shadow-ink-5);
 }
 
 .tasks-gantt-name-head {
@@ -833,7 +890,9 @@ select {
   min-height: 40px;
   padding-inline: 12px !important;
   font-weight: 600;
-  transition: color 150ms ease, background-color 150ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
 }
 
 .tasks-gantt-name-cell:hover,
@@ -845,21 +904,26 @@ select {
 .tasks-gantt-row button[aria-label^='Reschedule'] {
   min-height: 22px;
   border-radius: 7px !important;
-  box-shadow: 0 2px 5px rgb(15 23 42 / 10%);
-  transition: left 160ms ease, width 160ms ease, transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+  box-shadow: 0 2px 5px var(--tasks-shadow-ink-10);
+  transition:
+    left 160ms ease,
+    width 160ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    opacity 150ms ease;
 }
 
 .tasks-gantt-row button[aria-label^='Reschedule']:hover,
 .tasks-gantt-row button[aria-label^='Reschedule']:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgb(15 23 42 / 17%);
+  box-shadow: 0 4px 10px var(--tasks-shadow-ink-17);
   outline: 2px solid var(--tasks-accent-ring);
   outline-offset: 1px;
 }
 
 .tasks-gantt-row button[aria-label^='Reschedule']:active {
   cursor: grabbing;
-  transform: scale(.98);
+  transform: scale(0.98);
 }
 
 .tasks-gantt-toolbar + .tasks-gantt-scroll .tasks-gantt-day-head-cell[style*='rgb'] {
@@ -873,7 +937,7 @@ select {
   flex: 0 0 1px;
   margin: 0 2px;
   background: var(--border-strong);
-  opacity: .8;
+  opacity: 0.8;
 }
 
 .tasks-filter-group {
@@ -887,9 +951,13 @@ select {
   padding: 4px 10px !important;
   border-radius: 8px !important;
   background: var(--surface) !important;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease,
-    box-shadow 160ms ease, transform 160ms ease;
+  box-shadow: 0 1px 2px var(--tasks-shadow-ink-5);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .tasks-filter-chip:hover,
@@ -897,7 +965,9 @@ select {
   border-color: var(--tasks-accent) !important;
   background: var(--tasks-accent-soft) !important;
   color: var(--tasks-accent-strong) !important;
-  box-shadow: 0 0 0 3px var(--tasks-accent-ring), 0 3px 8px rgb(15 23 42 / 9%);
+  box-shadow:
+    0 0 0 3px var(--tasks-accent-ring),
+    0 3px 8px var(--tasks-shadow-ink-9);
   outline: none;
   transform: translateY(-1px);
 }
@@ -906,15 +976,25 @@ select {
   border-color: var(--tasks-accent) !important;
   background: var(--tasks-accent-soft) !important;
   color: var(--tasks-accent-strong) !important;
-  box-shadow: inset 0 0 0 1px var(--tasks-accent), 0 2px 7px var(--tasks-accent-ring);
+  box-shadow:
+    inset 0 0 0 1px var(--tasks-accent),
+    0 2px 7px var(--tasks-accent-ring);
 }
 
 /* Priority has its own semantic colour in every theme/state; it must not be
    flattened to the Tasks green accent by the generic filter-chip rules. */
-.tasks-priority-chip[data-priority-color='red'] { --priority-color: var(--tasks-priority-urgent); }
-.tasks-priority-chip[data-priority-color='amber'] { --priority-color: var(--tasks-priority-high); }
-.tasks-priority-chip[data-priority-color='blue'] { --priority-color: var(--tasks-priority-medium); }
-.tasks-priority-chip[data-priority-color='green'] { --priority-color: var(--tasks-priority-low); }
+.tasks-priority-chip[data-priority-color='red'] {
+  --priority-color: var(--tasks-priority-urgent);
+}
+.tasks-priority-chip[data-priority-color='amber'] {
+  --priority-color: var(--tasks-priority-high);
+}
+.tasks-priority-chip[data-priority-color='blue'] {
+  --priority-color: var(--tasks-priority-medium);
+}
+.tasks-priority-chip[data-priority-color='green'] {
+  --priority-color: var(--tasks-priority-low);
+}
 
 .tasks-priority-chip {
   border-color: color-mix(in srgb, var(--priority-color) 55%, var(--border)) !important;
@@ -928,7 +1008,8 @@ select {
   border-color: var(--priority-color) !important;
   background: color-mix(in srgb, var(--priority-color) 16%, var(--surface)) !important;
   color: var(--priority-color) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--priority-color) 20%, transparent),
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--priority-color) 20%, transparent),
     0 3px 8px color-mix(in srgb, var(--text-primary) 12%, transparent);
   outline: none;
   transform: translateY(-1px);
@@ -938,7 +1019,8 @@ select {
   border-color: var(--priority-color) !important;
   background: color-mix(in srgb, var(--priority-color) 19%, var(--surface)) !important;
   color: var(--priority-color) !important;
-  box-shadow: inset 0 0 0 1px var(--priority-color),
+  box-shadow:
+    inset 0 0 0 1px var(--priority-color),
     0 2px 7px color-mix(in srgb, var(--priority-color) 22%, transparent);
 }
 
@@ -953,9 +1035,13 @@ select {
   font-size: 11px !important;
   font-weight: 650 !important;
   line-height: 1.1;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
-  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease,
-    box-shadow 160ms ease, transform 160ms ease;
+  box-shadow: 0 1px 2px var(--tasks-shadow-ink-6);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .tasks-label-control:hover,
@@ -963,13 +1049,17 @@ select {
   border-color: var(--tasks-accent) !important;
   background: var(--tasks-accent-soft) !important;
   color: var(--tasks-accent-strong) !important;
-  box-shadow: 0 0 0 3px var(--tasks-accent-ring), 0 3px 8px rgb(15 23 42 / 10%);
+  box-shadow:
+    0 0 0 3px var(--tasks-accent-ring),
+    0 3px 8px var(--tasks-shadow-ink-10);
   outline: none;
   transform: translateY(-1px);
 }
 
 .tasks-label-control[data-active='true'] {
-  box-shadow: inset 0 0 0 1px currentColor, 0 2px 7px rgb(15 23 42 / 8%);
+  box-shadow:
+    inset 0 0 0 1px currentColor,
+    0 2px 7px var(--tasks-shadow-ink-8);
 }
 
 .tasks-label-dot {
@@ -977,7 +1067,7 @@ select {
   height: 8px;
   flex: 0 0 8px;
   border-radius: 3px;
-  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 18%);
+  box-shadow: inset 0 0 0 1px var(--tasks-shadow-ink-18);
 }
 
 .tasks-label-badge {
@@ -1019,7 +1109,9 @@ select {
 
 .tasks-calendar-cell {
   min-height: 92px;
-  transition: background-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .tasks-calendar-cell:hover {
@@ -1039,15 +1131,21 @@ select {
   min-height: 24px;
   padding: 3px 6px !important;
   border-radius: 7px !important;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 7%);
-  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  box-shadow: 0 1px 2px var(--tasks-shadow-ink-7);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 .tasks-calendar-pill:hover,
 .tasks-calendar-pill:focus-visible {
   border-color: var(--tasks-accent) !important;
   background: var(--tasks-accent-soft) !important;
-  box-shadow: 0 0 0 3px var(--tasks-accent-ring), 0 3px 8px rgb(15 23 42 / 10%);
+  box-shadow:
+    0 0 0 3px var(--tasks-accent-ring),
+    0 3px 8px var(--tasks-shadow-ink-10);
   outline: none;
   transform: translateY(-1px);
 }
@@ -1058,7 +1156,9 @@ select {
   border-radius: 6px !important;
   font-size: 10px !important;
   font-weight: 650;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
 .tasks-calendar-more:hover,
@@ -1094,7 +1194,7 @@ select {
   margin-top: 14px !important;
   color: var(--text-tertiary) !important;
   font-size: 11px !important;
-  letter-spacing: .08em !important;
+  letter-spacing: 0.08em !important;
 }
 
 .tasks-backlog-section-heading > span {
@@ -1115,7 +1215,11 @@ select {
   border-bottom-color: var(--border);
   border-left-width: 3px;
   background: var(--surface);
-  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 .tasks-backlog-view .tasks-task-row:hover,
@@ -1123,7 +1227,7 @@ select {
 .tasks-backlog-view .tasks-task-row[data-selected='true'] {
   border-bottom-color: var(--tasks-accent);
   background: var(--tasks-accent-soft);
-  box-shadow: 0 2px 8px rgb(15 23 42 / 7%);
+  box-shadow: 0 2px 8px var(--tasks-shadow-ink-7);
 }
 
 .tasks-backlog-view .tasks-task-row:hover {
@@ -1140,7 +1244,9 @@ select {
 .tasks-backlog-view .tasks-task-title {
   min-height: 26px;
   border-radius: 6px;
-  transition: color 140ms ease, background-color 140ms ease;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
 }
 
 .tasks-backlog-view .tasks-task-ticket:hover,
@@ -1193,7 +1299,7 @@ select {
   padding: 8px 14px !important;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
+  box-shadow: 0 1px 3px var(--tasks-shadow-ink-5);
 }
 
 .tasks-list-select-all {
@@ -1214,7 +1320,7 @@ select {
 
 .tasks-list-select-all:disabled {
   cursor: not-allowed;
-  opacity: .55;
+  opacity: 0.55;
 }
 
 .tasks-list-count {
@@ -1237,7 +1343,7 @@ select {
   color: var(--text-secondary) !important;
   font-size: 11px !important;
   font-weight: 750;
-  letter-spacing: .08em !important;
+  letter-spacing: 0.08em !important;
 }
 
 .tasks-list-section-dot {
@@ -1268,7 +1374,10 @@ select {
   border-left-style: solid;
   border-left-width: 3px !important;
   background: var(--surface);
-  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease,
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
     transform 150ms ease;
 }
 
@@ -1279,7 +1388,7 @@ select {
   border-right-color: color-mix(in srgb, var(--tasks-accent) 32%, var(--border));
   border-bottom-color: var(--tasks-accent) !important;
   background: var(--tasks-accent-soft);
-  box-shadow: 0 3px 10px rgb(15 23 42 / 7%);
+  box-shadow: 0 3px 10px var(--tasks-shadow-ink-7);
 }
 
 .tasks-list-view .tasks-task-row:hover {
@@ -1296,7 +1405,9 @@ select {
 .tasks-list-view .tasks-task-title {
   min-height: 28px;
   border-radius: 7px;
-  transition: color 140ms ease, background-color 140ms ease;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
 }
 
 .tasks-list-view .tasks-task-ticket:hover,
@@ -1364,8 +1475,12 @@ select {
   padding: 6px 12px !important;
   border-radius: 9px !important;
   background: var(--surface) !important;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease,
-    box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .tasks-filter-toggle:hover,
@@ -1458,12 +1573,18 @@ select {
   min-height: 0;
   height: 100%;
   z-index: 2;
-  transition: width 220ms ease, transform 220ms ease, opacity 160ms ease;
+  transition:
+    width 220ms ease,
+    transform 220ms ease,
+    opacity 160ms ease;
 }
 
 .tasks-side-rail > .revelith-app-chat {
   height: 100%;
-  transition: width 220ms cubic-bezier(.2,.8,.2,1), transform 220ms ease, opacity 160ms ease;
+  transition:
+    width 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 220ms ease,
+    opacity 160ms ease;
 }
 
 .tasks-side-rail > [aria-label='Notifications'] {
@@ -1481,7 +1602,7 @@ select {
 }
 
 .tasks-dialog {
-  animation: tasks-dialog-in 190ms cubic-bezier(.2,.8,.2,1) both;
+  animation: tasks-dialog-in 190ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transform-origin: center top;
 }
 
@@ -1496,7 +1617,7 @@ select {
   width: min(720px, 94vw) !important;
   max-height: min(70vh, 660px) !important;
   border-radius: 14px !important;
-  box-shadow: 0 24px 64px rgb(15 23 42 / 28%) !important;
+  box-shadow: 0 24px 64px var(--tasks-shadow-ink-28) !important;
 }
 
 .tasks-command-palette > input {
@@ -1506,7 +1627,9 @@ select {
   background: var(--surface) !important;
   color: var(--text-primary) !important;
   font-size: 14px !important;
-  transition: background-color 160ms ease, box-shadow 160ms ease !important;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease !important;
 }
 
 .tasks-command-palette > input:focus {
@@ -1530,7 +1653,7 @@ select {
   color: var(--tasks-accent-strong) !important;
   font-size: 10px !important;
   font-weight: 700;
-  letter-spacing: .08em !important;
+  letter-spacing: 0.08em !important;
 }
 
 .tasks-command-group::after {
@@ -1547,7 +1670,10 @@ select {
   border: 1px solid transparent !important;
   border-radius: 8px !important;
   background: transparent !important;
-  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease !important;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease !important;
 }
 
 .tasks-command-option:hover,
@@ -1594,7 +1720,10 @@ select {
 
 /* Shared affordances for the inline-style board components. */
 .tasks-board-pane section[aria-label] {
-  transition: border-color 160ms ease, box-shadow 180ms ease, transform 180ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
 .tasks-board-pane section[aria-label]:has(article[draggable]:active) {
@@ -1602,24 +1731,31 @@ select {
 }
 
 .tasks-board-pane article[draggable] {
-  transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
 }
 
 .tasks-board-pane article[draggable]:hover,
 .tasks-board-pane article[draggable]:focus-visible {
   transform: translateY(-2px);
-  box-shadow: 0 7px 16px rgb(15 23 42 / 12%);
+  box-shadow: 0 7px 16px var(--tasks-shadow-ink-12);
   outline: none;
 }
 
 .tasks-board-pane article[draggable]:active {
   cursor: grabbing;
-  transform: scale(.985);
+  transform: scale(0.985);
 }
 
 .tasks-board-pane [aria-label='Drop tasks here'],
 .tasks-board-pane section[aria-label] [style*='dashed'] {
-  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .tasks-board-pane section[aria-label]:hover [aria-label='Drop tasks here'] {
@@ -1630,7 +1766,6 @@ select {
   .tasks-ribbon-shell .revelith-app-ribbon-status {
     display: none;
   }
-
 }
 
 @media (max-width: 700px) {
@@ -1704,7 +1839,11 @@ select {
 }
 
 .tasks-detail-close {
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .tasks-detail-close:hover {
@@ -1723,7 +1862,7 @@ select {
   width: 100%;
   color: var(--text-primary);
   background: var(--surface-subtle);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+  box-shadow: 0 1px 2px var(--tasks-shadow-ink-5);
 }
 
 .tasks-detail-title::placeholder {
@@ -1733,7 +1872,10 @@ select {
 .tasks-detail-drawer input,
 .tasks-detail-drawer textarea,
 .tasks-detail-drawer select {
-  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
 }
 
 .tasks-detail-drawer input:focus,
@@ -1782,7 +1924,11 @@ select {
 }
 
 .tasks-detail-drawer button:not(.tasks-detail-close):not([aria-label='Delete task']) {
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .tasks-detail-drawer button:not(.tasks-detail-close):not([aria-label='Delete task']):hover {

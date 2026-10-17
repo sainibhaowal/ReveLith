@@ -16,10 +16,14 @@
   flex: 1;
   border-radius: 0;
   background-color: var(--surface);
-  --color-primary: var(--accent, #4f46e5);
-  --color-primary-darker: var(--accent-strong, #4338ca);
-  --color-primary-darkest: var(--accent-strong, #3730a3);
-  --color-primary-light: color-mix(in srgb, var(--accent, #4f46e5) 14%, white);
+  --color-primary: var(--accent, var(--draw-engine-accent));
+  --color-primary-darker: var(--accent-strong, var(--draw-engine-accent-strong));
+  --color-primary-darkest: var(--accent-strong, var(--draw-engine-accent-darkest));
+  --color-primary-light: color-mix(
+    in srgb,
+    var(--accent, var(--draw-engine-accent)) 14%,
+    var(--text-on-dark)
+  );
   --island-bg-color: var(--surface);
   --sidebar-bg-color: var(--surface);
   --popup-bg-color: var(--surface);
@@ -38,7 +42,7 @@
 .revelith-board-host .excalidraw .context-menu,
 .revelith-board-host .excalidraw .panelColumn,
 .revelith-board-host .excalidraw .sidebar {
-  background-color: var(--surface, #fff) !important;
+  background-color: var(--surface) !important;
   background-image: none !important;
   opacity: 1 !important;
   backdrop-filter: none !important;
@@ -62,7 +66,7 @@
    sidebar picker button gets a theme-aware outline (no layout shift). */
 .revelith-board-host .excalidraw .panelColumn .buttonList label,
 .revelith-board-host .excalidraw .panelColumn .buttonList button {
-  box-shadow: 0 0 0 1px var(--color-border-outline, #767680);
+  box-shadow: 0 0 0 1px var(--color-border-outline);
 }
 
 /* ReveLith link policy (visual layer): engine chrome that points outward or
