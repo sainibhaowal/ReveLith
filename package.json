@@ -19,6 +19,8 @@
   ],
   "scripts": {
     "postinstall": "install-electron",
+    "prepare": "node tools/install-git-hooks.mjs",
+    "precommit:check": "npm run check:theme-colors && npm run typecheck && npm run lint && npm run lint --prefix apps/web && npm run build --prefix apps/web && npm run licenses && npm run test:release-policy && npm run check:english-comments && npm run check:skills && npm run format:check && npm test",
     "format": "node tools/format-changed.mjs --write",
     "format:check": "node tools/format-changed.mjs --check",
     "test:release-policy": "node --test tools/release-version.test.mjs tools/prepare-release-assets.test.mjs apps/web/scripts/release-manifest.test.mjs",

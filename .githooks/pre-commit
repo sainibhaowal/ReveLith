@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+echo "Running ReveLith's full local CI gate before commit..."
+npm run precommit:check
