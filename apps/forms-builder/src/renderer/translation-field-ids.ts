@@ -4,7 +4,10 @@
  * hyphen-to-underscore normalization, and only when the canonical hyphenated
  * ID exists in the current form.
  */
-export function resolveTranslationFieldId(candidate: string, fieldIds: ReadonlySet<string>): string | undefined {
+export function resolveTranslationFieldId(
+  candidate: string,
+  fieldIds: ReadonlySet<string>,
+): string | undefined {
   if (fieldIds.has(candidate)) return candidate
   const hyphenated = candidate.replace(/_/g, '-')
   return hyphenated !== candidate && fieldIds.has(hyphenated) ? hyphenated : undefined

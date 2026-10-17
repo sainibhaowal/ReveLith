@@ -9,7 +9,8 @@ import { isBlocked, isOverdue, ticketId } from './selectors'
  * opened — no background job, which is the one thing a desktop app cannot have.
  */
 
-export type NotificationKind = 'overdue' | 'dueSoon' | 'blocked' | 'mention' | 'unassigned' | 'overWip'
+export type NotificationKind =
+  'overdue' | 'dueSoon' | 'blocked' | 'mention' | 'unassigned' | 'overWip'
 
 export interface Notification {
   id: string

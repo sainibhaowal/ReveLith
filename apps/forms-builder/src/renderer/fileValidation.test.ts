@@ -15,7 +15,9 @@ describe('offline upload content checks', () => {
   })
 
   it('detects common image signatures and refuses unrecognized files for explicit known-format rules', async () => {
-    const png = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'pixel.png', { type: 'image/png' })
+    const png = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'pixel.png', {
+      type: 'image/png',
+    })
     const textClaimingImage = new File(['not an image'], 'pixel.png', { type: 'image/png' })
     expect((await validateFileContent(png, 'image/*')).detected).toBe('png')
     await expect(validateFileContent(textClaimingImage, 'image/*')).rejects.toThrow()
@@ -27,23 +29,34 @@ describe('offline upload content checks', () => {
     valid.file('_rels/.rels', '<Relationships/>')
     valid.file('word/document.xml', '<document/>')
     const validBytes = await valid.generateAsync({ type: 'uint8array' })
-    expect((await inspectFileContent(new File([validBytes.buffer as ArrayBuffer], 'form.docx'))).consistent).toBe(true)
+    expect(
+      (await inspectFileContent(new File([validBytes.buffer as ArrayBuffer], 'form.docx')))
+        .consistent,
+    ).toBe(true)
 
     const invalid = new JSZip()
     invalid.file('readme.txt', 'just a ZIP')
     const invalidBytes = await invalid.generateAsync({ type: 'uint8array' })
-    await expect(validateFileContent(new File([invalidBytes.buffer as ArrayBuffer], 'form.docx'), '.docx')).rejects.toThrow(/Office package|manifest/i)
+    await expect(
+      validateFileContent(new File([invalidBytes.buffer as ArrayBuffer], 'form.docx'), '.docx'),
+    ).rejects.toThrow(/Office package|manifest/i)
   })
 
   it('accepts a Windows upload only when the Defender bridge confirms a clean result', async () => {
     const file = new File(['%PDF-1.7\nSafe sample'], 'safe.pdf', { type: 'application/pdf' })
     const scanFile = vi.fn(async () => ({ status: 'clean' as const }))
     Object.defineProperty(window, 'electronAPI', { configurable: true, value: { scanFile } })
-    await expect(validateFileContent(file, '.pdf')).resolves.toMatchObject({ detected: 'pdf', consistent: true })
+    await expect(validateFileContent(file, '.pdf')).resolves.toMatchObject({
+      detected: 'pdf',
+      consistent: true,
+    })
     expect(scanFile).toHaveBeenCalledOnce()
 
     for (const status of ['threat', 'unavailable'] as const) {
-      Object.defineProperty(window, 'electronAPI', { configurable: true, value: { scanFile: vi.fn(async () => ({ status, detail: `scan ${status}` })) } })
+      Object.defineProperty(window, 'electronAPI', {
+        configurable: true,
+        value: { scanFile: vi.fn(async () => ({ status, detail: `scan ${status}` })) },
+      })
       await expect(validateFileContent(file, '.pdf')).rejects.toThrow(`scan ${status}`)
     }
   })

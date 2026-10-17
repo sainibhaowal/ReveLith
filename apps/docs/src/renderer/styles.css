@@ -7487,11 +7487,6 @@ body.docs-crop-active
   margin-top: 0;
 }
 
-
-
-
-
-
 @keyframes ai-summary-pulse {
   0%,
   100% {
@@ -7502,17 +7497,7 @@ body.docs-crop-active
   }
 }
 
-
-
-
-
 /* Step rows inside the group: 20px icon slot + 1px connector */
-
-
-
-
-
-
 
 @keyframes ai-hourglass-flip {
   0%,
@@ -7529,11 +7514,6 @@ body.docs-crop-active
   }
 }
 
-
-
-
-
-
 /* Step detail opens instantly, no animation */
 
 @media (prefers-reduced-motion: reduce) {
@@ -7547,9 +7527,6 @@ body.docs-crop-active
 /* Running tool row: two grow/shrink brand dots */
 
 .ai-tool-chip-spinner::before,
-
-
-
 @keyframes ai-tool-dot-grow {
   0%,
   100% {
@@ -7597,7 +7574,6 @@ body.docs-crop-active
 
 /* caret: text glyph right after the label, always visible, rotates open */
 
-
 /* stream rows ease in */
 @keyframes ai-row-ease-in {
   from {
@@ -7611,7 +7587,6 @@ body.docs-crop-active
 }
 
 /* expanded step detail: subtle gray card, no border */
-
 
 /* streaming typing indicator */
 /* Thinking indicator (white background, no container):
@@ -7754,17 +7729,9 @@ body.docs-crop-active
 /* hover actions under assistant messages (copy / regenerate):
  * borderless 30px icon buttons, radius 8, hover = subtle gray fill */
 
-
-
-
-
 /* Hairline before the roll-back action; hidden unless an icon action precedes it */
 
-
 /* Quiet roll-back in the message toolbar (after copy/regenerate): dim at rest, solid on hover */
-
-
-
 
 /* Tooltip: dark pill under the button, 0.3s hover delay */
 

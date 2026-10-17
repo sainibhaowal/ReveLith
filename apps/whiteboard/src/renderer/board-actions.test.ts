@@ -18,26 +18,65 @@ import {
   type BoardEl,
 } from './ribbon/board-actions'
 
-const el = (over: Partial<BoardEl> & { id: string }): BoardEl => ({ x: 0, y: 0, width: 10, height: 10, ...over })
+const el = (over: Partial<BoardEl> & { id: string }): BoardEl => ({
+  x: 0,
+  y: 0,
+  width: 10,
+  height: 10,
+  ...over,
+})
 
 describe('board actions', () => {
   it('computes bounds and selects ids', () => {
-    expect(getBounds(el({ id: 'a', x: 5, y: 6, width: 10, height: 20 }))).toEqual({ minX: 5, minY: 6, maxX: 15, maxY: 26 })
+    expect(getBounds(el({ id: 'a', x: 5, y: 6, width: 10, height: 20 }))).toEqual({
+      minX: 5,
+      minY: 6,
+      maxX: 15,
+      maxY: 26,
+    })
     expect(getBounds({ id: 'b' })).toBe(null)
     expect(selectAllIds([el({ id: 'a' }), el({ id: 'b' })])).toEqual(['a', 'b'])
   })
 
   it('arranges z-order preserving block order', () => {
     const list = [el({ id: 'a' }), el({ id: 'b' }), el({ id: 'c' }), el({ id: 'd' })]
-    expect(arrangeElements(list, new Set(['b']), 'front').map((e) => e.id)).toEqual(['a', 'c', 'd', 'b'])
-    expect(arrangeElements(list, new Set(['c']), 'back').map((e) => e.id)).toEqual(['c', 'a', 'b', 'd'])
-    expect(arrangeElements(list, new Set(['b']), 'forward').map((e) => e.id)).toEqual(['a', 'c', 'b', 'd'])
-    expect(arrangeElements(list, new Set(['c']), 'backward').map((e) => e.id)).toEqual(['a', 'c', 'b', 'd'])
-    expect(arrangeElements(list, new Set(['b', 'c']), 'front').map((e) => e.id)).toEqual(['a', 'd', 'b', 'c'])
+    expect(arrangeElements(list, new Set(['b']), 'front').map((e) => e.id)).toEqual([
+      'a',
+      'c',
+      'd',
+      'b',
+    ])
+    expect(arrangeElements(list, new Set(['c']), 'back').map((e) => e.id)).toEqual([
+      'c',
+      'a',
+      'b',
+      'd',
+    ])
+    expect(arrangeElements(list, new Set(['b']), 'forward').map((e) => e.id)).toEqual([
+      'a',
+      'c',
+      'b',
+      'd',
+    ])
+    expect(arrangeElements(list, new Set(['c']), 'backward').map((e) => e.id)).toEqual([
+      'a',
+      'c',
+      'b',
+      'd',
+    ])
+    expect(arrangeElements(list, new Set(['b', 'c']), 'front').map((e) => e.id)).toEqual([
+      'a',
+      'd',
+      'b',
+      'c',
+    ])
   })
 
   it('aligns to the shared bounding box', () => {
-    const list = [el({ id: 'a', x: 0, y: 0, width: 10, height: 10 }), el({ id: 'b', x: 50, y: 40, width: 10, height: 10 })]
+    const list = [
+      el({ id: 'a', x: 0, y: 0, width: 10, height: 10 }),
+      el({ id: 'b', x: 50, y: 40, width: 10, height: 10 }),
+    ]
     const left = alignElements(list, new Set(['a', 'b']), 'left')
     expect(left.moved).toBe(1)
     expect(left.elements.find((e) => e.id === 'b')?.x).toBe(0)
@@ -92,11 +131,28 @@ describe('board actions', () => {
   })
 
   it('flips tuple-based line points without producing invalid coordinates', () => {
-    const line = el({ id: 'line', type: 'line', x: 10, y: 10, width: 20, height: 10, points: [[0, 0], [20, 10]] })
+    const line = el({
+      id: 'line',
+      type: 'line',
+      x: 10,
+      y: 10,
+      width: 20,
+      height: 10,
+      points: [
+        [0, 0],
+        [20, 10],
+      ],
+    })
     const horizontal = flipElements([line], new Set(['line']), 'horizontal').elements[0]
-    expect(horizontal?.points).toEqual([[20, 0], [0, 10]])
+    expect(horizontal?.points).toEqual([
+      [20, 0],
+      [0, 10],
+    ])
     const vertical = flipElements([line], new Set(['line']), 'vertical').elements[0]
-    expect(vertical?.points).toEqual([[0, 10], [20, 0]])
+    expect(vertical?.points).toEqual([
+      [0, 10],
+      [20, 0],
+    ])
   })
 
   it('duplicates with fresh ids and remapped bindings', () => {

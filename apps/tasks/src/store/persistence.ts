@@ -58,25 +58,47 @@ function isUntouchedStarterBoard(state: BoardState): boolean {
     'Try a global search',
   ]
   if (
-    state.projects.length !== 1 || !project || project.key !== 'DEMO' || project.name !== 'Demo Project' ||
-    project.description !== 'A sample project. Rename it, or delete it and start fresh.' || project.color !== 'violet' ||
-    project.archived || project.lastTaskNumber !== titles.length || state.tasks.length !== titles.length ||
-    state.columns.length !== 4 || state.labels.length !== 3 || state.members.length !== 2 ||
-    state.customFields.length !== 1 || state.relations.length !== 1 || state.comments.length ||
-    state.externalLinks.length || state.activity.length || state.attachments.length || state.savedViews.length ||
-    state.selectedViewId || state.selectedTaskIds.length || state.sortMode !== 'position' ||
+    state.projects.length !== 1 ||
+    !project ||
+    project.key !== 'DEMO' ||
+    project.name !== 'Demo Project' ||
+    project.description !== 'A sample project. Rename it, or delete it and start fresh.' ||
+    project.color !== 'violet' ||
+    project.archived ||
+    project.lastTaskNumber !== titles.length ||
+    state.tasks.length !== titles.length ||
+    state.columns.length !== 4 ||
+    state.labels.length !== 3 ||
+    state.members.length !== 2 ||
+    state.customFields.length !== 1 ||
+    state.relations.length !== 1 ||
+    state.comments.length ||
+    state.externalLinks.length ||
+    state.activity.length ||
+    state.attachments.length ||
+    state.savedViews.length ||
+    state.selectedViewId ||
+    state.selectedTaskIds.length ||
+    state.sortMode !== 'position' ||
     JSON.stringify(state.filters) !== JSON.stringify(EMPTY_FILTERS)
-  ) return false
+  )
+    return false
 
   const columns = ['Backlog', 'In Progress', 'Review', 'Done'].map((name) =>
     state.columns.find((column) => column.projectId === project.id && column.name === name),
   )
   if (columns.some((column) => !column)) return false
   const expectedColumnColors = ['slate', 'blue', 'amber', 'green']
-  if (columns.some((column, index) =>
-    column!.color !== expectedColumnColors[index] || column!.position !== (index + 1) * 1024 ||
-    column!.wipLimit !== null || column!.isDone !== (index === 3)
-  )) return false
+  if (
+    columns.some(
+      (column, index) =>
+        column!.color !== expectedColumnColors[index] ||
+        column!.position !== (index + 1) * 1024 ||
+        column!.wipLimit !== null ||
+        column!.isDone !== (index === 3),
+    )
+  )
+    return false
   const expectedDescriptions = [
     'Drag cards between columns, double-click to edit, and use the AI panel on the right to plan work.\n\nEverything is stored locally — no server, no account.',
     'Projects hold their own columns, labels and task numbering (DEMO-1, DEMO-2, …).',
@@ -87,28 +109,72 @@ function isUntouchedStarterBoard(state: BoardState): boolean {
   const expectedPriorities = ['medium', 'high', 'medium', 'low', 'low']
   const expectedTaskLabels = [[], ['Feature'], [], ['Chore'], []]
   const orderedTasks = [...state.tasks].sort((a, b) => a.number - b.number)
-  if (orderedTasks.some((task, index) =>
-    task.projectId !== project.id || task.number !== index + 1 || task.title !== titles[index] ||
-    task.description !== expectedDescriptions[index] || task.priority !== expectedPriorities[index] ||
-    task.archived || task.parentId || Object.keys(task.customFields).length || task.timeEntries.length ||
-    task.columnId !== columns[[0, 0, 1, 1, 2][index]]!.id ||
-    task.labelIds.length !== expectedTaskLabels[index]!.length ||
-    task.labelIds.some((id) => !expectedTaskLabels[index]!.includes(state.labels.find((label) => label.id === id)?.name ?? '')) ||
-    task.assigneeId !== (index % 2 === 0 ? state.members[index % state.members.length]!.id : null) ||
-    (index === 0 ? task.dueDate !== new Date(task.createdAt + 2 * 86_400_000).toISOString().slice(0, 10) : task.dueDate !== null) ||
-    task.startDate !== null || task.estimateMinutes !== null || task.position !== (index + 1) * 1024
-  )) return false
+  if (
+    orderedTasks.some(
+      (task, index) =>
+        task.projectId !== project.id ||
+        task.number !== index + 1 ||
+        task.title !== titles[index] ||
+        task.description !== expectedDescriptions[index] ||
+        task.priority !== expectedPriorities[index] ||
+        task.archived ||
+        task.parentId ||
+        Object.keys(task.customFields).length ||
+        task.timeEntries.length ||
+        task.columnId !== columns[[0, 0, 1, 1, 2][index]]!.id ||
+        task.labelIds.length !== expectedTaskLabels[index]!.length ||
+        task.labelIds.some(
+          (id) =>
+            !expectedTaskLabels[index]!.includes(
+              state.labels.find((label) => label.id === id)?.name ?? '',
+            ),
+        ) ||
+        task.assigneeId !==
+          (index % 2 === 0 ? state.members[index % state.members.length]!.id : null) ||
+        (index === 0
+          ? task.dueDate !== new Date(task.createdAt + 2 * 86_400_000).toISOString().slice(0, 10)
+          : task.dueDate !== null) ||
+        task.startDate !== null ||
+        task.estimateMinutes !== null ||
+        task.position !== (index + 1) * 1024,
+    )
+  )
+    return false
 
-  const expectedLabels = [['Bug', 'red'], ['Feature', 'blue'], ['Chore', 'slate']]
-  if (expectedLabels.some(([name, color]) => !state.labels.some((label) => label.projectId === project.id && label.name === name && label.color === color))) return false
-  if (state.customFields[0]?.projectId !== project.id || state.customFields[0]?.name !== 'Story points' ||
-      state.customFields[0]?.type !== 'number' || state.customFields[0]?.required || state.customFields[0]?.options.length) return false
-  if (!state.members.some((member) => member.name === 'Ada Lovelace' && member.color === 'violet') ||
-      !state.members.some((member) => member.name === 'Grace Hopper' && member.color === 'teal')) return false
+  const expectedLabels = [
+    ['Bug', 'red'],
+    ['Feature', 'blue'],
+    ['Chore', 'slate'],
+  ]
+  if (
+    expectedLabels.some(
+      ([name, color]) =>
+        !state.labels.some(
+          (label) => label.projectId === project.id && label.name === name && label.color === color,
+        ),
+    )
+  )
+    return false
+  if (
+    state.customFields[0]?.projectId !== project.id ||
+    state.customFields[0]?.name !== 'Story points' ||
+    state.customFields[0]?.type !== 'number' ||
+    state.customFields[0]?.required ||
+    state.customFields[0]?.options.length
+  )
+    return false
+  if (
+    !state.members.some((member) => member.name === 'Ada Lovelace' && member.color === 'violet') ||
+    !state.members.some((member) => member.name === 'Grace Hopper' && member.color === 'teal')
+  )
+    return false
 
   const relation = state.relations[0]!
-  return relation.type === 'blocked_by' &&
-    relation.fromTaskId === orderedTasks[2]!.id && relation.toTaskId === orderedTasks[0]!.id
+  return (
+    relation.type === 'blocked_by' &&
+    relation.fromTaskId === orderedTasks[2]!.id &&
+    relation.toTaskId === orderedTasks[0]!.id
+  )
 }
 
 /**
@@ -116,7 +182,11 @@ function isUntouchedStarterBoard(state: BoardState): boolean {
  * `startsNewDocument` forces a genuinely blank document (the shell uses this for
  * File > New).
  */
-export function loadBoard(storage: StorageLike, key: string, startsNewDocument = false): BoardState {
+export function loadBoard(
+  storage: StorageLike,
+  key: string,
+  startsNewDocument = false,
+): BoardState {
   if (startsNewDocument) return emptyBoard()
   const loaded = loadFromStorage(storage, key)
   if (!loaded) return emptyBoard()

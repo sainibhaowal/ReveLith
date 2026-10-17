@@ -19,8 +19,16 @@ interface Msg {
 const QUICK = [
   { icon: '➕', label: 'Suggest field', prompt: 'Suggest a field to add to this form' },
   { icon: '✨', label: 'Improve form', prompt: 'Review my form and suggest improvements' },
-  { icon: '📝', label: 'Survey kit', prompt: 'Add a survey question set (satisfaction + feedback)' },
-  { icon: '📋', label: 'Contact kit', prompt: 'Add contact information fields (name, email, phone)' },
+  {
+    icon: '📝',
+    label: 'Survey kit',
+    prompt: 'Add a survey question set (satisfaction + feedback)',
+  },
+  {
+    icon: '📋',
+    label: 'Contact kit',
+    prompt: 'Add contact information fields (name, email, phone)',
+  },
 ]
 
 const FIELD_IDEAS: { type: FieldType; label: string; options?: string[]; match: RegExp }[] = [
@@ -29,22 +37,40 @@ const FIELD_IDEAS: { type: FieldType; label: string; options?: string[]; match: 
   { type: 'text', label: 'Phone Number', match: /contact|phone/i },
   { type: 'rating', label: 'Overall Satisfaction', match: /survey|satisfaction|feedback/i },
   { type: 'textarea', label: 'Additional Feedback', match: /survey|feedback/i },
-  { type: 'select', label: 'How did you hear about us?', options: ['Search engine', 'Social media', 'Friend referral', 'Advertisement', 'Other'], match: /survey|feedback/i },
+  {
+    type: 'select',
+    label: 'How did you hear about us?',
+    options: ['Search engine', 'Social media', 'Friend referral', 'Advertisement', 'Other'],
+    match: /survey|feedback/i,
+  },
   { type: 'date', label: 'Preferred Date', match: /book|appoint|date|event/i },
-  { type: 'radio', label: 'Preferred Contact Method', options: ['Email', 'Phone', 'Text message'], match: /contact/i },
+  {
+    type: 'radio',
+    label: 'Preferred Contact Method',
+    options: ['Email', 'Phone', 'Text message'],
+    match: /contact/i,
+  },
 ]
 
-function localReply(prompt: string, schema: FormSchema, selected: FormField | null): Msg['content'] | Msg {
+function localReply(
+  prompt: string,
+  schema: FormSchema,
+  selected: FormField | null,
+): Msg['content'] | Msg {
   void schema
   void selected
   const lower = prompt.toLowerCase()
   if (/improve|review/.test(lower)) {
     const tips: string[] = []
-    if (schema.fields.length === 0) tips.push('• Your form is empty — start with a name + email pair from the Contact kit.')
-    if (!schema.fields.some((f) => f.required)) tips.push('• No field is marked required yet. Mark at least one key field required.')
+    if (schema.fields.length === 0)
+      tips.push('• Your form is empty — start with a name + email pair from the Contact kit.')
+    if (!schema.fields.some((f) => f.required))
+      tips.push('• No field is marked required yet. Mark at least one key field required.')
     if (!schema.description) tips.push('• Add a short description so respondents know the purpose.')
-    if (schema.fields.length > 12) tips.push('• Long forms reduce completion — consider splitting into sections.')
-    if (tips.length === 0) tips.push('• Looks solid! Consider a confirmation message tune-up in Settings.')
+    if (schema.fields.length > 12)
+      tips.push('• Long forms reduce completion — consider splitting into sections.')
+    if (tips.length === 0)
+      tips.push('• Looks solid! Consider a confirmation message tune-up in Settings.')
     return tips.join('\n')
   }
   const idea = FIELD_IDEAS.find((f) => f.match.test(lower) || f.match.test(prompt))
@@ -97,7 +123,15 @@ export function AiPanel({ schema, selectedField, onClose, onInsertField, style }
   void selectedField
 
   return (
-    <div style={{ ...style, display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflow: 'hidden' }}>
+    <div
+      style={{
+        ...style,
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--surface)',
+        overflow: 'hidden',
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -109,26 +143,59 @@ export function AiPanel({ schema, selectedField, onClose, onInsertField, style }
         }}
       >
         <span style={{ fontSize: 18 }}>🤖</span>
-        <strong style={{ fontSize: 14, flex: 1, color: 'var(--text-primary)' }}>AI Assistant</strong>
+        <strong style={{ fontSize: 14, flex: 1, color: 'var(--text-primary)' }}>
+          AI Assistant
+        </strong>
         <button
           onClick={onClose}
-          style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 15, color: 'var(--text-secondary)' }}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            fontSize: 15,
+            color: 'var(--text-secondary)',
+          }}
           title="Close AI panel"
         >
           ✕
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
         {messages.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px 16px' }}>
+          <div
+            style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '32px 16px' }}
+          >
             <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
-            <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>How can I help?</p>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)' }}>Ask for field ideas, a form review, or a starter kit.</p>
+            <p
+              style={{
+                margin: '0 0 4px',
+                fontSize: 14,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
+              How can I help?
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)' }}>
+              Ask for field ideas, a form review, or a starter kit.
+            </p>
           </div>
         ) : (
           messages.map((m) => (
-            <div key={m.id} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+            <div
+              key={m.id}
+              style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}
+            >
               <div
                 style={{
                   padding: '10px 14px',
@@ -165,11 +232,19 @@ export function AiPanel({ schema, selectedField, onClose, onInsertField, style }
             </div>
           ))
         )}
-        {busy ? <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Thinking…</div> : null}
+        {busy ? (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Thinking…</div>
+        ) : null}
         <div ref={endRef} />
       </div>
 
-      <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface-subtle)' }}>
+      <div
+        style={{
+          padding: '8px 12px',
+          borderTop: '1px solid var(--border)',
+          background: 'var(--surface-subtle)',
+        }}
+      >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           {QUICK.map((q) => (
             <button

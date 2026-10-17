@@ -15,9 +15,12 @@ import { sanitizeVectorSvg } from './board-engine/ai-tools'
  */
 describe('sanitised SVG is renderable as an image', () => {
   const samples: Record<string, string> = {
-    gradient: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="g"><stop offset="0" stop-color="#dbeafe"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><rect width="200" height="120" fill="url(#g)"/></svg>',
-    mountain: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420"><path d="M0 300 L180 80 L360 300 Z" fill="#1d4ed8"/></svg>',
-    plain: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50"><circle cx="25" cy="25" r="20" fill="#f59e0b"/></svg>',
+    gradient:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="g"><stop offset="0" stop-color="#dbeafe"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><rect width="200" height="120" fill="url(#g)"/></svg>',
+    mountain:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420"><path d="M0 300 L180 80 L360 300 Z" fill="#1d4ed8"/></svg>',
+    plain:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50"><circle cx="25" cy="25" r="20" fill="#f59e0b"/></svg>',
   }
 
   for (const [name, svg] of Object.entries(samples)) {

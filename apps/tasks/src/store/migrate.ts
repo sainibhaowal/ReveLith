@@ -21,7 +21,11 @@ interface LegacyTask {
   createdAt?: unknown
 }
 
-const LEGACY_STATUS: Record<string, string> = { todo: 'Backlog', doing: 'In Progress', done: 'Done' }
+const LEGACY_STATUS: Record<string, string> = {
+  todo: 'Backlog',
+  doing: 'In Progress',
+  done: 'Done',
+}
 
 function asString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
@@ -165,7 +169,8 @@ export function withDefaults(partial: Partial<BoardState>): BoardState {
     selectedTaskIds: [],
     // A saved view only stays selected if it still exists in the document.
     selectedViewId:
-      partial.selectedViewId && (partial.savedViews ?? []).some((view) => view.id === partial.selectedViewId)
+      partial.selectedViewId &&
+      (partial.savedViews ?? []).some((view) => view.id === partial.selectedViewId)
         ? partial.selectedViewId
         : null,
     selectedTaskId: null,
@@ -218,7 +223,14 @@ export function seedBoard(): BoardState {
   ].map((seed) => ({ id: nextId('lbl'), projectId, name: seed.name, color: seed.color }))
 
   const customFields = [
-    { id: nextId('cf'), projectId, name: 'Story points', type: 'number' as const, options: [], required: false },
+    {
+      id: nextId('cf'),
+      projectId,
+      name: 'Story points',
+      type: 'number' as const,
+      options: [],
+      required: false,
+    },
   ]
 
   const members = [
@@ -226,7 +238,13 @@ export function seedBoard(): BoardState {
     { id: nextId('mem'), name: 'Grace Hopper', color: 'teal' },
   ]
 
-  const plan: { title: string; description: string; column: number; priority: Priority; labels: number[] }[] = [
+  const plan: {
+    title: string
+    description: string
+    column: number
+    priority: Priority
+    labels: number[]
+  }[] = [
     {
       title: 'Welcome to ReveLith Tasks',
       description:
@@ -237,7 +255,8 @@ export function seedBoard(): BoardState {
     },
     {
       title: 'Create a project',
-      description: 'Projects hold their own columns, labels and task numbering (DEMO-1, DEMO-2, …).',
+      description:
+        'Projects hold their own columns, labels and task numbering (DEMO-1, DEMO-2, …).',
       column: 0,
       priority: 'high',
       labels: [1],

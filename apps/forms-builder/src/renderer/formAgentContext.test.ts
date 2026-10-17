@@ -7,25 +7,61 @@ const schema = {
   title: 'Registration',
   description: 'Register here',
   fields: [
-    { id: 'name', type: 'text', label: 'Name', required: true, helpText: 'Your full name', options: undefined },
-    { id: 'team', type: 'group', label: 'Team', required: false, children: [
-      { id: 'department', type: 'text', label: 'Department', required: false },
-    ] },
+    {
+      id: 'name',
+      type: 'text',
+      label: 'Name',
+      required: true,
+      helpText: 'Your full name',
+      options: undefined,
+    },
+    {
+      id: 'team',
+      type: 'group',
+      label: 'Team',
+      required: false,
+      children: [{ id: 'department', type: 'text', label: 'Department', required: false }],
+    },
   ],
-  settings: { submitButtonText: 'Submit', confirmationMessage: 'Thank you', confirmationTitle: 'Recorded', confirmationButtonText: 'Again', closedMessage: '' },
+  settings: {
+    submitButtonText: 'Submit',
+    confirmationMessage: 'Thank you',
+    confirmationTitle: 'Recorded',
+    confirmationButtonText: 'Again',
+    closedMessage: '',
+  },
   variables: [{ id: 'score', name: 'Score', type: 'number', initialValue: 0 }],
-  logicRules: [{ id: 'route', name: 'Old route', match: 'all', conditions: [], action: { kind: 'navigate', fieldId: 'department' } }],
+  logicRules: [
+    {
+      id: 'route',
+      name: 'Old route',
+      match: 'all',
+      conditions: [],
+      action: { kind: 'navigate', fieldId: 'department' },
+    },
+  ],
 } as unknown as FormSchema
 
 describe('request-sized Forms Builder context', () => {
   it('summarizes only the selected field definition and excludes answer-like or scoring data', () => {
     const field = {
-      id: 'email', type: 'email', label: 'Work email', required: true,
-      placeholder: 'name@company.com', options: ['One', 'Two'],
-      defaultValue: 'private@example.com', correctAnswers: ['private@example.com'],
+      id: 'email',
+      type: 'email',
+      label: 'Work email',
+      required: true,
+      placeholder: 'name@company.com',
+      options: ['One', 'Two'],
+      defaultValue: 'private@example.com',
+      correctAnswers: ['private@example.com'],
     } as unknown as FormSchema['fields'][number]
     const summary = summarizeSelectedField(field)
-    expect(summary).toMatchObject({ id: 'email', type: 'email', label: 'Work email', required: true, options: ['One', 'Two'] })
+    expect(summary).toMatchObject({
+      id: 'email',
+      type: 'email',
+      label: 'Work email',
+      required: true,
+      options: ['One', 'Two'],
+    })
     expect(JSON.stringify(summary)).not.toContain('private@example.com')
     expect(summary).not.toHaveProperty('correctAnswers')
     expect(summary).not.toHaveProperty('defaultValue')
@@ -37,7 +73,10 @@ describe('request-sized Forms Builder context', () => {
   })
 
   it('does not pre-answer a live inspection request in the prompt', () => {
-    const context = buildFormAgentContext(schema, 'Inspect the current form and count its question fields.')
+    const context = buildFormAgentContext(
+      schema,
+      'Inspect the current form and count its question fields.',
+    )
     expect(context).toContain('Registration')
     expect(context).not.toContain('department')
     expect(context).not.toContain('Name')
@@ -53,7 +92,10 @@ describe('request-sized Forms Builder context', () => {
   })
 
   it('sends existing copy only for the explicit AI polish action', () => {
-    const context = buildFormAgentContext(schema, 'Polish the wording of the form title and every question label.')
+    const context = buildFormAgentContext(
+      schema,
+      'Polish the wording of the form title and every question label.',
+    )
     expect(context).toContain('Your full name')
     expect(context).toContain('"helpText":"Your full name"')
     expect(context).toContain('department')

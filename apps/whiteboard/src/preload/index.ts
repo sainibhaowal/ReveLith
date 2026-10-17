@@ -26,12 +26,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLanguage: () => ipcRenderer.invoke('app:get-language'),
   getAutoSaveDefault: () => ipcRenderer.invoke('app:get-auto-save-default'),
   onAutoSaveDefaultChanged: (handler: (value: { on: boolean; updatedAt: number }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, value: { on: boolean; updatedAt: number }) => handler(value)
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      value: { on: boolean; updatedAt: number },
+    ) => handler(value)
     ipcRenderer.on('app:auto-save-default-changed', listener)
     return () => ipcRenderer.removeListener('app:auto-save-default-changed', listener)
   },
   onThemeChanged: (handler: (theme: 'light' | 'dark' | 'system') => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark' | 'system') => handler(theme)
+    const listener = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark' | 'system') =>
+      handler(theme)
     ipcRenderer.on('app:theme-changed', listener)
     return () => ipcRenderer.removeListener('app:theme-changed', listener)
   },
@@ -49,8 +53,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ai:stream-chunk', listener)
     return () => ipcRenderer.removeListener('ai:stream-chunk', listener)
   },
-  webSearch: (query: string, maxResults?: number) => ipcRenderer.invoke('ai:web-search', query, maxResults),
-  imageSearch: (query: string, maxResults?: number) => ipcRenderer.invoke('ai:image-search', query, maxResults),
+  webSearch: (query: string, maxResults?: number) =>
+    ipcRenderer.invoke('ai:web-search', query, maxResults),
+  imageSearch: (query: string, maxResults?: number) =>
+    ipcRenderer.invoke('ai:image-search', query, maxResults),
   fetchImage: (url: string) => ipcRenderer.invoke('ai:fetch-image', url),
   // Image generation goes through the app-wide AI handler registry (the shell
   // registers drawboard:ai-generate-image); it answers with raw bytes exactly
@@ -66,8 +72,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('new-app:save-document', payload, title, saveAs, prompt),
   saveExportFile: (fileName: string, bytes: ArrayBuffer) =>
     ipcRenderer.invoke('drawboard:save-export-file', fileName, bytes),
-  setDocumentState: (dirty: boolean, title: string) => ipcRenderer.invoke('new-app:set-document-state', dirty, title),
-  setDocumentPath: (filePath: string, title: string) => ipcRenderer.invoke('new-app:set-document-path', filePath, title),
+  setDocumentState: (dirty: boolean, title: string) =>
+    ipcRenderer.invoke('new-app:set-document-state', dirty, title),
+  setDocumentPath: (filePath: string, title: string) =>
+    ipcRenderer.invoke('new-app:set-document-path', filePath, title),
   onMenuAction: (handler: (action: string) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, action: string) => handler(action)
     ipcRenderer.on('drawboard:menu-action', listener)
@@ -80,7 +88,8 @@ contextBridge.exposeInMainWorld('drawboardApi', {
   getTheme: () => ipcRenderer.invoke('app:get-theme').catch(() => 'system'),
   getLanguage: () => ipcRenderer.invoke('app:get-language').catch(() => 'en'),
   onThemeChanged: (handler: (theme: 'light' | 'dark' | 'system') => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark' | 'system') => handler(theme)
+    const listener = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark' | 'system') =>
+      handler(theme)
     ipcRenderer.on('app:theme-changed', listener)
     return () => ipcRenderer.removeListener('app:theme-changed', listener)
   },

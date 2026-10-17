@@ -45,7 +45,9 @@ export function recoverTextToolCalls(
     const rawBody = source.slice(bodyStart, close.index).trim()
     const body = /^call\s*:\s*([A-Za-z0-9_.:/ -]+?)\s*(\{[\s\S]*\})\s*$/.exec(rawBody)
     if (!body) {
-      calls.push(invalidCall('Expected call:<registered_tool_name>{...} inside the tool-call marker.'))
+      calls.push(
+        invalidCall('Expected call:<registered_tool_name>{...} inside the tool-call marker.'),
+      )
     } else {
       const rawName = body[1]!.trim()
       const input = parseArguments(body[2]!)
@@ -118,7 +120,10 @@ function resolveRegisteredName(rawName: string, tools: readonly AgentToolDef[]):
 }
 
 function normalizeName(name: string): string {
-  return name.trim().toLocaleLowerCase().replace(/[ .:/-]+/g, '_')
+  return name
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[ .:/-]+/g, '_')
 }
 
 function parseArguments(source: string): { value?: Record<string, unknown>; error?: string } {
@@ -144,7 +149,8 @@ class ValueParser {
   parse(): unknown {
     const value = this.readValue(0)
     this.space()
-    if (this.index !== this.source.length) this.fail('Unexpected content after the argument object.')
+    if (this.index !== this.source.length)
+      this.fail('Unexpected content after the argument object.')
     return value
   }
 
@@ -167,9 +173,10 @@ class ValueParser {
     if (this.take('}')) return result
     while (true) {
       this.space()
-      const key = this.source[this.index] === '"' || this.source[this.index] === "'"
-        ? this.readQuotedString(this.source[this.index]!)
-        : this.readKey()
+      const key =
+        this.source[this.index] === '"' || this.source[this.index] === "'"
+          ? this.readQuotedString(this.source[this.index]!)
+          : this.readKey()
       if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
         this.fail(`Unsafe object key "${key}" is not allowed.`)
       }
@@ -197,7 +204,8 @@ class ValueParser {
 
   private readKey(): string {
     const start = this.index
-    while (/[A-Za-z0-9_$-]/.test(this.source[this.index] ?? '') && this.index < this.source.length) this.index++
+    while (/[A-Za-z0-9_$-]/.test(this.source[this.index] ?? '') && this.index < this.source.length)
+      this.index++
     if (start === this.index) this.fail('Expected an object key.')
     return this.source.slice(start, this.index)
   }
@@ -242,7 +250,8 @@ class ValueParser {
 
   private readPrimitive(): unknown {
     const start = this.index
-    while (this.index < this.source.length && !/[\s,}\]]/.test(this.source[this.index]!)) this.index++
+    while (this.index < this.source.length && !/[\s,}\]]/.test(this.source[this.index]!))
+      this.index++
     const word = this.source.slice(start, this.index)
     if (word === 'true') return true
     if (word === 'false') return false

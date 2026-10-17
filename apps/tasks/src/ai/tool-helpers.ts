@@ -38,7 +38,11 @@ export const json = (properties: Record<string, unknown>, required: string[] = [
 export const stringProp = (description: string) => ({ type: 'string', description })
 
 export function ok(output: unknown, summary: string, mutated = false): ToolResult {
-  return { output: typeof output === 'string' ? output : JSON.stringify(output, null, 2), summary, mutated }
+  return {
+    output: typeof output === 'string' ? output : JSON.stringify(output, null, 2),
+    summary,
+    mutated,
+  }
 }
 
 export function fail(summary: string, detail?: string): ToolResult {
@@ -53,7 +57,8 @@ export function str(input: Record<string, unknown>, key: string): string | undef
 export function num(input: Record<string, unknown>, key: string): number | undefined {
   const value = input[key]
   if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value)))
+    return Number(value)
   return undefined
 }
 
@@ -63,7 +68,10 @@ export function bool(input: Record<string, unknown>, key: string): boolean | und
 
 export function strArray(input: Record<string, unknown>, key: string): string[] {
   const value = input[key]
-  if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
+  if (Array.isArray(value))
+    return value.filter(
+      (entry): entry is string => typeof entry === 'string' && entry.trim() !== '',
+    )
   if (typeof value === 'string' && value.trim()) return [value.trim()]
   return []
 }

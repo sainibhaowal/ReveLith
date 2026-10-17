@@ -93,11 +93,25 @@ export function compileInfographic(
   const margin = 48
   const inner = width - margin * 2
   const elements: InfographicSceneItem[] = [
-    { kind: 'text', x: origin.x + margin, y: origin.y + 34, text: title, size: 34, color: palette.ink },
+    {
+      kind: 'text',
+      x: origin.x + margin,
+      y: origin.y + 34,
+      text: title,
+      size: 34,
+      color: palette.ink,
+    },
   ]
   const subtitle = clean(input.subtitle, 220)
   if (subtitle)
-    elements.push({ kind: 'text', x: origin.x + margin, y: origin.y + 82, text: subtitle, size: 18, color: palette.muted })
+    elements.push({
+      kind: 'text',
+      x: origin.x + margin,
+      y: origin.y + 82,
+      text: subtitle,
+      size: 18,
+      color: palette.muted,
+    })
   let cursorY = origin.y + (subtitle ? 128 : 108)
 
   for (const raw of rawSections) {
@@ -106,10 +120,15 @@ export function compileInfographic(
     const items = Array.isArray(section.items) ? section.items : []
     if (!heading || items.length < 1 || items.length > 12)
       throw new Error('Every infographic section needs a heading and 1-12 items.')
-    const layout = ['flow', 'cards', 'timeline', 'comparison', 'notes'].includes(String(section.layout))
+    const layout = ['flow', 'cards', 'timeline', 'comparison', 'notes'].includes(
+      String(section.layout),
+    )
       ? String(section.layout)
       : 'cards'
-    const cols = layout === 'flow' || layout === 'timeline' ? Math.min(4, items.length) : Math.min(3, items.length)
+    const cols =
+      layout === 'flow' || layout === 'timeline'
+        ? Math.min(4, items.length)
+        : Math.min(3, items.length)
     const rows = Math.ceil(items.length / cols)
     const cardGap = 22
     const cardW = Math.floor((inner - cardGap * (cols - 1)) / cols)
@@ -117,13 +136,36 @@ export function compileInfographic(
     const summary = clean(section.summary, 260)
     const headerH = summary ? 66 : 42
     const sectionH = headerH + rows * cardH + Math.max(0, rows - 1) * cardGap + 34
-    elements.push({ kind: 'line', x1: origin.x + margin, y1: cursorY, x2: origin.x + width - margin, y2: cursorY, color: palette.line, strokeWidth: 1 })
-    elements.push({ kind: 'text', x: origin.x + margin, y: cursorY + 14, text: heading, size: 22, color: palette.ink })
+    elements.push({
+      kind: 'line',
+      x1: origin.x + margin,
+      y1: cursorY,
+      x2: origin.x + width - margin,
+      y2: cursorY,
+      color: palette.line,
+      strokeWidth: 1,
+    })
+    elements.push({
+      kind: 'text',
+      x: origin.x + margin,
+      y: cursorY + 14,
+      text: heading,
+      size: 22,
+      color: palette.ink,
+    })
     if (summary)
-      elements.push({ kind: 'text', x: origin.x + margin, y: cursorY + 42, text: summary, size: 15, color: palette.muted })
+      elements.push({
+        kind: 'text',
+        x: origin.x + margin,
+        y: cursorY + 42,
+        text: summary,
+        size: 15,
+        color: palette.muted,
+      })
     const cardY = cursorY + headerH
     items.forEach((rawItem, index) => {
-      const item = rawItem && typeof rawItem === 'object' ? (rawItem as Record<string, unknown>) : {}
+      const item =
+        rawItem && typeof rawItem === 'object' ? (rawItem as Record<string, unknown>) : {}
       const label = clean(item.label, 180)
       if (!label) throw new Error('Every infographic item needs a visible label.')
       const detail = clean(item.detail, 280)
@@ -137,17 +179,35 @@ export function compileInfographic(
       const color = accent ? palette.accent : muted ? palette.muted : palette.primary
       const fill = accent ? palette.accentFill : muted ? palette.mutedFill : palette.primaryFill
       elements.push({
-        kind: 'rect', x, y, width: cardW, height: cardH, label: detail ? `${label}\n${detail}` : label,
-        color, fill, size: detail ? 15 : 17, strokeWidth: 2, diagramNode: true,
+        kind: 'rect',
+        x,
+        y,
+        width: cardW,
+        height: cardH,
+        label: detail ? `${label}\n${detail}` : label,
+        color,
+        fill,
+        size: detail ? 15 : 17,
+        strokeWidth: 2,
+        diagramNode: true,
       })
       if ((layout === 'flow' || layout === 'timeline') && col > 0) {
         const previousX = x - cardGap
-        elements.push({ kind: 'arrow', x1: previousX, y1: y + cardH / 2, x2: x - 4, y2: y + cardH / 2, color, strokeWidth: 2 })
+        elements.push({
+          kind: 'arrow',
+          x1: previousX,
+          y1: y + cardH / 2,
+          x2: x - 4,
+          y2: y + cardH / 2,
+          color,
+          strokeWidth: 2,
+        })
       }
     })
     cursorY += sectionH
   }
   const height = Math.ceil(cursorY - origin.y + 28)
-  if (elements.length > 120) throw new Error('Infographic exceeds the 120-element native board safety limit.')
+  if (elements.length > 120)
+    throw new Error('Infographic exceeds the 120-element native board safety limit.')
   return { title, width, height, elements }
 }

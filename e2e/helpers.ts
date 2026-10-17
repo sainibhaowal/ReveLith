@@ -28,7 +28,10 @@ export async function zipDirectory(sourceDir: string, outputPath: string): Promi
     }
   }
   await addDirectory(sourceDir)
-  await writeFile(outputPath, await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }))
+  await writeFile(
+    outputPath,
+    await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }),
+  )
 }
 
 /** Read an OOXML part without relying on a platform-specific `unzip` executable. */
@@ -255,7 +258,9 @@ export async function waitForPageWithUrl(
     const remaining = deadline - Date.now()
     if (remaining <= 0) {
       const available = app.windows().map((candidate) => candidate.url())
-      throw new Error(`No window with URL containing "${urlPart}". Available pages: ${available.join(', ')}`)
+      throw new Error(
+        `No window with URL containing "${urlPart}". Available pages: ${available.join(', ')}`,
+      )
     }
     await app.waitForEvent('window', { timeout: Math.min(remaining, 1_000) }).catch(() => {})
   }

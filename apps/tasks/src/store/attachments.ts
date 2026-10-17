@@ -16,7 +16,9 @@ export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 
 export class AttachmentTooLargeError extends Error {
   constructor(name: string, size: number) {
-    super(`“${name}” is ${formatBytes(size)}, which exceeds the ${formatBytes(MAX_ATTACHMENT_BYTES)} limit.`)
+    super(
+      `“${name}” is ${formatBytes(size)}, which exceeds the ${formatBytes(MAX_ATTACHMENT_BYTES)} limit.`,
+    )
     this.name = 'AttachmentTooLargeError'
   }
 }
@@ -46,18 +48,23 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE)
     }
     request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error ?? new Error('Could not open the attachment database.'))
+    request.onerror = () =>
+      reject(request.error ?? new Error('Could not open the attachment database.'))
   })
 }
 
-function run<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+function run<T>(
+  mode: IDBTransactionMode,
+  work: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
   return openDatabase().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
         const tx = db.transaction(STORE, mode)
         const request = work(tx.objectStore(STORE))
         request.onsuccess = () => resolve(request.result)
-        request.onerror = () => reject(request.error ?? new Error('Attachment storage request failed.'))
+        request.onerror = () =>
+          reject(request.error ?? new Error('Attachment storage request failed.'))
         tx.oncomplete = () => db.close()
       }),
   )
@@ -69,7 +76,10 @@ export async function putBlob(id: string, blob: Blob): Promise<void> {
   // — hand back a plain object with no Blob methods. An ArrayBuffer always
   // survives, and the Blob is rebuilt on read.
   const buffer = await blob.arrayBuffer()
-  await run('readwrite', (store) => store.put({ mime: blob.type, buffer }, id) as IDBRequest<IDBValidKey>)
+  await run(
+    'readwrite',
+    (store) => store.put({ mime: blob.type, buffer }, id) as IDBRequest<IDBValidKey>,
+  )
 }
 
 interface StoredBlob {

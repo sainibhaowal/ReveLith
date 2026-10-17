@@ -24,7 +24,9 @@ const uid = (): string =>
     ? crypto.randomUUID().slice(0, 12)
     : `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`
 
-export function readBoardImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+export function readBoardImageDimensions(
+  dataUrl: string,
+): Promise<{ width: number; height: number }> {
   return new Promise((resolve) => {
     const img = new Image()
     img.onload = () => resolve({ width: img.naturalWidth || 400, height: img.naturalHeight || 300 })
@@ -43,7 +45,9 @@ function readDataUrl(file: File): Promise<string> {
 }
 
 /** Keep images only; returns staged images plus a notice for skipped files. */
-export async function readBoardImages(files: File[] | FileList): Promise<{ images: StagedBoardImage[]; notice: string | null }> {
+export async function readBoardImages(
+  files: File[] | FileList,
+): Promise<{ images: StagedBoardImage[]; notice: string | null }> {
   const list = [...files]
   const images: StagedBoardImage[] = []
   let skipped = 0
@@ -78,18 +82,30 @@ export async function readBoardImages(files: File[] | FileList): Promise<{ image
   }
   return {
     images,
-    notice: skipped > 0 ? `${skipped} file(s) skipped (images up to 10 MB, max ${MAX_IMAGES} per message).` : null,
+    notice:
+      skipped > 0
+        ? `${skipped} file(s) skipped (images up to 10 MB, max ${MAX_IMAGES} per message).`
+        : null,
   }
 }
 
-function scaledSize(width: number, height: number, maxDim = 480): { width: number; height: number } {
+function scaledSize(
+  width: number,
+  height: number,
+  maxDim = 480,
+): { width: number; height: number } {
   const scale = Math.min(1, maxDim / Math.max(1, Math.max(width, height)))
-  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  }
 }
 
 export function describeImages(images: readonly StagedBoardImage[]): string {
   if (images.length === 0) return 'none'
-  return images.map((img) => `- ${img.name} (${img.width}x${img.height}, ${img.mimeType})`).join('\n')
+  return images
+    .map((img) => `- ${img.name} (${img.width}x${img.height}, ${img.mimeType})`)
+    .join('\n')
 }
 
 /** Place staged images onto the board in a cascade (or at explicit spots); returns a summary for the chat context. */
@@ -102,7 +118,10 @@ export function placeImagesOnBoard(
   try {
     const now = Date.now()
     api.addFiles(
-      images.map((img) => ({ mimeType: img.mimeType, id: img.id, dataURL: img.dataUrl, created: now }) as never),
+      images.map(
+        (img) =>
+          ({ mimeType: img.mimeType, id: img.id, dataURL: img.dataUrl, created: now }) as never,
+      ),
     )
     const current = api.getSceneElements()
     const base = 96 + (current.length % 5) * 48
@@ -136,14 +155,22 @@ export function placeImagesOnBoard(
       { repairBindings: true, refreshDimensions: true },
     )
     api.updateScene({ elements: normalizeBoardElementPoints(restored.elements ?? []) })
-    return { placed: images.length, summary: `Placed ${images.length} image(s) on the board (${images.map((img) => img.name).join(', ')}).` }
+    return {
+      placed: images.length,
+      summary: `Placed ${images.length} image(s) on the board (${images.map((img) => img.name).join(', ')}).`,
+    }
   } catch (error) {
-    return { placed: 0, summary: `Could not place images on the board: ${error instanceof Error ? error.message : String(error)}` }
+    return {
+      placed: 0,
+      summary: `Could not place images on the board: ${error instanceof Error ? error.message : String(error)}`,
+    }
   }
 }
 
 /** Convert staged images to native vision input for the model (docs pattern). */
-export function toAgentImages(images: readonly StagedBoardImage[]): Array<{ base64: string; mime: string }> {
+export function toAgentImages(
+  images: readonly StagedBoardImage[],
+): Array<{ base64: string; mime: string }> {
   const out: Array<{ base64: string; mime: string }> = []
   for (const img of images.slice(0, 6)) {
     const comma = img.dataUrl.indexOf(',')
@@ -161,17 +188,29 @@ export function describeSelection(api: BoardApi | null, ids: readonly string[]):
     const selected = api.getSceneElements().filter((el) => wanted.has(el.id))
     if (selected.length === 0) return 'The previous selection is gone from the board.'
     const visible = selected.slice(0, 20)
-    const bounds = selected.reduce<{ left: number; top: number; right: number; bottom: number } | null>((acc, el) => {
+    const bounds = selected.reduce<{
+      left: number
+      top: number
+      right: number
+      bottom: number
+    } | null>((acc, el) => {
       const e = el as unknown as Record<string, unknown>
       const x = typeof e.x === 'number' && Number.isFinite(e.x) ? e.x : null
       const y = typeof e.y === 'number' && Number.isFinite(e.y) ? e.y : null
-      const width = typeof e.width === 'number' && Number.isFinite(e.width) ? Math.max(0, e.width) : null
-      const height = typeof e.height === 'number' && Number.isFinite(e.height) ? Math.max(0, e.height) : null
+      const width =
+        typeof e.width === 'number' && Number.isFinite(e.width) ? Math.max(0, e.width) : null
+      const height =
+        typeof e.height === 'number' && Number.isFinite(e.height) ? Math.max(0, e.height) : null
       if (x === null || y === null || width === null || height === null) return acc
       const right = x + width
       const bottom = y + height
       return acc
-        ? { left: Math.min(acc.left, x), top: Math.min(acc.top, y), right: Math.max(acc.right, right), bottom: Math.max(acc.bottom, bottom) }
+        ? {
+            left: Math.min(acc.left, x),
+            top: Math.min(acc.top, y),
+            right: Math.max(acc.right, right),
+            bottom: Math.max(acc.bottom, bottom),
+          }
         : { left: x, top: y, right, bottom }
     }, null)
     const boundsText = bounds
@@ -179,11 +218,14 @@ export function describeSelection(api: BoardApi | null, ids: readonly string[]):
       : ''
     const lines = visible.map((el) => {
       const e = el as unknown as Record<string, unknown>
-      const text = typeof e.text === 'string' && e.text ? ` text=${JSON.stringify(e.text.slice(0, 120))}` : ''
+      const text =
+        typeof e.text === 'string' && e.text ? ` text=${JSON.stringify(e.text.slice(0, 120))}` : ''
       const x = typeof e.x === 'number' && Number.isFinite(e.x) ? Math.round(e.x) : null
       const y = typeof e.y === 'number' && Number.isFinite(e.y) ? Math.round(e.y) : null
-      const width = typeof e.width === 'number' && Number.isFinite(e.width) ? Math.round(e.width) : null
-      const height = typeof e.height === 'number' && Number.isFinite(e.height) ? Math.round(e.height) : null
+      const width =
+        typeof e.width === 'number' && Number.isFinite(e.width) ? Math.round(e.width) : null
+      const height =
+        typeof e.height === 'number' && Number.isFinite(e.height) ? Math.round(e.height) : null
       const geometry = [x, y, width, height].every((value) => value !== null)
         ? ` bounds=${x},${y},${width},${height}`
         : ''

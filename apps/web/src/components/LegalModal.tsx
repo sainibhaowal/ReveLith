@@ -140,7 +140,11 @@ const docs = (version: string): Record<LegalDoc, Doc> => ({
 
 const EXIT_MS = 200
 
-export const LegalModal: React.FC<LegalModalProps> = ({ doc, onClose, version = LATEST_VERSION }) => {
+export const LegalModal: React.FC<LegalModalProps> = ({
+  doc,
+  onClose,
+  version = LATEST_VERSION,
+}) => {
   const isOpen = doc !== null
   const [shown, setShown] = useState<LegalDoc | null>(doc)
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -186,10 +190,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ doc, onClose, version = 
   const closing = !isOpen
 
   return (
-    <div
-      className={`legal-overlay ${closing ? 'is-closing' : 'is-open'}`}
-      onClick={onClose}
-    >
+    <div className={`legal-overlay ${closing ? 'is-closing' : 'is-open'}`} onClick={onClose}>
       <div
         ref={panelRef}
         className={`legal-dialog ${closing ? 'is-closing' : 'is-open'}`}
@@ -227,7 +228,9 @@ export const LegalModal: React.FC<LegalModalProps> = ({ doc, onClose, version = 
 
         <div className="legal-foot">
           <span>ReveLith Â· Apache 2.0</span>
-          <button onClick={onClose} className="legal-dismiss">Close</button>
+          <button onClick={onClose} className="legal-dismiss">
+            Close
+          </button>
         </div>
       </div>
     </div>

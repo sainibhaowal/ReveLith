@@ -1751,9 +1751,24 @@ export function Home() {
       sub: '.pdf',
       action: () => window.aiOffice.newPdf(newFileOpts),
     },
-    { ext: 'form', title: 'AI Forms', sub: 'Form builder', action: () => window.aiOffice.newFormsBuilder() },
-    { ext: 'task', title: 'AI Tasks', sub: 'Project board', action: () => window.aiOffice.newTasks() },
-    { ext: 'wb', title: 'AI Draw', sub: 'Diagrams & notes', action: () => window.aiOffice.newDrawboard() },
+    {
+      ext: 'form',
+      title: 'AI Forms',
+      sub: 'Form builder',
+      action: () => window.aiOffice.newFormsBuilder(),
+    },
+    {
+      ext: 'task',
+      title: 'AI Tasks',
+      sub: 'Project board',
+      action: () => window.aiOffice.newTasks(),
+    },
+    {
+      ext: 'wb',
+      title: 'AI Draw',
+      sub: 'Diagrams & notes',
+      action: () => window.aiOffice.newDrawboard(),
+    },
   ]
 
   function renderQuickCards() {

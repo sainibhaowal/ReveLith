@@ -62,8 +62,7 @@ export function newAppTitle(kind: ReveLithAppKind): string {
 export function createNewAppView(kind: ReveLithAppKind, openPath?: string): WebContentsView {
   const info = REVELITH_APP_DOCUMENTS[kind]
   const workspaceSlug =
-    kind === 'drawboard' &&
-    !existsSync(join(app.getAppPath(), '..', info.slug, 'package.json'))
+    kind === 'drawboard' && !existsSync(join(app.getAppPath(), '..', info.slug, 'package.json'))
       ? 'whiteboard'
       : info.slug
   const outDir = app.isPackaged

@@ -38,6 +38,11 @@ export function installLinkPolicy(): () => void {
   const root = document.body
   scrubExternalLinks(root)
   const observer = new MutationObserver(() => scrubExternalLinks(root))
-  observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['href'] })
+  observer.observe(root, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['href'],
+  })
   return () => observer.disconnect()
 }

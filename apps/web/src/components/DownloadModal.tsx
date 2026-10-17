@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { X, Download, CheckCircle2, ShieldCheck, ExternalLink, Link2, Check, Cpu } from 'lucide-react'
+import {
+  X,
+  Download,
+  CheckCircle2,
+  ShieldCheck,
+  ExternalLink,
+  Link2,
+  Check,
+  Cpu,
+} from 'lucide-react'
 import { RELEASES_URL } from '../data/suite-data'
 import type { ReleaseManifest } from '../release-manifest'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -41,12 +50,17 @@ function toInstallers(release: ReleaseManifest): Installer[] {
   return release.downloads.map((item, index) => {
     const key = markKeyFor(item.os, item.format)
     const lower = item.format.toLowerCase()
-    const note = lower.endsWith('.exe') ? 'Windows installer'
-      : lower.endsWith('.dmg') ? 'Apple Silicon'
-      : lower.endsWith('.deb') ? 'Debian / Ubuntu'
-      : lower.endsWith('.rpm') ? 'Fedora / RPM'
-      : lower.endsWith('.appimage') ? 'Portable AppImage'
-      : item.tag
+    const note = lower.endsWith('.exe')
+      ? 'Windows installer'
+      : lower.endsWith('.dmg')
+        ? 'Apple Silicon'
+        : lower.endsWith('.deb')
+          ? 'Debian / Ubuntu'
+          : lower.endsWith('.rpm')
+            ? 'Fedora / RPM'
+            : lower.endsWith('.appimage')
+              ? 'Portable AppImage'
+              : item.tag
     return {
       key: `${key}-${index}`,
       os: item.os,
@@ -189,10 +203,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose, r
   }
 
   return (
-    <div
-      className={`download-overlay ${closing ? 'is-closing' : 'is-open'}`}
-      onClick={onClose}
-    >
+    <div className={`download-overlay ${closing ? 'is-closing' : 'is-open'}`} onClick={onClose}>
       <div
         ref={dialogRef}
         className={`download-dialog ${closing ? 'is-closing' : 'is-open'}`}
@@ -234,7 +245,9 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose, r
                   'dl-card',
                   item.primary && 'is-primary',
                   item.recommended && 'is-recommended',
-                ].filter(Boolean).join(' ')}
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               >
                 <div className="dl-card-top">
                   <span className={`dl-mark dl-mark-${key}`}>
@@ -247,13 +260,18 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose, r
                     </span>
                     <span className="dl-variant">
                       {item.variant && <span className="dl-variant-text">{item.variant}</span>}
-                      <span className="dl-arch"><Cpu size={9} />{item.note}</span>
+                      <span className="dl-arch">
+                        <Cpu size={9} />
+                        {item.note}
+                      </span>
                     </span>
                   </span>
                 </div>
 
                 <div className="dl-file">
-                  <span className="dl-file-name" title={item.file}>{item.file}</span>
+                  <span className="dl-file-name" title={item.file}>
+                    {item.file}
+                  </span>
                 </div>
 
                 <div className="dl-hash">
@@ -289,7 +307,12 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose, r
             <CheckCircle2 size={13} />
             100% free &amp; open source · Apache 2.0
           </span>
-          <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="download-notes">
+          <a
+            href={RELEASES_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="download-notes"
+          >
             All release notes <ExternalLink size={12} />
           </a>
         </div>

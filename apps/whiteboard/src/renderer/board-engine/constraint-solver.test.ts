@@ -9,9 +9,12 @@ import {
   type Sketch,
 } from './constraint-solver'
 
-const near = (value: number, target: number, tolerance = 1e-6) => Math.abs(value - target) <= tolerance
-const point = (sketch: Sketch, id: string) => sketch.points.find((candidate) => candidate.id === id)!
-const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(b.x - a.x, b.y - a.y)
+const near = (value: number, target: number, tolerance = 1e-6) =>
+  Math.abs(value - target) <= tolerance
+const point = (sketch: Sketch, id: string) =>
+  sketch.points.find((candidate) => candidate.id === id)!
+const distance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+  Math.hypot(b.x - a.x, b.y - a.y)
 const solved = (points: { id: string; x: number; y: number }[], id: string) =>
   points.find((candidate) => candidate.id === id)!
 
@@ -218,7 +221,9 @@ describe('constraint solver', () => {
     }
     const radius = solveSketch(circle)
     expect(radius.converged).toBe(true)
-    expect(near(distance(solved(radius.points, 'c'), solved(radius.points, 'r')), 12, 1e-5)).toBe(true)
+    expect(near(distance(solved(radius.points, 'c'), solved(radius.points, 'r')), 12, 1e-5)).toBe(
+      true,
+    )
   })
 
   it('reports degrees of freedom so freedom and over-constraint are distinguishable', () => {

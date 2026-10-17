@@ -23,8 +23,20 @@ export default defineConfig({
       // The workspace hoists Testing Library to the repository root. Its
       // CommonJS entry is externalized by Vitest and then resolves the root's
       // mismatched react-dom. Use its ESM entry so Vite applies the aliases.
-      { find: /^@testing-library\/react$/, replacement: resolve(__dirname, '../../node_modules/@testing-library/react/dist/@testing-library/react.esm.js') },
-      { find: /^@testing-library\/dom$/, replacement: resolve(__dirname, '../../node_modules/@testing-library/dom/dist/@testing-library/dom.esm.js') },
+      {
+        find: /^@testing-library\/react$/,
+        replacement: resolve(
+          __dirname,
+          '../../node_modules/@testing-library/react/dist/@testing-library/react.esm.js',
+        ),
+      },
+      {
+        find: /^@testing-library\/dom$/,
+        replacement: resolve(
+          __dirname,
+          '../../node_modules/@testing-library/dom/dist/@testing-library/dom.esm.js',
+        ),
+      },
     ],
     dedupe: ['react', 'react-dom'],
   },

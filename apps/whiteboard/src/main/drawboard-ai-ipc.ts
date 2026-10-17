@@ -33,17 +33,56 @@ const activeStreams = new Map<string, AbortController>()
 const ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024
 const IMAGE_MIME: Record<string, string> = {
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
 }
 const IMAGE_EXTS = new Set(Object.keys(IMAGE_MIME))
 const ATTACHMENT_EXTS = new Set([
-  'txt', 'md', 'markdown', 'csv', 'tsv', 'json', 'yaml', 'yml', 'xml', 'html', 'htm', 'log',
-  'js', 'ts', 'tsx', 'jsx', 'py', 'java', 'c', 'h', 'cpp', 'go', 'rs', 'rb', 'sh', 'sql', 'css',
-  'doc', 'docx', 'pdf', 'pptx', 'ppt', 'xlsx', 'xlsm', 'xls', ...IMAGE_EXTS,
+  'txt',
+  'md',
+  'markdown',
+  'csv',
+  'tsv',
+  'json',
+  'yaml',
+  'yml',
+  'xml',
+  'html',
+  'htm',
+  'log',
+  'js',
+  'ts',
+  'tsx',
+  'jsx',
+  'py',
+  'java',
+  'c',
+  'h',
+  'cpp',
+  'go',
+  'rs',
+  'rb',
+  'sh',
+  'sql',
+  'css',
+  'doc',
+  'docx',
+  'pdf',
+  'pptx',
+  'ppt',
+  'xlsx',
+  'xlsm',
+  'xls',
+  ...IMAGE_EXTS,
 ])
 const attachmentTextCache = new Map<string, { stamp: string; text: string }>()
 
-function inspectAttachment(path: string): { path: string; name: string; ext: string; sizeBytes: number } | string {
+function inspectAttachment(
+  path: string,
+): { path: string; name: string; ext: string; sizeBytes: number } | string {
   const name = basename(path)
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
   if (!ATTACHMENT_EXTS.has(ext)) return `${name}: unsupported attachment type.`
@@ -51,7 +90,8 @@ function inspectAttachment(path: string): { path: string; name: string; ext: str
     const stat = statSync(path)
     if (!stat.isFile()) return `${name}: not a file.`
     if (stat.size > ATTACHMENT_MAX_BYTES) return `${name}: files must be 50 MB or smaller.`
-    if (IMAGE_EXTS.has(ext) && stat.size > IMAGE_MAX_BYTES) return `${name}: images must be 5 MB or smaller.`
+    if (IMAGE_EXTS.has(ext) && stat.size > IMAGE_MAX_BYTES)
+      return `${name}: images must be 5 MB or smaller.`
     return { path, name, ext, sizeBytes: stat.size }
   } catch {
     return `${name}: file is unreadable.`
@@ -173,39 +213,58 @@ export function registerStandaloneAiIpc(): void {
           onDelta: (text) => send({ requestId, type: 'delta', text }),
           onReasoningDelta: (text) => send({ requestId, type: 'reasoning', text }),
           onToolCall: (toolCall) => send({ requestId, type: 'tool-call', toolCall }),
-          onStopReason: (reason) => { stopReason = reason },
+          onStopReason: (reason) => {
+            stopReason = reason
+          },
         },
       )
       send({ requestId, type: 'done', stopReason })
     } catch (error) {
       if (controller.signal.aborted) send({ requestId, type: 'done' })
-      else send({
-        requestId,
-        type: 'error',
-        error: error instanceof Error ? error.message : String(error),
-        ...(error instanceof AiTimeoutError
-          ? { errorCode: 'timeout' as const }
-          : error instanceof AiCreditsError
-            ? { errorCode: 'credits' as const }
-            : isAiNetworkError(error)
-              ? { errorCode: 'network' as const }
-              : isAiOverloadedError(error)
-                ? { errorCode: 'overloaded' as const }
-                : {}),
-      })
+      else
+        send({
+          requestId,
+          type: 'error',
+          error: error instanceof Error ? error.message : String(error),
+          ...(error instanceof AiTimeoutError
+            ? { errorCode: 'timeout' as const }
+            : error instanceof AiCreditsError
+              ? { errorCode: 'credits' as const }
+              : isAiNetworkError(error)
+                ? { errorCode: 'network' as const }
+                : isAiOverloadedError(error)
+                  ? { errorCode: 'overloaded' as const }
+                  : {}),
+        })
     } finally {
       activeStreams.delete(requestId)
     }
   })
-  ipcMain.handle('ai:stream-cancel', (_event, requestId: string) => activeStreams.get(requestId)?.abort())
+  ipcMain.handle('ai:stream-cancel', (_event, requestId: string) =>
+    activeStreams.get(requestId)?.abort(),
+  )
 
   ipcMain.handle('ai:web-search', async (_event, query: string, maxResults?: number) => {
-    try { return await webSearchTool(settingsPath(), String(query), typeof maxResults === 'number' ? maxResults : 6) }
-    catch (error) { return { results: [], method: 'error', error: String(error) } }
+    try {
+      return await webSearchTool(
+        settingsPath(),
+        String(query),
+        typeof maxResults === 'number' ? maxResults : 6,
+      )
+    } catch (error) {
+      return { results: [], method: 'error', error: String(error) }
+    }
   })
   ipcMain.handle('ai:image-search', async (_event, query: string, maxResults?: number) => {
-    try { return await imageSearchTool(settingsPath(), String(query), typeof maxResults === 'number' ? maxResults : 8) }
-    catch (error) { return { images: [], method: 'error', error: String(error) } }
+    try {
+      return await imageSearchTool(
+        settingsPath(),
+        String(query),
+        typeof maxResults === 'number' ? maxResults : 8,
+      )
+    } catch (error) {
+      return { images: [], method: 'error', error: String(error) }
+    }
   })
   ipcMain.handle('ai:fetch-image', async (_event, url: string) => {
     try {
@@ -213,31 +272,41 @@ export function registerStandaloneAiIpc(): void {
       if (!response?.ok) return null
       const bytes = Buffer.from(await readBodyCapped(response, MAX_REMOTE_IMAGE_BYTES))
       const contentType = response.headers.get('content-type') ?? ''
-      const mime = contentType.includes('png') ? 'image/png' : contentType.includes('gif') ? 'image/gif' : 'image/jpeg'
+      const mime = contentType.includes('png')
+        ? 'image/png'
+        : contentType.includes('gif')
+          ? 'image/gif'
+          : 'image/jpeg'
       return { base64: bytes.toString('base64'), mime }
     } catch {
       return null
     }
   })
-  ipcMain.handle('docs:analyze-media', (_event, op: { mediaUrls?: string[]; requirements?: string }) =>
-    analyzeMediaTool(settingsPath(), {
-      mediaUrls: (op?.mediaUrls ?? []).map(String).filter(Boolean),
-      requirements: String(op?.requirements ?? ''),
-    }),
+  ipcMain.handle(
+    'docs:analyze-media',
+    (_event, op: { mediaUrls?: string[]; requirements?: string }) =>
+      analyzeMediaTool(settingsPath(), {
+        mediaUrls: (op?.mediaUrls ?? []).map(String).filter(Boolean),
+        requirements: String(op?.requirements ?? ''),
+      }),
   )
-  ipcMain.handle('drawboard:ai-generate-image', async (_event, op: { prompt?: unknown; aspectRatio?: unknown }) => {
-    const generated = await generateImageTool(settingsPath(), {
-      prompt: String(op?.prompt ?? ''),
-      aspectRatio: op?.aspectRatio ? String(op.aspectRatio) : undefined,
-    })
-    if (!generated.url) return { error: generated.error ?? 'Image generation failed.' }
-    const image = readGeneratedImage(generated.url)
-    return image
-      ? { base64: image.bytes.toString('base64'), mime: image.mime }
-      : { error: 'The generated image could not be read back.' }
-  })
+  ipcMain.handle(
+    'drawboard:ai-generate-image',
+    async (_event, op: { prompt?: unknown; aspectRatio?: unknown }) => {
+      const generated = await generateImageTool(settingsPath(), {
+        prompt: String(op?.prompt ?? ''),
+        aspectRatio: op?.aspectRatio ? String(op.aspectRatio) : undefined,
+      })
+      if (!generated.url) return { error: generated.error ?? 'Image generation failed.' }
+      const image = readGeneratedImage(generated.url)
+      return image
+        ? { base64: image.bytes.toString('base64'), mime: image.mime }
+        : { error: 'The generated image could not be read back.' }
+    },
+  )
   ipcMain.handle('ai:media-test', (_event, input: { provider?: string; config?: unknown }) => {
-    if (!input?.provider || !input.config) return { ok: false, error: 'No media provider configuration.' }
+    if (!input?.provider || !input.config)
+      return { ok: false, error: 'No media provider configuration.' }
     return testMediaProvider(input.provider as never, input.config as never)
   })
 
@@ -254,21 +323,33 @@ export function registerStandaloneAiIpc(): void {
     const result = parent
       ? await dialog.showOpenDialog(parent, options)
       : await dialog.showOpenDialog(options)
-    return result.canceled || result.filePaths.length === 0 ? null : collectAttachments(result.filePaths)
+    return result.canceled || result.filePaths.length === 0
+      ? null
+      : collectAttachments(result.filePaths)
   })
   ipcMain.handle('files:add', (_event, paths: unknown) =>
-    collectAttachments(Array.isArray(paths) ? paths.filter((path): path is string => typeof path === 'string') : []),
+    collectAttachments(
+      Array.isArray(paths) ? paths.filter((path): path is string => typeof path === 'string') : [],
+    ),
   )
   ipcMain.handle('files:read', async (_event, path: string, offset: number, maxChars: number) => {
     const name = basename(String(path))
     const ext = name.split('.').pop()?.toLowerCase() ?? ''
-    if (!ATTACHMENT_EXTS.has(ext)) return { ok: false, error: `${name}: unsupported attachment type.` }
-    if (IMAGE_EXTS.has(ext)) return { ok: false, error: `${name}: images do not contain extractable text.` }
+    if (!ATTACHMENT_EXTS.has(ext))
+      return { ok: false, error: `${name}: unsupported attachment type.` }
+    if (IMAGE_EXTS.has(ext))
+      return { ok: false, error: `${name}: images do not contain extractable text.` }
     try {
       const text = await readAttachmentText(String(path))
       const start = Math.max(0, Math.floor(Number(offset)) || 0)
       const size = Math.min(Math.max(1, Math.floor(Number(maxChars)) || 1), 48_000)
-      return { ok: true, name, totalChars: text.length, offset: start, text: text.slice(start, start + size) }
+      return {
+        ok: true,
+        name,
+        totalChars: text.length,
+        offset: start,
+        text: text.slice(start, start + size),
+      }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
     }
@@ -280,7 +361,8 @@ export function registerStandaloneAiIpc(): void {
     if (!mime) return { ok: false, error: `${name}: not a supported image.` }
     try {
       const stat = statSync(String(path))
-      if (!stat.isFile() || stat.size > IMAGE_MAX_BYTES) return { ok: false, error: `${name}: image exceeds the 5 MB limit.` }
+      if (!stat.isFile() || stat.size > IMAGE_MAX_BYTES)
+        return { ok: false, error: `${name}: image exceeds the 5 MB limit.` }
       return { ok: true, base64: readFileSync(String(path)).toString('base64'), mime }
     } catch {
       return { ok: false, error: `${name}: file is unreadable.` }

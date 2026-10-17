@@ -56,11 +56,14 @@ export async function reviewBoardWithChatModel(
     unsubscribe = api.onAiStream((chunk) => {
       if (chunk.requestId !== requestId) return
       if (chunk.type === 'delta') text += chunk.text ?? ''
-      if (chunk.type === 'error') finish({ ok: false, error: chunk.error ?? 'The chat model could not review this drawing.' })
+      if (chunk.type === 'error')
+        finish({ ok: false, error: chunk.error ?? 'The chat model could not review this drawing.' })
       if (chunk.type === 'done') {
-        finish(text.trim()
-          ? { ok: true, text: text.trim() }
-          : { ok: false, error: 'The chat model returned no visual assessment.' })
+        finish(
+          text.trim()
+            ? { ok: true, text: text.trim() }
+            : { ok: false, error: 'The chat model returned no visual assessment.' },
+        )
       }
     })
     void api.aiStream(request).catch((error: unknown) => {

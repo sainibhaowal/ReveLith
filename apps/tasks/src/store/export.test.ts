@@ -14,13 +14,39 @@ function richBoard() {
   const base = boardWithProject()
   const id = projectId(base)
   const labelId = base.labels[0].id
-  const withField = apply(base, { kind: 'customField/define', projectId: id, name: 'Points', type: 'number' })
+  const withField = apply(base, {
+    kind: 'customField/define',
+    projectId: id,
+    name: 'Points',
+    type: 'number',
+  })
   const withTasks = apply(
     withField,
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Fix "login", urgently', description: 'Users cannot sign in', labelIds: [labelId], priority: 'urgent', dueDate: '2026-03-01' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Write docs', parentId: null },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Fix "login", urgently',
+      description: 'Users cannot sign in',
+      labelIds: [labelId],
+      priority: 'urgent',
+      dueDate: '2026-03-01',
+    },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Write docs',
+      parentId: null,
+    },
   )
-  return apply(withTasks, { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Child item', parentId: withTasks.tasks[0].id })
+  return apply(withTasks, {
+    kind: 'task/create',
+    projectId: id,
+    columnId: firstColumnId(base),
+    title: 'Child item',
+    parentId: withTasks.tasks[0].id,
+  })
 }
 
 describe('markdown export', () => {
@@ -62,7 +88,9 @@ describe('csv export', () => {
     const state = richBoard()
     const csv = projectToCsv(state, projectId(state))
     const lines = csv.split('\n')
-    expect(lines[0]).toBe('ticket,title,column,priority,dueDate,labels,blockedBy,subtasks,timeLoggedMinutes,archived')
+    expect(lines[0]).toBe(
+      'ticket,title,column,priority,dueDate,labels,blockedBy,subtasks,timeLoggedMinutes,archived',
+    )
     expect(lines).toHaveLength(4)
     expect(csv).toContain('WEB-3')
   })
@@ -75,8 +103,17 @@ describe('csv export', () => {
 
   it('records blocked-by tickets and archived state', () => {
     const base = richBoard()
-    const linked = apply(base, { kind: 'relation/link', fromTaskId: base.tasks[1].id, toTaskId: base.tasks[0].id, type: 'blocked_by' })
-    const archived = apply(linked, { kind: 'task/setArchived', id: linked.tasks[1].id, archived: true })
+    const linked = apply(base, {
+      kind: 'relation/link',
+      fromTaskId: base.tasks[1].id,
+      toTaskId: base.tasks[0].id,
+      type: 'blocked_by',
+    })
+    const archived = apply(linked, {
+      kind: 'task/setArchived',
+      id: linked.tasks[1].id,
+      archived: true,
+    })
     const csv = projectToCsv(archived, projectId(archived))
     expect(csv).toContain('WEB-1')
     expect(csv).toContain('yes')
@@ -103,7 +140,12 @@ describe('compactTask', () => {
 
   it('flags a blocked task', () => {
     const base = richBoard()
-    const linked = apply(base, { kind: 'relation/link', fromTaskId: base.tasks[1].id, toTaskId: base.tasks[0].id, type: 'blocked_by' })
+    const linked = apply(base, {
+      kind: 'relation/link',
+      fromTaskId: base.tasks[1].id,
+      toTaskId: base.tasks[0].id,
+      type: 'blocked_by',
+    })
     expect(compactTask(linked, linked.tasks[1])).toContain('blocked')
   })
 })

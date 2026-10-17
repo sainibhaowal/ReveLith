@@ -141,7 +141,9 @@ describe('task detail', () => {
     expect(title.value).toBe('Create a project')
     await click.clear(title)
     await click.type(title, 'Create two projects')
-    expect((screen.getByLabelText('Task title') as HTMLTextAreaElement).value).toBe('Create two projects')
+    expect((screen.getByLabelText('Task title') as HTMLTextAreaElement).value).toBe(
+      'Create two projects',
+    )
   })
 
   it('moves a task between columns from the detail panel', async () => {
@@ -151,7 +153,9 @@ describe('task detail', () => {
 
     await click.dblClick(screen.getByText('Create a project'))
     const select = screen.getByLabelText('Column') as HTMLSelectElement
-    const done = within(select).getAllByRole('option').find((option) => option.textContent === 'Done') as HTMLOptionElement
+    const done = within(select)
+      .getAllByRole('option')
+      .find((option) => option.textContent === 'Done') as HTMLOptionElement
     await click.selectOptions(select, done.value)
 
     const doneColumn = document.querySelector('section[aria-label="Done"]') as HTMLElement
@@ -228,7 +232,17 @@ describe('empty state', () => {
   it('invites the user to create a project when none exist', () => {
     window.localStorage.setItem(
       defaultStorageKey(),
-      JSON.stringify({ version: 2, state: { ...seedBoard(), projects: [], columns: [], tasks: [], labels: [], selectedProjectId: null } }),
+      JSON.stringify({
+        version: 2,
+        state: {
+          ...seedBoard(),
+          projects: [],
+          columns: [],
+          tasks: [],
+          labels: [],
+          selectedProjectId: null,
+        },
+      }),
     )
     render(<App />)
     expect(screen.getByText('No project selected')).toBeTruthy()

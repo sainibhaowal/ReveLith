@@ -8,7 +8,8 @@ const tools: AgentToolDef[] = [
 
 describe('text tool-call recovery', () => {
   it('parses the leaked local-model format without executing code', () => {
-    const source = 'Preparing. <|tool_call>call:build_drawboard_scene{elements:[{fillColor:<|"|>#a0522d<|"|>,kind:<|"|>polygon<|"|>,points:[0,800,1400,800]},{color:<|"|>#1e1b4b<|"|>,text:<|"|>Cliffside Residence<|"|>,x:350,y:50}]}<tool_call|> Done.'
+    const source =
+      'Preparing. <|tool_call>call:build_drawboard_scene{elements:[{fillColor:<|"|>#a0522d<|"|>,kind:<|"|>polygon<|"|>,points:[0,800,1400,800]},{color:<|"|>#1e1b4b<|"|>,text:<|"|>Cliffside Residence<|"|>,x:350,y:50}]}<tool_call|> Done.'
     const recovered = recoverTextToolCalls(source, tools)
 
     expect(recovered.foundMarkers).toBe(true)
@@ -47,7 +48,9 @@ describe('text tool-call recovery', () => {
   })
 
   it('hides both complete and incomplete control markup while streaming', () => {
-    expect(hideTextToolCallMarkup('Before<|tool_call>call:x{}<tool_call|>After')).toBe('BeforeAfter')
+    expect(hideTextToolCallMarkup('Before<|tool_call>call:x{}<tool_call|>After')).toBe(
+      'BeforeAfter',
+    )
     expect(hideTextToolCallMarkup('Before<|tool_call>call:x{partial')).toBe('Before')
   })
 })

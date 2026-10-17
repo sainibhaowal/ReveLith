@@ -60,7 +60,11 @@ export function CustomFieldsDialog({
             <input
               value={field.name}
               onChange={(event) =>
-                dispatch({ kind: 'customField/update', id: field.id, patch: { name: event.target.value } })
+                dispatch({
+                  kind: 'customField/update',
+                  id: field.id,
+                  patch: { name: event.target.value },
+                })
               }
               style={{ ...input, flex: 1 }}
             />
@@ -71,7 +75,11 @@ export function CustomFieldsDialog({
               style={btnGhost}
               title="Delete field"
               onClick={() => {
-                if (window.confirm(`Delete field “${field.name}”? Values are cleared from every task.`)) {
+                if (
+                  window.confirm(
+                    `Delete field “${field.name}”? Values are cleared from every task.`,
+                  )
+                ) {
                   dispatch({ kind: 'customField/delete', id: field.id })
                 }
               }}
@@ -105,7 +113,12 @@ export function CustomFieldsDialog({
         {type === 'select' ? (
           <div style={fieldGroup}>
             <span style={label}>Options (comma separated)</span>
-            <input value={options} onChange={(event) => setOptions(event.target.value)} placeholder="Design, Build, QA" style={input} />
+            <input
+              value={options}
+              onChange={(event) => setOptions(event.target.value)}
+              placeholder="Design, Build, QA"
+              style={input}
+            />
           </div>
         ) : null}
         <button style={{ ...btnPrimary, marginTop: 12 }} onClick={add} disabled={!name.trim()}>

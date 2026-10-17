@@ -65,7 +65,8 @@ describe('doc icon artifacts', () => {
       const svg = readFileSync(`${SHELL_DIR}/src/renderer/src/assets/file-${file}.svg`, 'utf8')
       const png = readFileSync(`${ICONS_DIR}/${name}.png`)
       // the tile colour and the rounded-square radius must be the same artwork
-      const fill = /<rect x="0" y="0" width="256" height="256" rx="(\d+)" fill="(#[0-9A-F]{6})"/.exec(svg)
+      const fill =
+        /<rect x="0" y="0" width="256" height="256" rx="(\d+)" fill="(#[0-9A-F]{6})"/.exec(svg)
       expect(fill, `file-${file}.svg carries the generated base tile`).toBeTruthy()
       expect(Number(fill![1]), `${name} tile radius`).toBe(48)
       expect(svg).toContain(fill![2])

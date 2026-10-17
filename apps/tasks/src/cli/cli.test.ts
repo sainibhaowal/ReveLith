@@ -41,7 +41,9 @@ function makeIo(initial: BoardState | null = seedBoardCli()) {
 }
 
 describe('MCP server', () => {
-  function ctx(initial: BoardState | null = seedBoardCli()): McpContext & { board: () => BoardState } {
+  function ctx(
+    initial: BoardState | null = seedBoardCli(),
+  ): McpContext & { board: () => BoardState } {
     let state = initial ?? seedBoardCli()
     return {
       getState: () => state,
@@ -168,7 +170,7 @@ describe('CLI', () => {
     expect(t.saved()!.tasks.some((task) => task.title.includes('board.json'))).toBe(false)
   })
 
-it('refuses to add without a title', () => {
+  it('refuses to add without a title', () => {
     const t = makeIo()
     expect(runCli(['add'], t.io).code).toBe(1)
     expect(t.err.join(' ')).toContain('Usage')

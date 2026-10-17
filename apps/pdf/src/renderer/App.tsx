@@ -5863,19 +5863,14 @@ export default function App() {
 
   if (status === 'loading') {
     return (
-      <LoadingScreen
-        title="ReveLith PDF"
-        message={t('loading').replace(/(?:…|\.{1,3})$/u, '')}
-      />
+      <LoadingScreen title="ReveLith PDF" message={t('loading').replace(/(?:…|\.{1,3})$/u, '')} />
     )
   }
 
   if (status !== 'ready' || !doc) {
     return (
       <div className="app">
-        <div className="pdf-placeholder">
-          {status === 'error' ? t('loadError') : t('noFile')}
-        </div>
+        <div className="pdf-placeholder">{status === 'error' ? t('loadError') : t('noFile')}</div>
       </div>
     )
   }

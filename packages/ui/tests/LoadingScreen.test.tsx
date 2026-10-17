@@ -3,7 +3,10 @@ import { LoadingScreen } from '../src/LoadingScreen'
 
 describe('LoadingScreen', () => {
   it('shows the app-specific identity and loading message accessibly', () => {
-    const element = LoadingScreen({ title: 'ReveLith Tasks', message: 'Loading your tasks' }) as unknown as {
+    const element = LoadingScreen({
+      title: 'ReveLith Tasks',
+      message: 'Loading your tasks',
+    }) as unknown as {
       props: Record<string, unknown>
     }
     const children = element.props.children

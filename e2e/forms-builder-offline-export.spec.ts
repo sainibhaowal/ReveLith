@@ -10,10 +10,15 @@ type AxeResult = { violations: Array<{ id: string; impact?: string; nodes: unkno
 type AxeWindow = Window & { axe: { run: (root: Document) => Promise<AxeResult> } }
 
 test('offline form export runs locally and downloads respondent answers with file bytes', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-offline-export' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-offline-export',
+  })
   try {
     const schema: FormSchema = {
-      id: 'offline-e2e-form', title: 'Offline form', description: 'Runs without a hosted service.',
+      id: 'offline-e2e-form',
+      title: 'Offline form',
+      description: 'Runs without a hosted service.',
       fields: [
         { id: 'name', type: 'text', label: 'Your name', required: true },
         { id: 'page-one', type: 'pagebreak', label: '' },
@@ -21,26 +26,59 @@ test('offline form export runs locally and downloads respondent answers with fil
         { id: 'page-two', type: 'pagebreak', label: '' },
         { id: 'skip-me', type: 'text', label: 'Skipped question' },
         { id: 'page-three', type: 'pagebreak', label: '' },
-        { id: 'evidence', type: 'file', label: 'Evidence file', required: true, validation: { accept: '.pdf', maxFileSizeMb: 1, maxFiles: 2 } },
+        {
+          id: 'evidence',
+          type: 'file',
+          label: 'Evidence file',
+          required: true,
+          validation: { accept: '.pdf', maxFileSizeMb: 1, maxFiles: 2 },
+        },
       ],
-      logicRules: [{ id: 'skip', name: 'Skip to upload', match: 'all', conditions: [{ fieldId: 'branch', operator: 'equals', value: 'skip' }], action: { kind: 'navigate', fieldId: 'evidence' } }],
-      settings: { submitButtonText: 'Send response', showProgressBar: true, allowMultipleResponses: true, collectEmail: false, confirmationMessage: 'Saved locally.', navigationMode: 'paged' },
+      logicRules: [
+        {
+          id: 'skip',
+          name: 'Skip to upload',
+          match: 'all',
+          conditions: [{ fieldId: 'branch', operator: 'equals', value: 'skip' }],
+          action: { kind: 'navigate', fieldId: 'evidence' },
+        },
+      ],
+      settings: {
+        submitButtonText: 'Send response',
+        showProgressBar: true,
+        allowMultipleResponses: true,
+        collectEmail: false,
+        confirmationMessage: 'Saved locally.',
+        navigationMode: 'paged',
+      },
       theme: { primaryColor: '#2563eb', backgroundColor: '#fff', fontFamily: 'system-ui' },
     }
     const exportedHtml = await buildStandaloneFormHtml(schema)
     await page.evaluate(() => {
       Object.defineProperty(window, '__offlineResponseBlob', { value: null, writable: true })
-      URL.createObjectURL = (blob) => { Object.assign(window, { __offlineResponseBlob: blob }); return 'blob:offline-response-test' }
-      HTMLAnchorElement.prototype.click = function () { this.dataset.downloadTriggered = 'true' }
+      URL.createObjectURL = (blob) => {
+        Object.assign(window, { __offlineResponseBlob: blob })
+        return 'blob:offline-response-test'
+      }
+      HTMLAnchorElement.prototype.click = function () {
+        this.dataset.downloadTriggered = 'true'
+      }
     })
     const axeScript = readFileSync(path.resolve('node_modules/axe-core/axe.min.js'), 'utf8')
     const axeHash = createHash('sha256').update(axeScript).digest('base64')
-    await page.setContent(exportedHtml.replace(/script-src ('sha256-[^']+')/, `script-src $1 'sha256-${axeHash}'`))
+    await page.setContent(
+      exportedHtml.replace(/script-src ('sha256-[^']+')/, `script-src $1 'sha256-${axeHash}'`),
+    )
     await page.addScriptTag({ content: axeScript })
     const a11y = await page.evaluate(async () => (window as unknown as AxeWindow).axe.run(document))
-    expect(a11y.violations.map(({ id, impact, nodes }) => ({ id, impact, count: nodes.length }))).toEqual([])
+    expect(
+      a11y.violations.map(({ id, impact, nodes }) => ({ id, impact, count: nodes.length })),
+    ).toEqual([])
     await expect(page.getByRole('textbox', { name: 'Your name' })).toBeVisible()
-    await expect(page.locator("meta[http-equiv='Content-Security-Policy']")).toHaveAttribute('content', /connect-src 'none'/)
+    await expect(page.locator("meta[http-equiv='Content-Security-Policy']")).toHaveAttribute(
+      'content',
+      /connect-src 'none'/,
+    )
     await page.getByRole('textbox', { name: 'Your name' }).fill('Ari Example')
     await page.getByRole('textbox', { name: 'Your name' }).focus()
     await page.keyboard.press('Tab')
@@ -51,43 +89,109 @@ test('offline form export runs locally and downloads respondent answers with fil
     await page.getByRole('button', { name: 'Next' }).click()
     await expect(page.getByRole('textbox', { name: 'Skipped question' })).toBeHidden()
     await expect(page.getByLabel('Evidence file')).toBeVisible()
-    await page.locator('input[type="file"][name="evidence"]').setInputFiles({ name: 'evidence.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7 offline proof') })
+    await page.locator('input[type="file"][name="evidence"]').setInputFiles({
+      name: 'evidence.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.7 offline proof'),
+    })
     await page.getByRole('button', { name: 'Send response' }).click()
     await expect(page.getByRole('heading', { name: 'Response recorded' })).toBeVisible()
     await page.getByRole('button', { name: 'Download my response and files' }).click()
-    const response = await page.evaluate(async () => JSON.parse(await (window as Window & { __offlineResponseBlob: Blob }).__offlineResponseBlob.text())) as { response: { answers: Record<string, unknown>; attachments: Array<{ name: string; dataBase64: string }> } }
+    const response = (await page.evaluate(async () =>
+      JSON.parse(
+        await (window as Window & { __offlineResponseBlob: Blob }).__offlineResponseBlob.text(),
+      ),
+    )) as {
+      response: {
+        answers: Record<string, unknown>
+        attachments: Array<{ name: string; dataBase64: string }>
+      }
+    }
     expect(response.response.answers.name).toBe('Ari Example')
     expect(response.response.attachments).toHaveLength(1)
-    expect(response.response.attachments[0]).toMatchObject({ name: 'evidence.pdf', dataBase64: Buffer.from('%PDF-1.7 offline proof').toString('base64') })
+    expect(response.response.attachments[0]).toMatchObject({
+      name: 'evidence.pdf',
+      dataBase64: Buffer.from('%PDF-1.7 offline proof').toString('base64'),
+    })
   } finally {
     await app.close()
   }
 })
 
 test('standalone export applies calculation rules, branches on computed answers, scores quizzes, and announces validation', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-standalone-calculation-quiz' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-standalone-calculation-quiz',
+  })
   try {
     const schema: FormSchema = {
-      id: 'offline-calculation-quiz', title: 'Training check', description: 'Test calculated rules and scoring.',
+      id: 'offline-calculation-quiz',
+      title: 'Training check',
+      description: 'Test calculated rules and scoring.',
       fields: [
         { id: 'campaign', type: 'hidden', label: 'Campaign', defaultValue: 'winter-2026' },
-        { id: 'seats', type: 'number', label: 'Number of seats', required: true, validation: { min: 1, max: 20 }, layout: { width: '100%', mediaUrl: 'https://example.com/forms-media.svg', mediaType: 'image' } },
+        {
+          id: 'seats',
+          type: 'number',
+          label: 'Number of seats',
+          required: true,
+          validation: { min: 1, max: 20 },
+          layout: {
+            width: '100%',
+            mediaUrl: 'https://example.com/forms-media.svg',
+            mediaType: 'image',
+          },
+        },
         { id: 'quiz-page', type: 'pagebreak', label: '' },
-        { id: 'answer', type: 'radio', label: 'Is three greater than two?', required: true, options: ['Yes', 'No'], correctAnswers: ['Yes'], validation: { points: 2 } },
+        {
+          id: 'answer',
+          type: 'radio',
+          label: 'Is three greater than two?',
+          required: true,
+          options: ['Yes', 'No'],
+          correctAnswers: ['Yes'],
+          validation: { points: 2 },
+        },
       ],
       variables: [{ id: 'bulk', name: 'Bulk discount', type: 'number', initialValue: 0 }],
       logicRules: [
-        { id: 'discount-rule', name: 'Apply bulk discount', match: 'all', conditions: [{ fieldId: 'seats', operator: 'greater_or_equal_than', value: '3' }], action: { kind: 'calculate', variableId: 'bulk', operation: 'assign', value: 5 } },
-        { id: 'route-rule', name: 'Route eligible group', match: 'all', conditions: [{ fieldId: 'bulk', operator: 'equals', value: '5' }], action: { kind: 'navigate', fieldId: 'answer' } },
+        {
+          id: 'discount-rule',
+          name: 'Apply bulk discount',
+          match: 'all',
+          conditions: [{ fieldId: 'seats', operator: 'greater_or_equal_than', value: '3' }],
+          action: { kind: 'calculate', variableId: 'bulk', operation: 'assign', value: 5 },
+        },
+        {
+          id: 'route-rule',
+          name: 'Route eligible group',
+          match: 'all',
+          conditions: [{ fieldId: 'bulk', operator: 'equals', value: '5' }],
+          action: { kind: 'navigate', fieldId: 'answer' },
+        },
       ],
-      settings: { submitButtonText: 'Submit', showProgressBar: true, allowMultipleResponses: true, collectEmail: false, confirmationMessage: 'Saved locally.', confirmationTitle: 'Response recorded', showQuizScore: true, navigationMode: 'paged' },
+      settings: {
+        submitButtonText: 'Submit',
+        showProgressBar: true,
+        allowMultipleResponses: true,
+        collectEmail: false,
+        confirmationMessage: 'Saved locally.',
+        confirmationTitle: 'Response recorded',
+        showQuizScore: true,
+        navigationMode: 'paged',
+      },
       theme: { primaryColor: '#2563eb', backgroundColor: '#fff', fontFamily: 'system-ui' },
     }
     const html = await buildStandaloneFormHtml(schema)
     await page.evaluate(() => {
       Object.defineProperty(window, '__offlineResponseBlob', { value: null, writable: true })
-      URL.createObjectURL = (blob) => { Object.assign(window, { __offlineResponseBlob: blob }); return 'blob:offline-scoring-test' }
-      HTMLAnchorElement.prototype.click = function () { this.dataset.downloadTriggered = 'true' }
+      URL.createObjectURL = (blob) => {
+        Object.assign(window, { __offlineResponseBlob: blob })
+        return 'blob:offline-scoring-test'
+      }
+      HTMLAnchorElement.prototype.click = function () {
+        this.dataset.downloadTriggered = 'true'
+      }
     })
     expect(html).toContain('img-src data: blob: https:')
     expect(html).toContain('https://example.com/forms-media.svg')
@@ -97,8 +201,14 @@ test('standalone export applies calculation rules, branches on computed answers,
 
     await page.getByRole('button', { name: 'Next' }).click()
     await expect(page.locator('#revelith-error')).toContainText('Number of seats')
-    await expect(page.getByRole('spinbutton', { name: 'Number of seats' })).toHaveAttribute('aria-invalid', 'true')
-    await expect(page.getByRole('spinbutton', { name: 'Number of seats' })).toHaveAttribute('aria-describedby', 'revelith-error')
+    await expect(page.getByRole('spinbutton', { name: 'Number of seats' })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+    await expect(page.getByRole('spinbutton', { name: 'Number of seats' })).toHaveAttribute(
+      'aria-describedby',
+      'revelith-error',
+    )
 
     await page.getByRole('spinbutton', { name: 'Number of seats' }).fill('3')
     await page.getByRole('button', { name: 'Next' }).click()
@@ -109,7 +219,11 @@ test('standalone export applies calculation rules, branches on computed answers,
     await expect(page.locator('#revelith-score')).toContainText('Score: 2 / 2 (100%)')
 
     await page.getByRole('button', { name: 'Download my response and files' }).click()
-    const response = await page.evaluate(async () => JSON.parse(await (window as Window & { __offlineResponseBlob: Blob }).__offlineResponseBlob.text())) as { response: { answers: Record<string, unknown> } }
+    const response = (await page.evaluate(async () =>
+      JSON.parse(
+        await (window as Window & { __offlineResponseBlob: Blob }).__offlineResponseBlob.text(),
+      ),
+    )) as { response: { answers: Record<string, unknown> } }
     expect(response.response.answers).toMatchObject({
       campaign: 'winter-2026',
       seats: '3',
@@ -123,17 +237,30 @@ test('standalone export applies calculation rules, branches on computed answers,
 })
 
 test('Forms Builder imports an offline response JSON into its matching form', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-response-import' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-response-import',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    const readReady = async () => app.evaluate(({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      return child?.executeJavaScript(`Boolean(document.querySelector('.revelith-app-ribbon'))`) ?? false
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
     })
+    const readReady = async () =>
+      app.evaluate(({ webContents }) => {
+        const child = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+        return (
+          child?.executeJavaScript(`Boolean(document.querySelector('.revelith-app-ribbon'))`) ??
+          false
+        )
+      })
     await expect.poll(readReady).toBe(true)
 
     const imported = await app.evaluate(async ({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+      const child = webContents
+        .getAllWebContents()
+        .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
       if (!child) throw new Error('Forms Builder tab did not load')
       return child.executeJavaScript(`(async () => {
         window.alert = (message) => { window.__formsImportAlert = String(message) };
@@ -175,7 +302,12 @@ test('Forms Builder imports an offline response JSON into its matching form', as
         return { countVisible: document.body.innerText.includes('1 local response'), answerVisible: document.body.innerText.includes('Returned from a respondent'), fileVisible: document.body.innerText.includes('Download proof.pdf'), alert: window.__formsImportAlert || null, body: document.body.innerText.slice(-500) };
       })()`)
     })
-    expect(imported).toMatchObject({ countVisible: true, answerVisible: true, fileVisible: true, alert: null })
+    expect(imported).toMatchObject({
+      countVisible: true,
+      answerVisible: true,
+      fileVisible: true,
+      alert: null,
+    })
   } finally {
     await app.close()
   }

@@ -1157,9 +1157,11 @@ function RibbonInner({
   const setChartSize = (dim: 'w' | 'h', twips: number) => {
     if (!canEdit || !Number.isFinite(twips) || twips <= 0) return
     const attrs = editor.getAttributes('docProtected')
-    const display = attrs?.chartDisplay as
-      | { series?: unknown[]; widthPx?: number; heightPx?: number }
-      | null
+    const display = attrs?.chartDisplay as {
+      series?: unknown[]
+      widthPx?: number
+      heightPx?: number
+    } | null
     if (!Array.isArray(display?.series) || display.series.length === 0) return
     const minPx = dim === 'w' ? 120 : 80
     const maxPx = dim === 'w' ? 1200 : 2400
@@ -2476,7 +2478,9 @@ function RibbonInner({
                       editor
                         .chain()
                         .focus()
-                        .updateAttributes('docProtected', { imageAlign: value === 'left' ? null : value })
+                        .updateAttributes('docProtected', {
+                          imageAlign: value === 'left' ? null : value,
+                        })
                         .run()
                     }
                   >

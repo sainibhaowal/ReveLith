@@ -4,9 +4,84 @@ import { join, resolve } from 'node:path'
 import { launchShell } from './helpers'
 
 const cases = [
-  { kind: 'forms', slug: 'forms-builder', launch: 'newFormsBuilder', ext: 'form', title: 'Lifecycle Form', untitled: 'Untitled Form', first: { id: 'form-e2e', title: 'Lifecycle Form', description: '', fields: [], settings: {}, theme: {} }, second: { id: 'form-e2e', title: 'Updated Lifecycle Form', description: '', fields: [], settings: {}, theme: {} } },
-  { kind: 'tasks', slug: 'tasks', launch: 'newTasks', ext: 'tasks', title: 'Lifecycle Tasks', untitled: 'Untitled Task Board', first: { version: 1, tasks: [{ id: 'task-e2e', title: 'Lifecycle task', notes: '', status: 'todo', priority: 'medium', due: '', createdAt: 1 }] }, second: { version: 1, tasks: [{ id: 'task-e2e', title: 'Updated lifecycle task', notes: '', status: 'doing', priority: 'high', due: '', createdAt: 1 }] } },
-  { kind: 'drawboard', slug: 'drawboard', launch: 'newDrawboard', ext: 'draw', title: 'Lifecycle Drawing', untitled: 'Untitled Drawing', first: { version: 1, ops: [{ kind: 'text', color: '#000000', size: 18, at: [10, 20], text: 'Lifecycle board' }] }, second: { version: 1, ops: [{ kind: 'text', color: '#000000', size: 18, at: [10, 20], text: 'Updated lifecycle board' }] } },
+  {
+    kind: 'forms',
+    slug: 'forms-builder',
+    launch: 'newFormsBuilder',
+    ext: 'form',
+    title: 'Lifecycle Form',
+    untitled: 'Untitled Form',
+    first: {
+      id: 'form-e2e',
+      title: 'Lifecycle Form',
+      description: '',
+      fields: [],
+      settings: {},
+      theme: {},
+    },
+    second: {
+      id: 'form-e2e',
+      title: 'Updated Lifecycle Form',
+      description: '',
+      fields: [],
+      settings: {},
+      theme: {},
+    },
+  },
+  {
+    kind: 'tasks',
+    slug: 'tasks',
+    launch: 'newTasks',
+    ext: 'tasks',
+    title: 'Lifecycle Tasks',
+    untitled: 'Untitled Task Board',
+    first: {
+      version: 1,
+      tasks: [
+        {
+          id: 'task-e2e',
+          title: 'Lifecycle task',
+          notes: '',
+          status: 'todo',
+          priority: 'medium',
+          due: '',
+          createdAt: 1,
+        },
+      ],
+    },
+    second: {
+      version: 1,
+      tasks: [
+        {
+          id: 'task-e2e',
+          title: 'Updated lifecycle task',
+          notes: '',
+          status: 'doing',
+          priority: 'high',
+          due: '',
+          createdAt: 1,
+        },
+      ],
+    },
+  },
+  {
+    kind: 'drawboard',
+    slug: 'drawboard',
+    launch: 'newDrawboard',
+    ext: 'draw',
+    title: 'Lifecycle Drawing',
+    untitled: 'Untitled Drawing',
+    first: {
+      version: 1,
+      ops: [{ kind: 'text', color: '#000000', size: 18, at: [10, 20], text: 'Lifecycle board' }],
+    },
+    second: {
+      version: 1,
+      ops: [
+        { kind: 'text', color: '#000000', size: 18, at: [10, 20], text: 'Updated lifecycle board' },
+      ],
+    },
+  },
 ] as const
 
 test('new app tabs save and reopen files, autosave to the chosen path, and protect dirty tabs on close', async () => {
@@ -16,7 +91,10 @@ test('new app tabs save and reopen files, autosave to the chosen path, and prote
   const saveRoot = resolve(__dirname, '../.tmp/e2e')
   await mkdir(saveRoot, { recursive: true })
   const saveDir = await mkdtemp(join(saveRoot, 'revelith-new-app-docs-'))
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'new-app-document-lifecycle' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'new-app-document-lifecycle',
+  })
 
   try {
     for (const item of cases) {
@@ -28,31 +106,45 @@ test('new app tabs save and reopen files, autosave to the chosen path, and prote
         await api[method]?.()
       }, item.launch)
 
-      const childForApp = () => app.evaluate(({ BrowserWindow }, slugs) => {
-        const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find((candidate) =>
-          slugs.some((slug) => candidate.webContents.getURL().includes(`/apps/${slug}/out/renderer/index.html`)),
-        )
-        return view?.webContents.id ?? null
-      }, workspaceSlugs)
+      const childForApp = () =>
+        app.evaluate(({ BrowserWindow }, slugs) => {
+          const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find((candidate) =>
+            slugs.some((slug) =>
+              candidate.webContents.getURL().includes(`/apps/${slug}/out/renderer/index.html`),
+            ),
+          )
+          return view?.webContents.id ?? null
+        }, workspaceSlugs)
       await expect.poll(childForApp).not.toBeNull()
 
       const session = await app.evaluate(({ BrowserWindow }, slugs) => {
         const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find((candidate) =>
-          slugs.some((slug) => candidate.webContents.getURL().includes(`/apps/${slug}/out/renderer/index.html`)),
+          slugs.some((slug) =>
+            candidate.webContents.getURL().includes(`/apps/${slug}/out/renderer/index.html`),
+          ),
         )
         if (!view) throw new Error('Missing app view')
-        return { id: view.webContents.id, title: view.webContents.getTitle(), href: view.webContents.getURL() }
+        return {
+          id: view.webContents.id,
+          title: view.webContents.getTitle(),
+          href: view.webContents.getURL(),
+        }
       }, workspaceSlugs)
-      expect(workspaceSlugs.some((slug) => session.href.includes(`/apps/${slug}/out/renderer/index.html`))).toBe(true)
+      expect(
+        workspaceSlugs.some((slug) =>
+          session.href.includes(`/apps/${slug}/out/renderer/index.html`),
+        ),
+      ).toBe(true)
 
-      const chatState = async () => app.evaluate(({ webContents }, webContentsId) => {
-        const child = webContents.fromId(webContentsId)
-        if (!child) throw new Error('Missing integrated app renderer')
-        return child.executeJavaScript(`(() => ({
+      const chatState = async () =>
+        app.evaluate(({ webContents }, webContentsId) => {
+          const child = webContents.fromId(webContentsId)
+          if (!child) throw new Error('Missing integrated app renderer')
+          return child.executeJavaScript(`(() => ({
           dock: document.querySelector('.revelith-app-chat')?.getAttribute('data-collapsed'),
           ribbonButton: [...document.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'ReveLith Chat'),
         }))()`)
-      }, session.id)
+        }, session.id)
       await page.waitForTimeout(500)
       const initialChat = await chatState()
       // Tasks replaces the chat dock with its task-detail pane when a task is
@@ -63,13 +155,17 @@ test('new app tabs save and reopen files, autosave to the chosen path, and prote
         await app.evaluate(async ({ webContents }, webContentsId) => {
           const child = webContents.fromId(webContentsId)
           if (!child) throw new Error('Missing integrated app renderer')
-          await child.executeJavaScript(`document.querySelector('[aria-label="Collapse chat"]')?.click()`)
+          await child.executeJavaScript(
+            `document.querySelector('[aria-label="Collapse chat"]')?.click()`,
+          )
         }, session.id)
         await expect.poll(chatState).toEqual({ dock: 'true', ribbonButton: false })
         await app.evaluate(async ({ webContents }, webContentsId) => {
           const child = webContents.fromId(webContentsId)
           if (!child) throw new Error('Missing integrated app renderer')
-          await child.executeJavaScript(`document.querySelector('[aria-label="Expand ReveLith chat"]')?.click()`)
+          await child.executeJavaScript(
+            `document.querySelector('[aria-label="Expand ReveLith chat"]')?.click()`,
+          )
         }, session.id)
         await expect.poll(chatState).toEqual({ dock: 'false', ribbonButton: false })
       }
@@ -93,30 +189,69 @@ test('new app tabs save and reopen files, autosave to the chosen path, and prote
       await app.evaluate(async ({ webContents }, webContentsId) => {
         const child = webContents.fromId(webContentsId)
         if (!child) throw new Error('Missing integrated app renderer')
-        await child.executeJavaScript(`(() => [...document.querySelectorAll('button[role="tab"]')].find((button) => button.textContent?.trim() === 'File')?.click())()`)
+        await child.executeJavaScript(
+          `(() => [...document.querySelectorAll('button[role="tab"]')].find((button) => button.textContent?.trim() === 'File')?.click())()`,
+        )
       }, session.id)
-      await expect.poll(async () => app.evaluate(({ webContents }, webContentsId) => webContents.fromId(webContentsId)?.executeJavaScript(`(() => { const tab = [...document.querySelectorAll('button[role="tab"]')].find((button) => button.textContent?.trim() === 'File'); return tab ? tab.getAttribute('aria-selected') : 'true' })()`), session.id)).toBe('true')
+      await expect
+        .poll(async () =>
+          app.evaluate(
+            ({ webContents }, webContentsId) =>
+              webContents
+                .fromId(webContentsId)
+                ?.executeJavaScript(
+                  `(() => { const tab = [...document.querySelectorAll('button[role="tab"]')].find((button) => button.textContent?.trim() === 'File'); return tab ? tab.getAttribute('aria-selected') : 'true' })()`,
+                ),
+            session.id,
+          ),
+        )
+        .toBe('true')
       await app.evaluate(async ({ webContents }, webContentsId) => {
         const child = webContents.fromId(webContentsId)
         if (!child) throw new Error('Missing integrated app renderer')
-        await child.executeJavaScript(`(() => [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Save As')?.click())()`)
+        await child.executeJavaScript(
+          `(() => [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Save As')?.click())()`,
+        )
       }, session.id)
-      await expect.poll(async () => (await import('node:fs/promises')).stat(filePath).then(() => true).catch(() => false)).toBe(true)
+      await expect
+        .poll(async () =>
+          (await import('node:fs/promises'))
+            .stat(filePath)
+            .then(() => true)
+            .catch(() => false),
+        )
+        .toBe(true)
 
-      const saved = await app.evaluate(async ({ webContents }, args) => {
-        const child = webContents.fromId(args.webContentsId)
-        if (!child) throw new Error('Missing integrated app renderer')
-        return child.executeJavaScript(`window.electronAPI.saveDocument(${JSON.stringify(args.content)}, ${JSON.stringify(args.title)})`)
-      }, { webContentsId: session.id, content: item.first, title: item.title })
+      const saved = await app.evaluate(
+        async ({ webContents }, args) => {
+          const child = webContents.fromId(args.webContentsId)
+          if (!child) throw new Error('Missing integrated app renderer')
+          return child.executeJavaScript(
+            `window.electronAPI.saveDocument(${JSON.stringify(args.content)}, ${JSON.stringify(args.title)})`,
+          )
+        },
+        { webContentsId: session.id, content: item.first, title: item.title },
+      )
       expect(saved.filePath).toBe(filePath)
       expect(JSON.parse(await readFile(filePath, 'utf8'))).toEqual(item.first)
 
-      const dirtyState = await app.evaluate(async ({ webContents }, args) => {
-        const child = webContents.fromId(args.webContentsId)
-        if (!child) throw new Error('Missing integrated app renderer')
-        await child.executeJavaScript(`window.electronAPI.setDocumentState(true, ${JSON.stringify(args.title)})`)
-        return child.executeJavaScript('window.electronAPI.saveDocument(' + JSON.stringify(args.content) + ', ' + JSON.stringify(args.title) + ', false, false)')
-      }, { webContentsId: session.id, content: item.second, title: item.title })
+      const dirtyState = await app.evaluate(
+        async ({ webContents }, args) => {
+          const child = webContents.fromId(args.webContentsId)
+          if (!child) throw new Error('Missing integrated app renderer')
+          await child.executeJavaScript(
+            `window.electronAPI.setDocumentState(true, ${JSON.stringify(args.title)})`,
+          )
+          return child.executeJavaScript(
+            'window.electronAPI.saveDocument(' +
+              JSON.stringify(args.content) +
+              ', ' +
+              JSON.stringify(args.title) +
+              ', false, false)',
+          )
+        },
+        { webContentsId: session.id, content: item.second, title: item.title },
+      )
       expect(dirtyState.filePath).toBe(filePath)
       expect(JSON.parse(await readFile(filePath, 'utf8'))).toEqual(item.second)
 
@@ -136,25 +271,57 @@ test('new app tabs save and reopen files, autosave to the chosen path, and prote
       }, session.id)
       expect(opened.filePath).toBe(filePath)
       expect(opened.content).toEqual(item.second)
-      await app.evaluate(async ({ webContents }, args) => {
-        const child = webContents.fromId(args.webContentsId)
-        if (!child) throw new Error('Missing integrated app renderer')
-        await child.executeJavaScript(`window.electronAPI.setDocumentPath(${JSON.stringify(args.filePath)}, ${JSON.stringify(args.title)})`)
-        return child.executeJavaScript('window.electronAPI.getDocument()')
-      }, { webContentsId: session.id, filePath, title: item.title }).then((loaded) => expect(loaded.content).toEqual(item.second))
+      await app
+        .evaluate(
+          async ({ webContents }, args) => {
+            const child = webContents.fromId(args.webContentsId)
+            if (!child) throw new Error('Missing integrated app renderer')
+            await child.executeJavaScript(
+              `window.electronAPI.setDocumentPath(${JSON.stringify(args.filePath)}, ${JSON.stringify(args.title)})`,
+            )
+            return child.executeJavaScript('window.electronAPI.getDocument()')
+          },
+          { webContentsId: session.id, filePath, title: item.title },
+        )
+        .then((loaded) => expect(loaded.content).toEqual(item.second))
 
-      await app.evaluate(async ({ webContents }, args) => {
-        const child = webContents.fromId(args.webContentsId)
-        if (!child) throw new Error('Missing integrated app renderer')
-        return child.executeJavaScript(`window.electronAPI.setDocumentState(true, ${JSON.stringify(args.title)})`)
-      }, { webContentsId: session.id, title: item.title })
-      await expect.poll(() => page.evaluate(async (kind) => (await window.aiOfficeTabs.list()).find((candidate) => candidate.kind === kind)?.dirty ?? false, item.kind)).toBe(true)
-      await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 2, checkboxChecked: false }) })
+      await app.evaluate(
+        async ({ webContents }, args) => {
+          const child = webContents.fromId(args.webContentsId)
+          if (!child) throw new Error('Missing integrated app renderer')
+          return child.executeJavaScript(
+            `window.electronAPI.setDocumentState(true, ${JSON.stringify(args.title)})`,
+          )
+        },
+        { webContentsId: session.id, title: item.title },
+      )
+      await expect
+        .poll(() =>
+          page.evaluate(
+            async (kind) =>
+              (await window.aiOfficeTabs.list()).find((candidate) => candidate.kind === kind)
+                ?.dirty ?? false,
+            item.kind,
+          ),
+        )
+        .toBe(true)
+      await app.evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 2, checkboxChecked: false })
+      })
       await page.evaluate((id) => window.aiOfficeTabs.close(id), tab!.id)
-      await expect.poll(() => page.evaluate(async (kind) => (await window.aiOfficeTabs.list()).some((candidate) => candidate.kind === kind), item.kind)).toBe(true)
+      await expect
+        .poll(() =>
+          page.evaluate(
+            async (kind) =>
+              (await window.aiOfficeTabs.list()).some((candidate) => candidate.kind === kind),
+            item.kind,
+          ),
+        )
+        .toBe(true)
       await app.evaluate(async ({ webContents }, webContentsId) => {
         const child = webContents.fromId(webContentsId)
-        if (child) await child.executeJavaScript('window.electronAPI.setDocumentState(false, "Saved")')
+        if (child)
+          await child.executeJavaScript('window.electronAPI.setDocumentState(false, "Saved")')
       }, session.id)
     }
   } finally {

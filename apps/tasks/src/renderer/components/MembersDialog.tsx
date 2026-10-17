@@ -43,8 +43,14 @@ export function AssigneePicker({
             label="Assignee"
             value={assigneeId ?? ''}
             placeholder="Unassigned"
-            options={state.members.map((member) => ({ value: member.id, label: member.name, color: member.color }))}
-            onChange={(value) => dispatch({ kind: 'task/setAssignee', id: taskId, assigneeId: value || null })}
+            options={state.members.map((member) => ({
+              value: member.id,
+              label: member.name,
+              color: member.color,
+            }))}
+            onChange={(value) =>
+              dispatch({ kind: 'task/setAssignee', id: taskId, assigneeId: value || null })
+            }
             style={{ ...miniSelect, maxWidth: 120, padding: 0 }}
           />
         </span>
@@ -59,8 +65,14 @@ export function AssigneePicker({
             label="Assignee"
             value={assigneeId ?? ''}
             placeholder="Unassigned"
-            options={state.members.map((member) => ({ value: member.id, label: member.name, color: member.color }))}
-            onChange={(value) => dispatch({ kind: 'task/setAssignee', id: taskId, assigneeId: value || null })}
+            options={state.members.map((member) => ({
+              value: member.id,
+              label: member.name,
+              color: member.color,
+            }))}
+            onChange={(value) =>
+              dispatch({ kind: 'task/setAssignee', id: taskId, assigneeId: value || null })
+            }
             style={{ ...input, maxWidth: 180, padding: 0 }}
           />
           <button style={btnGhost} type="button" onClick={() => setManaging(true)}>
@@ -69,7 +81,9 @@ export function AssigneePicker({
         </div>
       )}
 
-      {managing ? <MembersDialog state={state} dispatch={dispatch} onClose={() => setManaging(false)} /> : null}
+      {managing ? (
+        <MembersDialog state={state} dispatch={dispatch} onClose={() => setManaging(false)} />
+      ) : null}
     </>
   )
 }
@@ -131,7 +145,15 @@ export function MembersDialog({
       {workload.length === 0 ? (
         <p style={{ ...label, fontWeight: 400 }}>No one on the board yet.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            maxHeight: 320,
+            overflowY: 'auto',
+          }}
+        >
           {workload.map(({ member, open, overdue, done }) => (
             <div key={member.id} style={row}>
               <Avatar name={member.name} color={member.color} size={26} />
@@ -139,7 +161,11 @@ export function MembersDialog({
                 aria-label={`Name for ${member.name}`}
                 value={member.name}
                 onChange={(event) =>
-                  dispatch({ kind: 'member/update', id: member.id, patch: { name: event.target.value } })
+                  dispatch({
+                    kind: 'member/update',
+                    id: member.id,
+                    patch: { name: event.target.value },
+                  })
                 }
                 style={{ ...input, flex: 1, padding: '4px 8px', fontSize: 13 }}
               />
@@ -147,12 +173,19 @@ export function MembersDialog({
                 label={`Colour for ${member.name}`}
                 value={member.color}
                 options={COLOR_NAMES.map((name) => ({ value: name, label: name, color: name }))}
-                onChange={(value) => dispatch({ kind: 'member/update', id: member.id, patch: { color: value } })}
+                onChange={(value) =>
+                  dispatch({ kind: 'member/update', id: member.id, patch: { color: value } })
+                }
                 style={{ ...miniSelect, width: 54, padding: 0 }}
               />
               <span
                 title={`${open} open · ${overdue} overdue · ${done} done`}
-                style={{ fontSize: 11, color: overdue ? 'var(--col-red)' : 'var(--text-secondary)', minWidth: 58, textAlign: 'right' }}
+                style={{
+                  fontSize: 11,
+                  color: overdue ? 'var(--col-red)' : 'var(--text-secondary)',
+                  minWidth: 58,
+                  textAlign: 'right',
+                }}
               >
                 {open} open{overdue ? ` · ${overdue} late` : ''}
               </span>

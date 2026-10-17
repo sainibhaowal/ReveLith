@@ -3,9 +3,28 @@ import type { Action } from '../../store/actions'
 import { btnGhost, btnPrimary, colorVar, fieldGroup, input, label } from '../styles'
 import { Dialog } from './Dialog'
 
-const COLORS = ['slate', 'blue', 'violet', 'magenta', 'rose', 'red', 'orange', 'amber', 'lime', 'green', 'teal', 'cyan']
+const COLORS = [
+  'slate',
+  'blue',
+  'violet',
+  'magenta',
+  'rose',
+  'red',
+  'orange',
+  'amber',
+  'lime',
+  'green',
+  'teal',
+  'cyan',
+]
 
-export function ColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+export function ColorPicker({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (color: string) => void
+}) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
       {COLORS.map((color) => (
@@ -30,8 +49,19 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (col
             padding: '4px 8px',
           }}
         >
-          <span aria-hidden="true" style={{ width: 14, height: 14, borderRadius: 4, background: colorVar(color), border: '1px solid rgb(15 23 42 / 22%)' }} />
-          <span style={{ fontSize: 11, color: 'var(--text-primary)', textTransform: 'capitalize' }}>{color}</span>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: 4,
+              background: colorVar(color),
+              border: '1px solid rgb(15 23 42 / 22%)',
+            }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+            {color}
+          </span>
         </button>
       ))}
     </div>
@@ -64,7 +94,13 @@ export function ProjectDialog({
         patch: { name: trimmed, ...(key.trim() ? { key: key.trim() } : {}), description, color },
       })
     } else {
-      dispatch({ kind: 'project/create', name: trimmed, key: key.trim() || undefined, description, color })
+      dispatch({
+        kind: 'project/create',
+        name: trimmed,
+        key: key.trim() || undefined,
+        description,
+        color,
+      })
     }
     onClose()
   }
@@ -91,7 +127,13 @@ export function ProjectDialog({
     >
       <div style={fieldGroup}>
         <span style={label}>Name</span>
-        <input autoFocus value={name} onChange={(event) => setName(event.target.value)} style={input} placeholder="Website Redesign" />
+        <input
+          autoFocus
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          style={input}
+          placeholder="Website Redesign"
+        />
       </div>
       <div style={fieldGroup}>
         <span style={label}>Ticket key</span>
@@ -105,7 +147,12 @@ export function ProjectDialog({
       </div>
       <div style={fieldGroup}>
         <span style={label}>Description</span>
-        <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} style={{ ...input, resize: 'vertical' }} />
+        <textarea
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          rows={3}
+          style={{ ...input, resize: 'vertical' }}
+        />
       </div>
       <div style={fieldGroup}>
         <span style={label}>Colour</span>

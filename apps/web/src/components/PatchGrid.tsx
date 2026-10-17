@@ -165,16 +165,22 @@ export function PatchGrid() {
       if (pointer.active) {
         ctx.globalAlpha = 1
         const glow = ctx.createRadialGradient(
-          pointer.x, pointer.y, 0,
-          pointer.x, pointer.y, POINTER_RADIUS
+          pointer.x,
+          pointer.y,
+          0,
+          pointer.x,
+          pointer.y,
+          POINTER_RADIUS,
         )
         glow.addColorStop(0, 'rgba(108, 71, 255, 0.10)')
         glow.addColorStop(0.55, 'rgba(108, 71, 255, 0.04)')
         glow.addColorStop(1, 'rgba(108, 71, 255, 0)')
         ctx.fillStyle = glow
         ctx.fillRect(
-          pointer.x - POINTER_RADIUS, pointer.y - POINTER_RADIUS,
-          POINTER_RADIUS * 2, POINTER_RADIUS * 2
+          pointer.x - POINTER_RADIUS,
+          pointer.y - POINTER_RADIUS,
+          POINTER_RADIUS * 2,
+          POINTER_RADIUS * 2,
         )
       }
 
@@ -200,7 +206,9 @@ export function PatchGrid() {
       pointer.y = e.clientY
       pointer.active = true
     }
-    const onPointerLeave = () => { pointer.active = false }
+    const onPointerLeave = () => {
+      pointer.active = false
+    }
 
     // On small screens the grid sits behind dense content and costs battery for
     // no benefit, so stop rendering once the hero has been scrolled past.
@@ -229,7 +237,7 @@ export function PatchGrid() {
           heroInView = entries[0]?.isIntersecting ?? true
           onVisibility()
         },
-        { threshold: 0 }
+        { threshold: 0 },
       )
       heroObserver.observe(heroEl)
     }

@@ -28,7 +28,10 @@ const DEFAULT_COLUMNS: { name: string; color: string; isDone: boolean }[] = [
 
 /** Ticket keys are uppercase alphanumerics, at most 6 characters. */
 export function normalizeProjectKey(raw: string): string {
-  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 6)
 }
 
 /** Derive a key from a project name when the caller does not supply one. */
@@ -140,7 +143,9 @@ function removeTasksCascade(state: BoardState, taskIds: ID[]): BoardState {
       .filter((task) => !gone.has(task.id))
       // Orphaned sub-tasks are promoted to top level rather than deleted with
       // their parent, so a delete never silently destroys unrelated work.
-      .map((task) => (task.parentId && gone.has(task.parentId) ? { ...task, parentId: null } : task)),
+      .map((task) =>
+        task.parentId && gone.has(task.parentId) ? { ...task, parentId: null } : task,
+      ),
     comments: state.comments.filter((comment) => !gone.has(comment.taskId)),
     relations: state.relations.filter(
       (relation) => !gone.has(relation.fromTaskId) && !gone.has(relation.toTaskId),
@@ -149,13 +154,20 @@ function removeTasksCascade(state: BoardState, taskIds: ID[]): BoardState {
     // the bytes are dropped from IndexedDB by the caller that deletes a task.
     attachments: state.attachments.filter((attachment) => !gone.has(attachment.taskId)),
     externalLinks: state.externalLinks.filter((link) => !gone.has(link.taskId)),
-    selectedTaskId: state.selectedTaskId && gone.has(state.selectedTaskId) ? null : state.selectedTaskId,
+    selectedTaskId:
+      state.selectedTaskId && gone.has(state.selectedTaskId) ? null : state.selectedTaskId,
     selectedTaskIds: state.selectedTaskIds.filter((taskId) => !gone.has(taskId)),
   }
 }
 
-function applyProjectCreate(state: BoardState, action: Extract<Action, { kind: 'project/create' }>): BoardState {
-  const key = uniqueProjectKey(state, normalizeProjectKey(action.key || '') || deriveProjectKey(action.name))
+function applyProjectCreate(
+  state: BoardState,
+  action: Extract<Action, { kind: 'project/create' }>,
+): BoardState {
+  const key = uniqueProjectKey(
+    state,
+    normalizeProjectKey(action.key || '') || deriveProjectKey(action.name),
+  )
   const project: Project = {
     id: nextId('prj'),
     key,
@@ -173,13 +185,20 @@ function applyProjectCreate(state: BoardState, action: Extract<Action, { kind: '
     columns: [...state.columns, ...columns],
     activity: [
       ...state.activity,
-      logActivity(state, { projectId: project.id, kind: 'created', message: `Created project ${project.name}` }),
+      logActivity(state, {
+        projectId: project.id,
+        kind: 'created',
+        message: `Created project ${project.name}`,
+      }),
     ],
     selectedProjectId: project.id,
   }
 }
 
-function applyTaskCreate(state: BoardState, action: Extract<Action, { kind: 'task/create' }>): BoardState {
+function applyTaskCreate(
+  state: BoardState,
+  action: Extract<Action, { kind: 'task/create' }>,
+): BoardState {
   const project = state.projects.find((entry) => entry.id === action.projectId)
   const column = state.columns.find((entry) => entry.id === action.columnId)
   if (!project || !column) return state
@@ -227,7 +246,10 @@ function applyTaskCreate(state: BoardState, action: Extract<Action, { kind: 'tas
   }
 }
 
-function applyTaskMove(state: BoardState, action: Extract<Action, { kind: 'task/move' }>): BoardState {
+function applyTaskMove(
+  state: BoardState,
+  action: Extract<Action, { kind: 'task/move' }>,
+): BoardState {
   const task = state.tasks.find((entry) => entry.id === action.id)
   if (!task) return state
   const column = state.columns.find((entry) => entry.id === action.columnId)
@@ -237,7 +259,8 @@ function applyTaskMove(state: BoardState, action: Extract<Action, { kind: 'task/
   // A task cannot be its own parent.
   const safeParent = parentId === task.id ? null : parentId
   const sameGroup = task.columnId === column.id && task.parentId === safeParent
-  const position = action.position ?? (sameGroup ? task.position : nextPosition(state, column.id, safeParent))
+  const position =
+    action.position ?? (sameGroup ? task.position : nextPosition(state, column.id, safeParent))
 
   const next = touch(task, {
     columnId: column.id,
@@ -363,7 +386,10 @@ function applyColumnDelete(state: BoardState, id: ID): BoardState {
       ...working,
       tasks: working.tasks.map((task) =>
         task.id === orphan.id
-          ? touch(task, { columnId: fallback.id, position: nextPosition(working, fallback.id, task.parentId) })
+          ? touch(task, {
+              columnId: fallback.id,
+              position: nextPosition(working, fallback.id, task.parentId),
+            })
           : task,
       ),
     }
@@ -384,7 +410,9 @@ function applyColumnDelete(state: BoardState, id: ID): BoardState {
 function applyProjectDelete(state: BoardState, id: ID): BoardState {
   const project = state.projects.find((entry) => entry.id === id)
   if (!project) return state
-  const taskIds = new Set(state.tasks.filter((task) => task.projectId === id).map((task) => task.id))
+  const taskIds = new Set(
+    state.tasks.filter((task) => task.projectId === id).map((task) => task.id),
+  )
   const remainingProjects = state.projects.filter((entry) => entry.id !== id)
   return {
     ...state,
@@ -399,8 +427,10 @@ function applyProjectDelete(state: BoardState, id: ID): BoardState {
     relations: state.relations.filter(
       (relation) => !taskIds.has(relation.fromTaskId) && !taskIds.has(relation.toTaskId),
     ),
-    selectedProjectId: state.selectedProjectId === id ? (remainingProjects[0]?.id ?? null) : state.selectedProjectId,
-    selectedTaskId: state.selectedTaskId && taskIds.has(state.selectedTaskId) ? null : state.selectedTaskId,
+    selectedProjectId:
+      state.selectedProjectId === id ? (remainingProjects[0]?.id ?? null) : state.selectedProjectId,
+    selectedTaskId:
+      state.selectedTaskId && taskIds.has(state.selectedTaskId) ? null : state.selectedTaskId,
   }
 }
 
@@ -409,7 +439,9 @@ function applyLabelDelete(state: BoardState, id: ID): BoardState {
     ...state,
     labels: state.labels.filter((label) => label.id !== id),
     tasks: state.tasks.map((task) =>
-      task.labelIds.includes(id) ? { ...task, labelIds: task.labelIds.filter((labelId) => labelId !== id) } : task,
+      task.labelIds.includes(id)
+        ? { ...task, labelIds: task.labelIds.filter((labelId) => labelId !== id) }
+        : task,
     ),
   }
 }
@@ -437,7 +469,10 @@ function applyTaskDuplicate(
   if (!project) return state
 
   // Copy the whole subtree so sub-task progress survives the duplicate.
-  const subtree = [source, ...collectSubtaskIds(state, source.id).map((sid) => state.tasks.find((t) => t.id === sid)!)]
+  const subtree = [
+    source,
+    ...collectSubtaskIds(state, source.id).map((sid) => state.tasks.find((t) => t.id === sid)!),
+  ]
   let nextNumber = project.lastTaskNumber
   const created: Task[] = []
   const idMap = new Map<ID, ID>()
@@ -451,7 +486,8 @@ function applyTaskDuplicate(
       ...original,
       id,
       number: nextNumber,
-      title: original.id === source.id && titleOverride?.trim() ? titleOverride.trim() : original.title,
+      title:
+        original.id === source.id && titleOverride?.trim() ? titleOverride.trim() : original.title,
       columnId: destinationColumn,
       // A duplicated parent is a root task, so sub-tasks cannot stay attached.
       parentId: original.parentId === source.id ? idMap.get(source.id)! : null,
@@ -491,7 +527,9 @@ function applyMemberDelete(state: BoardState, id: ID): BoardState {
   return {
     ...state,
     members: state.members.filter((member) => member.id !== id),
-    tasks: state.tasks.map((task) => (task.assigneeId === id ? { ...task, assigneeId: null } : task)),
+    tasks: state.tasks.map((task) =>
+      task.assigneeId === id ? { ...task, assigneeId: null } : task,
+    ),
     filters: {
       ...state.filters,
       assigneeIds: state.filters.assigneeIds.filter((entry) => entry !== id),
@@ -508,13 +546,25 @@ function apply(state: BoardState, action: Action): BoardState {
       const filters = { ...state.filters, ...action.patch }
       // Hand-editing filters takes the board off any saved view, because the
       // view no longer describes what is on screen.
-      return { ...state, filters, selectedViewId: patchMatchesView(state, filters, state.sortMode) ? state.selectedViewId : null }
+      return {
+        ...state,
+        filters,
+        selectedViewId: patchMatchesView(state, filters, state.sortMode)
+          ? state.selectedViewId
+          : null,
+      }
     }
     case 'filters/clear':
       return { ...state, filters: { ...EMPTY_FILTERS }, selectedViewId: null }
     case 'sort/set': {
-      const view = state.selectedViewId ? state.savedViews.find((entry) => entry.id === state.selectedViewId) : null
-      return { ...state, sortMode: action.mode, selectedViewId: view && view.sortMode === action.mode ? view.id : null }
+      const view = state.selectedViewId
+        ? state.savedViews.find((entry) => entry.id === state.selectedViewId)
+        : null
+      return {
+        ...state,
+        sortMode: action.mode,
+        selectedViewId: view && view.sortMode === action.mode ? view.id : null,
+      }
     }
     case 'view/create': {
       const name = action.name.trim()
@@ -533,14 +583,21 @@ function apply(state: BoardState, action: Action): BoardState {
       if (!action.id) return { ...state, selectedViewId: null }
       const view = state.savedViews.find((entry) => entry.id === action.id)
       if (!view) return state
-      return { ...state, selectedViewId: view.id, filters: { ...view.filters }, sortMode: view.sortMode }
+      return {
+        ...state,
+        selectedViewId: view.id,
+        filters: { ...view.filters },
+        sortMode: view.sortMode,
+      }
     }
     case 'view/rename': {
       const name = action.name.trim()
       if (!name) return state
       return {
         ...state,
-        savedViews: state.savedViews.map((view) => (view.id === action.id ? { ...view, name } : view)),
+        savedViews: state.savedViews.map((view) =>
+          view.id === action.id ? { ...view, name } : view,
+        ),
       }
     }
     case 'view/delete':
@@ -565,7 +622,12 @@ function apply(state: BoardState, action: Action): BoardState {
         attachments: [...state.attachments, attachment],
         activity: [
           ...state.activity,
-          logActivity(state, { projectId: task.projectId, taskId: task.id, kind: 'updated', message: `Attached ${action.name}` }),
+          logActivity(state, {
+            projectId: task.projectId,
+            taskId: task.id,
+            kind: 'updated',
+            message: `Attached ${action.name}`,
+          }),
         ],
       }
     }
@@ -578,11 +640,17 @@ function apply(state: BoardState, action: Action): BoardState {
       if (!project) return state
       const patch = { ...action.patch }
       if (typeof patch.key === 'string') {
-        patch.key = uniqueProjectKey(state, normalizeProjectKey(patch.key) || project.key, project.id)
+        patch.key = uniqueProjectKey(
+          state,
+          normalizeProjectKey(patch.key) || project.key,
+          project.id,
+        )
       }
       return {
         ...state,
-        projects: state.projects.map((entry) => (entry.id === project.id ? { ...entry, ...patch } : entry)),
+        projects: state.projects.map((entry) =>
+          entry.id === project.id ? { ...entry, ...patch } : entry,
+        ),
       }
     }
     case 'project/setArchived':
@@ -603,7 +671,9 @@ function apply(state: BoardState, action: Action): BoardState {
         projectId: action.projectId,
         name: action.name.trim() || 'New column',
         color: action.color ?? 'slate',
-        position: positionAfter(siblings.length ? Math.max(...siblings.map((c) => c.position)) : null),
+        position: positionAfter(
+          siblings.length ? Math.max(...siblings.map((c) => c.position)) : null,
+        ),
         wipLimit: action.wipLimit ?? null,
         isDone: action.isDone ?? false,
       }
@@ -630,7 +700,9 @@ function apply(state: BoardState, action: Action): BoardState {
     case 'label/update':
       return {
         ...state,
-        labels: state.labels.map((label) => (label.id === action.id ? { ...label, ...action.patch } : label)),
+        labels: state.labels.map((label) =>
+          label.id === action.id ? { ...label, ...action.patch } : label,
+        ),
       }
     case 'label/delete':
       return applyLabelDelete(state, action.id)
@@ -650,7 +722,12 @@ function apply(state: BoardState, action: Action): BoardState {
         activity: titleChanged
           ? [
               ...state.activity,
-              logActivity(state, { projectId: task.projectId, taskId: task.id, kind: 'updated', message: 'Renamed task' }),
+              logActivity(state, {
+                projectId: task.projectId,
+                taskId: task.id,
+                kind: 'updated',
+                message: 'Renamed task',
+              }),
             ]
           : state.activity,
       }
@@ -699,7 +776,9 @@ function apply(state: BoardState, action: Action): BoardState {
             projectId: task.projectId,
             taskId: task.id,
             kind: nextAssigneeId ? 'assigned' : 'unassigned',
-            message: nextAssigneeId ? `Assigned to ${member?.name ?? 'someone'}` : 'Unassigned task',
+            message: nextAssigneeId
+              ? `Assigned to ${member?.name ?? 'someone'}`
+              : 'Unassigned task',
           }),
         ],
       }
@@ -735,7 +814,13 @@ function apply(state: BoardState, action: Action): BoardState {
           }),
         ]
       }
-      return { ...state, tasks: state.tasks.map((entry) => (entry.id === task.id ? touch(entry, { labelIds: unique }) : entry)), activity }
+      return {
+        ...state,
+        tasks: state.tasks.map((entry) =>
+          entry.id === task.id ? touch(entry, { labelIds: unique }) : entry,
+        ),
+        activity,
+      }
     }
     case 'task/setCustomField': {
       const task = state.tasks.find((entry) => entry.id === action.taskId)
@@ -744,7 +829,9 @@ function apply(state: BoardState, action: Action): BoardState {
         ...state,
         tasks: state.tasks.map((entry) =>
           entry.id === task.id
-            ? touch(entry, { customFields: { ...entry.customFields, [action.fieldId]: action.value } })
+            ? touch(entry, {
+                customFields: { ...entry.customFields, [action.fieldId]: action.value },
+              })
             : entry,
         ),
       }
@@ -756,7 +843,12 @@ function apply(state: BoardState, action: Action): BoardState {
         ...state,
         tasks: state.tasks.map((entry) =>
           entry.id === task.id
-            ? touch(entry, { timeEntries: [...entry.timeEntries, { id: nextId('time'), minutes: action.minutes, loggedAt: now() }] })
+            ? touch(entry, {
+                timeEntries: [
+                  ...entry.timeEntries,
+                  { id: nextId('time'), minutes: action.minutes, loggedAt: now() },
+                ],
+              })
             : entry,
         ),
         activity: [
@@ -777,11 +869,22 @@ function apply(state: BoardState, action: Action): BoardState {
         ...state,
         comments: [
           ...state.comments,
-          { id: nextId('cmt'), taskId: task.id, author: action.author ?? 'You', body: action.body.trim(), createdAt: now() },
+          {
+            id: nextId('cmt'),
+            taskId: task.id,
+            author: action.author ?? 'You',
+            body: action.body.trim(),
+            createdAt: now(),
+          },
         ],
         activity: [
           ...state.activity,
-          logActivity(state, { projectId: task.projectId, taskId: task.id, kind: 'commented', message: 'Added a comment' }),
+          logActivity(state, {
+            projectId: task.projectId,
+            taskId: task.id,
+            kind: 'commented',
+            message: 'Added a comment',
+          }),
         ],
       }
     }
@@ -797,7 +900,10 @@ function apply(state: BoardState, action: Action): BoardState {
     case 'relation/link':
       return applyRelationLink(state, action)
     case 'relation/unlink':
-      return { ...state, relations: state.relations.filter((relation) => relation.id !== action.id) }
+      return {
+        ...state,
+        relations: state.relations.filter((relation) => relation.id !== action.id),
+      }
     case 'customField/define': {
       const field: CustomField = {
         id: nextId('cf'),

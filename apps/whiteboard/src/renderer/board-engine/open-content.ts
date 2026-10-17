@@ -19,16 +19,37 @@ export function loadInitialSceneFromContent(content: unknown): ParsedScene {
   const normalized = normalizeDrawboardDocument(content)
   if (!normalized) {
     // Tolerate raw board JSON ({elements:[...]}) for compatibility.
-    const raw = content as { elements?: unknown[]; appState?: Partial<AppState>; files?: BinaryFiles; trackingEnabled?: boolean; revisions?: unknown }
+    const raw = content as {
+      elements?: unknown[]
+      appState?: Partial<AppState>
+      files?: BinaryFiles
+      trackingEnabled?: boolean
+      revisions?: unknown
+    }
     if (raw && Array.isArray(raw.elements)) {
       const safeElements = normalizeBoardElementPoints(raw.elements)
-      const restored = restore({ elements: safeElements }, raw.appState ?? null, null, { repairBindings: true, refreshDimensions: true })
-      return { elements: normalizeBoardElementPoints(restored.elements ?? []), appState: restored.appState ?? {}, files: raw.files ?? {}, trackingEnabled: raw.trackingEnabled ?? false, revisions: validateDrawboardRevisions(raw.revisions) }
+      const restored = restore({ elements: safeElements }, raw.appState ?? null, null, {
+        repairBindings: true,
+        refreshDimensions: true,
+      })
+      return {
+        elements: normalizeBoardElementPoints(restored.elements ?? []),
+        appState: restored.appState ?? {},
+        files: raw.files ?? {},
+        trackingEnabled: raw.trackingEnabled ?? false,
+        revisions: validateDrawboardRevisions(raw.revisions),
+      }
     }
     throw new Error('This file does not contain a drawing.')
   }
   if (normalized.version === 1) {
-    return { elements: migrateLegacyOpsToElements(normalized.ops), appState: {}, files: {}, trackingEnabled: false, revisions: [] }
+    return {
+      elements: migrateLegacyOpsToElements(normalized.ops),
+      appState: {},
+      files: {},
+      trackingEnabled: false,
+      revisions: [],
+    }
   }
   const safeElements = normalizeBoardElementPoints(normalized.elements)
   const restored = restore(

@@ -2,7 +2,11 @@ import { expect, test } from '@playwright/test'
 import { launchShell } from './helpers'
 
 test('Forms Builder authoring canvas follows ReveLith theme while respondent preview preserves the form theme', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, settings: { theme: 'light' }, videoDir: 'forms-builder-theme' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    settings: { theme: 'light' },
+    videoDir: 'forms-builder-theme',
+  })
 
   try {
     await page.evaluate(async () => {
@@ -10,26 +14,28 @@ test('Forms Builder authoring canvas follows ReveLith theme while respondent pre
       await window.aiOffice.newFormsBuilder()
     })
 
-    const addField = () => app.evaluate(async ({ BrowserWindow }) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
-        view.webContents.getURL().toLowerCase().includes('forms-builder'),
-      )
-      if (!child) return false
-      return child.webContents.executeJavaScript(`(() => {
+    const addField = () =>
+      app.evaluate(async ({ BrowserWindow }) => {
+        const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+          view.webContents.getURL().toLowerCase().includes('forms-builder'),
+        )
+        if (!child) return false
+        return child.webContents.executeJavaScript(`(() => {
         const button = document.querySelector('.forms-field-list-button');
         if (!button) return false;
         button.click();
         return true;
       })()`)
-    })
+      })
     await expect.poll(addField).toBe(true)
 
-    const readThemeStyles = async () => app.evaluate(async ({ BrowserWindow }) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
-        view.webContents.getURL().toLowerCase().includes('forms-builder'),
-      )
-      if (!child) return null
-      return child.webContents.executeJavaScript(`(() => {
+    const readThemeStyles = async () =>
+      app.evaluate(async ({ BrowserWindow }) => {
+        const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+          view.webContents.getURL().toLowerCase().includes('forms-builder'),
+        )
+        if (!child) return null
+        return child.webContents.executeJavaScript(`(() => {
         const title = document.querySelector('input[placeholder="Form title"]');
         const description = document.querySelector('input[placeholder="Form description (optional)"]');
         const canvas = document.querySelector('.forms-canvas');
@@ -67,35 +73,47 @@ test('Forms Builder authoring canvas follows ReveLith theme while respondent pre
           duplicateFileStatus: [...document.querySelectorAll('.revelith-app-ribbon-status')].some((node) => node.textContent?.trim() === 'Untitled Form'),
         };
       })()`)
-    })
+      })
 
     await expect.poll(readThemeStyles).not.toBeNull()
     await page.evaluate(() => window.aiOffice.setTheme('dark'))
     await expect.poll(async () => (await readThemeStyles())?.theme).toBe('dark')
-    await expect.poll(async () => (await readThemeStyles())?.formCanvasBackground).toBe('rgb(43, 43, 43)')
+    await expect
+      .poll(async () => (await readThemeStyles())?.formCanvasBackground)
+      .toBe('rgb(43, 43, 43)')
     const dark = await readThemeStyles()
-    const clickFormView = (title) => app.evaluate(async ({ BrowserWindow }, buttonTip) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
-        view.webContents.getURL().toLowerCase().includes('forms-builder'),
-      )
-      if (!child) return false
-      return child.webContents.executeJavaScript(`(() => {
+    const clickFormView = (title) =>
+      app.evaluate(
+        async ({ BrowserWindow }, buttonTip) => {
+          const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+            view.webContents.getURL().toLowerCase().includes('forms-builder'),
+          )
+          if (!child) return false
+          return child.webContents.executeJavaScript(`(() => {
         const button = [...document.querySelectorAll('button')].find((item) => item.getAttribute('data-tip') === ${JSON.stringify(buttonTip)});
         if (!button) return false;
         button.click();
         return true;
       })()`)
-    }, title === 'Preview' ? 'Preview as a respondent' : 'Return to the form editor')
+        },
+        title === 'Preview' ? 'Preview as a respondent' : 'Return to the form editor',
+      )
     expect(await clickFormView('Preview')).toBe(true)
     await expect.poll(async () => (await readThemeStyles())?.formPreview).toBe('true')
-    await expect.poll(async () => (await readThemeStyles())?.formCanvasBackground).toBe('rgb(248, 250, 252)')
+    await expect
+      .poll(async () => (await readThemeStyles())?.formCanvasBackground)
+      .toBe('rgb(248, 250, 252)')
     const darkPreview = await readThemeStyles()
     expect(await clickFormView('Design')).toBe(true)
     await expect.poll(async () => (await readThemeStyles())?.formPreview).toBe('false')
-    await expect.poll(async () => (await readThemeStyles())?.formCanvasBackground).toBe('rgb(43, 43, 43)')
+    await expect
+      .poll(async () => (await readThemeStyles())?.formCanvasBackground)
+      .toBe('rgb(43, 43, 43)')
     await page.evaluate(() => window.aiOffice.setTheme('light'))
     await expect.poll(async () => (await readThemeStyles())?.theme).toBe('light')
-    await expect.poll(async () => (await readThemeStyles())?.formCanvasBackground).toBe('rgb(230, 230, 230)')
+    await expect
+      .poll(async () => (await readThemeStyles())?.formCanvasBackground)
+      .toBe('rgb(230, 230, 230)')
     const light = await readThemeStyles()
     if (!dark || !light) throw new Error('Forms Builder theme state was not available.')
 
@@ -135,7 +153,10 @@ test('Forms Builder authoring canvas follows ReveLith theme while respondent pre
 })
 
 test('Tasks and Drawboard share the compact light/dark ReveLith ribbon', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'new-app-ribbon-themes' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'new-app-ribbon-themes',
+  })
 
   try {
     const apps = [
@@ -148,10 +169,13 @@ test('Tasks and Drawboard share the compact light/dark ReveLith ribbon', async (
         const api = window.aiOffice as unknown as Record<string, () => Promise<void>>
         await api[method]?.()
       }, item.method)
-      const readTheme = () => app.evaluate(async ({ webContents }, appInfo) => {
-        const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes(appInfo.urlSlug))
-        if (!child) return null
-        return child.executeJavaScript(`(async () => {
+      const readTheme = () =>
+        app.evaluate(async ({ webContents }, appInfo) => {
+          const child = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL().toLowerCase().includes(appInfo.urlSlug))
+          if (!child) return null
+          return child.executeJavaScript(`(async () => {
           const read = () => {
             const ribbon = document.querySelector('[data-revelith-ribbon]');
             const tabs = ribbon?.querySelector('[role="tablist"]');
@@ -179,14 +203,16 @@ test('Tasks and Drawboard share the compact light/dark ReveLith ribbon', async (
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           return { dark, light: read() };
         })()`)
-      }, item)
+        }, item)
       await expect.poll(readTheme, { timeout: 20_000 }).not.toBeNull()
       const styles = await readTheme()
       expect(styles?.dark.hasTitlebar, item.slug).toBe(false)
       expect(styles?.light.hasTitlebar, item.slug).toBe(false)
       expect(styles?.dark.label, item.slug).toContain('tools')
       expect(styles?.light.label, item.slug).toContain('tools')
-      expect(styles?.dark.workbenchBackground, item.slug).not.toBe(styles?.light.workbenchBackground)
+      expect(styles?.dark.workbenchBackground, item.slug).not.toBe(
+        styles?.light.workbenchBackground,
+      )
       expect(styles?.dark.usesOriginalComposer, item.slug).toBe(true)
       expect(styles?.dark.usesOriginalSideControl, item.slug).toBe(true)
       expect(styles?.dark.hasOriginalThinkingAnimation, item.slug).toBe(true)

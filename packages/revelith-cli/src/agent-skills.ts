@@ -216,7 +216,13 @@ export interface BundledSkill {
 export function bundledSkillFrom(bytes: Uint8Array): BundledSkill {
   const text = Buffer.from(bytes).toString('utf-8')
   const fm = parseSkillFrontmatter(text)
-  return { bytes, text, name: fm?.name ?? SKILL_NAME, version: fm?.version ?? '0.0.0', sha256: sha256(bytes) }
+  return {
+    bytes,
+    text,
+    name: fm?.name ?? SKILL_NAME,
+    version: fm?.version ?? '0.0.0',
+    sha256: sha256(bytes),
+  }
 }
 
 export function skillFilePath(skillsDir: string, name: string = SKILL_NAME): string {
@@ -277,7 +283,11 @@ export function installSkill(
 }
 
 /** Remove only what this app wrote; a folder holding other files keeps them. */
-export function uninstallSkill(skillsDir: string, ledger: SkillLedger, name: string = SKILL_NAME): boolean {
+export function uninstallSkill(
+  skillsDir: string,
+  ledger: SkillLedger,
+  name: string = SKILL_NAME,
+): boolean {
   const path = skillFilePath(skillsDir, name)
   if (!ledger[path]) return false
   rmSync(path, { force: true })

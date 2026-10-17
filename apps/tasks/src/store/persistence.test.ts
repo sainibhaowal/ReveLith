@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { boardWithProject, buildBoard, firstColumnId, projectId } from '../test/fixtures'
 import { reduce } from './reducer'
-import { DOCUMENT_VERSION, migrateLegacy, parseDocument, seedBoard, serializeDocument } from './migrate'
+import {
+  DOCUMENT_VERSION,
+  migrateLegacy,
+  parseDocument,
+  seedBoard,
+  serializeDocument,
+} from './migrate'
 import { loadBoard, loadFromStorage, saveToStorage, type StorageLike } from './persistence'
 
 /** In-memory StorageLike so persistence can be tested without jsdom storage. */
@@ -41,9 +47,33 @@ describe('migrateLegacy', () => {
   const legacy = {
     version: 1,
     tasks: [
-      { id: 'seed-1', title: 'Welcome to Tasks', notes: 'Drag cards around', status: 'todo', priority: 'medium', due: '', createdAt: 1 },
-      { id: 'seed-2', title: 'Second', notes: '', status: 'doing', priority: 'high', due: '2026-05-01', createdAt: 2 },
-      { id: 'seed-3', title: 'Third', notes: '', status: 'done', priority: 'low', due: '', createdAt: 3 },
+      {
+        id: 'seed-1',
+        title: 'Welcome to Tasks',
+        notes: 'Drag cards around',
+        status: 'todo',
+        priority: 'medium',
+        due: '',
+        createdAt: 1,
+      },
+      {
+        id: 'seed-2',
+        title: 'Second',
+        notes: '',
+        status: 'doing',
+        priority: 'high',
+        due: '2026-05-01',
+        createdAt: 2,
+      },
+      {
+        id: 'seed-3',
+        title: 'Third',
+        notes: '',
+        status: 'done',
+        priority: 'low',
+        due: '',
+        createdAt: 3,
+      },
     ],
   }
 
@@ -99,7 +129,20 @@ describe('parseDocument', () => {
   })
 
   it('reads a legacy document', () => {
-    const parsed = parseDocument({ version: 1, tasks: [{ id: 'a', title: 'Old task', status: 'todo', priority: 'high', due: '', notes: '', createdAt: 1 }] })
+    const parsed = parseDocument({
+      version: 1,
+      tasks: [
+        {
+          id: 'a',
+          title: 'Old task',
+          status: 'todo',
+          priority: 'high',
+          due: '',
+          notes: '',
+          createdAt: 1,
+        },
+      ],
+    })
     expect(parsed).not.toBeNull()
     expect(parsed!.tasks[0].title).toBe('Old task')
   })
@@ -166,7 +209,11 @@ describe('storage round trip', () => {
   it('preserves an old demo-named board as soon as the user edited it', () => {
     const storage = memoryStorage()
     const original = seedBoard()
-    const edited = reduce(original, { kind: 'task/update', id: original.tasks[0]!.id, patch: { title: 'My task' } })
+    const edited = reduce(original, {
+      kind: 'task/update',
+      id: original.tasks[0]!.id,
+      patch: { title: 'My task' },
+    })
     saveToStorage(storage, 'k', edited)
     const loaded = loadBoard(storage, 'k')
     expect(loaded.tasks[0]?.title).toBe('My task')
@@ -190,7 +237,14 @@ describe('document round trip preserves a real board', () => {
     const id = projectId(base)
     const state = reduce(
       reduce(base, { kind: 'customField/define', projectId: id, name: 'Points', type: 'number' }),
-      { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Rich task', description: 'Body', labelIds: [base.labels[0].id] },
+      {
+        kind: 'task/create',
+        projectId: id,
+        columnId: firstColumnId(base),
+        title: 'Rich task',
+        description: 'Body',
+        labelIds: [base.labels[0].id],
+      },
     )
     const restored = parseDocument(JSON.parse(JSON.stringify(serializeDocument(state))))!
     expect(restored.tasks).toHaveLength(1)

@@ -18,8 +18,17 @@ export function moveToWindowsRecycleBin(targetPath: string): Promise<void> {
   ].join('; ')
   const env: NodeJS.ProcessEnv = { REVELITH_TRASH_TARGET: targetPath }
   for (const key of [
-    'PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE',
-    'LOCALAPPDATA', 'APPDATA', 'HOMEDRIVE', 'HOMEPATH',
+    'PATH',
+    'Path',
+    'SystemRoot',
+    'WINDIR',
+    'TEMP',
+    'TMP',
+    'USERPROFILE',
+    'LOCALAPPDATA',
+    'APPDATA',
+    'HOMEDRIVE',
+    'HOMEPATH',
   ]) {
     const value = process.env[key]
     if (value) env[key] = value

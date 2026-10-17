@@ -19,10 +19,7 @@ const FOCUSABLE = [
  *
  * Focus is restored to whatever was focused before the dialog opened.
  */
-export function useFocusTrap(
-  ref: RefObject<HTMLElement | null>,
-  active: boolean
-): void {
+export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean): void {
   useEffect(() => {
     const node = ref.current
     if (!active || !node) return
@@ -31,7 +28,7 @@ export function useFocusTrap(
 
     const visibleFocusable = (): HTMLElement[] =>
       Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement
+        (el) => el.offsetParent !== null || el === document.activeElement,
       )
 
     const onKeyDown = (event: KeyboardEvent) => {

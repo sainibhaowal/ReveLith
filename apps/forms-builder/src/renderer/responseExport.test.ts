@@ -9,8 +9,18 @@ describe('local response export helpers', () => {
   })
 
   it('flattens nested response data while preserving readable field labels', () => {
-    const fields = [{ id: 'group', type: 'group', label: 'Contact', required: false, children: [{ id: 'email', type: 'email', label: 'Email', required: false }] }] as const
+    const fields = [
+      {
+        id: 'group',
+        type: 'group',
+        label: 'Contact',
+        required: false,
+        children: [{ id: 'email', type: 'email', label: 'Email', required: false }],
+      },
+    ] as const
     expect(flattenFieldLabels(fields as never)).toEqual([{ id: 'email', label: 'Contact / Email' }])
-    expect(flattenResponseAnswers(fields as never, { group: { email: 'person@example.test' } })).toMatchObject({ email: 'person@example.test' })
+    expect(
+      flattenResponseAnswers(fields as never, { group: { email: 'person@example.test' } }),
+    ).toMatchObject({ email: 'person@example.test' })
   })
 })

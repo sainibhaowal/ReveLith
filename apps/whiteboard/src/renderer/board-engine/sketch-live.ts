@@ -132,9 +132,18 @@ export function dimensionGeometry(request: DimensionRequest): DimensionGeometry 
   const angle = Math.atan2(by - ay, bx - ax)
   const spread = Math.PI / 7
   const strokes: Array<[[number, number], [number, number]]> = [
-    [[x1, y1], [x1 + normalX * reach, y1 + normalY * reach]],
-    [[x2, y2], [x2 + normalX * reach, y2 + normalY * reach]],
-    [[ax, ay], [bx, by]],
+    [
+      [x1, y1],
+      [x1 + normalX * reach, y1 + normalY * reach],
+    ],
+    [
+      [x2, y2],
+      [x2 + normalX * reach, y2 + normalY * reach],
+    ],
+    [
+      [ax, ay],
+      [bx, by],
+    ],
   ]
   for (const [pointX, pointY, direction] of [
     [ax, ay, angle + Math.PI],
@@ -170,7 +179,11 @@ export function readSketchModel(element: LiveElement): SketchModel | null {
   // A board written by an older or interrupted build can carry a partial model.
   // Every collection is validated before use: iterating a missing one threw
   // "object is not iterable" and took the whole board down with it.
-  if (!Array.isArray(model.segments) || !Array.isArray(model.circles) || !Array.isArray(model.dimensions)) {
+  if (
+    !Array.isArray(model.segments) ||
+    !Array.isArray(model.circles) ||
+    !Array.isArray(model.dimensions)
+  ) {
     return null
   }
   const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0
@@ -178,11 +191,17 @@ export function readSketchModel(element: LiveElement): SketchModel | null {
     !!value && typeof value === 'object' && !Array.isArray(value)
   if (
     !text(model.id) ||
-    !Number.isFinite(model.originX) || !Number.isFinite(model.originY) ||
-    !Number.isFinite(model.scale) || model.scale === 0 ||
-    !model.points.every((point) => record(point) && text(point.id) && Number.isFinite(point.x) && Number.isFinite(point.y)) ||
+    !Number.isFinite(model.originX) ||
+    !Number.isFinite(model.originY) ||
+    !Number.isFinite(model.scale) ||
+    model.scale === 0 ||
+    !model.points.every(
+      (point) =>
+        record(point) && text(point.id) && Number.isFinite(point.x) && Number.isFinite(point.y),
+    ) ||
     !model.constraints.every((constraint) => record(constraint) && text(constraint.kind))
-  ) return null
+  )
+    return null
   for (const link of model.segments) {
     if (!record(link) || !text(link.elementId) || !text(link.a) || !text(link.b)) return null
   }
@@ -251,10 +270,7 @@ export function rewriteLine(
 }
 
 /** Sketch coordinates → canvas coordinates. */
-export function toCanvas(
-  model: SketchModel,
-  point: { x: number; y: number },
-): [number, number] {
+export function toCanvas(model: SketchModel, point: { x: number; y: number }): [number, number] {
   return [model.originX + point.x * model.scale, model.originY + point.y * model.scale]
 }
 
@@ -385,7 +401,9 @@ export function rebuildSketch(
     const center = position.get(link.center)
     const rim = link.rim ? position.get(link.rim) : undefined
     if (!element || !center) continue
-    const radius = rim ? Math.hypot(rim[0] - center[0], rim[1] - center[1]) : (element.width ?? 0) / 2
+    const radius = rim
+      ? Math.hypot(rim[0] - center[0], rim[1] - center[1])
+      : (element.width ?? 0) / 2
     if (!(radius > 0)) continue
     patches.set(link.elementId, {
       ...element,
@@ -425,8 +443,7 @@ export function rebuildSketch(
         ...label,
         x: geometry.midX - Math.max(60, Math.round(text.length * link.labelSize * 0.62)) / 2,
         y:
-          geometry.midY +
-          (geometry.normalY >= 0 ? link.labelGap : -link.labelSize - link.labelGap),
+          geometry.midY + (geometry.normalY >= 0 ? link.labelGap : -link.labelSize - link.labelGap),
         text,
       })
     }

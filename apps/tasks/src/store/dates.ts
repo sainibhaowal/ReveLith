@@ -72,8 +72,18 @@ export function shiftMonth(month: string, delta: number): string {
 }
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 
 export function monthLabel(month: string): string {
@@ -105,7 +115,8 @@ export interface Span {
 export function spanOf(startDate: string | null, dueDate: string | null): Span | null {
   if (!startDate && !dueDate) return null
   const start = startDate ?? dueDate!
-  const end = startDate && dueDate ? (startDate > dueDate ? startDate : dueDate) : (dueDate ?? startDate)!
+  const end =
+    startDate && dueDate ? (startDate > dueDate ? startDate : dueDate) : (dueDate ?? startDate)!
   return { start, end }
 }
 

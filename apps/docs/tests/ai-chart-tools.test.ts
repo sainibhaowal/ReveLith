@@ -103,7 +103,11 @@ describe('insert_chart tool', () => {
       expect(exec.isError).toBeUndefined()
       const node = editor.state.doc.child(1)
       expect((node.attrs.genChart as { kind: string }).kind).toBe(kind)
-      const display = node.attrs.chartDisplay as { kind: string; holePct?: number; series: unknown[] }
+      const display = node.attrs.chartDisplay as {
+        kind: string
+        holePct?: number
+        series: unknown[]
+      }
       expect(display.kind).toBe(kind === 'doughnut' ? 'pie' : kind)
       expect(display.series).toHaveLength(kind === 'doughnut' ? 1 : 2)
       if (kind === 'doughnut') expect(display.holePct).toBe(50)

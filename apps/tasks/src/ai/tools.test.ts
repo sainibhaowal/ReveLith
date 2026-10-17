@@ -12,8 +12,20 @@ function storeWithBoard(): BoardStore {
   const id = projectId(base)
   const setup: Action[] = [
     { kind: 'customField/define', projectId: id, name: 'Points', type: 'number' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Write the spec', priority: 'high' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Ship the build', priority: 'urgent' },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Write the spec',
+      priority: 'high',
+    },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Ship the build',
+      priority: 'urgent',
+    },
   ]
   return new BoardStore(setup.reduce(reduce, base))
 }
@@ -208,14 +220,22 @@ describe('task tools', () => {
 
   it('filters by column name, priority and label', () => {
     const store = storeWithBoard()
-    expect(JSON.parse(call(store, 'list_tasks', { ticket: true, priority: 'urgent' }).output)).toHaveLength(1)
-    expect(JSON.parse(call(store, 'list_tasks', { ticket: true, column: 'In Progress' }).output)).toHaveLength(0)
+    expect(
+      JSON.parse(call(store, 'list_tasks', { ticket: true, priority: 'urgent' }).output),
+    ).toHaveLength(1)
+    expect(
+      JSON.parse(call(store, 'list_tasks', { ticket: true, column: 'In Progress' }).output),
+    ).toHaveLength(0)
     expect(call(store, 'list_tasks', { column: 'Nope' }).isError).toBe(true)
   })
 
   it('creates a task and assigns its ticket number', () => {
     const store = storeWithBoard()
-    const result = call(store, 'create_task', { title: 'New work', column: 'Review', priority: 'high' })
+    const result = call(store, 'create_task', {
+      title: 'New work',
+      column: 'Review',
+      priority: 'high',
+    })
     expect(result.mutated).toBe(true)
     expect(store.getState().tasks.at(-1)?.title).toBe('New work')
     expect(result.output).toContain('WEB-3')
@@ -245,7 +265,11 @@ describe('task tools', () => {
 
   it('clears a due date on an empty string but leaves it when omitted', () => {
     const store = storeWithBoard()
-    store.dispatch({ kind: 'task/update', id: store.getState().tasks[0].id, patch: { dueDate: '2026-06-01' } })
+    store.dispatch({
+      kind: 'task/update',
+      id: store.getState().tasks[0].id,
+      patch: { dueDate: '2026-06-01' },
+    })
     call(store, 'update_task', { task: 'WEB-1', title: 'Renamed' })
     expect(store.getState().tasks[0].dueDate).toBe('2026-06-01')
     call(store, 'update_task', { task: 'WEB-1', dueDate: '' })
@@ -267,7 +291,9 @@ describe('task tools', () => {
   it('moves a task to a named column', () => {
     const store = storeWithBoard()
     call(store, 'move_task', { task: 'WEB-1', column: 'Review' })
-    const column = store.getState().columns.find((entry) => entry.id === store.getState().tasks[0].columnId)
+    const column = store
+      .getState()
+      .columns.find((entry) => entry.id === store.getState().tasks[0].columnId)
     expect(column?.name).toBe('Review')
   })
 
@@ -382,20 +408,30 @@ describe('custom field tools', () => {
 
   it('rejects a non-numeric value for a number field', () => {
     const store = storeWithBoard()
-    expect(call(store, 'set_custom_field_value', { task: 'WEB-1', field: 'Points', value: 'abc' }).isError).toBe(true)
+    expect(
+      call(store, 'set_custom_field_value', { task: 'WEB-1', field: 'Points', value: 'abc' })
+        .isError,
+    ).toBe(true)
   })
 
   it('requires options for a select field', () => {
     const store = storeWithBoard()
     expect(call(store, 'define_custom_field', { name: 'Stage', type: 'select' }).isError).toBe(true)
-    expect(call(store, 'define_custom_field', { name: 'Stage', type: 'select', options: ['A', 'B'] }).isError).toBeUndefined()
+    expect(
+      call(store, 'define_custom_field', { name: 'Stage', type: 'select', options: ['A', 'B'] })
+        .isError,
+    ).toBeUndefined()
   })
 
   it('validates select options and clears with null', () => {
     const store = storeWithBoard()
     call(store, 'define_custom_field', { name: 'Stage', type: 'select', options: ['A', 'B'] })
-    expect(call(store, 'set_custom_field_value', { task: 'WEB-1', field: 'Stage', value: 'C' }).isError).toBe(true)
-    expect(call(store, 'set_custom_field_value', { task: 'WEB-1', field: 'Stage', value: 'A' }).isError).toBeUndefined()
+    expect(
+      call(store, 'set_custom_field_value', { task: 'WEB-1', field: 'Stage', value: 'C' }).isError,
+    ).toBe(true)
+    expect(
+      call(store, 'set_custom_field_value', { task: 'WEB-1', field: 'Stage', value: 'A' }).isError,
+    ).toBeUndefined()
     call(store, 'set_custom_field_value', { task: 'WEB-1', field: 'Stage', value: null })
     const field = store.getState().customFields.find((entry) => entry.name === 'Stage')!
     expect(store.getState().tasks[0].customFields[field.id]).toBeNull()
@@ -418,7 +454,9 @@ describe('sub-task and relation tools', () => {
 
   it('links and unlinks tasks, and reports an existing link', () => {
     const store = storeWithBoard()
-    expect(call(store, 'link_tasks', { task: 'WEB-2', target: 'WEB-1', type: 'blocked_by' }).mutated).toBe(true)
+    expect(
+      call(store, 'link_tasks', { task: 'WEB-2', target: 'WEB-1', type: 'blocked_by' }).mutated,
+    ).toBe(true)
     const repeat = call(store, 'link_tasks', { task: 'WEB-2', target: 'WEB-1', type: 'blocked_by' })
     expect(repeat.mutated).toBe(false)
     expect(repeat.summary).toContain('already')
@@ -498,7 +536,11 @@ describe('search, summary and export', () => {
 
   it('quotes csv cells containing commas and quotes', () => {
     const store = storeWithBoard()
-    store.dispatch({ kind: 'task/update', id: store.getState().tasks[0].id, patch: { title: 'A, B "quoted"' } })
+    store.dispatch({
+      kind: 'task/update',
+      id: store.getState().tasks[0].id,
+      patch: { title: 'A, B "quoted"' },
+    })
     const csv = call(store, 'export_board', { project: 'WEB', format: 'csv' }).output
     expect(csv).toContain('"A, B ""quoted"""')
   })
@@ -525,7 +567,11 @@ describe('empty board behaviour', () => {
 })
 
 describe('skill wiring', () => {
-  const call = (skill: ReturnType<typeof createSkill>, name: string, input: Record<string, unknown> = {}) => ({
+  const call = (
+    skill: ReturnType<typeof createSkill>,
+    name: string,
+    input: Record<string, unknown> = {},
+  ) => ({
     id: `call_${name}`,
     name,
     input,
@@ -586,12 +632,18 @@ describe('skill wiring', () => {
   it('routes and performs a checklist end to end on a blank board', () => {
     const store = new BoardStore(buildBoard())
     const skill = createSkill(store)
-    const request = 'Create a launch checklist: put each task in Backlog, In Progress, or Review, set priorities, and link blockers.'
+    const request =
+      'Create a launch checklist: put each task in Backlog, In Progress, or Review, set priorities, and link blockers.'
     const names = skill.toolsForRequest!(request).map((tool) => tool.name)
-    expect(names).toEqual(expect.arrayContaining(['create_project', 'create_task', 'move_task', 'link_tasks']))
+    expect(names).toEqual(
+      expect.arrayContaining(['create_project', 'create_task', 'move_task', 'link_tasks']),
+    )
 
-    const execute = (name: string, input: Record<string, unknown> = {}) => skill.executeTool({ id: `test_${name}`, name, input }) as ToolResult
-    expect(execute('create_project', { name: '0.10.100 Release', key: 'REL' }).isError).toBeUndefined()
+    const execute = (name: string, input: Record<string, unknown> = {}) =>
+      skill.executeTool({ id: `test_${name}`, name, input }) as ToolResult
+    expect(
+      execute('create_project', { name: '0.10.100 Release', key: 'REL' }).isError,
+    ).toBeUndefined()
     for (const task of [
       { title: 'Prepare release notes', column: 'Backlog', priority: 'high' },
       { title: 'Build artifacts', column: 'In Progress', priority: 'urgent' },
@@ -599,13 +651,17 @@ describe('skill wiring', () => {
     ]) {
       expect(execute('create_task', { ...task, project: 'REL' }).isError).toBeUndefined()
     }
-    expect(execute('link_tasks', {
-      task: 'Release approval',
-      target: 'Build artifacts',
-      type: 'blocked_by',
-    }).isError).toBeUndefined()
+    expect(
+      execute('link_tasks', {
+        task: 'Release approval',
+        target: 'Build artifacts',
+        type: 'blocked_by',
+      }).isError,
+    ).toBeUndefined()
 
-    const rows = JSON.parse(execute('list_tasks', { project: 'REL', ticket: true }).output) as Array<{
+    const rows = JSON.parse(
+      execute('list_tasks', { project: 'REL', ticket: true }).output,
+    ) as Array<{
       title: string
       column: string
       priority: string
@@ -639,7 +695,11 @@ describe('skill wiring', () => {
     expect(context).not.toContain(other!.title)
     expect(context).toContain('x=18, y=42, width=260, height=96')
     const skill = createSkill(store)
-    expect(skill.toolsForRequest!(`[revelith-task-selection:v1 ids=${encodeURIComponent(selected!.id)}]`)).toEqual([])
+    expect(
+      skill.toolsForRequest!(
+        `[revelith-task-selection:v1 ids=${encodeURIComponent(selected!.id)}]`,
+      ),
+    ).toEqual([])
   })
 
   it('reports an empty board plainly', () => {
@@ -649,7 +709,13 @@ describe('skill wiring', () => {
 
 describe('destructive tools are explicit', () => {
   it('describes the risk in the tool description', () => {
-    for (const name of ['delete_task', 'delete_project', 'delete_label', 'delete_column', 'delete_saved_view']) {
+    for (const name of [
+      'delete_task',
+      'delete_project',
+      'delete_label',
+      'delete_column',
+      'delete_saved_view',
+    ]) {
       expect(getTool(name)!.description).toMatch(/undo|permanent|instead/i)
     }
   })
@@ -660,7 +726,14 @@ describe('actions are dispatched through the reducer', () => {
     const store = storeWithBoard()
     const before = store.getState()
     const snapshot = JSON.stringify(before)
-    const actions: Action[] = [{ kind: 'task/create', projectId: projectId(before), columnId: firstColumnId(before), title: 'New' }]
+    const actions: Action[] = [
+      {
+        kind: 'task/create',
+        projectId: projectId(before),
+        columnId: firstColumnId(before),
+        title: 'New',
+      },
+    ]
     for (const action of actions) store.dispatch(action)
     expect(JSON.stringify(before)).toBe(snapshot)
     expect(store.getState()).not.toBe(before)

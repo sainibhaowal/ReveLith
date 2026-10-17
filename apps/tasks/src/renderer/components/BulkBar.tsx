@@ -48,8 +48,14 @@ export function BulkBar({
           label="Move to column"
           value=""
           placeholder="Move to…"
-          options={columns.map((column) => ({ value: column.id, label: column.name, color: column.color }))}
-          onChange={(value) => { if (value) dispatch({ kind: 'bulk/move', ids: selectedIds, columnId: value }) }}
+          options={columns.map((column) => ({
+            value: column.id,
+            label: column.name,
+            color: column.color,
+          }))}
+          onChange={(value) => {
+            if (value) dispatch({ kind: 'bulk/move', ids: selectedIds, columnId: value })
+          }}
           className="tasks-bulk-select tasks-bulk-select-column"
         />
       ) : null}
@@ -63,7 +69,14 @@ export function BulkBar({
           label: PRIORITY_LABEL[priority],
           color: PRIORITY_COLOR_NAME[priority],
         }))}
-        onChange={(value) => { if (value) dispatch({ kind: 'bulk/update', ids: selectedIds, patch: { priority: value as Priority } }) }}
+        onChange={(value) => {
+          if (value)
+            dispatch({
+              kind: 'bulk/update',
+              ids: selectedIds,
+              patch: { priority: value as Priority },
+            })
+        }}
         className="tasks-bulk-select tasks-bulk-select-priority"
       />
 
@@ -71,8 +84,21 @@ export function BulkBar({
         label="Set assignee"
         value=""
         placeholder="Assign to…"
-        options={[...state.members.map((member) => ({ value: member.id, label: member.name, color: member.color })), { value: '__none__', label: 'Unassign' }]}
-        onChange={(value) => dispatch({ kind: 'bulk/update', ids: selectedIds, patch: { assigneeId: value === '__none__' || !value ? null : value } })}
+        options={[
+          ...state.members.map((member) => ({
+            value: member.id,
+            label: member.name,
+            color: member.color,
+          })),
+          { value: '__none__', label: 'Unassign' },
+        ]}
+        onChange={(value) =>
+          dispatch({
+            kind: 'bulk/update',
+            ids: selectedIds,
+            patch: { assigneeId: value === '__none__' || !value ? null : value },
+          })
+        }
         className="tasks-bulk-select tasks-bulk-select-assignee"
       />
 
@@ -82,7 +108,11 @@ export function BulkBar({
         style={{ ...miniSelect, padding: '3px 6px' }}
         onChange={(event) => {
           if (event.target.value) {
-            dispatch({ kind: 'bulk/update', ids: selectedIds, patch: { dueDate: event.target.value } })
+            dispatch({
+              kind: 'bulk/update',
+              ids: selectedIds,
+              patch: { dueDate: event.target.value },
+            })
           }
         }}
       />
@@ -90,7 +120,9 @@ export function BulkBar({
       <button
         style={btnGhost}
         type="button"
-        onClick={() => dispatch({ kind: 'bulk/update', ids: selectedIds, patch: { archived: true } })}
+        onClick={() =>
+          dispatch({ kind: 'bulk/update', ids: selectedIds, patch: { archived: true } })
+        }
       >
         Archive
       </button>

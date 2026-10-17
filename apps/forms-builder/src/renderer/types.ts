@@ -93,7 +93,21 @@ export interface FormField {
     match?: 'all' | 'any'
     showWhen: {
       fieldId: string
-      operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'greater_or_equal_than' | 'less_than' | 'less_or_equal_than' | 'is_before' | 'is_after' | 'is_empty' | 'is_not_empty'
+      operator:
+        | 'equals'
+        | 'not_equals'
+        | 'contains'
+        | 'not_contains'
+        | 'starts_with'
+        | 'ends_with'
+        | 'greater_than'
+        | 'greater_or_equal_than'
+        | 'less_than'
+        | 'less_or_equal_than'
+        | 'is_before'
+        | 'is_after'
+        | 'is_empty'
+        | 'is_not_empty'
       value: string
     }[]
   }
@@ -135,13 +149,27 @@ export interface FormTheme {
   labelPosition?: 'top' | 'left'
 }
 
-export type FormFieldTranslation = Partial<Pick<FormField, 'label' | 'placeholder' | 'helpText' | 'sectionDescription' | 'buttonText' | 'termsText'>> & { optionLabels?: Record<string, string> }
+export type FormFieldTranslation = Partial<
+  Pick<
+    FormField,
+    'label' | 'placeholder' | 'helpText' | 'sectionDescription' | 'buttonText' | 'termsText'
+  >
+> & { optionLabels?: Record<string, string> }
 
 export interface FormTranslation {
   title?: string
   description?: string
   fields?: Record<string, FormFieldTranslation>
-  settings?: Partial<Pick<FormSettings, 'submitButtonText' | 'confirmationTitle' | 'confirmationMessage' | 'confirmationButtonText' | 'closedMessage'>>
+  settings?: Partial<
+    Pick<
+      FormSettings,
+      | 'submitButtonText'
+      | 'confirmationTitle'
+      | 'confirmationMessage'
+      | 'confirmationButtonText'
+      | 'closedMessage'
+    >
+  >
 }
 
 export interface FormSchema {
@@ -180,7 +208,13 @@ export interface FormLogicCondition {
 
 export type FormLogicAction =
   | { kind: 'navigate'; fieldId: string }
-  | { kind: 'calculate'; variableId: string; operation: 'assign' | 'add' | 'subtract' | 'multiply' | 'divide'; value?: number | string; sourceFieldId?: string }
+  | {
+      kind: 'calculate'
+      variableId: string
+      operation: 'assign' | 'add' | 'subtract' | 'multiply' | 'divide'
+      value?: number | string
+      sourceFieldId?: string
+    }
 
 export interface FormLogicRule {
   id: string

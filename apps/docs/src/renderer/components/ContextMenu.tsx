@@ -204,14 +204,15 @@ export function EditorContextMenu({
   // Chromium's context-menu event can lag the right-click and report an empty
   // or previous word. Check the word at the editor caret instead of attaching
   // that stale spelling data to the current menu.
-  const spell = !menu.imageSrc && spellcheckEnabled() && editor.isEditable
-    ? checkedClickedWord ?? (clickedWord ? null : menu.spell)
-    : null
+  const spell =
+    !menu.imageSrc && spellcheckEnabled() && editor.isEditable
+      ? (checkedClickedWord ?? (clickedWord ? null : menu.spell))
+      : null
   // Electron's Windows checker sometimes returns no per-word metadata for a
   // later misspelling. Keep an explicit Add to Dictionary action for the
   // actual word under the pointer even when suggestions are unavailable.
-  const dictionaryWord = spell?.word ??
-    (spellcheckEnabled() && editor.isEditable ? clickedWord : null)
+  const dictionaryWord =
+    spell?.word ?? (spellcheckEnabled() && editor.isEditable ? clickedWord : null)
   const [spellLangs, setSpellLangs] = useState<SpellLanguages | null>(null)
   useEffect(() => {
     if (!spell) return

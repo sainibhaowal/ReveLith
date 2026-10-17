@@ -25,7 +25,9 @@ export function buildCommands(
   state: BoardState,
   actions: {
     openTask: (id: ID) => void
-    setView: (view: 'board' | 'list' | 'backlog' | 'calendar' | 'gantt' | 'activity' | 'mytasks') => void
+    setView: (
+      view: 'board' | 'list' | 'backlog' | 'calendar' | 'gantt' | 'activity' | 'mytasks',
+    ) => void
     newTask: () => void
     newProject: () => void
     newLabel: () => void
@@ -51,7 +53,8 @@ export function buildCommands(
         .filter(Boolean)
         .join(' · '),
       group: 'Tasks',
-      keywords: `${task.title} ${ticketId(state, task)} ${labels.map((l) => l.name).join(' ')} ${task.description}`.toLowerCase(),
+      keywords:
+        `${task.title} ${ticketId(state, task)} ${labels.map((l) => l.name).join(' ')} ${task.description}`.toLowerCase(),
       run: () => actions.openTask(task.id),
     })
   }
@@ -67,7 +70,11 @@ export function buildCommands(
     })
   }
 
-  const views: { id: Command['group']; label: string; view: Parameters<typeof actions.setView>[0] }[] = [
+  const views: {
+    id: Command['group']
+    label: string
+    view: Parameters<typeof actions.setView>[0]
+  }[] = [
     { id: 'views', label: 'Board', view: 'board' },
     { id: 'views', label: 'List', view: 'list' },
     { id: 'views', label: 'Backlog', view: 'backlog' },
@@ -95,7 +102,13 @@ export function buildCommands(
     ['Clear filters', 'reset search filters show all', actions.clearFilters],
   ]
   for (const [title, keywords, run] of simple) {
-    commands.push({ id: `do:${title}`, title, group: 'Actions', keywords: keywords.toLowerCase(), run })
+    commands.push({
+      id: `do:${title}`,
+      title,
+      group: 'Actions',
+      keywords: keywords.toLowerCase(),
+      run,
+    })
   }
 
   for (const priority of PRIORITIES) {
@@ -152,7 +165,10 @@ export function CommandPalette({
       const score = scoreCommand(command, needle)
       if (score > 0) scored.push({ command, score })
     }
-    return scored.sort((a, b) => b.score - a.score).slice(0, 60).map((entry) => entry.command)
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 60)
+      .map((entry) => entry.command)
   }, [commands, query])
 
   if (!open) return null
@@ -217,29 +233,46 @@ export function CommandPalette({
             results.map((command, index) => {
               const showGroup = command.group !== lastGroup
               lastGroup = command.group
-              const assignee =
-                command.id.startsWith('task:')
-                  ? state.members.find(
-                      (member) => member.id === state.tasks.find((t) => `task:${t.id}` === command.id)?.assigneeId,
-                    )
-                  : undefined
+              const assignee = command.id.startsWith('task:')
+                ? state.members.find(
+                    (member) =>
+                      member.id ===
+                      state.tasks.find((t) => `task:${t.id}` === command.id)?.assigneeId,
+                  )
+                : undefined
               return (
                 <div key={command.id}>
-                  {showGroup ? <div className="tasks-command-group" style={group}>{command.group}</div> : null}
+                  {showGroup ? (
+                    <div className="tasks-command-group" style={group}>
+                      {command.group}
+                    </div>
+                  ) : null}
                   <button
                     className="tasks-command-option"
                     role="option"
                     aria-selected={index === cursor}
                     type="button"
-                    style={{ ...option, background: index === cursor ? 'var(--accent-soft)' : 'transparent' }}
+                    style={{
+                      ...option,
+                      background: index === cursor ? 'var(--accent-soft)' : 'transparent',
+                    }}
                     onMouseEnter={() => setCursor(index)}
                     onClick={() => runAt(index)}
                   >
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span
+                      style={{
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {command.title}
                     </span>
                     {command.hint ? <span style={hint}>{command.hint}</span> : null}
-                    {assignee ? <Avatar name={assignee.name} color={assignee.color} size={16} /> : null}
+                    {assignee ? (
+                      <Avatar name={assignee.name} color={assignee.color} size={16} />
+                    ) : null}
                   </button>
                 </div>
               )

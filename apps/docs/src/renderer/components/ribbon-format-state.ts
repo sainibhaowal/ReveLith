@@ -277,9 +277,11 @@ export function computeFormatState(
 
   const protAttrs = editor.getAttributes('docProtected')
   const imageSelected = protAttrs.blockType === 'image' && !!protAttrs.imageDataUrl
-  const chartDisplay = protAttrs.chartDisplay as
-    | { series?: unknown[]; widthPx?: number; heightPx?: number }
-    | null
+  const chartDisplay = protAttrs.chartDisplay as {
+    series?: unknown[]
+    widthPx?: number
+    heightPx?: number
+  } | null
   const chartSelected = Array.isArray(chartDisplay?.series) && chartDisplay.series.length > 0
 
   const textAttrs = ed.getAttributes('docTextStyle')

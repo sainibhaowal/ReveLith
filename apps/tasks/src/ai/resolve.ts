@@ -102,7 +102,9 @@ export function resolveLabel(state: BoardState, projectId: ID, input: unknown): 
   if (typeof input !== 'string' || !input.trim()) return MISS
   const needle = input.trim()
   const lowered = needle.toLowerCase()
-  const labels = state.labels.filter((label) => label.projectId === null || label.projectId === projectId)
+  const labels = state.labels.filter(
+    (label) => label.projectId === null || label.projectId === projectId,
+  )
 
   const byId = labels.find((label) => label.id === needle)
   if (byId) return { value: byId, via: 'id' }

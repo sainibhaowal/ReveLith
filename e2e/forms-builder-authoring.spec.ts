@@ -2,36 +2,73 @@ import { expect, test } from '@playwright/test'
 import { launchShell } from './helpers'
 
 test('Forms Builder ribbon, respondent preview, validation, and local response export surface', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-authoring' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-authoring',
+  })
 
   try {
     await app.evaluate(({ app }) => {
       const events: Array<Record<string, unknown>> = []
-      ;(globalThis as typeof globalThis & { __formsEvents?: Array<Record<string, unknown>> }).__formsEvents = events
+      ;(
+        globalThis as typeof globalThis & { __formsEvents?: Array<Record<string, unknown>> }
+      ).__formsEvents = events
       app.on('web-contents-created', (_event, contents) => {
-        contents.on('did-fail-load', (_loadEvent, code, description, url) => events.push({ type: 'fail', code, description, url }))
-        contents.on('did-finish-load', () => events.push({ type: 'finish', url: contents.getURL() }))
-        contents.on('render-process-gone', (_goneEvent, details) => events.push({ type: 'gone', details }))
-        contents.on('console-message', (_consoleEvent, level, message, line, sourceId) => events.push({ type: 'console', level, message, line, sourceId }))
+        contents.on('did-fail-load', (_loadEvent, code, description, url) =>
+          events.push({ type: 'fail', code, description, url }),
+        )
+        contents.on('did-finish-load', () =>
+          events.push({ type: 'finish', url: contents.getURL() }),
+        )
+        contents.on('render-process-gone', (_goneEvent, details) =>
+          events.push({ type: 'gone', details }),
+        )
+        contents.on('console-message', (_consoleEvent, level, message, line, sourceId) =>
+          events.push({ type: 'console', level, message, line, sourceId }),
+        )
       })
     })
     await page.evaluate(async () => {
       await window.aiOffice.newFormsBuilder()
     })
 
-    const readFormsUi = async () => app.evaluate(async ({ BrowserWindow, app, webContents }) => {
-      const views = BrowserWindow.getAllWindows()[0]?.contentView.children ?? []
-      const candidates = webContents.getAllWebContents()
-      const child = candidates.find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      if (!child) return { ready: false, tabs: [], hasChat: false, urls: await Promise.all(candidates.map(async (contents) => ({ url: contents.getURL(), title: contents.getTitle(), loading: contents.isLoading(), crashed: contents.isCrashed(), id: contents.id, document: await contents.executeJavaScript('({ href: location.href, readyState: document.readyState, title: document.title, body: document.body?.innerText?.slice(0,200) })').catch(() => null) }))), viewIds: views.map((view) => view.webContents.id), appPath: app.getAppPath() }
-      return child.executeJavaScript(`(() => ({
+    const readFormsUi = async () =>
+      app.evaluate(async ({ BrowserWindow, app, webContents }) => {
+        const views = BrowserWindow.getAllWindows()[0]?.contentView.children ?? []
+        const candidates = webContents.getAllWebContents()
+        const child = candidates.find((contents) =>
+          contents.getURL().toLowerCase().includes('forms-builder'),
+        )
+        if (!child)
+          return {
+            ready: false,
+            tabs: [],
+            hasChat: false,
+            urls: await Promise.all(
+              candidates.map(async (contents) => ({
+                url: contents.getURL(),
+                title: contents.getTitle(),
+                loading: contents.isLoading(),
+                crashed: contents.isCrashed(),
+                id: contents.id,
+                document: await contents
+                  .executeJavaScript(
+                    '({ href: location.href, readyState: document.readyState, title: document.title, body: document.body?.innerText?.slice(0,200) })',
+                  )
+                  .catch(() => null),
+              })),
+            ),
+            viewIds: views.map((view) => view.webContents.id),
+            appPath: app.getAppPath(),
+          }
+        return child.executeJavaScript(`(() => ({
         ready: Boolean(document.querySelector('.revelith-app-ribbon')),
         tabs: [...document.querySelectorAll('.revelith-app-ribbon [role="tab"]')].map((tab) => tab.innerText.trim()),
         hasChat: document.querySelector('.revelith-app-chat[data-collapsed="false"]') !== null,
         chatTransition: (() => { const chat = document.querySelector('.revelith-app-chat'); return chat ? getComputedStyle(chat).transitionProperty + ' ' + getComputedStyle(chat).transitionDuration : '' })(),
         hasRedundantTitlebar: document.querySelector('.revelith-app-ribbon-titlebar') !== null,
       }))()`)
-    })
+      })
 
     await expect.poll(readFormsUi).toMatchObject({
       ready: true,
@@ -121,29 +158,54 @@ test('Forms Builder ribbon, respondent preview, validation, and local response e
       })()`)
     })
 
-    expect(previewResult).toEqual({ validationWorks: true, submitted: true, quizScoreShown: true, localResponseSaved: true, quizScoreStored: true, fullDetailsVisible: true, searchFiltersResponses: true })
+    expect(previewResult).toEqual({
+      validationWorks: true,
+      submitted: true,
+      quizScoreShown: true,
+      localResponseSaved: true,
+      quizScoreStored: true,
+      fullDetailsVisible: true,
+      searchFiltersResponses: true,
+    })
   } finally {
-    await app.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
-    }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })
 
 test('a fresh Forms Builder tab restores its local draft when that tab reloads', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-draft-reload' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-draft-reload',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    const findFormsTab = async () => app.evaluate(({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      return child?.executeJavaScript(`({ ready: Boolean(document.querySelector('.revelith-app-ribbon')), freshFlag: new URL(location.href).searchParams.has('newDocument') })`) ?? null
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
     })
+    const findFormsTab = async () =>
+      app.evaluate(({ webContents }) => {
+        const child = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+        return (
+          child?.executeJavaScript(
+            `({ ready: Boolean(document.querySelector('.revelith-app-ribbon')), freshFlag: new URL(location.href).searchParams.has('newDocument') })`,
+          ) ?? null
+        )
+      })
     await expect.poll(findFormsTab).toMatchObject({ ready: true, freshFlag: false })
 
-    const createDraft = async () => app.evaluate(async ({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      if (!child) throw new Error('Forms Builder tab did not load')
-      return child.executeJavaScript(`(async () => {
+    const createDraft = async () =>
+      app.evaluate(async ({ webContents }) => {
+        const child = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+        if (!child) throw new Error('Forms Builder tab did not load')
+        return child.executeJavaScript(`(async () => {
         const insert = [...document.querySelectorAll('[role="tab"]')].find((tab) => tab.innerText.trim() === 'Insert');
         insert?.click();
         await new Promise((resolve) => setTimeout(resolve, 20));
@@ -152,35 +214,65 @@ test('a fresh Forms Builder tab restores its local draft when that tab reloads',
         await new Promise((resolve) => setTimeout(resolve, 100));
         return { key: Object.keys(localStorage).find((key) => key.startsWith('revelith-forms-builder/draft/')), fieldCount: JSON.parse(localStorage.getItem(Object.keys(localStorage).find((key) => key.startsWith('revelith-forms-builder/draft/')) || '') || '{}').fields?.length };
       })()`)
-    })
+      })
     const beforeReload = await createDraft()
     expect(beforeReload.fieldCount).toBe(1)
 
     await app.evaluate(({ webContents }) => {
-      webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))?.reload()
+      webContents
+        .getAllWebContents()
+        .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+        ?.reload()
     })
-    await expect.poll(async () => app.evaluate(({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      return child?.executeJavaScript(`({ ready: Boolean(document.querySelector('.revelith-app-ribbon')), fields: (() => { const key = Object.keys(localStorage).find((item) => item.startsWith('revelith-forms-builder/draft/')); return key ? JSON.parse(localStorage.getItem(key)).fields.length : -1 })() })`) ?? null
-    })).toMatchObject({ ready: true, fields: 1 })
+    await expect
+      .poll(async () =>
+        app.evaluate(({ webContents }) => {
+          const child = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+          return (
+            child?.executeJavaScript(
+              `({ ready: Boolean(document.querySelector('.revelith-app-ribbon')), fields: (() => { const key = Object.keys(localStorage).find((item) => item.startsWith('revelith-forms-builder/draft/')); return key ? JSON.parse(localStorage.getItem(key)).fields.length : -1 })() })`,
+            ) ?? null
+          )
+        }),
+      )
+      .toMatchObject({ ready: true, fields: 1 })
   } finally {
     await app.close()
   }
 })
 
 test('a new Forms task starts blank and can restore a local draft from an earlier app session', async () => {
-  const first = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-recovery-first-session' })
+  const first = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-recovery-first-session',
+  })
   let second: Awaited<ReturnType<typeof launchShell>> | undefined
   try {
-    await first.page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => first.app.evaluate(({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      return child?.executeJavaScript(`Boolean(document.querySelector('.revelith-app-ribbon'))`) ?? false
-    })).toBe(true)
-    const addDraftQuestion = async () => first.app.evaluate(async ({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      if (!child) throw new Error('Forms Builder tab did not load')
-      return child.executeJavaScript(`(async () => {
+    await first.page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        first.app.evaluate(({ webContents }) => {
+          const child = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+          return (
+            child?.executeJavaScript(`Boolean(document.querySelector('.revelith-app-ribbon'))`) ??
+            false
+          )
+        }),
+      )
+      .toBe(true)
+    const addDraftQuestion = async () =>
+      first.app.evaluate(async ({ webContents }) => {
+        const child = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+        if (!child) throw new Error('Forms Builder tab did not load')
+        return child.executeJavaScript(`(async () => {
         const insert = [...document.querySelectorAll('[role="tab"]')].find((tab) => tab.innerText.trim() === 'Insert');
         insert?.click();
         await new Promise((resolve) => setTimeout(resolve, 20));
@@ -188,23 +280,38 @@ test('a new Forms task starts blank and can restore a local draft from an earlie
         await new Promise((resolve) => setTimeout(resolve, 100));
         return { fields: JSON.parse(localStorage.getItem(Object.keys(localStorage).find((key) => key.startsWith('revelith-forms-builder/draft/')) || '') || '{}').fields?.length, status: document.body.innerText.includes('Saved locally'), recoveryIndex: localStorage.getItem('revelith-forms-builder/recovery-index') };
       })()`)
-    })
+      })
     const firstDraft = await addDraftQuestion()
     expect(firstDraft).toMatchObject({ fields: 1, status: true })
     expect(JSON.parse(firstDraft.recoveryIndex ?? '[]')).toHaveLength(1)
     await first.app.close()
 
-    second = await launchShell({ onboardingSeen: true, userDataDir: first.userDataDir, videoDir: 'forms-builder-recovery-second-session' })
-    await second.page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    const findRecoveryBanner = async () => second!.app.evaluate(({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
-      return child?.executeJavaScript(`({ freshTaskIsBlank: document.body.innerText.includes('No fields yet'), canRestore: document.body.innerText.includes('A previous local form draft is available'), href: location.href })`) ?? null
+    second = await launchShell({
+      onboardingSeen: true,
+      userDataDir: first.userDataDir,
+      videoDir: 'forms-builder-recovery-second-session',
     })
+    await second.page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    const findRecoveryBanner = async () =>
+      second!.app.evaluate(({ webContents }) => {
+        const child = webContents
+          .getAllWebContents()
+          .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+        return (
+          child?.executeJavaScript(
+            `({ freshTaskIsBlank: document.body.innerText.includes('No fields yet'), canRestore: document.body.innerText.includes('A previous local form draft is available'), href: location.href })`,
+          ) ?? null
+        )
+      })
     await expect.poll(async () => (await findRecoveryBanner())?.href).toBeTruthy()
     const recoveryState = await findRecoveryBanner()
     expect(recoveryState).toMatchObject({ freshTaskIsBlank: true, canRestore: true })
     const restored = await second.app.evaluate(async ({ webContents }) => {
-      const child = webContents.getAllWebContents().find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
+      const child = webContents
+        .getAllWebContents()
+        .find((contents) => contents.getURL().toLowerCase().includes('forms-builder'))
       if (!child) throw new Error('Forms Builder tab did not load')
       return child.executeJavaScript(`(async () => {
         [...document.querySelectorAll('button')].find((button) => button.innerText.trim() === 'Restore')?.click();
@@ -222,15 +329,31 @@ test('a new Forms task starts blank and can restore a local draft from an earlie
 })
 
 test('Forms Builder advanced respondent fields and one-question flow render and validate end to end', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-advanced-fields' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-advanced-fields',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getURL().toLowerCase().includes('forms-builder')))).toBe(true)
-    const childScript = async (script: string) => app.evaluate(async ({ BrowserWindow }, source) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.webContents.getURL().toLowerCase().includes('forms-builder'))
-      if (!child) throw new Error('Forms Builder view is missing')
-      return child.webContents.executeJavaScript(source)
-    }, script)
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ webContents }) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL().toLowerCase().includes('forms-builder')),
+        ),
+      )
+      .toBe(true)
+    const childScript = async (script: string) =>
+      app.evaluate(async ({ BrowserWindow }, source) => {
+        const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+          view.webContents.getURL().toLowerCase().includes('forms-builder'),
+        )
+        if (!child) throw new Error('Forms Builder view is missing')
+        return child.webContents.executeJavaScript(source)
+      }, script)
 
     const added = await childScript(`(async () => {
       const waitRender = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -293,21 +416,41 @@ test('Forms Builder advanced respondent fields and one-question flow render and 
       submitVisible: true,
     })
   } finally {
-    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }) }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })
 
 test('Forms Builder question groups author child fields and save nested respondent answers end to end', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-question-groups' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-question-groups',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getURL().toLowerCase().includes('forms-builder')))).toBe(true)
-    const runInForms = async (script: string) => app.evaluate(async ({ BrowserWindow }, source) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.webContents.getURL().toLowerCase().includes('forms-builder'))
-      if (!child) throw new Error('Forms Builder view is missing')
-      return child.webContents.executeJavaScript(source)
-    }, script)
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ webContents }) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL().toLowerCase().includes('forms-builder')),
+        ),
+      )
+      .toBe(true)
+    const runInForms = async (script: string) =>
+      app.evaluate(async ({ BrowserWindow }, source) => {
+        const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+          view.webContents.getURL().toLowerCase().includes('forms-builder'),
+        )
+        if (!child) throw new Error('Forms Builder view is missing')
+        return child.webContents.executeJavaScript(source)
+      }, script)
     const setup = await runInForms(`(async () => {
       const wait = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const tabs = [...document.querySelectorAll('[role="tab"]')]; tabs.find((tab) => tab.innerText.trim() === 'Home')?.click(); await wait();
@@ -346,21 +489,41 @@ test('Forms Builder question groups author child fields and save nested responde
     })()`)
     expect(submission).toEqual({ recorded: true, nestedResponseVisible: true })
   } finally {
-    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }) }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })
 
 test('Forms Builder enforces its UTC closing schedule and shows the configured closure message', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-scheduled-close' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-scheduled-close',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getURL().toLowerCase().includes('forms-builder')))).toBe(true)
-    const runInForms = async (script: string) => app.evaluate(async ({ BrowserWindow }, source) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.webContents.getURL().toLowerCase().includes('forms-builder'))
-      if (!child) throw new Error('Forms Builder view is missing')
-      return child.webContents.executeJavaScript(source)
-    }, script)
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ webContents }) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL().toLowerCase().includes('forms-builder')),
+        ),
+      )
+      .toBe(true)
+    const runInForms = async (script: string) =>
+      app.evaluate(async ({ BrowserWindow }, source) => {
+        const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+          view.webContents.getURL().toLowerCase().includes('forms-builder'),
+        )
+        if (!child) throw new Error('Forms Builder view is missing')
+        return child.webContents.executeJavaScript(source)
+      }, script)
     const preview = await runInForms(`(async () => {
       const wait = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       [...document.querySelectorAll('button')].filter((button) => button.innerText.trim().toLowerCase() === 'settings').at(-1)?.click(); await wait();
@@ -376,18 +539,37 @@ test('Forms Builder enforces its UTC closing schedule and shows the configured c
     })()`)
     expect(preview).toBe('This survey has ended.')
   } finally {
-    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }) }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })
 
 test('Forms Builder choice presentation supports custom icons, colors, and card layout in respondent preview', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-choice-presentation' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-choice-presentation',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getURL().toLowerCase().includes('forms-builder')))).toBe(true)
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ webContents }) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL().toLowerCase().includes('forms-builder')),
+        ),
+      )
+      .toBe(true)
     const result = await app.evaluate(async ({ BrowserWindow }) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.webContents.getURL().toLowerCase().includes('forms-builder'))
+      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+        view.webContents.getURL().toLowerCase().includes('forms-builder'),
+      )
       if (!child) throw new Error('Forms Builder view is missing')
       return child.webContents.executeJavaScript(`(async () => {
         const wait = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -409,18 +591,37 @@ test('Forms Builder choice presentation supports custom icons, colors, and card 
     expect(result.customBorder).toBe('rgb(18, 52, 86)')
     expect(result.cardColumns).not.toBe('1fr')
   } finally {
-    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }) }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })
 
 test('Forms Builder translations edit and render in the respondent language selector', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-translations' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-translations',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getURL().toLowerCase().includes('forms-builder')))).toBe(true)
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ webContents }) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL().toLowerCase().includes('forms-builder')),
+        ),
+      )
+      .toBe(true)
     const result = await app.evaluate(async ({ BrowserWindow }) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.webContents.getURL().toLowerCase().includes('forms-builder'))
+      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+        view.webContents.getURL().toLowerCase().includes('forms-builder'),
+      )
       if (!child) throw new Error('Forms Builder view is missing')
       return child.webContents.executeJavaScript(`(async () => {
         const wait = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -447,20 +648,44 @@ test('Forms Builder translations edit and render in the respondent language sele
         return { title: document.querySelector('h1')?.textContent?.trim(), translatedQuestion: [...document.querySelectorAll('.field-renderer label')].some((label) => label.innerText.includes('Ihr Name')), translatedChoices, choiceValueRemainsCanonical };
       })()`)
     })
-    expect(result).toEqual({ title: 'Rückmeldung', translatedQuestion: true, translatedChoices: true, choiceValueRemainsCanonical: true })
+    expect(result).toEqual({
+      title: 'Rückmeldung',
+      translatedQuestion: true,
+      translatedChoices: true,
+      choiceValueRemainsCanonical: true,
+    })
   } finally {
-    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }) }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })
 
 test('Forms Builder field media settings render safely with placement, brightness, and background', async () => {
-  const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-field-media' })
+  const { app, page } = await launchShell({
+    onboardingSeen: true,
+    videoDir: 'forms-builder-field-media',
+  })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getURL().toLowerCase().includes('forms-builder')))).toBe(true)
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ webContents }) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL().toLowerCase().includes('forms-builder')),
+        ),
+      )
+      .toBe(true)
     const result = await app.evaluate(async ({ BrowserWindow }) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.webContents.getURL().toLowerCase().includes('forms-builder'))
+      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+        view.webContents.getURL().toLowerCase().includes('forms-builder'),
+      )
       if (!child) throw new Error('Forms Builder view is missing')
       return child.webContents.executeJavaScript(`(async () => {
         const wait = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -479,7 +704,11 @@ test('Forms Builder field media settings render safely with placement, brightnes
     expect(result.placementColumns.trim().split(/\s+/)).toHaveLength(2)
     expect(result.backgroundColor).toBe('rgb(241, 245, 249)')
   } finally {
-    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }) }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })
@@ -487,10 +716,22 @@ test('Forms Builder field media settings render safely with placement, brightnes
 test('Forms Builder keeps uploaded response files locally and can retrieve the saved file', async () => {
   const { app, page } = await launchShell({ onboardingSeen: true, videoDir: 'forms-builder-files' })
   try {
-    await page.evaluate(async () => { await window.aiOffice.newFormsBuilder() })
-    await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some((contents) => contents.getURL().toLowerCase().includes('forms-builder')))).toBe(true)
+    await page.evaluate(async () => {
+      await window.aiOffice.newFormsBuilder()
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ webContents }) =>
+          webContents
+            .getAllWebContents()
+            .some((contents) => contents.getURL().toLowerCase().includes('forms-builder')),
+        ),
+      )
+      .toBe(true)
     const result = await app.evaluate(async ({ BrowserWindow }) => {
-      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.webContents.getURL().toLowerCase().includes('forms-builder'))
+      const child = BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) =>
+        view.webContents.getURL().toLowerCase().includes('forms-builder'),
+      )
       if (!child) throw new Error('Forms Builder view is missing')
       return child.webContents.executeJavaScript(`(async () => {
         const pause = (ms = 40) => new Promise(resolve => setTimeout(resolve, ms));
@@ -541,9 +782,23 @@ test('Forms Builder keeps uploaded response files locally and can retrieve the s
         return { selected, submitted, savedInResponse, localAnalyticsVisible, storedBytes: content, exportedFileName: exportedPackage?.attachments?.[0]?.name, exportedFileBytes, downloadLink, removedAfterLastReference };
       })()`)
     })
-    expect(result).toEqual({ selected: true, submitted: true, savedInResponse: true, localAnalyticsVisible: true, storedBytes: 'local attachment proof', exportedFileName: 'proof.txt', exportedFileBytes: 'local attachment proof', downloadLink: true, removedAfterLastReference: true })
+    expect(result).toEqual({
+      selected: true,
+      submitted: true,
+      savedInResponse: true,
+      localAnalyticsVisible: true,
+      storedBytes: 'local attachment proof',
+      exportedFileName: 'proof.txt',
+      exportedFileBytes: 'local attachment proof',
+      downloadLink: true,
+      removedAfterLastReference: true,
+    })
   } finally {
-    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }) }).catch(() => {})
+    await app
+      .evaluate(({ dialog }) => {
+        dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+      })
+      .catch(() => {})
     await app.close()
   }
 })

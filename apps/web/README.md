@@ -12,13 +12,13 @@ Edit DOCX, XLSX, PPTX, PDF and Markdown with byte-preserving fidelity, a local A
 
 ## What's on the page
 
-| Section | Purpose |
-| --- | --- |
-| Hero | Positioning, primary download CTA, trust markers |
+| Section        | Purpose                                                              |
+| -------------- | -------------------------------------------------------------------- |
+| Hero           | Positioning, primary download CTA, trust markers                     |
 | Workspace deck | Five realistic in-app canvases — Docs, Sheets, Slides, PDF, Markdown |
-| Architecture | Parse-once / patch-precisely / save-cleanly explainer |
-| Privacy | The local-first boundary and its guarantees |
-| Footer | Navigation, release links, legal |
+| Architecture   | Parse-once / patch-precisely / save-cleanly explainer                |
+| Privacy        | The local-first boundary and its guarantees                          |
+| Footer         | Navigation, release links, legal                                     |
 
 The workspace deck renders a **simulated desktop shell per engine** rather than a static screenshot:
 a Word-style ribbon and paginated ruler for Docs, a cell grid with formula bar and sheet tabs for
@@ -41,12 +41,12 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-| Script | Description |
-| --- | --- |
-| `npm run dev` | Vite dev server with HMR |
-| `npm run build` | Type-check (`tsc -b`) then production build to `dist/` |
-| `npm run preview` | Serve the production build locally |
-| `npm run lint` | Run oxlint |
+| Script            | Description                                            |
+| ----------------- | ------------------------------------------------------ |
+| `npm run dev`     | Vite dev server with HMR                               |
+| `npm run build`   | Type-check (`tsc -b`) then production build to `dist/` |
+| `npm run preview` | Serve the production build locally                     |
+| `npm run lint`    | Run oxlint                                             |
 
 ## Project structure
 
@@ -71,7 +71,7 @@ src/
 ## Two implementation notes
 
 **The background is not decoration.** `PatchGrid.tsx` draws a grid of blocks — a document parsed
-into an in-memory block map — and sweeps a narrow *patch band* down the viewport, representing a
+into an in-memory block map — and sweeps a narrow _patch band_ down the viewport, representing a
 delta patch being written while everything outside it stays untouched. That is the product's core
 claim, shown rather than stated. The band tracks scroll progress and the pointer warms a local
 radius. It runs at 30 fps, pauses when the tab is hidden, renders a single static frame under

@@ -129,8 +129,8 @@ function makeResidualFunction(
           const p = get(x, constraint.point)
           const original = sketch.points.find((point) => point.id === constraint.point)
           // t lets a drag pin a point where the user put it for one solve
-          const targetX = constraint.at ? constraint.at[0] : original?.x ?? 0
-          const targetY = constraint.at ? constraint.at[1] : original?.y ?? 0
+          const targetX = constraint.at ? constraint.at[0] : (original?.x ?? 0)
+          const targetY = constraint.at ? constraint.at[1] : (original?.y ?? 0)
           out.push(p[0] - targetX, p[1] - targetY)
           break
         }
@@ -197,7 +197,9 @@ function makeResidualFunction(
           const u = subtract(get(x, constraint.a2), get(x, constraint.a1))
           const v = subtract(get(x, constraint.b2), get(x, constraint.b1))
           // atan2-based so the target can be any angle, not just acute
-          out.push(Math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1]) - constraint.value)
+          out.push(
+            Math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1]) - constraint.value,
+          )
           break
         }
         case 'midpoint': {
@@ -301,7 +303,11 @@ export function matrixRank(matrix: number[][], tolerance = 1e-7): number {
 }
 
 /** Jacobian by central differences, one row per residual. */
-function jacobian(residuals: (x: number[]) => number[], x: number[], variableCount: number): number[][] {
+function jacobian(
+  residuals: (x: number[]) => number[],
+  x: number[],
+  variableCount: number,
+): number[][] {
   const base = residuals(x)
   const rows: number[][] = base.map(() => new Array<number>(variableCount).fill(0))
   for (let variable = 0; variable < variableCount; variable += 1) {
@@ -361,7 +367,9 @@ export function solveSketch(sketch: Sketch, options: SolveOptions = {}): SolveRe
     iterations += 1
     const J = jacobian(residuals, x, variableCount)
     // normal equations: (JᵀJ + λI) Δ = −Jᵀ r
-    const normal: number[][] = Array.from({ length: variableCount }, () => new Array<number>(variableCount).fill(0))
+    const normal: number[][] = Array.from({ length: variableCount }, () =>
+      new Array<number>(variableCount).fill(0),
+    )
     const gradient = new Array<number>(variableCount).fill(0)
     for (let row = 0; row < J.length; row += 1) {
       const rowValues = J[row]!
@@ -411,7 +419,13 @@ export function solveSketch(sketch: Sketch, options: SolveOptions = {}): SolveRe
     iterations,
     residual: error,
     dof,
-    status: !converged ? 'inconsistent' : dof > 0 ? 'underconstrained' : dof < 0 ? 'overconstrained' : 'solved',
+    status: !converged
+      ? 'inconsistent'
+      : dof > 0
+        ? 'underconstrained'
+        : dof < 0
+          ? 'overconstrained'
+          : 'solved',
   }
 }
 
@@ -468,7 +482,10 @@ export function solveWithMovedPoint(
  * Assign the current measured value of a dimension-like constraint back into
  * the constraint, so a solved sketch can be annotated with what it actually is.
  */
-export function measuredValue(points: readonly SketchPoint[], constraint: Constraint): number | null {
+export function measuredValue(
+  points: readonly SketchPoint[],
+  constraint: Constraint,
+): number | null {
   const at = (id: string): Vec2 | null => {
     const point = points.find((candidate) => candidate.id === id)
     return point ? [point.x, point.y] : null

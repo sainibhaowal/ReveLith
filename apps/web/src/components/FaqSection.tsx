@@ -30,7 +30,9 @@ const FaqRow: React.FC<{
 
     const measure = () => {
       const content = node.firstElementChild as HTMLElement | null
-      const next = Math.ceil(node.getBoundingClientRect().height || content?.getBoundingClientRect().height || 0)
+      const next = Math.ceil(
+        node.getBoundingClientRect().height || content?.getBoundingClientRect().height || 0,
+      )
       setHeight(next)
     }
 

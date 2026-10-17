@@ -3,12 +3,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Excalidraw, MainMenu, WelcomeScreen } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import type { ExcalidrawElement as BoardElement } from '@excalidraw/excalidraw/element/types'
-import type { AppState, BinaryFiles, ExcalidrawImperativeAPI as BoardApi } from '@excalidraw/excalidraw/types'
+import type {
+  AppState,
+  BinaryFiles,
+  ExcalidrawImperativeAPI as BoardApi,
+} from '@excalidraw/excalidraw/types'
 import { installLinkPolicy, REVELITH_ISSUES, REVELITH_REPO } from './link-policy'
 import { installDropdownFit } from './dropdown-fit'
 import './drawboard-host.css'
 
-if (typeof window !== 'undefined' && !(window as { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH) {
+if (
+  typeof window !== 'undefined' &&
+  !(window as { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH
+) {
   // Board engine assets resolve relative to the bundle; Vite inlines font URLs from CSS.
   ;(window as { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = './'
 }
@@ -19,7 +26,11 @@ export interface DrawboardHostProps {
   initialFiles: BinaryFiles
   theme: 'light' | 'dark'
   langCode: string
-  onSceneChange: (elements: readonly BoardElement[], appState: Partial<AppState>, files: BinaryFiles) => void
+  onSceneChange: (
+    elements: readonly BoardElement[],
+    appState: Partial<AppState>,
+    files: BinaryFiles,
+  ) => void
   onApiReady: (api: BoardApi) => void
   onNew: () => void
   onOpen: () => void
@@ -106,8 +117,12 @@ export default function DrawboardHost(props: DrawboardHostProps) {
           <MainMenu.Group title="ReveLith Draw">
             <MainMenu.Item onSelect={props.onCycleTheme}>{props.themeModeLabel}</MainMenu.Item>
             <MainMenu.Separator />
-            <MainMenu.Item onSelect={() => window.open(REVELITH_REPO, '_blank', 'noopener')}>Documentation</MainMenu.Item>
-            <MainMenu.Item onSelect={() => window.open(REVELITH_ISSUES, '_blank', 'noopener')}>Report an issue</MainMenu.Item>
+            <MainMenu.Item onSelect={() => window.open(REVELITH_REPO, '_blank', 'noopener')}>
+              Documentation
+            </MainMenu.Item>
+            <MainMenu.Item onSelect={() => window.open(REVELITH_ISSUES, '_blank', 'noopener')}>
+              Report an issue
+            </MainMenu.Item>
             <MainMenu.Separator />
             <MainMenu.Item onSelect={props.onNew}>New board</MainMenu.Item>
             <MainMenu.Item onSelect={props.onOpen}>Open…</MainMenu.Item>
@@ -125,7 +140,9 @@ export default function DrawboardHost(props: DrawboardHostProps) {
           <WelcomeScreen.Hints.ToolbarHint />
           <WelcomeScreen.Center>
             <WelcomeScreen.Center.Logo>ReveLith Draw</WelcomeScreen.Center.Logo>
-            <WelcomeScreen.Center.Heading>Sketch, diagram, and brainstorm — autosaves to your .draw file.</WelcomeScreen.Center.Heading>
+            <WelcomeScreen.Center.Heading>
+              Sketch, diagram, and brainstorm — autosaves to your .draw file.
+            </WelcomeScreen.Center.Heading>
           </WelcomeScreen.Center>
         </WelcomeScreen>
       </Excalidraw>

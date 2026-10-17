@@ -1083,7 +1083,9 @@ export function patchDrawingAlignment(
     const [, open, inner] = pPr
     const rPrIdx = inner.indexOf('<w:rPr')
     const patched = rPrIdx === -1 ? inner + jc : inner.slice(0, rPrIdx) + jc + inner.slice(rPrIdx)
-    return out.slice(0, pPr.index) + open + patched + '</w:pPr>' + out.slice(pPr.index + pPr[0].length)
+    return (
+      out.slice(0, pPr.index) + open + patched + '</w:pPr>' + out.slice(pPr.index + pPr[0].length)
+    )
   }
   return out.replace(/(<w:p(?: [^>]*)?>)/, `$1<w:pPr>${jc}</w:pPr>`)
 }

@@ -25,7 +25,9 @@ export function FilterBar({
 }) {
   const toggleLabel = (id: string) => {
     onFilters({
-      labelIds: filters.labelIds.includes(id) ? filters.labelIds.filter((entry) => entry !== id) : [...filters.labelIds, id],
+      labelIds: filters.labelIds.includes(id)
+        ? filters.labelIds.filter((entry) => entry !== id)
+        : [...filters.labelIds, id],
     })
   }
 
@@ -40,7 +42,9 @@ export function FilterBar({
   return (
     <div className="tasks-filter-bar" style={bar}>
       <div className="tasks-filter-search">
-        <span className="tasks-filter-search-icon" aria-hidden="true">⌕</span>
+        <span className="tasks-filter-search-icon" aria-hidden="true">
+          ⌕
+        </span>
         <input
           ref={searchRef}
           value={filters.query}
@@ -111,7 +115,11 @@ export function FilterBar({
                     color: colorVar(label.color),
                   }}
                 >
-                  <span className="tasks-label-dot" style={{ background: colorVar(label.color) }} aria-hidden="true" />
+                  <span
+                    className="tasks-label-dot"
+                    style={{ background: colorVar(label.color) }}
+                    aria-hidden="true"
+                  />
                   {label.name}
                 </button>
               )
@@ -149,7 +157,13 @@ export function FilterBar({
   )
 }
 
-function SortDropdown({ value, onChange }: { value: SortMode; onChange: (mode: SortMode) => void }) {
+function SortDropdown({
+  value,
+  onChange,
+}: {
+  value: SortMode
+  onChange: (mode: SortMode) => void
+}) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const selected = SORT_MODES.find((mode) => mode.id === value) ?? SORT_MODES[0]
@@ -182,7 +196,9 @@ function SortDropdown({ value, onChange }: { value: SortMode; onChange: (mode: S
       >
         <span className="tasks-sort-prefix">Sort</span>
         <span>{selected.label}</span>
-        <span className="tasks-sort-chevron" aria-hidden="true">⌄</span>
+        <span className="tasks-sort-chevron" aria-hidden="true">
+          ⌄
+        </span>
       </button>
       {open ? (
         <div className="tasks-sort-menu" role="listbox" aria-label="Sort tasks options">
@@ -193,7 +209,10 @@ function SortDropdown({ value, onChange }: { value: SortMode; onChange: (mode: S
               aria-selected={mode.id === value}
               className="tasks-sort-option"
               key={mode.id}
-              onClick={() => { onChange(mode.id); setOpen(false) }}
+              onClick={() => {
+                onChange(mode.id)
+                setOpen(false)
+              }}
             >
               <span>{mode.label}</span>
               {mode.id === value ? <span aria-hidden="true">✓</span> : null}

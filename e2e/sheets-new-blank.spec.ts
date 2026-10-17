@@ -3,7 +3,13 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath, readZipText } from './helpers'
+import {
+  launchShell,
+  closeAndSaveVideo,
+  waitForPageWithUrl,
+  screenshotPath,
+  readZipText,
+} from './helpers'
 
 /**
  * Regression for "new spreadsheet cannot be saved" (feedback 2368785), updated

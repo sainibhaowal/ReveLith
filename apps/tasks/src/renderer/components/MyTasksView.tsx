@@ -41,7 +41,8 @@ export function MyTasksView({
 
   const member = getMember(state, memberId)
   const tasks = useMemo(
-    () => (memberId ? tasksAssignedTo(state, memberId).filter((task) => !isTaskDone(state, task)) : []),
+    () =>
+      memberId ? tasksAssignedTo(state, memberId).filter((task) => !isTaskDone(state, task)) : [],
     [memberId, state],
   )
 
@@ -71,7 +72,10 @@ export function MyTasksView({
         <SelectMenu
           label="Group my tasks by"
           value={grouping}
-          options={[{ value: 'due', label: 'Group by due date' }, { value: 'project', label: 'Group by project' }]}
+          options={[
+            { value: 'due', label: 'Group by due date' },
+            { value: 'project', label: 'Group by project' },
+          ]}
           onChange={(value) => setGrouping(value as Grouping)}
           style={{ ...miniSelect, padding: 0 }}
         />

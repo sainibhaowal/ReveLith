@@ -65,6 +65,16 @@ const body: CSSProperties = {
 
 const titleStyle: CSSProperties = { margin: '0 0 4px', fontSize: 16 }
 
-const hintStyle: CSSProperties = { margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }
+const hintStyle: CSSProperties = {
+  margin: '0 0 8px',
+  fontSize: 12,
+  color: 'var(--text-secondary)',
+  lineHeight: 1.5,
+}
 
-const actionsStyle: CSSProperties = { display: 'flex', gap: 8, marginTop: 18, justifyContent: 'flex-end' }
+const actionsStyle: CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  marginTop: 18,
+  justifyContent: 'flex-end',
+}

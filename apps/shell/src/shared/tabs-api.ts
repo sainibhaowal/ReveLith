@@ -1,4 +1,14 @@
-export type TabKind = 'home' | 'docs' | 'sheets' | 'slides' | 'pdf' | 'markdown' | 'html' | 'forms' | 'tasks' | 'drawboard'
+export type TabKind =
+  | 'home'
+  | 'docs'
+  | 'sheets'
+  | 'slides'
+  | 'pdf'
+  | 'markdown'
+  | 'html'
+  | 'forms'
+  | 'tasks'
+  | 'drawboard'
 
 /** a tab that holds a document — every kind except the Home screen */
 export type DocumentTabKind = Exclude<TabKind, 'home' | 'forms' | 'tasks' | 'drawboard'>

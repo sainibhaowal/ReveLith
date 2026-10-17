@@ -13,8 +13,20 @@ function seeded() {
   const id = projectId(base)
   return apply(
     base,
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Alpha', priority: 'high' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Beta', priority: 'low' },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Alpha',
+      priority: 'high',
+    },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Beta',
+      priority: 'low',
+    },
   )
 }
 
@@ -69,7 +81,11 @@ describe('saved views', () => {
   })
 
   it('snapshots filters, so later edits do not mutate the view', () => {
-    const created = apply(seeded(), { kind: 'filters/set', patch: { query: 'alp' } }, { kind: 'view/create', name: 'V' })
+    const created = apply(
+      seeded(),
+      { kind: 'filters/set', patch: { query: 'alp' } },
+      { kind: 'view/create', name: 'V' },
+    )
     const edited = apply(created, { kind: 'filters/set', patch: { query: 'zzz' } })
     expect(edited.savedViews[0].filters.query).toBe('alp')
   })
@@ -81,7 +97,11 @@ describe('saved views', () => {
       { kind: 'sort/set', mode: 'title' },
       { kind: 'view/create', name: 'V' },
     )
-    const wandered = apply(created, { kind: 'filters/clear' }, { kind: 'sort/set', mode: 'createdAt' })
+    const wandered = apply(
+      created,
+      { kind: 'filters/clear' },
+      { kind: 'sort/set', mode: 'createdAt' },
+    )
     expect(wandered.selectedViewId).toBeNull()
 
     const restored = apply(wandered, { kind: 'view/apply', id: created.savedViews[0].id })
@@ -92,14 +112,22 @@ describe('saved views', () => {
   })
 
   it('drops the selected view once the filters are edited away', () => {
-    const created = apply(seeded(), { kind: 'filters/set', patch: { query: 'alp' } }, { kind: 'view/create', name: 'V' })
+    const created = apply(
+      seeded(),
+      { kind: 'filters/set', patch: { query: 'alp' } },
+      { kind: 'view/create', name: 'V' },
+    )
     expect(created.selectedViewId).not.toBeNull()
     const edited = apply(created, { kind: 'filters/set', patch: { query: 'other' } })
     expect(edited.selectedViewId).toBeNull()
   })
 
   it('keeps the view selected when an unrelated filter is re-set to the same value', () => {
-    const created = apply(seeded(), { kind: 'filters/set', patch: { query: 'alp' } }, { kind: 'view/create', name: 'V' })
+    const created = apply(
+      seeded(),
+      { kind: 'filters/set', patch: { query: 'alp' } },
+      { kind: 'view/create', name: 'V' },
+    )
     const same = apply(created, { kind: 'filters/set', patch: { query: 'alp' } })
     expect(same.selectedViewId).toBe(created.savedViews[0].id)
   })
@@ -123,7 +151,11 @@ describe('saved views', () => {
   })
 
   it('survives a save and reload', () => {
-    const created = apply(seeded(), { kind: 'filters/set', patch: { query: 'alp' } }, { kind: 'view/create', name: 'Kept' })
+    const created = apply(
+      seeded(),
+      { kind: 'filters/set', patch: { query: 'alp' } },
+      { kind: 'view/create', name: 'Kept' },
+    )
     const restored = withDefaults(JSON.parse(JSON.stringify(created)))
     expect(restored.savedViews).toHaveLength(1)
     expect(restored.savedViews[0].name).toBe('Kept')
@@ -149,7 +181,14 @@ describe('attachment metadata', () => {
 
   it('ignores an attachment for an unknown task', () => {
     const state = seeded()
-    const next = apply(state, { kind: 'attachment/add', id: 'att_1', taskId: 'ghost', name: 'x', mime: 'text/plain', size: 1 })
+    const next = apply(state, {
+      kind: 'attachment/add',
+      id: 'att_1',
+      taskId: 'ghost',
+      name: 'x',
+      mime: 'text/plain',
+      size: 1,
+    })
     expect(next).toBe(state)
   })
 
@@ -199,7 +238,13 @@ describe('withDefaults', () => {
   })
 
   it('keeps a selected view that does exist', () => {
-    const view = { id: 'v1', name: 'V', filters: withDefaults({}).filters, sortMode: 'title' as const, createdAt: 1 }
+    const view = {
+      id: 'v1',
+      name: 'V',
+      filters: withDefaults({}).filters,
+      sortMode: 'title' as const,
+      createdAt: 1,
+    }
     expect(withDefaults({ savedViews: [view], selectedViewId: 'v1' }).selectedViewId).toBe('v1')
   })
 

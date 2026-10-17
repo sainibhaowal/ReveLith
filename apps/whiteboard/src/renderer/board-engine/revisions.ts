@@ -15,7 +15,12 @@ export interface DrawboardRevision {
 
 const semanticElement = (element: BoardElement | null): string => {
   if (!element) return ''
-  const { version: _version, versionNonce: _nonce, updated: _updated, ...semantic } = element as BoardElement & {
+  const {
+    version: _version,
+    versionNonce: _nonce,
+    updated: _updated,
+    ...semantic
+  } = element as BoardElement & {
     version?: number
     versionNonce?: number
     updated?: number
@@ -23,7 +28,10 @@ const semanticElement = (element: BoardElement | null): string => {
   return JSON.stringify(semantic)
 }
 
-export function diffBoardElements(before: readonly BoardElement[], after: readonly BoardElement[]): DrawboardRevision[] {
+export function diffBoardElements(
+  before: readonly BoardElement[],
+  after: readonly BoardElement[],
+): DrawboardRevision[] {
   const oldById = new Map(before.map((element) => [element.id, element]))
   const newById = new Map(after.map((element) => [element.id, element]))
   const revisions: DrawboardRevision[] = []
@@ -52,10 +60,15 @@ export function validateDrawboardRevisions(value: unknown): DrawboardRevision[] 
   return value.filter((entry): entry is DrawboardRevision => {
     if (!entry || typeof entry !== 'object') return false
     const revision = entry as Partial<DrawboardRevision>
-    return typeof revision.id === 'string' && typeof revision.elementId === 'string' &&
+    return (
+      typeof revision.id === 'string' &&
+      typeof revision.elementId === 'string' &&
       (revision.kind === 'added' || revision.kind === 'edited' || revision.kind === 'deleted') &&
-      (revision.status === 'pending' || revision.status === 'accepted' || revision.status === 'rejected') &&
+      (revision.status === 'pending' ||
+        revision.status === 'accepted' ||
+        revision.status === 'rejected') &&
       typeof revision.createdAt === 'number'
+    )
   })
 }
 
@@ -64,7 +77,8 @@ export function rejectBoardRevision(
   elements: readonly BoardElement[],
   revision: DrawboardRevision,
 ): BoardElement[] | null {
-  const current = elements.find((element) => element.id === revision.elementId && !element.isDeleted) ?? null
+  const current =
+    elements.find((element) => element.id === revision.elementId && !element.isDeleted) ?? null
   if (semanticElement(current) !== semanticElement(revision.after)) return null
   const rest = elements.filter((element) => element.id !== revision.elementId)
   if (revision.before) return [...rest, structuredClone(revision.before)]

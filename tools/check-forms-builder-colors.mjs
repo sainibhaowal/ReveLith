@@ -43,13 +43,17 @@ function block(source, header) {
 
 function declarations(source) {
   const map = new Map()
-  for (const match of source.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) map.set(match[1], match[2].trim())
+  for (const match of source.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g))
+    map.set(match[1], match[2].trim())
   return map
 }
 
 const tokensCss = read(TOKENS)
 const appCss = read(STYLES)
-const light = new Map([...declarations(block(tokensCss, ':root {')), ...declarations(block(appCss, ':root {'))])
+const light = new Map([
+  ...declarations(block(tokensCss, ':root {')),
+  ...declarations(block(appCss, ':root {')),
+])
 const dark = new Map([
   ...declarations(block(tokensCss, "[data-theme='dark'] {")),
   ...declarations(block(appCss, "[data-theme='dark'] {")),
@@ -78,12 +82,22 @@ function rgb(value) {
   if (!value) return null
   const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value.trim())
   if (hex) {
-    const digits = hex[1].length === 3 ? hex[1].split('').map((c) => c + c).join('') : hex[1]
+    const digits =
+      hex[1].length === 3
+        ? hex[1]
+            .split('')
+            .map((c) => c + c)
+            .join('')
+        : hex[1]
     return [0, 2, 4].map((i) => parseInt(digits.slice(i, i + 2), 16))
   }
   const fn = /^rgba?\(([^)]+)\)$/i.exec(value.trim())
   if (!fn) return null
-  const parts = fn[1].split(/[\s,/]+/).filter(Boolean).slice(0, 3).map(Number)
+  const parts = fn[1]
+    .split(/[\s,/]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map(Number)
   return parts.length === 3 && parts.every(Number.isFinite) ? parts : null
 }
 
@@ -109,7 +123,8 @@ for (const token of [...usedTokens].sort()) {
   if (shared.has(token)) continue
   const inLight = light.has(token)
   const inDark = dark.has(token)
-  if (inLight && !inDark) failures.push(`${token} is defined for light but missing in [data-theme='dark']`)
+  if (inLight && !inDark)
+    failures.push(`${token} is defined for light but missing in [data-theme='dark']`)
   if (inDark && !inLight) failures.push(`${token} is defined for dark but missing in :root`)
 }
 
@@ -126,8 +141,16 @@ const pairs = [
   ['form muted ink on field fill', resolve('--form-muted-ink', 'light'), fieldFill],
   ['form accent on paper', resolve('--form-accent', 'light'), paper],
   ['form danger on paper', resolve('--form-danger', 'light'), paper],
-  ['form danger on danger fill', resolve('--form-danger', 'light'), resolve('--form-danger-bg', 'light')],
-  ['form warn ink on warn fill', resolve('--form-warn-ink', 'light'), resolve('--form-warn-bg', 'light')],
+  [
+    'form danger on danger fill',
+    resolve('--form-danger', 'light'),
+    resolve('--form-danger-bg', 'light'),
+  ],
+  [
+    'form warn ink on warn fill',
+    resolve('--form-warn-ink', 'light'),
+    resolve('--form-warn-bg', 'light'),
+  ],
   ['form star off on paper', resolve('--form-star-off', 'light'), paper],
 ]
 const contrastText = []
@@ -149,13 +172,19 @@ for (const [label, foreground, background, minimum] of [
 ]) {
   const ratio = contrast(rgb(foreground), rgb(background))
   contrastText.push(`  ${ratio.toFixed(2)}:1  ${label}  (${foreground} on ${background})`)
-  if (ratio < minimum) notes.push(`${label} is ${ratio.toFixed(2)}:1 (informational, ${minimum}:1 is the non-text target)`)
+  if (ratio < minimum)
+    notes.push(
+      `${label} is ${ratio.toFixed(2)}:1 (informational, ${minimum}:1 is the non-text target)`,
+    )
 }
 // Both UI themes must resolve the accent ink against the accent fill.
 for (const theme of ['light', 'dark']) {
   const ratio = contrast(rgb(resolve('--accent-ink', theme)), rgb(resolve('--accent', theme)))
   contrastText.push(`  ${ratio.toFixed(2)}:1  accent ink on accent (${theme})`)
-  if (ratio < 3) failures.push(`--accent-ink on --accent is ${ratio.toFixed(2)}:1 in ${theme}; raise the accent/ink contrast`)
+  if (ratio < 3)
+    failures.push(
+      `--accent-ink on --accent is ${ratio.toFixed(2)}:1 in ${theme}; raise the accent/ink contrast`,
+    )
 }
 
 // 3. Renderer code that paints form content must stay off the chrome tokens.
@@ -166,7 +195,9 @@ for (const relative of FORM_SOURCES) {
     for (const match of line.matchAll(/var\(\s*(--[\w-]+)/g)) {
       const token = match[1]
       if (FORM_TOKEN.test(match[0]) || token === '--accent-ink') continue
-      failures.push(`${relative}:${index + 1} paints form content with the chrome token ${token}; use a --form-* token`)
+      failures.push(
+        `${relative}:${index + 1} paints form content with the chrome token ${token}; use a --form-* token`,
+      )
     }
   }
 }

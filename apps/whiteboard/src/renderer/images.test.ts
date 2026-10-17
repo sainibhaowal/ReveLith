@@ -14,15 +14,32 @@ vi.mock('@excalidraw/excalidraw', () => ({
   }),
 }))
 
-import { describeImages, describeSelection, placeImagesOnBoard, toAgentImages } from './board-engine/images'
+import {
+  describeImages,
+  describeSelection,
+  placeImagesOnBoard,
+  toAgentImages,
+} from './board-engine/images'
 
-function mockApi(elements: Array<{ id: string; type: string; text?: string; x?: number; y?: number; width?: number; height?: number }> = []) {
+function mockApi(
+  elements: Array<{
+    id: string
+    type: string
+    text?: string
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }> = [],
+) {
   let current = [...elements]
   let files: unknown[] = []
   return {
     getSceneElements: vi.fn(() => current),
     getAppState: vi.fn(() => ({})),
-    getFiles: vi.fn(() => Object.fromEntries(files.map((file) => [(file as { id: string }).id, file]))),
+    getFiles: vi.fn(() =>
+      Object.fromEntries(files.map((file) => [(file as { id: string }).id, file])),
+    ),
     updateScene: vi.fn((patch: { elements?: Array<{ id: string }> }) => {
       if (patch.elements) current = patch.elements as typeof current
     }),
@@ -68,7 +85,15 @@ describe('board image attachments', () => {
     const api = mockApi([
       { id: 'a', type: 'text', text: 'selected label', x: 10, y: 20, width: 30, height: 12 },
       { id: 'b', type: 'rectangle', x: 50, y: 60, width: 40, height: 25 },
-      { id: 'other', type: 'text', text: 'not selected', x: -500, y: -500, width: 900, height: 900 },
+      {
+        id: 'other',
+        type: 'text',
+        text: 'not selected',
+        x: -500,
+        y: -500,
+        width: 900,
+        height: 900,
+      },
     ])
     const detail = describeSelection(api as never, ['a', 'b'])
     expect(detail).toContain('Selected 2 element(s)')

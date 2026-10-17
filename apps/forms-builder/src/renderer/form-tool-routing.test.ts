@@ -11,10 +11,19 @@ describe('Forms Builder request tool selection', () => {
   })
 
   it('includes the related tools for multi-step group and branching requests', () => {
-    expect(selectFormToolNames('Add a child question to the group.')).toEqual(['manage_group_fields'])
-    expect(selectFormToolNames('Create a group field for the form.')).toEqual(['add_form_field', 'manage_group_fields'])
-    expect(selectFormToolNames('When attendance is yes, show the dietary question.')).toEqual(['set_field_condition'])
-    expect(selectFormToolNames('Create a logic rule that skips to the next question.')).toEqual(['add_logic_rule'])
+    expect(selectFormToolNames('Add a child question to the group.')).toEqual([
+      'manage_group_fields',
+    ])
+    expect(selectFormToolNames('Create a group field for the form.')).toEqual([
+      'add_form_field',
+      'manage_group_fields',
+    ])
+    expect(selectFormToolNames('When attendance is yes, show the dietary question.')).toEqual([
+      'set_field_condition',
+    ])
+    expect(selectFormToolNames('Create a logic rule that skips to the next question.')).toEqual([
+      'add_logic_rule',
+    ])
   })
 
   it('uses read-only tools for inspection and no editing tools for ordinary chat', () => {
@@ -27,7 +36,9 @@ describe('Forms Builder request tool selection', () => {
   })
 
   it('starts complete form builds with native planning and verification tools', () => {
-    const names = selectFormToolNames('Create a complete event registration form with a polished theme.')
+    const names = selectFormToolNames(
+      'Create a complete event registration form with a polished theme.',
+    )
     expect(names).toContain('get_form')
     expect(names).toContain('update_form')
     expect(names).toContain('update_form_settings')
@@ -44,17 +55,36 @@ describe('Forms Builder request tool selection', () => {
   })
 
   it('keeps toolbar AI actions on only the form tools they need', () => {
-    expect(selectFormToolNames('Polish the wording of the form title and every question label.')).toEqual(['update_form', 'update_form_field'])
-    expect(selectFormToolNames('Format the visual design with a cohesive theme and readable spacing.')).toEqual(['update_form_theme'])
-    expect(selectFormToolNames('Review this form for clarity and accessibility without changing it.')).toEqual(['audit_form'])
-    expect(selectFormToolNames('Call the audit_form tool for the current form now. Then summarize any respondent experience or structure issues it finds.')).toEqual(['audit_form'])
-    expect(selectFormToolNames('Audit the form and inspect how many fields it contains.')).toEqual(['get_form', 'audit_form'])
-    expect(selectFormToolNames('Add useful questions that are missing from this form.')).toEqual(['add_form_field'])
-    expect(selectFormToolNames('Add a small number of useful missing questions for this form purpose. Avoid duplicates and keep the form concise. Use the add-question tool to create them.')).toEqual(['add_form_field'])
+    expect(
+      selectFormToolNames('Polish the wording of the form title and every question label.'),
+    ).toEqual(['update_form', 'update_form_field'])
+    expect(
+      selectFormToolNames('Format the visual design with a cohesive theme and readable spacing.'),
+    ).toEqual(['update_form_theme'])
+    expect(
+      selectFormToolNames('Review this form for clarity and accessibility without changing it.'),
+    ).toEqual(['audit_form'])
+    expect(
+      selectFormToolNames(
+        'Call the audit_form tool for the current form now. Then summarize any respondent experience or structure issues it finds.',
+      ),
+    ).toEqual(['audit_form'])
+    expect(selectFormToolNames('Audit the form and inspect how many fields it contains.')).toEqual([
+      'get_form',
+      'audit_form',
+    ])
+    expect(selectFormToolNames('Add useful questions that are missing from this form.')).toEqual([
+      'add_form_field',
+    ])
+    expect(
+      selectFormToolNames(
+        'Add a small number of useful missing questions for this form purpose. Avoid duplicates and keep the form concise. Use the add-question tool to create them.',
+      ),
+    ).toEqual(['add_form_field'])
   })
 
   it('selects one focused tool for a natural-language request for every capability', () => {
-    const requests: Array<[string, typeof FORM_TOOL_NAMES[number]]> = [
+    const requests: Array<[string, (typeof FORM_TOOL_NAMES)[number]]> = [
       ['Summarize the current form.', 'get_form'],
       ['Rename the form to Customer Intake.', 'update_form'],
       ['Turn on the progress bar and change the submit button text.', 'update_form_settings'],
@@ -79,12 +109,20 @@ describe('Forms Builder request tool selection', () => {
   })
 
   it('routes everyday count and old-rule phrasing without offering unrelated tools', () => {
-    expect(selectFormToolNames('How many questions are in this form right now?')).toEqual(['get_form'])
-    expect(selectFormToolNames('Remove the old Legacy routing rule.')).toEqual(['delete_logic_rule'])
+    expect(selectFormToolNames('How many questions are in this form right now?')).toEqual([
+      'get_form',
+    ])
+    expect(selectFormToolNames('Remove the old Legacy routing rule.')).toEqual([
+      'delete_logic_rule',
+    ])
   })
 
   it('does not mistake a field label containing “move” for a move command', () => {
-    expect(selectFormToolNames('Only show the Move me question when Name has an answer.')).toEqual(['set_field_condition'])
-    expect(selectFormToolNames('Move the Move me question to the first position.')).toEqual(['move_form_field'])
+    expect(selectFormToolNames('Only show the Move me question when Name has an answer.')).toEqual([
+      'set_field_condition',
+    ])
+    expect(selectFormToolNames('Move the Move me question to the first position.')).toEqual([
+      'move_form_field',
+    ])
   })
 })

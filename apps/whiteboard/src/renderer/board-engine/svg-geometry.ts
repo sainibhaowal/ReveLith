@@ -90,7 +90,10 @@ export function sampleArc(
   }
 
   const sign = largeArc === sweep ? -1 : 1
-  const numerator = radiusX * radiusX * radiusY * radiusY - radiusX * radiusX * y1p * y1p - radiusY * radiusY * x1p * x1p
+  const numerator =
+    radiusX * radiusX * radiusY * radiusY -
+    radiusX * radiusX * y1p * y1p -
+    radiusY * radiusY * x1p * x1p
   const denominator = radiusX * radiusX * y1p * y1p + radiusY * radiusY * x1p * x1p
   const coefficient = sign * Math.sqrt(Math.max(0, numerator / denominator))
   const cxp = (coefficient * radiusX * y1p) / radiusY
@@ -204,7 +207,12 @@ function intersectSegmentEdge(from: Point, to: Point, inside: Edge): Point | nul
   return [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t]
 }
 
-export function boundingBox(points: readonly Point[]): { minX: number; minY: number; maxX: number; maxY: number } {
+export function boundingBox(points: readonly Point[]): {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+} {
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
@@ -228,7 +236,10 @@ export interface GradientStop {
  * Resolve a gradient at parameter t in [0,1], interpolating between the
  * surrounding stops. `colors` are already-normalised hex strings.
  */
-export function sampleGradient(stops: readonly GradientStop[], t: number): { color: string; opacity: number } {
+export function sampleGradient(
+  stops: readonly GradientStop[],
+  t: number,
+): { color: string; opacity: number } {
   if (!stops.length) return { color: '#808080', opacity: 1 }
   const sorted = [...stops].sort((a, b) => a.offset - b.offset)
   const clamped = Math.max(0, Math.min(1, t))
@@ -375,7 +386,8 @@ export function clipSegmentToConvex(
     const edgeX = b[0] - a[0]
     const edgeY = b[1] - a[1]
     // positive inside this edge's half-plane
-    const value = (point: Point) => winding * (edgeX * (point[1] - a[1]) - edgeY * (point[0] - a[0]))
+    const value = (point: Point) =>
+      winding * (edgeX * (point[1] - a[1]) - edgeY * (point[0] - a[0]))
     const startValue = value(from)
     const delta = value(to) - startValue
     if (Math.abs(delta) < 1e-12) {

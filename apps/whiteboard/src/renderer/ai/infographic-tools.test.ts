@@ -9,7 +9,8 @@ describe('native infographic compiler', () => {
         subtitle: 'A concise learning guide',
         sections: [
           {
-            heading: 'Energy sources', layout: 'flow',
+            heading: 'Energy sources',
+            layout: 'flow',
             items: [
               { label: 'Solar', detail: 'Sunlight becomes electricity' },
               { label: 'Wind', detail: 'Turbines capture moving air', tone: 'accent' },

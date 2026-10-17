@@ -73,7 +73,10 @@ function isReadOnly(text: string): boolean {
   // an earlier assistant reply ("I can't create…") or mentions a status named
   // "Review". Only a question-led turn with no write verb is read-only. In
   // particular, "Can you create…" is an action request, not a capability query.
-  const startsWithQuestion = /^(?:what|which|who|whom|whose|how|when|where|why|is|are|was|were|do|does|did|can|should|would|could)\b/i.test(text.trim())
+  const startsWithQuestion =
+    /^(?:what|which|who|whom|whose|how|when|where|why|is|are|was|were|do|does|did|can|should|would|could)\b/i.test(
+      text.trim(),
+    )
   return startsWithQuestion && !isAction(text)
 }
 
@@ -93,7 +96,10 @@ export interface TaskToolRoutingContext {
 const CREATE_WORK_PATTERN =
   /\b(create|add|make|write|draft|prepare|generate|build|plan)\b.{0,100}\b(tasks?|tickets?|issues?|work\s+items?|stories|checklists?|action\s+items?|release\s+plans?|launch\s+plans?)\b/
 
-export function selectTaskToolNames(instruction: string, context: TaskToolRoutingContext = {}): TaskToolName[] {
+export function selectTaskToolNames(
+  instruction: string,
+  context: TaskToolRoutingContext = {},
+): TaskToolName[] {
   // Deterministic escape hatch, so a caller can force one tool regardless of wording.
   const explicitTool = instruction.match(/(?:^|\b)RUN_TASK_TOOL:([a-z_]+)/)?.[1]
   if (explicitTool && (TASK_TOOL_NAMES as readonly string[]).includes(explicitTool)) {
@@ -114,12 +120,21 @@ export function selectTaskToolNames(instruction: string, context: TaskToolRoutin
   const createWorkRequested = CREATE_WORK_PATTERN.test(text)
 
   // ---- projects -----------------------------------------------------------
-  if (has(text, /\b(project|projects|board|boards|workspace|portfolio)\b/)) selected.add('list_projects')
-  if (has(text, /\b(create|add|new|start|set up|spin up|make)\b.{0,35}\b(project|board|portfolio)\b/))
+  if (has(text, /\b(project|projects|board|boards|workspace|portfolio)\b/))
+    selected.add('list_projects')
+  if (
+    has(text, /\b(create|add|new|start|set up|spin up|make)\b.{0,35}\b(project|board|portfolio)\b/)
+  )
     selected.add('create_project')
-  if (has(text, /\b(renam\w*|edit|update|change|modif\w*|describ\w*|colour|color|icon|key|recolor)\b.{0,35}\b(project|board)\b/))
+  if (
+    has(
+      text,
+      /\b(renam\w*|edit|update|change|modif\w*|describ\w*|colour|color|icon|key|recolor)\b.{0,35}\b(project|board)\b/,
+    )
+  )
     selected.add('update_project')
-  if (has(text, /\b(archive|retire|close out|hide)\b.{0,35}\b(project|board)\b/)) selected.add('archive_project')
+  if (has(text, /\b(archive|retire|close out|hide)\b.{0,35}\b(project|board)\b/))
+    selected.add('archive_project')
   if (has(text, /\b(delete|remove|destroy|drop|wipe|nuke)\b.{0,35}\b(project|board)\b/))
     selected.add('delete_project')
 
@@ -127,12 +142,24 @@ export function selectTaskToolNames(instruction: string, context: TaskToolRoutin
   if (has(text, /\b(column|columns|stage|states?|status|workflow|swimlane)\b/)) {
     if (readOnly || !wantsWrite) selected.add('list_columns')
   }
-  if (has(text, /\b(add|create|new|insert)\b.{0,30}\b(column|stage|status)\b/)) selected.add('create_column')
-  if (has(text, /\b(renam\w*|recolou?r|edit|update|change|modify|mark as done|final)\b.{0,35}\b(column|stage|status)\b/))
+  if (has(text, /\b(add|create|new|insert)\b.{0,30}\b(column|stage|status)\b/))
+    selected.add('create_column')
+  if (
+    has(
+      text,
+      /\b(renam\w*|recolou?r|edit|update|change|modify|mark as done|final)\b.{0,35}\b(column|stage|status)\b/,
+    )
+  )
     selected.add('update_column')
-  if (has(text, /\b(reorder|move|swap|switch|reorder|rearrange|reorder)\b.{0,30}\b(column|columns|stage)\b/))
+  if (
+    has(
+      text,
+      /\b(reorder|move|swap|switch|reorder|rearrange|reorder)\b.{0,30}\b(column|columns|stage)\b/,
+    )
+  )
     selected.add('reorder_columns')
-  if (has(text, /\b(delete|remove|drop)\b.{0,30}\b(column|stage|status)\b/)) selected.add('delete_column')
+  if (has(text, /\b(delete|remove|drop)\b.{0,30}\b(column|stage|status)\b/))
+    selected.add('delete_column')
 
   // ---- labels -------------------------------------------------------------
   if (has(text, /\b(label|labels|tag|tags|categor\w+)\b/)) {
@@ -142,17 +169,22 @@ export function selectTaskToolNames(instruction: string, context: TaskToolRoutin
   if (has(text, /\b(delete|remove|drop)\b.{0,30}\blabel\b/)) selected.add('delete_label')
 
   // ---- tasks --------------------------------------------------------------
+  if (has(text, /\b(task|tasks|ticket|issue|issues|work item|item|story|backlog|board)\b/)) {
+    selected.add('list_tasks')
+  }
   if (
     has(
       text,
-      /\b(task|tasks|ticket|issue|issues|work item|item|story|backlog|board)\b/,
+      /\b(detail|details|full|about|open|view|read|show me|inspected)\b.{0,35}\b(task|ticket|issue)\b/,
     )
-  ) {
-    selected.add('list_tasks')
-  }
-  if (has(text, /\b(detail|details|full|about|open|view|read|show me|inspected)\b.{0,35}\b(task|ticket|issue)\b/))
+  )
     selected.add('get_task')
-  if (has(text, /\b(create|add|new|make|draft|open|raise|log)\b.{0,35}\b(task|ticket|issue|work item|story)\b/))
+  if (
+    has(
+      text,
+      /\b(create|add|new|make|draft|open|raise|log)\b.{0,35}\b(task|ticket|issue|work item|story)\b/,
+    )
+  )
     selected.add('create_task')
   // Natural requests commonly call the deliverable a checklist, release plan,
   // or action-item list rather than saying "create tasks" next to the verb.
@@ -165,12 +197,21 @@ export function selectTaskToolNames(instruction: string, context: TaskToolRoutin
   ) {
     if (has(text, /\b(task|ticket|issue)\b/)) selected.add('update_task')
   }
-  if (has(text, /\b(move|drag|shift|transfer|promote|advance|progress|backlog to|to do|in progress|review|done|complete)\b/))
+  if (
+    has(
+      text,
+      /\b(move|drag|shift|transfer|promote|advance|progress|backlog to|to do|in progress|review|done|complete)\b/,
+    )
+  )
     selected.add('move_task')
   if (has(text, /\b(archive|complete|finish|close|done|wrap up)\b.{0,35}\b(task|ticket|issue)\b/))
     selected.add('archive_task')
-  if (has(text, /\b(delete|remove|destroy|drop|wipe)\b.{0,35}\b(task|ticket|issue)\b/)) selected.add('delete_task')
-  if (has(text, /\b(label|tag)\b/) && /\b(set|apply|attach|assign|tag|add|remove|change)\b/.test(text))
+  if (has(text, /\b(delete|remove|destroy|drop|wipe)\b.{0,35}\b(task|ticket|issue)\b/))
+    selected.add('delete_task')
+  if (
+    has(text, /\b(label|tag)\b/) &&
+    /\b(set|apply|attach|assign|tag|add|remove|change)\b/.test(text)
+  )
     selected.add('set_task_labels')
 
   // ---- collaboration ------------------------------------------------------
@@ -178,8 +219,14 @@ export function selectTaskToolNames(instruction: string, context: TaskToolRoutin
     if (readOnly || !wantsWrite) selected.add('list_comments')
     if (wantsWrite || /^(comment|note)\b/.test(text)) selected.add('add_comment')
   }
-  if (has(text, /\b(block|blocks|blocked|blocking|depend\w*|dependency|dependencies|relates? to|related|duplicate|duplicates|links?|linked|link)\b/)) {
-    if (has(text, /\b(unlink|disconnect|remove link|break link|stop blocking|unblock)\b/)) selected.add('unlink_task')
+  if (
+    has(
+      text,
+      /\b(block|blocks|blocked|blocking|depend\w*|dependency|dependencies|relates? to|related|duplicate|duplicates|links?|linked|link)\b/,
+    )
+  ) {
+    if (has(text, /\b(unlink|disconnect|remove link|break link|stop blocking|unblock)\b/))
+      selected.add('unlink_task')
     else if (wantsWrite) selected.add('link_tasks')
   }
 
@@ -196,54 +243,87 @@ export function selectTaskToolNames(instruction: string, context: TaskToolRoutin
     selected.add('define_custom_field')
 
   // ---- subtasks -----------------------------------------------------------
-  if (has(text, /\b(sub-?task|subtask|sub-task|child|children|nested|break ?down|checklist item)\b/)) {
+  if (
+    has(text, /\b(sub-?task|subtask|sub-task|child|children|nested|break ?down|checklist item)\b/)
+  ) {
     if (readOnly || !wantsWrite) selected.add('list_subtasks')
     if (wantsWrite) selected.add('add_subtask')
   }
 
   // ---- discovery ----------------------------------------------------------
-  if (has(text, /\b(search|find|look for|lookup|locate|grep|query|filter by|match)\b/)) selected.add('search_tasks')
-  if (has(text, /\b(summari[sz]e|summary|overview|status of|how.{0,10}(going|faring)|state of|what.{0,15}(left|next|pending)|everything)\b/))
+  if (has(text, /\b(search|find|look for|lookup|locate|grep|query|filter by|match)\b/))
+    selected.add('search_tasks')
+  if (
+    has(
+      text,
+      /\b(summari[sz]e|summary|overview|status of|how.{0,10}(going|faring)|state of|what.{0,15}(left|next|pending)|everything)\b/,
+    )
+  )
     selected.add('board_summary')
   if (has(text, /\b(log|track|spent|time|capacity|effort|duration|hours worked)\b/)) {
     if (wantsWrite) selected.add('log_time')
   }
 
   // ---- export & views -----------------------------------------------------
-  if (has(text, /\b(export|download|csv|markdown|\.ics|ical|calendar feed|json)\b/)) selected.add('export_board')
+  if (has(text, /\b(export|download|csv|markdown|\.ics|ical|calendar feed|json)\b/))
+    selected.add('export_board')
   if (has(text, /\b(view|saved view|filter preset|preset|saved filter)\b/)) {
     if (readOnly || !wantsWrite) selected.add('list_saved_views')
   }
-  if (has(text, /\b(create|add|save|new)\b.{0,30}\b(saved view|view|preset)\b/)) selected.add('create_saved_view')
-  if (has(text, /\b(apply|use|switch to|show)\b.{0,30}\b(saved view|view|preset)\b/)) selected.add('apply_saved_view')
-  if (has(text, /\b(delete|remove|drop)\b.{0,30}\b(saved view|view|preset)\b/)) selected.add('delete_saved_view')
+  if (has(text, /\b(create|add|save|new)\b.{0,30}\b(saved view|view|preset)\b/))
+    selected.add('create_saved_view')
+  if (has(text, /\b(apply|use|switch to|show)\b.{0,30}\b(saved view|view|preset)\b/))
+    selected.add('apply_saved_view')
+  if (has(text, /\b(delete|remove|drop)\b.{0,30}\b(saved view|view|preset)\b/))
+    selected.add('delete_saved_view')
 
   // ---- attachments --------------------------------------------------------
   if (has(text, /\b(attachment|attachments|file|files|upload|uploaded|document|documents|asset)\b/))
     selected.add('list_attachments')
 
   // ---- people -------------------------------------------------------------
-  if (has(text, /\b(member|members|people|assignee|assignees|owner|owners|who|person|persons|team workload)\b/)) {
+  if (
+    has(
+      text,
+      /\b(member|members|people|assignee|assignees|owner|owners|who|person|persons|team workload)\b/,
+    )
+  ) {
     if (readOnly || !wantsWrite) selected.add('list_members')
   }
   if (has(text, /\b(add|create|invite|new)\b.{0,30}\b(member|person|people|assignee|owner)\b/))
     selected.add('create_member')
   if (has(text, /\b(remove|delete|drop)\b.{0,30}\b(member|person|people|assignee|owner)\b/))
     selected.add('delete_member')
-  if (has(text, /\b(assign|unassign|reassign|give|hand)\b.{0,35}\b(task|ticket|issue)\b|\b(task|ticket)\b.{0,30}\b(to|owner|assign)\b/))
+  if (
+    has(
+      text,
+      /\b(assign|unassign|reassign|give|hand)\b.{0,35}\b(task|ticket|issue)\b|\b(task|ticket)\b.{0,30}\b(to|owner|assign)\b/,
+    )
+  )
     selected.add('assign_task')
   if (has(text, /\b(my tasks|assigned to me|my work|my task list|what do i have|my queue)\b/))
     selected.add('my_tasks')
 
   // ---- duplication --------------------------------------------------------
-  if (has(text, /\b(duplicate|duplicates|duplicating|copy of|clone|repeat)\b/)) selected.add('duplicate_task')
+  if (has(text, /\b(duplicate|duplicates|duplicating|copy of|clone|repeat)\b/))
+    selected.add('duplicate_task')
 
   // ---- bulk ---------------------------------------------------------------
-  if (has(text, /\b(bulk|batch|all the|every task|selected|multiple tasks|all tasks|these tasks|whole column)\b/))
+  if (
+    has(
+      text,
+      /\b(bulk|batch|all the|every task|selected|multiple tasks|all tasks|these tasks|whole column)\b/,
+    )
+  )
     selected.add('bulk_update_tasks')
 
   // ---- external links -----------------------------------------------------
-  if (has(text, /\b(external link|external links|linked issue|linked pr|pull request|branch|issue link|repo link)\b/)) {
+  if (
+    has(
+      text,
+      /\b(external link|external links|linked issue|linked pr|pull request|branch|issue link|repo link)\b/,
+    )
+  ) {
     if (has(text, /\b(remove|delete|unlink|drop)\b/)) selected.add('remove_external_link')
     else if (has(text, /\b(add|link|attach|connect|create)\b/)) selected.add('add_external_link')
     else selected.add('list_external_links')

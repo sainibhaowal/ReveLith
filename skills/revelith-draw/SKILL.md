@@ -38,12 +38,12 @@ the real call rather than reporting success.
 | A chart with supplied data                                      | `build_chart_diagram`; use `build_gantt_diagram` for schedules and `build_heatmap_chart` for matrices |
 | An ASCII or fixed-width text diagram                            | `build_text_diagram`                                                                                  |
 | Mermaid source/syntax or an explicitly Mermaid-rendered diagram | `render_mermaid_diagram`                                                                              |
-| A custom composition not covered by a typed builder             | `build_drawboard_scene` — one coordinated update                                                     |
+| A custom composition not covered by a typed builder             | `build_drawboard_scene` — one coordinated update                                                      |
 | Crisp vector art, logos, icons, anything editable               | `add_vector_artwork` (complete SVG)                                                                   |
 | A photorealistic or painterly image                             | `generate_image` (needs an image provider in Settings)                                                |
 | A real photo or existing artwork                                | `image_search` → `add_board_image_from_url`                                                           |
-| A dimensioned or constrained drawing                            | `build_drawboard_scene` with `kind:"sketch"`                                                         |
-| Believable 3D massing                                           | `build_drawboard_scene` with `kind:"scene3d"`                                                        |
+| A dimensioned or constrained drawing                            | `build_drawboard_scene` with `kind:"sketch"`                                                          |
+| Believable 3D massing                                           | `build_drawboard_scene` with `kind:"scene3d"`                                                         |
 | A measured annotation on a drawing                              | `kind:"dimension"`; a labelled callout, `kind:"leader"`                                               |
 
 Use only tools exposed for the current request. Diagram builders have strict,

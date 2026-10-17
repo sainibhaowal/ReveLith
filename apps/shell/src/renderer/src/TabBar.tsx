@@ -473,7 +473,18 @@ export function TabBar() {
                   onBlur={commitRename}
                 />
               ) : (
-                <span className="tab-title">{tab.dirty ? <span className="tab-dirty-dot" aria-label="Unsaved changes" title="Unsaved changes">● </span> : null}{tab.title}</span>
+                <span className="tab-title">
+                  {tab.dirty ? (
+                    <span
+                      className="tab-dirty-dot"
+                      aria-label="Unsaved changes"
+                      title="Unsaved changes"
+                    >
+                      ●{' '}
+                    </span>
+                  ) : null}
+                  {tab.title}
+                </span>
               )}
               {tab.closable && (
                 <button

@@ -114,10 +114,7 @@ export function AiClarifyCard({
       const ans = chosen.length ? chosen.join(ANSWER_SEPARATOR) : text.decideAnswer
       return { q: q.label, a: ans }
     })
-    onSubmit(
-      qa.map(({ q, a }) => `${q}: ${a}`).join('\n'),
-      qa,
-    )
+    onSubmit(qa.map(({ q, a }) => `${q}: ${a}`).join('\n'), qa)
   }
 
   // Single-select: picking advances; picking on the LAST question submits after

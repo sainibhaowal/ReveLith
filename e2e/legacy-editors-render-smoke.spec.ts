@@ -26,15 +26,27 @@ test('all six existing editor renderers mount visible controls instead of a blan
   try {
     for (const editor of editors) {
       await page.evaluate(async (method) => {
-        const api = window.aiOffice as unknown as Record<string, (options?: { dir?: string }) => Promise<void>>
+        const api = window.aiOffice as unknown as Record<
+          string,
+          (options?: { dir?: string }) => Promise<void>
+        >
         await api[method]?.()
       }, editor.method)
       const editorPage = await waitForPageWithUrl(app, `://${editor.kind}/`, 30_000)
       await expect(editorPage.locator('body')).toBeVisible({ timeout: 15_000 })
-      await expect.poll(() => editorPage.locator('body').innerText().catch(() => ''), {
-        timeout: 20_000,
-        message: `${editor.kind} should render its UI`,
-      }).toMatch(/.{6}/s)
+      await expect
+        .poll(
+          () =>
+            editorPage
+              .locator('body')
+              .innerText()
+              .catch(() => ''),
+          {
+            timeout: 20_000,
+            message: `${editor.kind} should render its UI`,
+          },
+        )
+        .toMatch(/.{6}/s)
       const root = editorPage.locator('#root')
       if (await root.count()) await expect(root.locator(':scope > *').first()).toBeVisible()
     }

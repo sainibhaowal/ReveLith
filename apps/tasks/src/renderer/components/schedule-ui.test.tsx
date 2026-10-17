@@ -63,9 +63,7 @@ describe('CalendarView', () => {
 describe('GanttView', () => {
   it('renders a bar per scheduled task', () => {
     const board = seed()
-    render(
-      <GanttView state={board} tasks={board.tasks} onOpen={() => {}} onShift={() => {}} />,
-    )
+    render(<GanttView state={board} tasks={board.tasks} onOpen={() => {}} onShift={() => {}} />)
     expect(screen.getByRole('button', { name: /Reschedule Write the spec/ })).toBeTruthy()
     expect(screen.getByText('1 scheduled')).toBeTruthy()
   })
@@ -134,12 +132,7 @@ describe('ActivityFeed', () => {
   })
 
   it('says so when there is no history', () => {
-    render(
-      <ActivityFeed
-        state={{ ...seed(), activity: [] }}
-        onOpenTask={() => {}}
-      />,
-    )
+    render(<ActivityFeed state={{ ...seed(), activity: [] }} onOpenTask={() => {}} />)
     expect(screen.getByText(/Nothing has happened yet/)).toBeTruthy()
   })
 })
@@ -179,7 +172,12 @@ describe('CommandPalette', () => {
   it('filters as you type', () => {
     const board = seed()
     render(
-      <CommandPalette state={board} open commands={buildCommands(board, actions())} onClose={() => {}} />,
+      <CommandPalette
+        state={board}
+        open
+        commands={buildCommands(board, actions())}
+        onClose={() => {}}
+      />,
     )
     fireEvent.change(screen.getByLabelText('Command palette search'), { target: { value: 'spec' } })
     expect(screen.getAllByText(/Write the spec/).length).toBeGreaterThan(0)
@@ -189,7 +187,9 @@ describe('CommandPalette', () => {
   it('runs the highlighted command on Enter', () => {
     const board = seed()
     const a = actions()
-    render(<CommandPalette state={board} open commands={buildCommands(board, a)} onClose={() => {}} />)
+    render(
+      <CommandPalette state={board} open commands={buildCommands(board, a)} onClose={() => {}} />,
+    )
 
     const input = screen.getByLabelText('Command palette search')
     fireEvent.change(input, { target: { value: 'Manage people' } })
@@ -200,9 +200,13 @@ describe('CommandPalette', () => {
   it('switches view from the command list', () => {
     const board = seed()
     const a = actions()
-    render(<CommandPalette state={board} open commands={buildCommands(board, a)} onClose={() => {}} />)
+    render(
+      <CommandPalette state={board} open commands={buildCommands(board, a)} onClose={() => {}} />,
+    )
 
-    fireEvent.change(screen.getByLabelText('Command palette search'), { target: { value: 'Go to Gantt' } })
+    fireEvent.change(screen.getByLabelText('Command palette search'), {
+      target: { value: 'Go to Gantt' },
+    })
     fireEvent.keyDown(screen.getByLabelText('Command palette search'), { key: 'Enter' })
     expect(a.setView).toHaveBeenCalledWith('gantt')
   })
@@ -210,7 +214,14 @@ describe('CommandPalette', () => {
   it('closes on Escape', () => {
     const board = seed()
     const onClose = vi.fn()
-    render(<CommandPalette state={board} open commands={buildCommands(board, actions())} onClose={onClose} />)
+    render(
+      <CommandPalette
+        state={board}
+        open
+        commands={buildCommands(board, actions())}
+        onClose={onClose}
+      />,
+    )
     fireEvent.keyDown(screen.getByLabelText('Command palette search'), { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
   })
@@ -218,7 +229,12 @@ describe('CommandPalette', () => {
   it('says so when nothing matches', () => {
     const board = seed()
     render(
-      <CommandPalette state={board} open commands={buildCommands(board, actions())} onClose={() => {}} />,
+      <CommandPalette
+        state={board}
+        open
+        commands={buildCommands(board, actions())}
+        onClose={() => {}}
+      />,
     )
     fireEvent.change(screen.getByLabelText('Command palette search'), { target: { value: 'zzzz' } })
     expect(screen.getByText(/Nothing matches/)).toBeTruthy()

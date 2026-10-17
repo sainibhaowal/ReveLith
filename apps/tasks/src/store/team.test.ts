@@ -40,7 +40,12 @@ describe('task assignment', () => {
   it('assigns and unassigns, logging both directions', () => {
     let board = state()
     const id = projectId(board)
-    board = apply(board, { kind: 'task/create', projectId: id, columnId: firstColumnId(board), title: 'Ship it' })
+    board = apply(board, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(board),
+      title: 'Ship it',
+    })
     const task = board.tasks[0]
     const ada = board.members[0].id
 
@@ -56,7 +61,12 @@ describe('task assignment', () => {
   it('refuses an assignee that does not exist instead of storing a dangling id', () => {
     let board = state()
     const id = projectId(board)
-    board = apply(board, { kind: 'task/create', projectId: id, columnId: firstColumnId(board), title: 'A' })
+    board = apply(board, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(board),
+      title: 'A',
+    })
     const task = board.tasks[0]
 
     board = apply(board, { kind: 'task/setAssignee', id: task.id, assigneeId: 'ghost' })
@@ -66,9 +76,18 @@ describe('task assignment', () => {
   it('returns the same reference when the assignee is unchanged', () => {
     let board = state()
     const id = projectId(board)
-    board = apply(board, { kind: 'task/create', projectId: id, columnId: firstColumnId(board), title: 'A' })
+    board = apply(board, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(board),
+      title: 'A',
+    })
     const ada = board.members[0].id
-    const assigned = reduce(board, { kind: 'task/setAssignee', id: board.tasks[0].id, assigneeId: ada })
+    const assigned = reduce(board, {
+      kind: 'task/setAssignee',
+      id: board.tasks[0].id,
+      assigneeId: ada,
+    })
     expect(assigned.tasks[0].assigneeId).toBe(ada)
 
     // No change, so the reducer must return the identical state object.
@@ -83,7 +102,12 @@ describe('task assignment', () => {
   it('unassigns rather than deleting work when a member is removed', () => {
     let board = state()
     const id = projectId(board)
-    board = apply(board, { kind: 'task/create', projectId: id, columnId: firstColumnId(board), title: 'A' })
+    board = apply(board, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(board),
+      title: 'A',
+    })
     const ada = board.members[0].id
     board = apply(board, { kind: 'task/setAssignee', id: board.tasks[0].id, assigneeId: ada })
 
@@ -105,7 +129,8 @@ describe('unassigned filter', () => {
     board = apply(board, { kind: 'task/setAssignee', id: board.tasks[0].id, assigneeId: ada })
     // Give the unowned task a label: it must still count as unassigned.
     const labelId = board.labels[0]?.id
-    if (labelId) board = apply(board, { kind: 'task/setLabels', id: board.tasks[1].id, labelIds: [labelId] })
+    if (labelId)
+      board = apply(board, { kind: 'task/setLabels', id: board.tasks[1].id, labelIds: [labelId] })
 
     const unassigned = filterTasks(board, board.tasks, {
       ...EMPTY_FILTERS,
@@ -215,7 +240,12 @@ describe('task duplication', () => {
   it('can drop the copy into another column and rename it', () => {
     const { board, parentId } = boardWithSubtask()
     const other = board.columns.find((entry) => entry.name === 'In Progress')!.id
-    const next = apply(board, { kind: 'task/duplicate', id: parentId, columnId: other, title: 'Copy of it' })
+    const next = apply(board, {
+      kind: 'task/duplicate',
+      id: parentId,
+      columnId: other,
+      title: 'Copy of it',
+    })
 
     const copy = next.tasks.find((task) => task.title === 'Copy of it')!
     expect(copy.columnId).toBe(other)
@@ -226,7 +256,12 @@ describe('external links', () => {
   it('adds and removes links, logging both', () => {
     let board = state()
     const id = projectId(board)
-    board = apply(board, { kind: 'task/create', projectId: id, columnId: firstColumnId(board), title: 'A' })
+    board = apply(board, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(board),
+      title: 'A',
+    })
     const taskId = board.tasks[0].id
 
     board = apply(board, {
@@ -248,7 +283,12 @@ describe('external links', () => {
   it('drops links when their task is deleted', () => {
     let board = state()
     const id = projectId(board)
-    board = apply(board, { kind: 'task/create', projectId: id, columnId: firstColumnId(board), title: 'A' })
+    board = apply(board, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(board),
+      title: 'A',
+    })
     board = apply(board, {
       kind: 'externalLink/add',
       taskId: board.tasks[0].id,
@@ -339,7 +379,12 @@ describe('multiselect custom fields', () => {
   it('stores an array of options', () => {
     let board = state()
     const id = projectId(board)
-    board = apply(board, { kind: 'task/create', projectId: id, columnId: firstColumnId(board), title: 'A' })
+    board = apply(board, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(board),
+      title: 'A',
+    })
     board = apply(board, {
       kind: 'customField/define',
       projectId: id,

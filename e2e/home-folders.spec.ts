@@ -198,8 +198,13 @@ test.describe('home folders panel', () => {
       await page.locator('.quick-card', { hasText: 'AI PDF' }).click()
       const hasPdf = (dir: string) =>
         existsSync(dir) && readdirSync(dir).some((f) => f.endsWith('.pdf'))
-      await expect.poll(() => hasPdf(join(root, 'Personal')) || hasPdf(root), { timeout: 15_000 }).toBe(true)
-      expect(hasPdf(join(root, 'Personal')), 'a folder-scoped PDF must be created inside the selected folder').toBe(true)
+      await expect
+        .poll(() => hasPdf(join(root, 'Personal')) || hasPdf(root), { timeout: 15_000 })
+        .toBe(true)
+      expect(
+        hasPdf(join(root, 'Personal')),
+        'a folder-scoped PDF must be created inside the selected folder',
+      ).toBe(true)
       expect(hasPdf(root)).toBe(false)
       // and the tab opened on the moved path, not the vanished root one
       await expect(page.locator('.tab-bar .tab-item', { hasText: '.pdf' })).toBeVisible()

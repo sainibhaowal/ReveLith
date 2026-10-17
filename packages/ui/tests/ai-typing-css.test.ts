@@ -20,7 +20,9 @@ describe('shared thinking indicator', () => {
     expect(label).toContain('color: var(--ai-shimmer-base')
     expect(label).toContain('var(--ai-shimmer-hi')
     expect(label).toContain('background-size: 70% 100%')
-    expect(label).toContain('animation: revelith-ai-thinking-shimmer 1.2s infinite alternate linear')
+    expect(label).toContain(
+      'animation: revelith-ai-thinking-shimmer 1.2s infinite alternate linear',
+    )
   })
 
   it('keeps its keyframes under package-scoped names', () => {
@@ -31,7 +33,9 @@ describe('shared thinking indicator', () => {
   })
 
   it('lights the dots with the brand token and animates both of them', () => {
-    expect(typingCss).toMatch(/\.ai-typing-dot-grow,\s*\.ai-typing-dot-shrink \{[^}]*var\(--color-brand-secondary/)
+    expect(typingCss).toMatch(
+      /\.ai-typing-dot-grow,\s*\.ai-typing-dot-shrink \{[^}]*var\(--color-brand-secondary/,
+    )
     expect(typingCss).toContain('animation: revelith-ai-dot-grow 2s infinite')
     expect(typingCss).toContain('animation: revelith-ai-dot-shrink 2s infinite')
   })
@@ -52,6 +56,8 @@ describe('shared thinking indicator', () => {
     expect(appChat).not.toContain('@keyframes ai-thinking-shimmer')
     expect(appChat).not.toContain('@keyframes ai-dot-grow')
     // only the wrapper the older apps define lives in the panel's own CSS
-    expect(appChat).toContain('.revelith-app-chat .ai-typing-row{display:inline-flex;align-items:baseline;gap:8px}')
+    expect(appChat).toContain(
+      '.revelith-app-chat .ai-typing-row{display:inline-flex;align-items:baseline;gap:8px}',
+    )
   })
 })

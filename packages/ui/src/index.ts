@@ -71,7 +71,13 @@ export {
   type ClarifyQuestion,
 } from './AiClarifyCard'
 export { AppRibbon, RibbonGroup, type AppRibbonTab } from './AppRibbon'
-export { RibbonToolButton, RibbonQuickButton, type RibbonToolButtonProps, type RibbonQuickButtonProps, type RibbonToolVariant } from './RibbonToolButton'
+export {
+  RibbonToolButton,
+  RibbonQuickButton,
+  type RibbonToolButtonProps,
+  type RibbonQuickButtonProps,
+  type RibbonToolVariant,
+} from './RibbonToolButton'
 export { IconEnter, IconSend, IconStop, type IconProps } from './icons'
 export { Markdown, type MarkdownNav } from './Markdown'
 export { isSymbolFontFamily } from './symbol-fonts'

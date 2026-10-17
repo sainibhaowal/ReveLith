@@ -51,11 +51,15 @@ export function boardToMarkdown(state: BoardState, projectId: ID): string {
     for (const task of tasks) {
       lines.push(`- **${ticketId(state, task)} ${task.title}** — _${task.priority}_`)
       if (task.dueDate) lines.push(`  - Due: ${task.dueDate}`)
-      const labels = projectLabels(state, project.id).filter((label) => task.labelIds.includes(label.id))
+      const labels = projectLabels(state, project.id).filter((label) =>
+        task.labelIds.includes(label.id),
+      )
       if (labels.length) lines.push(`  - Labels: ${labels.map((label) => label.name).join(', ')}`)
       const subtasks = subtasksOf(state, task.id)
       if (subtasks.length) {
-        lines.push(`  - Sub-tasks: ${subtasks.map((sub) => `${sub.title}${isTaskDone(state, sub) ? ' ✓' : ''}`).join('; ')}`)
+        lines.push(
+          `  - Sub-tasks: ${subtasks.map((sub) => `${sub.title}${isTaskDone(state, sub) ? ' ✓' : ''}`).join('; ')}`,
+        )
       }
       if (task.description.trim()) {
         lines.push(`  - ${task.description.trim().split('\n')[0]}`)
@@ -96,7 +100,9 @@ export function projectToCsv(state: BoardState, projectId: ID): string {
     .sort((a, b) => a.number - b.number)
 
   for (const task of tasks) {
-    const taskLabels = labels.filter((label) => task.labelIds.includes(label.id)).map((label) => label.name)
+    const taskLabels = labels
+      .filter((label) => task.labelIds.includes(label.id))
+      .map((label) => label.name)
     const blockedBy = state.relations
       .filter((relation) => relation.fromTaskId === task.id && relation.type === 'blocked_by')
       .map((relation) => {

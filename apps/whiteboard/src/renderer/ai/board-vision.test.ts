@@ -38,11 +38,13 @@ describe('Draw visual review with the configured chat model', () => {
       'Review the cabin perspective.',
     )
     expect(result).toEqual({ ok: true, text: 'The cabin is centered.' })
-    expect(sent?.messages).toEqual([{
-      role: 'user',
-      text: 'Review the cabin perspective.',
-      images: [{ base64: 'ZmFrZS1wbmc=', mime: 'image/png' }],
-    }])
+    expect(sent?.messages).toEqual([
+      {
+        role: 'user',
+        text: 'Review the cabin perspective.',
+        images: [{ base64: 'ZmFrZS1wbmc=', mime: 'image/png' }],
+      },
+    ])
     expect(sent?.tools).toEqual([])
     expect(api.aiStreamCancel).not.toHaveBeenCalled()
   })

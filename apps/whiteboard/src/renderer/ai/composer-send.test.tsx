@@ -26,9 +26,10 @@ vi.mock('../board-engine/images', () => ({
   readBoardImages: async () => ({ images: [], notice: null }),
   readBoardImageDimensions: async () => ({ width: 100, height: 100 }),
   describeImages: () => 'none',
-  describeSelection: (_api: unknown, ids: readonly string[]) => ids.length
-    ? `Selected ${ids.length} element(s):\n- text id=${ids[0]} bounds=10,20,80,65 text="selected text only"`
-    : 'No board elements selected.',
+  describeSelection: (_api: unknown, ids: readonly string[]) =>
+    ids.length
+      ? `Selected ${ids.length} element(s):\n- text id=${ids[0]} bounds=10,20,80,65 text="selected text only"`
+      : 'No board elements selected.',
   toAgentImages: () => [],
   placeImagesOnBoard: () => ({ placed: 0, summary: '' }),
 }))
@@ -50,7 +51,16 @@ const noop = () => undefined
 
 type TestStreamChunk = { requestId: string; type: 'delta' | 'done'; text?: string }
 
-function installShellBridge(settings: unknown = { provider: 'lmstudio', providers: { lmstudio: { baseUrl: 'http://127.0.0.1:1234/v1' } } }): { streams: unknown[]; emit: (chunk: TestStreamChunk) => void; complete: (requestId: string, text: string) => void } {
+function installShellBridge(
+  settings: unknown = {
+    provider: 'lmstudio',
+    providers: { lmstudio: { baseUrl: 'http://127.0.0.1:1234/v1' } },
+  },
+): {
+  streams: unknown[]
+  emit: (chunk: TestStreamChunk) => void
+  complete: (requestId: string, text: string) => void
+} {
   const streams: unknown[] = []
   let listener: ((chunk: TestStreamChunk) => void) | null = null
   const api = {
@@ -61,7 +71,9 @@ function installShellBridge(settings: unknown = { provider: 'lmstudio', provider
     aiStreamCancel: async () => undefined,
     onAiStream: (handler: (chunk: TestStreamChunk) => void) => {
       listener = handler
-      return () => { if (listener === handler) listener = null }
+      return () => {
+        if (listener === handler) listener = null
+      }
     },
     getTheme: async () => 'light' as const,
     onThemeChanged: () => noop,
@@ -103,7 +115,13 @@ const boardApiStub = (): { current: BoardApi | null } => ({
   } as unknown as BoardApi,
 })
 
-const historyStub = (): BoardHistory => ({ undo: noop, redo: noop, canUndo: () => false, canRedo: () => false }) as unknown as BoardHistory
+const historyStub = (): BoardHistory =>
+  ({
+    undo: noop,
+    redo: noop,
+    canUndo: () => false,
+    canRedo: () => false,
+  }) as unknown as BoardHistory
 
 const render = (node: React.ReactElement) => {
   act(() => {
@@ -120,9 +138,9 @@ const flush = async () => {
 
 const buttons = (selector: string) => [...host.querySelectorAll(selector)] as HTMLButtonElement[]
 const byLabel = (scope: ParentNode, label: string) =>
-  [...scope.querySelectorAll('button')].find((button) => button.getAttribute('aria-label') === label) as
-    | HTMLButtonElement
-    | undefined
+  [...scope.querySelectorAll('button')].find(
+    (button) => button.getAttribute('aria-label') === label,
+  ) as HTMLButtonElement | undefined
 
 /** Set a controlled textarea the way a real keystroke does. */
 const typeInto = (textarea: HTMLTextAreaElement | null | undefined, value: string) => {
@@ -236,7 +254,11 @@ describe('DrawboardChatPanel composer', () => {
     mount(['selected-1'])
     await flush()
     const panel = host.querySelector('.revelith-board-chat')!
-    expect([...panel.querySelectorAll('button')].some((button) => button.textContent?.includes('Selection context Off'))).toBe(true)
+    expect(
+      [...panel.querySelectorAll('button')].some((button) =>
+        button.textContent?.includes('Selection context Off'),
+      ),
+    ).toBe(true)
     typeInto(panel.querySelector('textarea'), 'What is on the board?')
     act(() => byLabel(panel, 'Send')!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
     await flush()
@@ -246,12 +268,18 @@ describe('DrawboardChatPanel composer', () => {
     bridge.complete(ordinaryRequest.requestId, 'Previous board chat reply.')
     await flush()
     const scopedPanel = host.querySelector('.revelith-board-chat')!
-    const ask = [...scopedPanel.querySelectorAll('button')].find((button) => button.getAttribute('aria-label') === 'Ask AI about 1 selected Drawboard element')
+    const ask = [...scopedPanel.querySelectorAll('button')].find(
+      (button) => button.getAttribute('aria-label') === 'Ask AI about 1 selected Drawboard element',
+    )
     expect(ask).toBeTruthy()
     expect(ask!.title).toContain('local AI endpoint')
     act(() => ask!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
     await flush()
-    const scoped = streams.at(-1) as { system?: string; messages?: Array<{ text: string }>; tools?: unknown[] }
+    const scoped = streams.at(-1) as {
+      system?: string
+      messages?: Array<{ text: string }>
+      tools?: unknown[]
+    }
     expect(scoped.tools).toEqual([])
     expect(scoped.system).toContain('Analyze only the explicitly selected Drawboard content')
     expect(scoped.system).not.toContain('build_sequence_diagram')
@@ -263,8 +291,12 @@ describe('DrawboardChatPanel composer', () => {
   })
 
   it('blocks selected-content analysis for a cloud provider without sending the selection', async () => {
-    const api = (window as unknown as { electronAPI: { getAiSettings: () => Promise<unknown> } }).electronAPI
-    api.getAiSettings = async () => ({ provider: 'openai', providers: { openai: { baseUrl: 'https://api.openai.com/v1' } } })
+    const api = (window as unknown as { electronAPI: { getAiSettings: () => Promise<unknown> } })
+      .electronAPI
+    api.getAiSettings = async () => ({
+      provider: 'openai',
+      providers: { openai: { baseUrl: 'https://api.openai.com/v1' } },
+    })
     mount(['private-selection'])
     await flush()
     const panel = host.querySelector('.revelith-board-chat')!
@@ -284,18 +316,67 @@ describe('Drawboard shortcuts help', () => {
   it('exposes a visible info shortcut button that opens the native shortcut reference', () => {
     const onShowShortcuts = vi.fn()
     const callbacks = { onSave: noop, onUndo: noop, onRedo: noop, onToggleAutosave: noop }
-    render(createElement(DrawboardRibbon, {
-      title: 'Untitled Drawboard', status: 'Saved',
-      quick: { ...callbacks, canUndo: false, canRedo: false, autosave: true },
-      file: { onNew: noop, onOpen: noop, onSave: noop, onSaveAs: noop, onImport: noop },
-      edit: { canUndo: false, canRedo: false, onUndo: noop, onRedo: noop, hasSelection: false, hasContent: false, onSelectAll: noop, onDeselect: noop, onDuplicate: noop, onDelete: noop, onClear: noop, onShowShortcuts },
-      arrange: { canArrange: false, canAlign: false, canDistribute: false, isLocked: false, onArrange: noop, onAlign: noop, onDistribute: noop, onGroup: noop, onUngroup: noop, onLock: noop, onFlip: noop },
-      style: { canStyle: false, onStrokeWidth: noop, onOpacity: noop, onTextSize: noop, onFontFamily: noop },
-      view: { onZoomIn: noop, onZoomOut: noop, onZoomReset: noop, onZoomFit: noop, grid: false, onToggleGrid: noop, snap: false, onToggleSnap: noop, presenting: false, onTogglePresent: noop, themeMode: 'system', onThemeMode: noop, onPickBackground: noop, onToggleSettings: noop },
-      exp: { onExportPng: noop, onExportSvg: noop, onExportBoard: noop, onCopyPng: noop },
-      ai: { aiOpen: false, onToggleAi: noop, onPrompt: noop },
-      review: { enabled: false, revisions: [], onToggle: noop, onAccept: noop, onReject: noop },
-    }))
+    render(
+      createElement(DrawboardRibbon, {
+        title: 'Untitled Drawboard',
+        status: 'Saved',
+        quick: { ...callbacks, canUndo: false, canRedo: false, autosave: true },
+        file: { onNew: noop, onOpen: noop, onSave: noop, onSaveAs: noop, onImport: noop },
+        edit: {
+          canUndo: false,
+          canRedo: false,
+          onUndo: noop,
+          onRedo: noop,
+          hasSelection: false,
+          hasContent: false,
+          onSelectAll: noop,
+          onDeselect: noop,
+          onDuplicate: noop,
+          onDelete: noop,
+          onClear: noop,
+          onShowShortcuts,
+        },
+        arrange: {
+          canArrange: false,
+          canAlign: false,
+          canDistribute: false,
+          isLocked: false,
+          onArrange: noop,
+          onAlign: noop,
+          onDistribute: noop,
+          onGroup: noop,
+          onUngroup: noop,
+          onLock: noop,
+          onFlip: noop,
+        },
+        style: {
+          canStyle: false,
+          onStrokeWidth: noop,
+          onOpacity: noop,
+          onTextSize: noop,
+          onFontFamily: noop,
+        },
+        view: {
+          onZoomIn: noop,
+          onZoomOut: noop,
+          onZoomReset: noop,
+          onZoomFit: noop,
+          grid: false,
+          onToggleGrid: noop,
+          snap: false,
+          onToggleSnap: noop,
+          presenting: false,
+          onTogglePresent: noop,
+          themeMode: 'system',
+          onThemeMode: noop,
+          onPickBackground: noop,
+          onToggleSettings: noop,
+        },
+        exp: { onExportPng: noop, onExportSvg: noop, onExportBoard: noop, onCopyPng: noop },
+        ai: { aiOpen: false, onToggleAi: noop, onPrompt: noop },
+        review: { enabled: false, revisions: [], onToggle: noop, onAccept: noop, onReject: noop },
+      }),
+    )
     const button = host.querySelector<HTMLButtonElement>('button[aria-label="Shortcuts"]')
     expect(button).toBeTruthy()
     expect(button!.dataset.tip).toContain('complete built-in')
@@ -372,7 +453,13 @@ describe('AppChatPanel composer', () => {
     const executeTool = vi.fn(() => ({ output: 'should not run', summary: 'unexpected' }))
     const skill: AppAgentSkill = {
       ...appSkill(),
-      tools: [{ name: 'mutate_board', description: 'Change the board', inputSchema: { type: 'object', properties: {} } }],
+      tools: [
+        {
+          name: 'mutate_board',
+          description: 'Change the board',
+          inputSchema: { type: 'object', properties: {} },
+        },
+      ],
       executeTool,
     }
     const common = {
@@ -385,26 +472,31 @@ describe('AppChatPanel composer', () => {
     render(createElement(AppChatPanel, { ...common, command: null }))
     await flush()
     const panel = host.querySelector('.revelith-app-chat')!
-    typeInto(panel.querySelector('textarea'), 'Keep this previous chat private from selection analysis.')
+    typeInto(
+      panel.querySelector('textarea'),
+      'Keep this previous chat private from selection analysis.',
+    )
     act(() => byLabel(panel, 'Send')!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
     await flush()
     const previous = streams[0] as { requestId: string }
     bridge.complete(previous.requestId, 'Previous conversation reply.')
     await flush()
 
-    render(createElement(AppChatPanel, {
-      ...common,
-      command: {
-        id: 'selected-only',
-        instruction: 'Analyze this selected item only.',
-        submit: true,
-        readOnly: true,
-        localOnly: true,
-        excludeAttachments: true,
-        context: 'Selected item: Field A; bounds 1,2,3,4.',
-        scopeLabel: 'Field A (Text)',
-      },
-    }))
+    render(
+      createElement(AppChatPanel, {
+        ...common,
+        command: {
+          id: 'selected-only',
+          instruction: 'Analyze this selected item only.',
+          submit: true,
+          readOnly: true,
+          localOnly: true,
+          excludeAttachments: true,
+          context: 'Selected item: Field A; bounds 1,2,3,4.',
+          scopeLabel: 'Field A (Text)',
+        },
+      }),
+    )
     await flush()
     const request = streams.at(-1) as { messages?: Array<{ text: string }>; tools?: unknown[] }
     expect(request.tools).toEqual([])
@@ -416,25 +508,30 @@ describe('AppChatPanel composer', () => {
   })
 
   it('refuses selected-content requests for cloud endpoints without sending selection data', async () => {
-    bridge = installShellBridge({ provider: 'openai', providers: { openai: { baseUrl: 'https://api.openai.com/v1' } } })
+    bridge = installShellBridge({
+      provider: 'openai',
+      providers: { openai: { baseUrl: 'https://api.openai.com/v1' } },
+    })
     streams = bridge.streams
-    render(createElement(AppChatPanel, {
-      skill: appSkill(),
-      title: 'ReveLith Chat',
-      open: true,
-      onExpand: noop,
-      onCollapse: noop,
-      command: {
-        id: 'remote-selection-blocked',
-        instruction: 'Analyze this selected item only.',
-        submit: true,
-        readOnly: true,
-        localOnly: true,
-        excludeAttachments: true,
-        context: 'PRIVATE_SELECTION_SENTINEL',
-        scopeLabel: 'Private item',
-      },
-    }))
+    render(
+      createElement(AppChatPanel, {
+        skill: appSkill(),
+        title: 'ReveLith Chat',
+        open: true,
+        onExpand: noop,
+        onCollapse: noop,
+        command: {
+          id: 'remote-selection-blocked',
+          instruction: 'Analyze this selected item only.',
+          submit: true,
+          readOnly: true,
+          localOnly: true,
+          excludeAttachments: true,
+          context: 'PRIVATE_SELECTION_SENTINEL',
+          scopeLabel: 'Private item',
+        },
+      }),
+    )
     await flush()
 
     expect(streams).toHaveLength(0)
@@ -445,10 +542,32 @@ describe('AppChatPanel composer', () => {
   })
 
   it('recognizes only explicit loopback AI endpoints as local', () => {
-    expect(isLocalAiEndpoint({ provider: 'custom', providers: { custom: { baseUrl: 'http://localhost:1234/v1' } } } as never)).toBe(true)
-    expect(isLocalAiEndpoint({ provider: 'custom', providers: { custom: { baseUrl: 'http://127.0.0.2:1234/v1' } } } as never)).toBe(true)
-    expect(isLocalAiEndpoint({ provider: 'custom', providers: { custom: { baseUrl: 'http://[::1]:1234/v1' } } } as never)).toBe(true)
-    expect(isLocalAiEndpoint({ provider: 'custom', providers: { custom: { baseUrl: 'https://api.example.com/v1' } } } as never)).toBe(false)
-    expect(isLocalAiEndpoint({ provider: 'openai', providers: { openai: {} } } as never)).toBe(false)
+    expect(
+      isLocalAiEndpoint({
+        provider: 'custom',
+        providers: { custom: { baseUrl: 'http://localhost:1234/v1' } },
+      } as never),
+    ).toBe(true)
+    expect(
+      isLocalAiEndpoint({
+        provider: 'custom',
+        providers: { custom: { baseUrl: 'http://127.0.0.2:1234/v1' } },
+      } as never),
+    ).toBe(true)
+    expect(
+      isLocalAiEndpoint({
+        provider: 'custom',
+        providers: { custom: { baseUrl: 'http://[::1]:1234/v1' } },
+      } as never),
+    ).toBe(true)
+    expect(
+      isLocalAiEndpoint({
+        provider: 'custom',
+        providers: { custom: { baseUrl: 'https://api.example.com/v1' } },
+      } as never),
+    ).toBe(false)
+    expect(isLocalAiEndpoint({ provider: 'openai', providers: { openai: {} } } as never)).toBe(
+      false,
+    )
   })
 })

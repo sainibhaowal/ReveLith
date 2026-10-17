@@ -1,5 +1,12 @@
 import { createPortal } from 'react-dom'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 
 export type SelectMenuOption = {
   value: string
@@ -40,7 +47,10 @@ export function SelectMenu({
     if (!trigger) return
     const rect = trigger.getBoundingClientRect()
     const gap = 6
-    const estimatedHeight = Math.min(280, 10 + (options.length + (placeholder && !value ? 1 : 0)) * 32)
+    const estimatedHeight = Math.min(
+      280,
+      10 + (options.length + (placeholder && !value ? 1 : 0)) * 32,
+    )
     const below = window.innerHeight - rect.bottom - gap
     const above = rect.top - gap
     const opensAbove = below < estimatedHeight && above > below
@@ -105,9 +115,17 @@ export function SelectMenu({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        {selected?.color ? <span className="tasks-select-swatch" style={{ background: `var(--col-${selected.color})` }} aria-hidden="true" /> : null}
+        {selected?.color ? (
+          <span
+            className="tasks-select-swatch"
+            style={{ background: `var(--col-${selected.color})` }}
+            aria-hidden="true"
+          />
+        ) : null}
         <span className="tasks-select-value">{display}</span>
-        <span className="tasks-select-chevron" aria-hidden="true">⌄</span>
+        <span className="tasks-select-chevron" aria-hidden="true">
+          ⌄
+        </span>
       </button>
 
       <select
@@ -118,44 +136,66 @@ export function SelectMenu({
         onChange={(event) => onChange(event.target.value)}
       >
         {placeholder && !value ? <option value="">{placeholder}</option> : null}
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
       </select>
 
-      {open && menuPosition ? createPortal(
-        <div
-          ref={menuRef}
-          className={`tasks-select-menu-list${menuPosition.opensAbove ? ' is-above' : ''}`}
-          role="listbox"
-          aria-label={`${label} options`}
-          style={{
-            left: menuPosition.left,
-            top: menuPosition.top,
-            width: menuPosition.width,
-            maxHeight: menuPosition.maxHeight,
-          }}
-        >
-          {placeholder && !value ? (
-            <button type="button" role="option" aria-selected={!value} className="tasks-select-option" onClick={() => choose('')}>
-              {placeholder}
-            </button>
-          ) : null}
-          {options.map((option) => (
-            <button
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className="tasks-select-option"
-              key={option.value}
-              onClick={() => choose(option.value)}
+      {open && menuPosition
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className={`tasks-select-menu-list${menuPosition.opensAbove ? ' is-above' : ''}`}
+              role="listbox"
+              aria-label={`${label} options`}
+              style={{
+                left: menuPosition.left,
+                top: menuPosition.top,
+                width: menuPosition.width,
+                maxHeight: menuPosition.maxHeight,
+              }}
             >
-              {option.color ? <span className="tasks-select-swatch" style={{ background: `var(--col-${option.color})` }} aria-hidden="true" /> : null}
-              <span>{option.label}</span>
-              {option.value === value ? <span className="tasks-select-check" aria-hidden="true">✓</span> : null}
-            </button>
-          ))}
-        </div>,
-        document.body,
-      ) : null}
+              {placeholder && !value ? (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={!value}
+                  className="tasks-select-option"
+                  onClick={() => choose('')}
+                >
+                  {placeholder}
+                </button>
+              ) : null}
+              {options.map((option) => (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={option.value === value}
+                  className="tasks-select-option"
+                  key={option.value}
+                  onClick={() => choose(option.value)}
+                >
+                  {option.color ? (
+                    <span
+                      className="tasks-select-swatch"
+                      style={{ background: `var(--col-${option.color})` }}
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                  <span>{option.label}</span>
+                  {option.value === value ? (
+                    <span className="tasks-select-check" aria-hidden="true">
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

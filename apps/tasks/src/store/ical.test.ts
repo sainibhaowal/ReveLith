@@ -15,9 +15,22 @@ function withDates() {
   const id = projectId(base)
   return apply(
     base,
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Dated', dueDate: '2026-04-01' },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Dated',
+      dueDate: '2026-04-01',
+    },
     { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Undated' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Spanned', startDate: '2026-04-01', dueDate: '2026-04-05' },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Spanned',
+      startDate: '2026-04-01',
+      dueDate: '2026-04-05',
+    },
   )
 }
 
@@ -85,7 +98,11 @@ describe('projectToIcs', () => {
 
   it('escapes backslashes', () => {
     const base = withDates()
-    const state = apply(base, { kind: 'task/update', id: base.tasks[0].id, patch: { title: 'a\\b' } })
+    const state = apply(base, {
+      kind: 'task/update',
+      id: base.tasks[0].id,
+      patch: { title: 'a\\b' },
+    })
     expect(projectToIcs(state, projectId(state), STAMP)).toContain('a\\\\b')
   })
 

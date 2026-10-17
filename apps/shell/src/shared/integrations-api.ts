@@ -49,7 +49,9 @@ export interface IntegrationsApi {
   /** probe the CLI link and every detected agent's skills directory (no writes) */
   status(): Promise<IntegrationsStatus>
   /** write the bundled skill into one agent's skills directory (or a picked folder) */
-  installSkill(target: { agentId: AgentId; name?: string } | { dir: string; name?: string }): Promise<SkillInstallState>
+  installSkill(
+    target: { agentId: AgentId; name?: string } | { dir: string; name?: string },
+  ): Promise<SkillInstallState>
   /** remove a skill this app wrote */
   uninstallSkill(agentId: AgentId, name?: string): Promise<SkillInstallState>
   /** folder picker for "install elsewhere"; null when cancelled */

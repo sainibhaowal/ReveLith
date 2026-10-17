@@ -1,5 +1,4 @@
 export interface AppModule {
-
   id: string
   name: string
   extension: string
@@ -28,7 +27,8 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(50, 118, 205, 0.4)',
     icon: '/file-docx.svg',
     tagline: 'Word Processor with Byte-Preserving Precision',
-    description: 'Edit real Microsoft Word (.docx) files natively. Zero format drift, complex equation typesetting, ink annotations, and paginated canvas rendering.',
+    description:
+      'Edit real Microsoft Word (.docx) files natively. Zero format drift, complex equation typesetting, ink annotations, and paginated canvas rendering.',
     engineDetails: 'Engine: @revelith/docx-engine OOXML delta block patcher + WASM font metrics',
     features: [
       'Byte-preserving round-trip saves without re-serializing untouched XML',
@@ -38,9 +38,11 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'Q3_Engineering_Architecture_Report.docx',
-      mockContent: 'ReveLith implements a micro-kernel document model that maps OOXML blocks into memory structures. By generating delta-patches on save, all embedded macros, shapes, and custom XML parts remain 100% byte-for-byte identical.',
+      mockContent:
+        'ReveLith implements a micro-kernel document model that maps OOXML blocks into memory structures. By generating delta-patches on save, all embedded macros, shapes, and custom XML parts remain 100% byte-for-byte identical.',
       aiPrompt: 'Summarize key engineering takeaways and highlight risk points for stakeholders.',
-      aiResult: 'Generated executive summary: Document roundtrips preserve 100% fidelity. Risk mitigation achieved through isolated memory virtualization.',
+      aiResult:
+        'Generated executive summary: Document roundtrips preserve 100% fidelity. Risk mitigation achieved through isolated memory virtualization.',
       metrics: [
         { label: 'Save Drift', value: '0.00% (Byte-Match)' },
         { label: 'Parse Time', value: '14.2 ms' },
@@ -56,7 +58,8 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(79, 161, 107, 0.4)',
     icon: '/file-xlsx.svg',
     tagline: 'High-Performance Rust-Powered Spreadsheet Engine',
-    description: 'Process millions of rows with instantaneous calculations powered by our custom in-process Rust sidecar and dynamic WebAssembly engine.',
+    description:
+      'Process millions of rows with instantaneous calculations powered by our custom in-process Rust sidecar and dynamic WebAssembly engine.',
     engineDetails: 'Engine: Native Rust sidecar calculation core + dynamic virtualized grid',
     features: [
       'Sub-millisecond formula execution for complex Excel equations',
@@ -66,9 +69,11 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'Financial_Projections_2026.xlsx',
-      mockContent: '=LET(Rev, SUM(B2:B12), Growth, 1.34, FORECAST.ETS(C13, B2:B12, A2:A12)) -> ,850,200 (Projected)',
+      mockContent:
+        '=LET(Rev, SUM(B2:B12), Growth, 1.34, FORECAST.ETS(C13, B2:B12, A2:A12)) -> ,850,200 (Projected)',
       aiPrompt: 'Detect anomalies in the Q2 operating expense column and build a trend chart.',
-      aiResult: 'Identified 2 outliers in Row 47 & 82. Rendered animated variance waterfall and updated chart.',
+      aiResult:
+        'Identified 2 outliers in Row 47 & 82. Rendered animated variance waterfall and updated chart.',
       metrics: [
         { label: 'Calc Engine', value: 'Native Rust Core' },
         { label: 'Grid Virtualization', value: '1,000,000+ Rows' },
@@ -84,7 +89,8 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(211, 57, 34, 0.4)',
     icon: '/file-pptx.svg',
     tagline: 'Presentation Designer with Canvas Projection',
-    description: 'Craft stunning, modern slide decks with full master-layout inheritance, shape transforms, non-destructive cropping, and smart snapping.',
+    description:
+      'Craft stunning, modern slide decks with full master-layout inheritance, shape transforms, non-destructive cropping, and smart snapping.',
     engineDetails: 'Engine: @revelith/pptx-engine + @revelith/pptx-render custom canvas pipeline',
     features: [
       'Comprehensive OOXML slide tree parser and layout hierarchy resolver',
@@ -94,9 +100,12 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'ReveLith_Seed_Pitch_Deck.pptx',
-      mockContent: 'Slide 04: The Offline-First Paradigm Shift. Why local compute outperforms cloud latency for enterprise compliance.',
-      aiPrompt: 'Reorganize this slide into a 3-column benefit matrix with clean modern typography.',
-      aiResult: 'Applied 3-column sci-fi layout template with auto-aligned icons and high-contrast callouts.',
+      mockContent:
+        'Slide 04: The Offline-First Paradigm Shift. Why local compute outperforms cloud latency for enterprise compliance.',
+      aiPrompt:
+        'Reorganize this slide into a 3-column benefit matrix with clean modern typography.',
+      aiResult:
+        'Applied 3-column sci-fi layout template with auto-aligned icons and high-contrast callouts.',
       metrics: [
         { label: 'Master Sync', value: '100% Inherited' },
         { label: 'Render Pipeline', value: 'Hardware Canvas' },
@@ -112,7 +121,8 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(239, 68, 68, 0.4)',
     icon: '/file-pdf.svg',
     tagline: 'Direct Content Stream & Font-Preserving Editor',
-    description: 'Edit text in existing PDF files with automatic font embedding, fill interactive forms, apply vector annotations, and sign documents securely.',
+    description:
+      'Edit text in existing PDF files with automatic font embedding, fill interactive forms, apply vector annotations, and sign documents securely.',
     engineDetails: 'Engine: PDFium stream modifier + font metric synthesizer',
     features: [
       'In-place text editing with automatic font matching and metrics preservation',
@@ -122,9 +132,11 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'Enterprise_Service_Agreement_v4.pdf',
-      mockContent: 'SECTION 4.2: Data Ownership. All intellectual property, proprietary algorithms, and documents remain strictly confidential on customer premise.',
+      mockContent:
+        'SECTION 4.2: Data Ownership. All intellectual property, proprietary algorithms, and documents remain strictly confidential on customer premise.',
       aiPrompt: 'Review contract indemnity clauses and generate redline suggestions.',
-      aiResult: 'Scanned 18 pages. Verified zero data leakage provisions. Flagged clause 9.1 for review.',
+      aiResult:
+        'Scanned 18 pages. Verified zero data leakage provisions. Flagged clause 9.1 for review.',
       metrics: [
         { label: 'Stream Patch', value: 'Lossless Vector' },
         { label: 'Font Synthesizer', value: 'Exact Match' },
@@ -140,7 +152,8 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(139, 92, 246, 0.4)',
     icon: '/file-md.svg',
     tagline: 'Block-Based Rich Text Workspace for Engineers',
-    description: 'The ultimate technical writing environment. Instant bi-directional plain text synchronization, math formulas, code execution blocks, and Mermaid diagrams.',
+    description:
+      'The ultimate technical writing environment. Instant bi-directional plain text synchronization, math formulas, code execution blocks, and Mermaid diagrams.',
     engineDetails: 'Engine: Prosemirror-based block tree with bidirectional plain text sync',
     features: [
       'Seamless toggle between raw Markdown and WYSIWYG rich block editing',
@@ -150,7 +163,8 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'Distributed_Systems_Spec.md',
-      mockContent: '# Consensus Protocols\n```rust\npub fn apply_delta_patch(doc: &mut Document, patch: &Delta) -> Result<(), Error> {\n    doc.nodes.update(patch)?;\n    Ok(())\n}\n```',
+      mockContent:
+        '# Consensus Protocols\n```rust\npub fn apply_delta_patch(doc: &mut Document, patch: &Delta) -> Result<(), Error> {\n    doc.nodes.update(patch)?;\n    Ok(())\n}\n```',
       aiPrompt: 'Generate a Mermaid sequence diagram illustrating the Raft leader election flow.',
       aiResult: 'Inserted live Mermaid sequence diagram with interactive node inspection.',
       metrics: [
@@ -168,8 +182,10 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(227, 79, 38, 0.4)',
     icon: '/file-html.svg',
     tagline: 'Source-of-Truth HTML Editing with Live Preview',
-    description: 'Edit HTML as real source in a dedicated tab, watching a live preview that updates as you type.',
-    engineDetails: 'Engine: source-of-truth HTML editing with a sandboxed preview document and owned local assets',
+    description:
+      'Edit HTML as real source in a dedicated tab, watching a live preview that updates as you type.',
+    engineDetails:
+      'Engine: source-of-truth HTML editing with a sandboxed preview document and owned local assets',
     features: [
       'Edit the actual HTML source with a live preview beside it — no hidden generated markup',
       'Sandboxed preview document served over an internal protocol, plus a focused present view',
@@ -178,9 +194,12 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'Release_Notes_Page.html',
-      mockContent: '<section class="release">\n  <h2>0.10.100</h2>\n  <p>Draw, Forms and Tasks are now part of the suite.</p>\n</section>',
-      aiPrompt: 'Turn this section into a two-column release layout and keep the existing class names.',
-      aiResult: 'Restructured the section into two columns and preserved every existing class and id.',
+      mockContent:
+        '<section class="release">\n  <h2>0.10.100</h2>\n  <p>Draw, Forms and Tasks are now part of the suite.</p>\n</section>',
+      aiPrompt:
+        'Turn this section into a two-column release layout and keep the existing class names.',
+      aiResult:
+        'Restructured the section into two columns and preserved every existing class and id.',
       metrics: [
         { label: 'Preview', value: 'Live, Sandboxed' },
         { label: 'Export', value: 'Single-File HTML' },
@@ -196,8 +215,10 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(14, 165, 233, 0.4)',
     icon: '/file-draw.svg',
     tagline: 'AI-Native Drawing Board for Sketches and Diagrams',
-    description: 'Sketch, diagram, and lay out ideas on an infinite board, with an AI panel that can act on the board itself.',
-    engineDetails: 'Engine: canvas element model with agent tool routing across 33 board operations',
+    description:
+      'Sketch, diagram, and lay out ideas on an infinite board, with an AI panel that can act on the board itself.',
+    engineDetails:
+      'Engine: canvas element model with agent tool routing across 33 board operations',
     features: [
       'Full canvas toolkit: shapes, arrows, frames, freehand, text, images, laser and library',
       'Arrange, align, distribute, group, lock and flip operations with real undo history',
@@ -206,9 +227,11 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'System_Architecture_Board.draw',
-      mockContent: 'Infinite board with a request flow: client to gateway to service to store, annotated with notes and a legend frame.',
+      mockContent:
+        'Infinite board with a request flow: client to gateway to service to store, annotated with notes and a legend frame.',
       aiPrompt: 'Lay these four services out as a clean left-to-right flow and align the labels.',
-      aiResult: 'Arranged 4 nodes, aligned 9 labels and grouped the legend without moving user-placed annotations.',
+      aiResult:
+        'Arranged 4 nodes, aligned 9 labels and grouped the legend without moving user-placed annotations.',
       metrics: [
         { label: 'Board Tools', value: '33 Agent Tools' },
         { label: 'Export', value: 'PNG / SVG / .draw' },
@@ -224,8 +247,10 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(217, 119, 6, 0.4)',
     icon: '/file-form.svg',
     tagline: 'Local-First Form Builder with Offline Collection',
-    description: 'Build forms with conditional logic and collect responses without a hosted service.',
-    engineDetails: 'Engine: .form.json schema with routing rules, scoring and a hash-locked offline runtime',
+    description:
+      'Build forms with conditional logic and collect responses without a hosted service.',
+    engineDetails:
+      'Engine: .form.json schema with routing rules, scoring and a hash-locked offline runtime',
     features: [
       'Choice, contact, file, signature, date-range, table and nested group field types',
       'Conditional visibility, branching, calculated variables and scored quizzes',
@@ -234,9 +259,12 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'Vendor_Onboarding.form',
-      mockContent: 'Section 2 — Compliance. Conditional branch: if "handles personal data" is yes, require a DPA reference and a signature field.',
-      aiPrompt: 'Add a DPA reference field that only appears when the vendor handles personal data.',
-      aiResult: 'Added one conditional field and one visibility rule; no other questions were modified.',
+      mockContent:
+        'Section 2 — Compliance. Conditional branch: if "handles personal data" is yes, require a DPA reference and a signature field.',
+      aiPrompt:
+        'Add a DPA reference field that only appears when the vendor handles personal data.',
+      aiResult:
+        'Added one conditional field and one visibility rule; no other questions were modified.',
       metrics: [
         { label: 'Field Types', value: '14+' },
         { label: 'Languages', value: '9 Bundled' },
@@ -252,8 +280,10 @@ export const APP_MODULES: AppModule[] = [
     accentGlow: 'rgba(22, 163, 74, 0.4)',
     icon: '/file-tasks.svg',
     tagline: 'Local-First Kanban Boards with an AI Panel',
-    description: 'Plan work on kanban boards that live in local storage or a board file you control.',
-    engineDetails: 'Engine: local board model with WIP limits, relations and a shell-bridged AI panel',
+    description:
+      'Plan work on kanban boards that live in local storage or a board file you control.',
+    engineDetails:
+      'Engine: local board model with WIP limits, relations and a shell-bridged AI panel',
     features: [
       'Unlimited projects, each with its own columns, labels, custom fields and ticket key',
       'Task priority, start and due dates, estimates, time logging, sub-tasks and comments',
@@ -262,7 +292,8 @@ export const APP_MODULES: AppModule[] = [
     ],
     uiPreview: {
       title: 'Release_0.10_Board.tasks',
-      mockContent: 'Columns: Backlog, In progress, Review, Done. WIP limit of 3 on In progress, with ENG-14 blocking ENG-18.',
+      mockContent:
+        'Columns: Backlog, In progress, Review, Done. WIP limit of 3 on In progress, with ENG-14 blocking ENG-18.',
       aiPrompt: 'Summarise what is blocking the current release and flag anything past due.',
       aiResult: 'Found 1 blocking relation (ENG-14 to ENG-18) and 2 overdue cards in Review.',
       metrics: [
@@ -399,11 +430,55 @@ export const SHEET_GRID: { cols: string[]; rows: SheetRow[] } = {
         null,
       ],
     },
-    { r: 7, cells: [{ v: 'Total / Blended' }, { v: '9,313,900', n: true }, { v: '3,942,000', n: true }, { v: '5,371,900', n: true, tone: 'good' }, { v: '57.7%', n: true }, { v: '92', n: true }] },
-    { r: 8, cells: [{ v: 'Variance vs plan', tone: 'muted' }, { v: '+312,400', n: true, tone: 'good' }, { v: '-88,200', n: true, tone: 'bad' }, { v: '+400,600', n: true, tone: 'good' }, { v: '—', n: true, tone: 'muted' }, { v: '—', n: true, tone: 'muted' }] },
+    {
+      r: 7,
+      cells: [
+        { v: 'Total / Blended' },
+        { v: '9,313,900', n: true },
+        { v: '3,942,000', n: true },
+        { v: '5,371,900', n: true, tone: 'good' },
+        { v: '57.7%', n: true },
+        { v: '92', n: true },
+      ],
+    },
+    {
+      r: 8,
+      cells: [
+        { v: 'Variance vs plan', tone: 'muted' },
+        { v: '+312,400', n: true, tone: 'good' },
+        { v: '-88,200', n: true, tone: 'bad' },
+        { v: '+400,600', n: true, tone: 'good' },
+        { v: '—', n: true, tone: 'muted' },
+        { v: '—', n: true, tone: 'muted' },
+      ],
+    },
     { r: 9, cells: [null, null, null, null, null, null, null, null] },
-    { r: 10, cells: [{ v: 'Audit flags', b: true, tone: 'muted' }, { v: '2 outliers', tone: 'bad' }, { v: 'Row 47, Row 82', tone: 'muted' }, null, null, null, null, null] },
-    { r: 11, cells: [{ v: 'Formula engine', tone: 'muted' }, { v: 'Rust sidecar', tone: 'muted' }, { v: '0.4 ms', n: true, tone: 'good' }, null, null, null, null, null] },
+    {
+      r: 10,
+      cells: [
+        { v: 'Audit flags', b: true, tone: 'muted' },
+        { v: '2 outliers', tone: 'bad' },
+        { v: 'Row 47, Row 82', tone: 'muted' },
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    },
+    {
+      r: 11,
+      cells: [
+        { v: 'Formula engine', tone: 'muted' },
+        { v: 'Rust sidecar', tone: 'muted' },
+        { v: '0.4 ms', n: true, tone: 'good' },
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    },
   ],
 }
 
@@ -431,8 +506,26 @@ export interface SlideDeckItem {
 }
 
 export const SLIDE_DECK: SlideDeckItem[] = [
-  { n: 1, title: 'Cover', kind: 'title', kicker: 'ReveLith · Seed Round 2026', heading: 'Documents that stay yours.', sub: 'The offline-first office suite for sovereign teams' },
-  { n: 2, title: 'The problem', kind: 'bullets', kicker: 'Today', heading: 'Your files leave the building.', bullets: ['Every "free" editor is a data pipeline', 'Round-tripping destroys macros and custom XML', 'Compliance teams cannot approve cloud authoring'] },
+  {
+    n: 1,
+    title: 'Cover',
+    kind: 'title',
+    kicker: 'ReveLith · Seed Round 2026',
+    heading: 'Documents that stay yours.',
+    sub: 'The offline-first office suite for sovereign teams',
+  },
+  {
+    n: 2,
+    title: 'The problem',
+    kind: 'bullets',
+    kicker: 'Today',
+    heading: 'Your files leave the building.',
+    bullets: [
+      'Every "free" editor is a data pipeline',
+      'Round-tripping destroys macros and custom XML',
+      'Compliance teams cannot approve cloud authoring',
+    ],
+  },
   {
     n: 3,
     title: 'Three pillars',
@@ -445,7 +538,21 @@ export const SLIDE_DECK: SlideDeckItem[] = [
       { title: 'Lossless', body: 'Delta block patching preserves bytes on every save.' },
     ],
   },
-  { n: 4, title: 'Architecture', kind: 'flow', kicker: 'Under the hood', heading: 'Parse once. Patch precisely.', flow: ['OOXML container', 'Block index', 'In-memory model', 'Delta patch', 'Byte-identical save'], note: 'Each stage is independently testable — divergence halts the write.' },
+  {
+    n: 4,
+    title: 'Architecture',
+    kind: 'flow',
+    kicker: 'Under the hood',
+    heading: 'Parse once. Patch precisely.',
+    flow: [
+      'OOXML container',
+      'Block index',
+      'In-memory model',
+      'Delta patch',
+      'Byte-identical save',
+    ],
+    note: 'Each stage is independently testable — divergence halts the write.',
+  },
   {
     n: 5,
     title: 'Market',
@@ -458,7 +565,13 @@ export const SLIDE_DECK: SlideDeckItem[] = [
       { v: '0', l: 'Credible offline-first incumbents' },
     ],
   },
-  { n: 6, title: 'Thank you', kind: 'closing', heading: 'Let us build it in the open.', sub: 'github.com/sainibhaowal/ReveLith' },
+  {
+    n: 6,
+    title: 'Thank you',
+    kind: 'closing',
+    heading: 'Let us build it in the open.',
+    sub: 'github.com/sainibhaowal/ReveLith',
+  },
 ]
 
 export const MARKDOWN_SOURCE = [

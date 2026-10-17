@@ -176,15 +176,18 @@ export function LayoutTab({
   const applyMargins = (m: PageMargins, mirror?: boolean) => {
     if (!section || !marginsFitPage(m, section.pageWidth, section.pageHeight)) return
     // a user-set value is an ordinary margin, not the file's header-proof fixed one
-    onPageMargins({
-      ...section,
-      marginTop: m.top,
-      marginRight: m.right,
-      marginBottom: m.bottom,
-      marginLeft: m.left,
-      marginTopFixed: undefined,
-      marginBottomFixed: undefined,
-    }, mirror ?? mirrorMargins)
+    onPageMargins(
+      {
+        ...section,
+        marginTop: m.top,
+        marginRight: m.right,
+        marginBottom: m.bottom,
+        marginLeft: m.left,
+        marginTopFixed: undefined,
+        marginBottomFixed: undefined,
+      },
+      mirror ?? mirrorMargins,
+    )
   }
 
   const marginsActive = (m: PageMargins & { mirror?: true }) =>

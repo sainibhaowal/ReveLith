@@ -18,7 +18,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('docs:analyze-media', op),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   onThemeChanged: (handler: (theme: 'light' | 'dark' | 'system') => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark' | 'system') => handler(theme)
+    const listener = (_event: Electron.IpcRendererEvent, theme: 'light' | 'dark' | 'system') =>
+      handler(theme)
     ipcRenderer.on('app:theme-changed', listener)
     return () => ipcRenderer.removeListener('app:theme-changed', listener)
   },
@@ -36,11 +37,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ai:stream-chunk', listener)
     return () => ipcRenderer.removeListener('ai:stream-chunk', listener)
   },
-  webSearch: (query: string, maxResults?: number) => ipcRenderer.invoke('ai:web-search', query, maxResults),
+  webSearch: (query: string, maxResults?: number) =>
+    ipcRenderer.invoke('ai:web-search', query, maxResults),
   getDocument: () => ipcRenderer.invoke('new-app:get-document'),
   newDocument: (title: string) => ipcRenderer.invoke('new-app:new-document', title),
   openDocument: () => ipcRenderer.invoke('new-app:open-document'),
-  saveDocument: (payload: unknown, title: string, saveAs = false, prompt = true) => ipcRenderer.invoke('new-app:save-document', payload, title, saveAs, prompt),
-  setDocumentState: (dirty: boolean, title: string) => ipcRenderer.invoke('new-app:set-document-state', dirty, title),
-  setDocumentPath: (filePath: string, title: string) => ipcRenderer.invoke('new-app:set-document-path', filePath, title),
+  saveDocument: (payload: unknown, title: string, saveAs = false, prompt = true) =>
+    ipcRenderer.invoke('new-app:save-document', payload, title, saveAs, prompt),
+  setDocumentState: (dirty: boolean, title: string) =>
+    ipcRenderer.invoke('new-app:set-document-state', dirty, title),
+  setDocumentPath: (filePath: string, title: string) =>
+    ipcRenderer.invoke('new-app:set-document-path', filePath, title),
 })

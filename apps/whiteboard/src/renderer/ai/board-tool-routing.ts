@@ -199,7 +199,9 @@ export function selectBoardToolNames(instruction: string): BoardToolName[] {
   const asksForMermaid = mermaidRequested
   const asksForMermaidSource =
     asksForMermaid &&
-    /```\s*mermaid\b|\bmermaid\s+(?:source|syntax|code)\b|\brender\s+(?:this\s+)?mermaid\b/i.test(text)
+    /```\s*mermaid\b|\bmermaid\s+(?:source|syntax|code)\b|\brender\s+(?:this\s+)?mermaid\b/i.test(
+      text,
+    )
   const asksForMultipleViews =
     asksForMermaid && /\b(?:and also|plus|as well as|additionally)\b/i.test(text)
   const requestsVisualReview =
@@ -216,8 +218,12 @@ export function selectBoardToolNames(instruction: string): BoardToolName[] {
   // makes every builder append a separate diagram and produces the very tall,
   // duplicate boards that users cannot repair coherently.
   const isMultiSectionComposition =
-    /\b(infographic|one[ -]?pager|study guide|visual guide|poster|multi[ -]?section|educational guide|roadmap)\b/i.test(text) &&
-    (/\b(section|parts?|views?|workflow|roadmap|plan|tall|portrait|multiple|several)\b/i.test(text) ||
+    /\b(infographic|one[ -]?pager|study guide|visual guide|poster|multi[ -]?section|educational guide|roadmap)\b/i.test(
+      text,
+    ) &&
+    (/\b(section|parts?|views?|workflow|roadmap|plan|tall|portrait|multiple|several)\b/i.test(
+      text,
+    ) ||
       /\b(sequence|use[ -]?case|mind.?map|flowchart|chart|diagram)\b/i.test(text))
   if (asksForMermaid && !asksForMultipleViews) {
     diagrams.add('render_mermaid_diagram')
@@ -294,8 +300,7 @@ export function selectBoardToolNames(instruction: string): BoardToolName[] {
     // Diagram requests return early below. Preserve explicitly requested
     // object erasure/deletion, and expose repair actions for a requested QA
     // pass so the model can fix clutter instead of only describing it.
-    if (has(text, /\b(erase|eraser|erasing|erased|rub out)\b/))
-      diagrams.add('erase_board_elements')
+    if (has(text, /\b(erase|eraser|erasing|erased|rub out)\b/)) diagrams.add('erase_board_elements')
     if (has(text, /\b(delete|remove)\b/)) diagrams.add('delete_board_elements')
     if (requestsVisualReview) {
       diagrams.add('erase_board_elements')
@@ -415,10 +420,11 @@ export function selectBoardToolNames(instruction: string): BoardToolName[] {
   }
   if (has(text, /\b(move|shift|drag|rearrange|reposition|reposition|align|arrange|nudge|slide)\b/))
     selected.add('move_board_elements')
-  if (has(text, /\b(resize|scale|larger|smaller|shrink|enlarge)\b/)) selected.add('scale_board_elements')
-  if (has(text, /\b(restyle|recolor|colour|color|style|palette|border|fill)\b/)) selected.add('style_board_elements')
-  if (!isAttachmentChat && has(text, /\b(delete|remove)\b/))
-    selected.add('delete_board_elements')
+  if (has(text, /\b(resize|scale|larger|smaller|shrink|enlarge)\b/))
+    selected.add('scale_board_elements')
+  if (has(text, /\b(restyle|recolor|colour|color|style|palette|border|fill)\b/))
+    selected.add('style_board_elements')
+  if (!isAttachmentChat && has(text, /\b(delete|remove)\b/)) selected.add('delete_board_elements')
   if (!isAttachmentChat && has(text, /\b(erase|eraser|erasing|erased|rub out)\b/))
     selected.add('erase_board_elements')
   if (

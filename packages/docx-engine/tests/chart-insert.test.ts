@@ -48,13 +48,16 @@ describe('buildChartPartXml', () => {
     ['area', '<c:areaChart>', 'area'],
     ['radar', '<c:radarChart>', 'radar'],
     ['doughnut', '<c:doughnutChart>', 'pie'],
-  ] as const)('builds a %s chart that parses back with its native model', (kind, tag, parsedKind) => {
-    const xml = buildChartPartXml({ ...SPEC, kind })
-    expect(xml).toContain(tag)
-    const display = parseChartPartXml(xml, 'word/charts/chart1.xml')!
-    expect(display.kind).toBe(parsedKind)
-    if (kind === 'doughnut') expect(display.holePct).toBe(50)
-  })
+  ] as const)(
+    'builds a %s chart that parses back with its native model',
+    (kind, tag, parsedKind) => {
+      const xml = buildChartPartXml({ ...SPEC, kind })
+      expect(xml).toContain(tag)
+      const display = parseChartPartXml(xml, 'word/charts/chart1.xml')!
+      expect(display.kind).toBe(parsedKind)
+      if (kind === 'doughnut') expect(display.holePct).toBe(50)
+    },
+  )
 })
 
 describe('drawing alignment and floating image presets', () => {
@@ -75,7 +78,8 @@ describe('drawing alignment and floating image presets', () => {
       {
         kind: 'image',
         image: {
-          base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf8sAAAAASUVORK5CYII=',
+          base64:
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf8sAAAAASUVORK5CYII=',
           mime: 'image/png',
           widthPx: 1,
           heightPx: 1,
@@ -86,8 +90,12 @@ describe('drawing alignment and floating image presets', () => {
     ])
     const zip = await JSZip.loadAsync(saved)
     const xml = await zip.file('word/document.xml')!.async('string')
-    expect(xml).toContain('<wp:positionH relativeFrom="margin"><wp:align>right</wp:align></wp:positionH>')
-    expect(xml).toContain('<wp:positionV relativeFrom="margin"><wp:align>bottom</wp:align></wp:positionV>')
+    expect(xml).toContain(
+      '<wp:positionH relativeFrom="margin"><wp:align>right</wp:align></wp:positionH>',
+    )
+    expect(xml).toContain(
+      '<wp:positionV relativeFrom="margin"><wp:align>bottom</wp:align></wp:positionV>',
+    )
   })
 })
 

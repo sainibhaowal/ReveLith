@@ -2098,14 +2098,17 @@ function AppInner() {
       setDocPwdPrompt({ path: info.path, name: info.name, value: '', errorKey: '', busy: false }),
   }
 
-  const loadFile = useCallback(async (result: OpenDocxResult) => {
-    const outcome = await loadFileImpl(fileCtxRef.current, result)
-    if (outcome === 'ok') clearPageSetupHistory()
-    // a failed open with no document yet (boot, or the open that superseded the
-    // boot open) must land on blank instead of the "Opening…" screen
-    if (outcome === 'failed' && !fileCtxRef.current.doc) await newFileImpl(fileCtxRef.current)
-    return outcome
-  }, [clearPageSetupHistory])
+  const loadFile = useCallback(
+    async (result: OpenDocxResult) => {
+      const outcome = await loadFileImpl(fileCtxRef.current, result)
+      if (outcome === 'ok') clearPageSetupHistory()
+      // a failed open with no document yet (boot, or the open that superseded the
+      // boot open) must land on blank instead of the "Opening…" screen
+      if (outcome === 'failed' && !fileCtxRef.current.doc) await newFileImpl(fileCtxRef.current)
+      return outcome
+    },
+    [clearPageSetupHistory],
+  )
   const resetFile = useCallback(async () => {
     clearPageSetupHistory()
     await newFileImpl(fileCtxRef.current)
@@ -6622,13 +6625,18 @@ function AppInner() {
           : [...sectionsDirty, activeSection]
       const mirrorChanged = mirror !== mirrorMargins
       const hasSectionChange =
-        !section || Object.keys(next).some((key) => next[key as keyof SectionSettings] !== section[key as keyof SectionSettings])
+        !section ||
+        Object.keys(next).some(
+          (key) => next[key as keyof SectionSettings] !== section[key as keyof SectionSettings],
+        )
       if (!hasSectionChange && !mirrorChanged) return
       recordPageSetupChange(
         {
           ...capturePageSetup(),
           sections: nextSections,
-          ...(isFinalSection ? { section: next, sectionDirty: true } : { sectionsDirty: nextSectionsDirty }),
+          ...(isFinalSection
+            ? { section: next, sectionDirty: true }
+            : { sectionsDirty: nextSectionsDirty }),
           mirrorMargins: mirror,
           mirrorMarginsDirty: mirrorChanged || mirrorMarginsDirty,
         },
@@ -6864,7 +6872,17 @@ function AppInner() {
       </>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hasDoc, hasUnsavedChanges, autoSave, editor, save, lang, histState, undoDocument, redoDocument],
+    [
+      hasDoc,
+      hasUnsavedChanges,
+      autoSave,
+      editor,
+      save,
+      lang,
+      histState,
+      undoDocument,
+      redoDocument,
+    ],
   )
 
   if (!editor) return null

@@ -23,12 +23,33 @@ export type Action =
   | { kind: 'attachment/add'; id: ID; taskId: ID; name: string; mime: string; size: number }
   | { kind: 'attachment/remove'; id: ID }
   | { kind: 'project/create'; name: string; key?: string; color?: string; description?: string }
-  | { kind: 'project/update'; id: ID; patch: Partial<{ name: string; key: string; color: string; description: string }> }
+  | {
+      kind: 'project/update'
+      id: ID
+      patch: Partial<{ name: string; key: string; color: string; description: string }>
+    }
   | { kind: 'project/setArchived'; id: ID; archived: boolean }
   | { kind: 'project/delete'; id: ID }
   | { kind: 'project/select'; id: ID | null }
-  | { kind: 'column/create'; projectId: ID; name: string; color?: string; isDone?: boolean; wipLimit?: number | null }
-  | { kind: 'column/update'; id: ID; patch: Partial<{ name: string; color: string; isDone: boolean; wipLimit: number | null; position: number }> }
+  | {
+      kind: 'column/create'
+      projectId: ID
+      name: string
+      color?: string
+      isDone?: boolean
+      wipLimit?: number | null
+    }
+  | {
+      kind: 'column/update'
+      id: ID
+      patch: Partial<{
+        name: string
+        color: string
+        isDone: boolean
+        wipLimit: number | null
+        position: number
+      }>
+    }
   | { kind: 'column/delete'; id: ID }
   | { kind: 'label/create'; name: string; color: string; projectId?: ID | null }
   | { kind: 'label/update'; id: ID; patch: Partial<{ name: string; color: string }> }
@@ -83,14 +104,25 @@ export type Action =
       options?: string[]
       required?: boolean
     }
-  | { kind: 'customField/update'; id: ID; patch: Partial<{ name: string; options: string[]; required: boolean }> }
+  | {
+      kind: 'customField/update'
+      id: ID
+      patch: Partial<{ name: string; options: string[]; required: boolean }>
+    }
   | { kind: 'customField/delete'; id: ID }
   // ---- members (assignees) -------------------------------------------------
   | { kind: 'member/create'; name: string; color?: string }
   | { kind: 'member/update'; id: ID; patch: Partial<{ name: string; color: string }> }
   | { kind: 'member/delete'; id: ID }
   // ---- external links ------------------------------------------------------
-  | { kind: 'externalLink/add'; taskId: ID; type: ExternalLinkType; url: string; title?: string; externalId?: string }
+  | {
+      kind: 'externalLink/add'
+      taskId: ID
+      type: ExternalLinkType
+      url: string
+      title?: string
+      externalId?: string
+    }
   | { kind: 'externalLink/remove'; id: ID }
   // ---- bulk selection & edits ---------------------------------------------
   | { kind: 'selection/set'; ids: ID[] }

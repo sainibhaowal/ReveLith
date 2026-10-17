@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  AgentLoop,
-  type AgentStreamRequest,
-  type AgentTransport,
-} from '@revelith/agent-core'
+import { AgentLoop, type AgentStreamRequest, type AgentTransport } from '@revelith/agent-core'
 import { BoardStore } from '../store/store'
 import { boardWithProject } from '../test/fixtures'
 import { createSkill } from './agent'
@@ -33,9 +29,15 @@ describe('Tasks agent loop end to end', () => {
             // board has changed but has not been reread yet.
             callbacks.onDelta('Created the release-notes task.')
           } else if (turn === 2) {
-            callbacks.onToolCall({ id: 'verify-board', name: 'list_tasks', input: { ticket: true } })
+            callbacks.onToolCall({
+              id: 'verify-board',
+              name: 'list_tasks',
+              input: { ticket: true },
+            })
           } else {
-            callbacks.onDelta('Created Ship release notes as high priority and verified it on the board.')
+            callbacks.onDelta(
+              'Created Ship release notes as high priority and verified it on the board.',
+            )
           }
           callbacks.onDone()
         })
@@ -44,9 +46,11 @@ describe('Tasks agent loop end to end', () => {
     }
 
     let resolveRun!: (value: { text: string; cancelled: boolean; turnLimit: boolean }) => void
-    const completed = new Promise<{ text: string; cancelled: boolean; turnLimit: boolean }>((resolve) => {
-      resolveRun = resolve
-    })
+    const completed = new Promise<{ text: string; cancelled: boolean; turnLimit: boolean }>(
+      (resolve) => {
+        resolveRun = resolve
+      },
+    )
     const loop = new AgentLoop({
       transport,
       skill: {
@@ -54,7 +58,14 @@ describe('Tasks agent loop end to end', () => {
         systemPrompt: taskSkill.systemPrompt,
         get tools() {
           if (!continuationEnabled) return initialTools
-          return [...new Map([...initialTools, ...(taskSkill.continuationTools ?? [])].map((tool) => [tool.name, tool])).values()]
+          return [
+            ...new Map(
+              [...initialTools, ...(taskSkill.continuationTools ?? [])].map((tool) => [
+                tool.name,
+                tool,
+              ]),
+            ).values(),
+          ]
         },
         buildContext: taskSkill.buildContext,
         executeTool: taskSkill.executeTool,
@@ -62,7 +73,9 @@ describe('Tasks agent loop end to end', () => {
       },
       events: {
         onDone: resolveRun,
-        onToolExecuted: () => { continuationEnabled = true },
+        onToolExecuted: () => {
+          continuationEnabled = true
+        },
       },
       compaction: false,
       maxTurns: 6,
@@ -71,7 +84,9 @@ describe('Tasks agent loop end to end', () => {
     loop.run(prompt)
     const result = await Promise.race([
       completed,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Tasks verification run did not finish')), 5000)),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Tasks verification run did not finish')), 5000),
+      ),
     ])
 
     expect(result).toMatchObject({ cancelled: false, turnLimit: false })
@@ -84,9 +99,10 @@ describe('Tasks agent loop end to end', () => {
     expect(requests[1]!.tools.map((tool) => tool.name)).toContain('board_summary')
     expect(requests[1]!.tools.map((tool) => tool.name)).toContain('bulk_update_tasks')
     expect(requests[1]!.tools.map((tool) => tool.name)).not.toContain('delete_task')
-    expect(store.getState().tasks).toEqual(expect.arrayContaining([
-      expect.objectContaining({ title: 'Ship release notes', priority: 'high' }),
-    ]))
+    expect(store.getState().tasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Ship release notes', priority: 'high' }),
+      ]),
+    )
   })
 })
-

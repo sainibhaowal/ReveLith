@@ -110,11 +110,20 @@ describe('Trello import', () => {
     ],
     labels: [{ id: 'lb1', name: 'Bug', color: 'red' }],
     cards: [
-      { id: 'c1', idList: 'l1', name: 'Fix the bug', desc: 'details', due: '2024-07-01', idLabels: ['lb1'] },
+      {
+        id: 'c1',
+        idList: 'l1',
+        name: 'Fix the bug',
+        desc: 'details',
+        due: '2024-07-01',
+        idLabels: ['lb1'],
+      },
       { id: 'c2', idList: 'l2', name: 'Shipped', desc: '', due: null, idLabels: [] },
       { id: 'c3', idList: 'l3', name: 'Dropped', desc: '', due: null, idLabels: [] },
     ],
-    checklists: [{ idCard: 'c1', name: 'Steps', checkItems: [{ name: 'repro', state: 'complete' }] }],
+    checklists: [
+      { idCard: 'c1', name: 'Steps', checkItems: [{ name: 'repro', state: 'complete' }] },
+    ],
   }
 
   it('maps lists to columns and skips closed ones', () => {
@@ -164,7 +173,10 @@ describe('runImport', () => {
   })
 
   it('round-trips a Trello export through runImport', () => {
-    const report = runImport('trello', JSON.stringify({ name: 'X', lists: [{ id: 'l', name: 'To Do', closed: false }], cards: [] }))
+    const report = runImport(
+      'trello',
+      JSON.stringify({ name: 'X', lists: [{ id: 'l', name: 'To Do', closed: false }], cards: [] }),
+    )
     expect(report.ok).toBe(true)
   })
 })

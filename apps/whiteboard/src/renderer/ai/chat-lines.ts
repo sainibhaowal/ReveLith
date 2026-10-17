@@ -21,10 +21,7 @@ export interface ChatLineLike {
  * The instruction is the nearest *preceding* user line, so a run whose reply
  * spans several tool turns still replays the request that started it.
  */
-export function lastUserInstruction(
-  lines: readonly ChatLineLike[],
-  index: number,
-): string | null {
+export function lastUserInstruction(lines: readonly ChatLineLike[], index: number): string | null {
   if (index < 0 || index >= lines.length) return null
   const line = lines[index]
   if (!line || line.role !== 'assistant') return null

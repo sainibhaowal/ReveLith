@@ -28,7 +28,10 @@ const ACTIONS: Record<string, string> = {
 
 /** Human-readable, action-specific progress based on the tool actually running. */
 export function toolActivityLabel(name: string): string {
-  const words = name.replace(/([a-z0-9])([A-Z])/gu, '$1 $2').replace(/[_-]+/gu, ' ').trim()
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/gu, '$1 $2')
+    .replace(/[_-]+/gu, ' ')
+    .trim()
   if (!words) return 'Working'
   const [verb, ...subject] = words.split(/\s+/u)
   const action = ACTIONS[verb!.toLowerCase()]

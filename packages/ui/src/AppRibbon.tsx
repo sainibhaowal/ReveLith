@@ -34,36 +34,50 @@ export function AppRibbon({
   return (
     <header className="revelith-app-ribbon" data-revelith-ribbon="">
       <div className="revelith-app-ribbon-tabs" role="tablist" aria-label={`${title} tools`}>
-        {fileTab ? <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === fileTab.id}
-          className={`revelith-app-ribbon-file${activeTab === fileTab.id ? ' active' : ''}${fileTabClassName ? ` ${fileTabClassName}` : ''}`}
-          data-tip={fileTabTooltip ?? fileTab.label}
-          onClick={() => setActiveTab(fileTab.id)}
-        >
-          {fileTab.label}
-        </button> : null}
-        {fileTab && actions ? <div className="revelith-app-ribbon-actions">{actions}</div> : null}
-        {tabs.map((tab) => (
-          tab.id === fileTabId ? null :
+        {fileTab ? (
           <button
-            key={tab.id}
             type="button"
             role="tab"
-            aria-selected={activeTab === tab.id}
-            className={activeTab === tab.id ? 'active' : ''}
-            data-tip={tab.tooltip ?? tab.label}
-            onClick={() => setActiveTab(tab.id)}
+            aria-selected={activeTab === fileTab.id}
+            className={`revelith-app-ribbon-file${activeTab === fileTab.id ? ' active' : ''}${fileTabClassName ? ` ${fileTabClassName}` : ''}`}
+            data-tip={fileTabTooltip ?? fileTab.label}
+            onClick={() => setActiveTab(fileTab.id)}
           >
-            {tab.label}
+            {fileTab.label}
           </button>
-        ))}
-        {status ? <span className="revelith-app-ribbon-status" data-tip={`${title} status`}>{status}</span> : null}
+        ) : null}
+        {fileTab && actions ? <div className="revelith-app-ribbon-actions">{actions}</div> : null}
+        {tabs.map((tab) =>
+          tab.id === fileTabId ? null : (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? 'active' : ''}
+              data-tip={tab.tooltip ?? tab.label}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ),
+        )}
+        {status ? (
+          <span className="revelith-app-ribbon-status" data-tip={`${title} status`}>
+            {status}
+          </span>
+        ) : null}
         {!fileTab && actions ? <div className="revelith-app-ribbon-actions">{actions}</div> : null}
       </div>
       {tabs.map((tab) => (
-        <div key={tab.id} className="revelith-app-ribbon-body" role="tabpanel" data-ribbon-panel={tab.id} aria-label={`${tab.label} tools`} hidden={activeTab !== tab.id}>
+        <div
+          key={tab.id}
+          className="revelith-app-ribbon-body"
+          role="tabpanel"
+          data-ribbon-panel={tab.id}
+          aria-label={`${tab.label} tools`}
+          hidden={activeTab !== tab.id}
+        >
           {tab.content}
         </div>
       ))}
@@ -72,5 +86,10 @@ export function AppRibbon({
 }
 
 export function RibbonGroup({ label, children }: { label: string; children: ReactNode }) {
-  return <section className="revelith-app-ribbon-group"><div className="revelith-app-ribbon-group-items">{children}</div><div className="revelith-app-ribbon-group-label">{label}</div></section>
+  return (
+    <section className="revelith-app-ribbon-group">
+      <div className="revelith-app-ribbon-group-items">{children}</div>
+      <div className="revelith-app-ribbon-group-label">{label}</div>
+    </section>
+  )
 }

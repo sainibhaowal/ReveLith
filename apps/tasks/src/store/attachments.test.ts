@@ -128,15 +128,13 @@ describe('helpers', () => {
   it('triggers a download with the right filename', () => {
     const clicked: { href: string; download: string }[] = []
     const original = document.createElement.bind(document)
-    const spy = vi
-      .spyOn(document, 'createElement')
-      .mockImplementation(((tag: string) => {
-        const element = original(tag) as HTMLAnchorElement
-        if (tag === 'a') {
-          element.click = () => clicked.push({ href: element.href, download: element.download })
-        }
-        return element
-      }) as typeof document.createElement)
+    const spy = vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+      const element = original(tag) as HTMLAnchorElement
+      if (tag === 'a') {
+        element.click = () => clicked.push({ href: element.href, download: element.download })
+      }
+      return element
+    }) as typeof document.createElement)
 
     expect(downloadBlob(new Blob(['x']), 'notes.txt')).toBe(true)
     expect(clicked[0].download).toBe('notes.txt')

@@ -41,10 +41,10 @@ function mockApi() {
 }
 
 const run = (api: ReturnType<typeof mockApi>, svg: string) =>
-  executeBoardTool(
-    { current: api as never },
-    { name: 'add_vector_artwork', input: { svg, x: 80, y: 80 } } as never,
-  )
+  executeBoardTool({ current: api as never }, {
+    name: 'add_vector_artwork',
+    input: { svg, x: 80, y: 80 },
+  } as never)
 
 /**
  * A model asked for a mountain scene with a gradient sky emits something very
@@ -96,7 +96,13 @@ describe('add_vector_artwork decomposition of realistic model output', () => {
     const result = await run(api, realistic)
     console.log('[decompose] summary:', result.summary)
     console.log('[decompose] output :', result.output?.slice(0, 300))
-    console.log('[decompose] kinds  :', api._current().map((element) => element.type).join(','))
+    console.log(
+      '[decompose] kinds  :',
+      api
+        ._current()
+        .map((element) => element.type)
+        .join(','),
+    )
     expect(result.isError, result.output).toBeFalsy()
     // a picture here means the user cannot edit anything they asked for
     expect(result.summary, `fell back to an image: ${result.output}`).toContain('editable shapes')

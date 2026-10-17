@@ -43,8 +43,32 @@ const ATTACHMENT_CARD_ICON_GROUPS: ReadonlyArray<readonly [string, readonly stri
   [
     fileDocumentIcon,
     [
-      'txt', 'md', 'markdown', 'rtf', 'log', 'json', 'yaml', 'yml', 'xml', 'html', 'htm',
-      'js', 'ts', 'tsx', 'jsx', 'py', 'java', 'c', 'h', 'cpp', 'go', 'rs', 'rb', 'sh', 'sql', 'css',
+      'txt',
+      'md',
+      'markdown',
+      'rtf',
+      'log',
+      'json',
+      'yaml',
+      'yml',
+      'xml',
+      'html',
+      'htm',
+      'js',
+      'ts',
+      'tsx',
+      'jsx',
+      'py',
+      'java',
+      'c',
+      'h',
+      'cpp',
+      'go',
+      'rs',
+      'rb',
+      'sh',
+      'sql',
+      'css',
     ],
   ],
 ]
@@ -78,7 +102,8 @@ let cardNameCtx: CanvasRenderingContext2D | null | undefined
 
 export function truncateAttachmentName(name: string): string {
   if (cardNameCtx === undefined) {
-    cardNameCtx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
+    cardNameCtx =
+      typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
   }
   if (!cardNameCtx) return name
   cardNameCtx.font =

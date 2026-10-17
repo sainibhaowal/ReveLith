@@ -72,7 +72,9 @@ test('Forms Builder sends only selected field data locally and exposes its short
       connection: 'keep-alive',
     })
     const delta = (content: string) =>
-      response.write(`data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: null }] })}\n\n`)
+      response.write(
+        `data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: null }] })}\n\n`,
+      )
     delta('The selected Name field ')
     // Hold a partial response on screen long enough to prove the renderer is
     // showing incoming deltas, not only the completed assistant message.
@@ -80,7 +82,9 @@ test('Forms Builder sends only selected field data locally and exposes its short
     delta('is concise; ')
     delta('add a concrete example only ')
     delta('if users need formatting guidance.')
-    response.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`)
+    response.write(
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`,
+    )
     response.write('data: [DONE]\n\n')
     response.end()
     responseFinished = true

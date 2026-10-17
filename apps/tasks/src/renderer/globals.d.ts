@@ -1,9 +1,7 @@
 import type { AppChatApi } from '@revelith/app-chat'
 
 type ShellDocumentResult =
-  | { kind: string; filePath?: string; title: string; content?: unknown }
-  | { error: string }
-  | null
+  { kind: string; filePath?: string; title: string; content?: unknown } | { error: string } | null
 
 /**
  * The host surface available to the renderer.

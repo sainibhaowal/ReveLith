@@ -25,11 +25,15 @@ test('Drawboard Ask AI sends only selected element data to a loopback model', as
       connection: 'keep-alive',
     })
     const delta = (content: string) =>
-      response.write(`data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: null }] })}\n\n`)
+      response.write(
+        `data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: null }] })}\n\n`,
+      )
     delta('The selected rectangle ')
     await new Promise((resolve) => setTimeout(resolve, 900))
     delta('has clear bounds and is ready for a label.')
-    response.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`)
+    response.write(
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`,
+    )
     response.write('data: [DONE]\n\n')
     response.end()
     responseFinished = true
@@ -105,7 +109,9 @@ test('Drawboard Ask AI sends only selected element data to a loopback model', as
     expect(request.userText).not.toContain('Selected 2 element(s)')
     await expect(page.locator('.revelith-board-chat')).toContainText('The selected rectangle')
     expect(responseFinished).toBe(false)
-    await expect(page.locator('.revelith-board-chat .ai-msg-assistant')).toHaveClass(/ai-msg-streaming/)
+    await expect(page.locator('.revelith-board-chat .ai-msg-assistant')).toHaveClass(
+      /ai-msg-streaming/,
+    )
     await expect(page.locator('.revelith-board-chat')).toContainText(
       'The selected rectangle has clear bounds',
     )

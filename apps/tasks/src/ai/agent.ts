@@ -30,8 +30,12 @@ export interface AgentSkill extends AppAgentSkill {
  * only when the user's original request explicitly selected them.
  */
 const DESTRUCTIVE_TOOL_NAMES = new Set([
-  'delete_project', 'delete_column', 'delete_label', 'delete_task',
-  'delete_saved_view', 'delete_member',
+  'delete_project',
+  'delete_column',
+  'delete_label',
+  'delete_task',
+  'delete_saved_view',
+  'delete_member',
 ])
 
 export const SYSTEM_PROMPT = [
@@ -67,25 +71,35 @@ export function buildBoardContext(
     const selected = new Set(selectedTaskIds.slice(0, 12))
     const tasks = state.tasks.filter((task) => selected.has(task.id) && !task.archived)
     if (!tasks.length) return 'The explicitly selected tasks are no longer available.'
-    const lines = [`Selected task context (${tasks.length} of ${selected.size} requested; no other board tasks included):`]
+    const lines = [
+      `Selected task context (${tasks.length} of ${selected.size} requested; no other board tasks included):`,
+    ]
     for (const task of tasks) {
       const project = state.projects.find((entry) => entry.id === task.projectId)
-      const column = projectColumns(state, task.projectId).find((entry) => entry.id === task.columnId)
+      const column = projectColumns(state, task.projectId).find(
+        (entry) => entry.id === task.columnId,
+      )
       const labelNames = projectLabels(state, task.projectId)
         .filter((label) => task.labelIds.includes(label.id))
         .map((label) => label.name)
-      lines.push([
-        `- ${ticketId(state, task)} — ${task.title.slice(0, 240)}`,
-        `  Project: ${project?.name ?? 'Unknown'}; column: ${column?.name ?? 'Unknown'}; position: ${task.position}`,
-        `  Priority: ${task.priority}; due: ${task.dueDate ?? 'not set'}; labels: ${labelNames.slice(0, 12).join(', ') || 'none'}`,
-        selectedBounds?.[task.id]
-          ? `  Visible card bounds (viewport CSS px): x=${selectedBounds[task.id]!.x}, y=${selectedBounds[task.id]!.y}, width=${selectedBounds[task.id]!.width}, height=${selectedBounds[task.id]!.height}`
-          : '',
-        task.description.trim() ? `  Description: ${task.description.trim().slice(0, 600)}` : '',
-      ].filter(Boolean).join('\n'))
+      lines.push(
+        [
+          `- ${ticketId(state, task)} — ${task.title.slice(0, 240)}`,
+          `  Project: ${project?.name ?? 'Unknown'}; column: ${column?.name ?? 'Unknown'}; position: ${task.position}`,
+          `  Priority: ${task.priority}; due: ${task.dueDate ?? 'not set'}; labels: ${labelNames.slice(0, 12).join(', ') || 'none'}`,
+          selectedBounds?.[task.id]
+            ? `  Visible card bounds (viewport CSS px): x=${selectedBounds[task.id]!.x}, y=${selectedBounds[task.id]!.y}, width=${selectedBounds[task.id]!.width}, height=${selectedBounds[task.id]!.height}`
+            : '',
+          task.description.trim() ? `  Description: ${task.description.trim().slice(0, 600)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
     }
     const result = lines.join('\n')
-    return result.length > 7_000 ? `${result.slice(0, 6_980)}\n[Selection context truncated for performance.]` : result
+    return result.length > 7_000
+      ? `${result.slice(0, 6_980)}\n[Selection context truncated for performance.]`
+      : result
   }
   if (!state.projects.length) return 'The board is empty. No projects exist yet.'
 
@@ -108,7 +122,9 @@ export function buildBoardContext(
       for (const column of columns) {
         const inColumn = tasks.filter((task) => task.columnId === column.id)
         if (!inColumn.length) continue
-        lines.push(`${column.name}: ${inColumn.map((task) => `${ticketId(state, task)} ${task.title}`).join(' | ')}`)
+        lines.push(
+          `${column.name}: ${inColumn.map((task) => `${ticketId(state, task)} ${task.title}`).join(' | ')}`,
+        )
       }
     }
     lines.push('')
@@ -128,26 +144,46 @@ export function createSkill(ctx: ToolContext): AgentSkill {
     continuationTools,
     /** Narrow to relevant board tools and provision project creation on an empty board. */
     toolsForRequest: (instruction: string) =>
-      /\[revelith-task-selection:v1 ids=/.test(instruction) ? [] : selectTaskTools(instruction, allTools, {
-        activeProjectCount: ctx.getState().projects.filter((project) => !project.archived).length,
-      }),
+      /\[revelith-task-selection:v1 ids=/.test(instruction)
+        ? []
+        : selectTaskTools(instruction, allTools, {
+            activeProjectCount: ctx.getState().projects.filter((project) => !project.archived)
+              .length,
+          }),
     buildContext: (instruction = '') => {
-      const match = instruction.match(/\[revelith-task-selection:v1 ids=([^\s\]]+)(?: boxes=([^\]]*))?\]/)
+      const match = instruction.match(
+        /\[revelith-task-selection:v1 ids=([^\s\]]+)(?: boxes=([^\]]*))?\]/,
+      )
       if (match) {
-        const ids = match[1]!.split(',').filter(Boolean).slice(0, 12).map((id) => {
-          try { return decodeURIComponent(id) } catch { return '' }
-        }).filter(Boolean)
+        const ids = match[1]!
+          .split(',')
+          .filter(Boolean)
+          .slice(0, 12)
+          .map((id) => {
+            try {
+              return decodeURIComponent(id)
+            } catch {
+              return ''
+            }
+          })
+          .filter(Boolean)
         let boxes: Record<string, { x: number; y: number; width: number; height: number }> = {}
         try {
           const parsed = JSON.parse(decodeURIComponent(match[2] ?? '')) as unknown
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            boxes = Object.fromEntries(Object.entries(parsed).filter(([, value]) => {
-              if (!value || typeof value !== 'object') return false
-              const box = value as Record<string, unknown>
-              return ['x', 'y', 'width', 'height'].every((key) => typeof box[key] === 'number' && Number.isFinite(box[key]))
-            })) as typeof boxes
+            boxes = Object.fromEntries(
+              Object.entries(parsed).filter(([, value]) => {
+                if (!value || typeof value !== 'object') return false
+                const box = value as Record<string, unknown>
+                return ['x', 'y', 'width', 'height'].every(
+                  (key) => typeof box[key] === 'number' && Number.isFinite(box[key]),
+                )
+              }),
+            ) as typeof boxes
           }
-        } catch { /* geometry is optional; keep the selected task context */ }
+        } catch {
+          /* geometry is optional; keep the selected task context */
+        }
         return buildBoardContext(ctx.getState(), ids, boxes)
       }
       return buildBoardContext(ctx.getState())

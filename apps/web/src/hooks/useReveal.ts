@@ -13,9 +13,7 @@ import { useEffect } from 'react'
  */
 export function useReveal(): void {
   useEffect(() => {
-    const nodes = Array.from(
-      document.querySelectorAll<HTMLElement>('[class*="scroll-reveal"]')
-    )
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[class*="scroll-reveal"]'))
     if (nodes.length === 0) return
 
     // Honour the user's motion preference: show everything, animate nothing.
@@ -46,7 +44,7 @@ export function useReveal(): void {
         // dead-lock elements that sit in the final viewport of the document.
         rootMargin: '0px 0px 160px 0px',
         threshold: 0,
-      }
+      },
     )
 
     nodes.forEach((n) => observer.observe(n))

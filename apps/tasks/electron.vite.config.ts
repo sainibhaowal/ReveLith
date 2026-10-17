@@ -9,7 +9,12 @@ export default defineConfig({
     // everything else (Electron, zod, node builtins).
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@revelith/agent-core', '@revelith/ai-provider', '@revelith/app-chat', '@revelith/ui'],
+        exclude: [
+          '@revelith/agent-core',
+          '@revelith/ai-provider',
+          '@revelith/app-chat',
+          '@revelith/ui',
+        ],
       }),
     ],
   },
@@ -18,7 +23,12 @@ export default defineConfig({
     // so the chat bridge must be bundled, not externalized.
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['@revelith/agent-core', '@revelith/ai-provider', '@revelith/app-chat', '@revelith/ui'],
+        exclude: [
+          '@revelith/agent-core',
+          '@revelith/ai-provider',
+          '@revelith/app-chat',
+          '@revelith/ui',
+        ],
       }),
     ],
   },

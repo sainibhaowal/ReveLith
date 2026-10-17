@@ -66,7 +66,12 @@ describe('AiMessageActions', () => {
 
   it('shows the confirmed tick while copied is set', () => {
     render(
-      createElement(AiMessageActions, { text: 'hi', labels: LABELS, onCopy: vi.fn(), copied: true }),
+      createElement(AiMessageActions, {
+        text: 'hi',
+        labels: LABELS,
+        onCopy: vi.fn(),
+        copied: true,
+      }),
     )
     expect(buttonByLabel('Copy reply')!.querySelector('polyline')).toBeTruthy()
   })
@@ -97,7 +102,11 @@ describe('AiMessageActions', () => {
 
   it('omits the separator when no icon action precedes roll back', () => {
     render(
-      createElement(AiMessageActions, { labels: LABELS, onRollback: vi.fn(), onRegenerate: vi.fn() }),
+      createElement(AiMessageActions, {
+        labels: LABELS,
+        onRollback: vi.fn(),
+        onRegenerate: vi.fn(),
+      }),
     )
     expect(host.querySelector('.ai-rollback-sep')).toBeTruthy()
     expect(host.querySelector('.ai-msg-tool-btn')).toBeTruthy()
@@ -184,7 +193,8 @@ describe('AiToolActivity', () => {
       createElement(AiToolActivity, {
         tools: [{ name: 'draw', summary: 'Drawing', running: true, input: { x: 1 } }],
         labels,
-        renderDetail: (tool) => createElement('div', { className: 'custom-detail' }, JSON.stringify(tool.input)),
+        renderDetail: (tool) =>
+          createElement('div', { className: 'custom-detail' }, JSON.stringify(tool.input)),
       }),
     )
     // the default body would wait for the tool to finish; a custom one does not
@@ -195,7 +205,12 @@ describe('AiToolActivity', () => {
   })
 
   it('gives a step with no output a plain title, not an expander', () => {
-    render(createElement(AiToolActivity, { tools: [{ name: 'quiet', summary: 'Nothing to show' }], labels }))
+    render(
+      createElement(AiToolActivity, {
+        tools: [{ name: 'quiet', summary: 'Nothing to show' }],
+        labels,
+      }),
+    )
     expect(host.querySelector('.ai-step-title.clickable')).toBeNull()
     expect(host.querySelector('.ai-step-title')!.textContent).toBe('Nothing to show')
   })
@@ -203,7 +218,12 @@ describe('AiToolActivity', () => {
 
 describe('AiClarifyCard', () => {
   const questions: ClarifyQuestion[] = [
-    { id: 'audience', label: 'Who is this for?', options: ['Engineers', 'Executives'], description: 'Sets the tone' },
+    {
+      id: 'audience',
+      label: 'Who is this for?',
+      options: ['Engineers', 'Executives'],
+      description: 'Sets the tone',
+    },
     { id: 'tone', label: 'Which tone?', options: ['Formal', 'Playful'], multi: true },
   ]
   const optionByText = (text: string) =>
@@ -225,7 +245,9 @@ describe('AiClarifyCard', () => {
     vi.useFakeTimers()
     try {
       const onSubmit = vi.fn()
-      render(createElement(AiClarifyCard, { questions: [questions[0]!], onSubmit, onSkip: vi.fn() }))
+      render(
+        createElement(AiClarifyCard, { questions: [questions[0]!], onSubmit, onSkip: vi.fn() }),
+      )
       click(optionByText('Engineers'))
       expect(onSubmit).not.toHaveBeenCalled()
       act(() => {
@@ -258,9 +280,7 @@ describe('AiClarifyCard', () => {
     })
     click(host.querySelector('.ai-clarify-submit'))
     expect(onSubmit).toHaveBeenCalledTimes(1)
-    expect((onSubmit.mock.calls[0] as [string])[0]).toBe(
-      'Which tone?: Formal、Dry and technical',
-    )
+    expect((onSubmit.mock.calls[0] as [string])[0]).toBe('Which tone?: Formal、Dry and technical')
   })
 
   it('disables submit until something is chosen and reports a skip', () => {
@@ -273,7 +293,9 @@ describe('AiClarifyCard', () => {
 
   it('walks to the next question through the header pager after answering', () => {
     render(createElement(AiClarifyCard, { questions, onSubmit: vi.fn(), onSkip: vi.fn() }))
-    const next = host.querySelector('.ai-clarify-head-arrows button[aria-label="Next"]') as HTMLButtonElement
+    const next = host.querySelector(
+      '.ai-clarify-head-arrows button[aria-label="Next"]',
+    ) as HTMLButtonElement
     expect(next.disabled).toBe(true)
     vi.useFakeTimers()
     try {

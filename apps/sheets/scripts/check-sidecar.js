@@ -17,19 +17,19 @@ function rustInputs(dir) {
   })
 }
 
-const inputs = [
-  ...rustInputs(crate),
-  join(crate, 'Cargo.lock'),
-].filter(existsSync)
+const inputs = [...rustInputs(crate), join(crate, 'Cargo.lock')].filter(existsSync)
 const needsBuild =
-  !existsSync(sidecar) || inputs.some((input) => statSync(input).mtimeMs > statSync(sidecar).mtimeMs)
+  !existsSync(sidecar) ||
+  inputs.some((input) => statSync(input).mtimeMs > statSync(sidecar).mtimeMs)
 
 if (!needsBuild) {
   console.log('Prebuilt xlsx-sidecar.exe found. Skipping cargo build.')
   process.exit(0)
 }
 
-console.log(`${existsSync(sidecar) ? 'Native sources changed; rebuilding' : 'Building'} xlsx-sidecar via cargo...`)
+console.log(
+  `${existsSync(sidecar) ? 'Native sources changed; rebuilding' : 'Building'} xlsx-sidecar via cargo...`,
+)
 execSync(
   'cargo build --release --manifest-path native/xlsx-engine/Cargo.toml --config native/xlsx-engine/.cargo/config.toml',
   { stdio: 'inherit' },

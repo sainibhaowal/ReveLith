@@ -19,15 +19,15 @@ This plan covers the Forms Builder and its ReveLith AI panel. It does not author
 
 ## Reference capability map
 
-| Read-only reference area | Product capabilities observed | ReveLith-native destination |
-| --- | --- | --- |
-| `assets/packages/shared-types-enums` | Field definitions, defaults, theme/settings, conditions/actions, translations and form state | `apps/forms-builder/src/renderer/types.ts`, schema migration/validation, AI tool schemas |
-| `assets/packages/answer-utils` | Type-aware validation, answer serialization, conditions and calculated values | `apps/forms-builder/src/renderer/form-runtime/` pure functions, preview tests |
-| `assets/packages/form-renderer` | Respondent flow, field rendering, branching, progress, validation, completion states | `apps/forms-builder/src/renderer/components/FieldRenderer.tsx`, `FormCanvas.tsx`, `form-runtime/` |
-| `assets/packages/webapp` | Builder, settings/design/logic, preview, submissions and analytics surfaces | `apps/forms-builder/src/renderer/components/`, `Ribbon.tsx`, `PropertiesPane.tsx`, local response views |
-| `assets/packages/embed` | Inline/popup/modal/full-page presentation patterns | Future local HTML export/preview; no hosted embed service assumed |
-| `assets/packages/server` | Accounts, tenant/project authorization, hosted publishing, quotas, payments, uploads, integrations and analytics | Not portable into the local desktop app as-is. Keep local data local; add only explicit local equivalents or separately designed services. |
-| `assets/packages/utils` | Shared form manipulation and serialization helpers | ReveLith-native schema utilities and migration tests |
+| Read-only reference area             | Product capabilities observed                                                                                    | ReveLith-native destination                                                                                                                |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `assets/packages/shared-types-enums` | Field definitions, defaults, theme/settings, conditions/actions, translations and form state                     | `apps/forms-builder/src/renderer/types.ts`, schema migration/validation, AI tool schemas                                                   |
+| `assets/packages/answer-utils`       | Type-aware validation, answer serialization, conditions and calculated values                                    | `apps/forms-builder/src/renderer/form-runtime/` pure functions, preview tests                                                              |
+| `assets/packages/form-renderer`      | Respondent flow, field rendering, branching, progress, validation, completion states                             | `apps/forms-builder/src/renderer/components/FieldRenderer.tsx`, `FormCanvas.tsx`, `form-runtime/`                                          |
+| `assets/packages/webapp`             | Builder, settings/design/logic, preview, submissions and analytics surfaces                                      | `apps/forms-builder/src/renderer/components/`, `Ribbon.tsx`, `PropertiesPane.tsx`, local response views                                    |
+| `assets/packages/embed`              | Inline/popup/modal/full-page presentation patterns                                                               | Future local HTML export/preview; no hosted embed service assumed                                                                          |
+| `assets/packages/server`             | Accounts, tenant/project authorization, hosted publishing, quotas, payments, uploads, integrations and analytics | Not portable into the local desktop app as-is. Keep local data local; add only explicit local equivalents or separately designed services. |
+| `assets/packages/utils`              | Shared form manipulation and serialization helpers                                                               | ReveLith-native schema utilities and migration tests                                                                                       |
 
 ## Detailed reference inventory
 

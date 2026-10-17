@@ -92,7 +92,20 @@ const MAX_PRIMITIVES = 1200
 const CURVE_STEPS = 16
 
 /** Tags we can turn into native geometry. `g` is a pure container. */
-const DECOMPOSABLE_TAGS = new Set(['svg', 'g', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path', 'text', 'tspan', 'use'])
+const DECOMPOSABLE_TAGS = new Set([
+  'svg',
+  'g',
+  'rect',
+  'circle',
+  'ellipse',
+  'line',
+  'polyline',
+  'polygon',
+  'path',
+  'text',
+  'tspan',
+  'use',
+])
 
 /**
  * Elements that define reusable content rather than drawing it. They are read
@@ -100,20 +113,65 @@ const DECOMPOSABLE_TAGS = new Set(['svg', 'g', 'rect', 'circle', 'ellipse', 'lin
  * the whole artwork the way an unknown tag does.
  */
 const DEFINITION_TAGS = new Set([
-  'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'mask',
-  'symbol', 'filter', 'pattern', 'marker', 'title', 'desc', 'metadata', 'style',
+  'defs',
+  'linearGradient',
+  'radialGradient',
+  'stop',
+  'clipPath',
+  'mask',
+  'symbol',
+  'filter',
+  'pattern',
+  'marker',
+  'title',
+  'desc',
+  'metadata',
+  'style',
 ])
 
 const NAMED_COLORS: Record<string, string> = {
-  black: '#000000', white: '#ffffff', red: '#ff0000', green: '#008000', blue: '#0000ff',
-  yellow: '#ffff00', orange: '#ffa500', purple: '#800080', pink: '#ffc0cb', brown: '#a52a2a',
-  gray: '#808080', grey: '#808080', cyan: '#00ffff', magenta: '#ff00ff', silver: '#c0c0c0',
-  maroon: '#800000', navy: '#000080', teal: '#008080', olive: '#808000', lime: '#00ff00',
-  indigo: '#4b0082', violet: '#ee82ee', gold: '#ffd700', beige: '#f5f5dc', ivory: '#fffff0',
-  khaki: '#f0e68c', salmon: '#fa8072', tomato: '#ff6347', turquoise: '#40e0d0', crimson: '#dc143c',
-  steelblue: '#4682b4', skyblue: '#87ceeb', seagreen: '#2e8b57', darkgreen: '#006400',
-  darkblue: '#00008b', darkred: '#8b0000', lightgray: '#d3d3d3', lightgrey: '#d3d3d3',
-  darkgray: '#a9a9a9', darkgrey: '#a9a9a9', slategray: '#708090', slategrey: '#708090',
+  black: '#000000',
+  white: '#ffffff',
+  red: '#ff0000',
+  green: '#008000',
+  blue: '#0000ff',
+  yellow: '#ffff00',
+  orange: '#ffa500',
+  purple: '#800080',
+  pink: '#ffc0cb',
+  brown: '#a52a2a',
+  gray: '#808080',
+  grey: '#808080',
+  cyan: '#00ffff',
+  magenta: '#ff00ff',
+  silver: '#c0c0c0',
+  maroon: '#800000',
+  navy: '#000080',
+  teal: '#008080',
+  olive: '#808000',
+  lime: '#00ff00',
+  indigo: '#4b0082',
+  violet: '#ee82ee',
+  gold: '#ffd700',
+  beige: '#f5f5dc',
+  ivory: '#fffff0',
+  khaki: '#f0e68c',
+  salmon: '#fa8072',
+  tomato: '#ff6347',
+  turquoise: '#40e0d0',
+  crimson: '#dc143c',
+  steelblue: '#4682b4',
+  skyblue: '#87ceeb',
+  seagreen: '#2e8b57',
+  darkgreen: '#006400',
+  darkblue: '#00008b',
+  darkred: '#8b0000',
+  lightgray: '#d3d3d3',
+  lightgrey: '#d3d3d3',
+  darkgray: '#a9a9a9',
+  darkgrey: '#a9a9a9',
+  slategray: '#708090',
+  slategrey: '#708090',
 }
 
 const clampByte = (value: number) => Math.max(0, Math.min(255, Math.round(value)))
@@ -126,12 +184,18 @@ function hslToHex(h: number, s: number, l: number): string {
   const hue = ((h % 360) + 360) % 360
   const sector = hue / 60
   const x = chroma * (1 - Math.abs((sector % 2) - 1))
-  const base = sector < 1 ? [chroma, x, 0]
-    : sector < 2 ? [x, chroma, 0]
-      : sector < 3 ? [0, chroma, x]
-        : sector < 4 ? [0, x, chroma]
-          : sector < 5 ? [x, 0, chroma]
-            : [chroma, 0, x]
+  const base =
+    sector < 1
+      ? [chroma, x, 0]
+      : sector < 2
+        ? [x, chroma, 0]
+        : sector < 3
+          ? [0, chroma, x]
+          : sector < 4
+            ? [0, x, chroma]
+            : sector < 5
+              ? [x, 0, chroma]
+              : [chroma, 0, x]
   const m = light - chroma / 2
   return `#${hex2((base[0]! + m) * 255)}${hex2((base[1]! + m) * 255)}${hex2((base[2]! + m) * 255)}`
 }
@@ -147,13 +211,15 @@ export function paintToHex(value: string | null | undefined, fallback: string): 
   if (!paint) return fallback
   if (paint === 'none' || paint === 'transparent') return 'transparent'
   if (paint.startsWith('url(')) return null
-  if (/^#[0-9a-f]{3}$/.test(paint)) return `#${paint[1]}${paint[1]}${paint[2]}${paint[2]}${paint[3]}${paint[3]}`
+  if (/^#[0-9a-f]{3}$/.test(paint))
+    return `#${paint[1]}${paint[1]}${paint[2]}${paint[2]}${paint[3]}${paint[3]}`
   if (/^#[0-9a-f]{6}$/.test(paint)) return paint
   const fn = /^(rgba?|hsla?)\(([^)]*)\)$/.exec(paint)
   if (fn) {
     const parts = fn[2]!.split(/[\s,/]+/).filter(Boolean)
     if (fn[1]!.startsWith('rgb') && parts.length >= 3) {
-      const channel = (raw: string) => (raw.endsWith('%') ? (Number.parseFloat(raw) / 100) * 255 : Number.parseFloat(raw))
+      const channel = (raw: string) =>
+        raw.endsWith('%') ? (Number.parseFloat(raw) / 100) * 255 : Number.parseFloat(raw)
       const [r, g, b] = [channel(parts[0]!), channel(parts[1]!), channel(parts[2]!)]
       if ([r, g, b].every(Number.isFinite)) return `#${hex2(r)}${hex2(g)}${hex2(b)}`
       return null
@@ -179,7 +245,6 @@ const applyMatrix = (m: Matrix, x: number, y: number): [number, number] => {
   return [point[0], point[1]]
 }
 
-
 /** Only translate/scale/matrix/skew are supported; rotate is accepted too. */
 function parseTransform(value: string | null | undefined): Matrix | null {
   if (value === null || value === undefined || !value.trim()) return IDENTITY
@@ -189,7 +254,10 @@ function parseTransform(value: string | null | undefined): Matrix | null {
   let match: RegExpExecArray | null
   while ((match = pattern.exec(value)) !== null) {
     consumed += match[0].length
-    const args = match[2]!.split(/[\s,]+/).filter(Boolean).map(Number)
+    const args = match[2]!
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .map(Number)
     if (!args.every(Number.isFinite)) return null
     switch (match[1]) {
       case 'translate':
@@ -213,7 +281,14 @@ function parseTransform(value: string | null | undefined): Matrix | null {
       }
       case 'matrix':
         if (args.length < 6) return null
-        result = multiplyMatrix(result, [args[0]!, args[1]!, args[2]!, args[3]!, args[4]!, args[5]!] as Matrix)
+        result = multiplyMatrix(result, [
+          args[0]!,
+          args[1]!,
+          args[2]!,
+          args[3]!,
+          args[4]!,
+          args[5]!,
+        ] as Matrix)
         break
       case 'skewX':
         result = multiplyMatrix(result, [1, 0, Math.tan(((args[0] ?? 0) * Math.PI) / 180), 1, 0, 0])
@@ -318,9 +393,12 @@ function samplePath(d: string): Array<{ points: Array<[number, number]>; closed:
         break
       }
       case 'C': {
-        const c1x = readNumber(); const c1y = readNumber()
-        const c2x = readNumber(); const c2y = readNumber()
-        const ex = readNumber(); const ey = readNumber()
+        const c1x = readNumber()
+        const c1y = readNumber()
+        const c2x = readNumber()
+        const c2y = readNumber()
+        const ex = readNumber()
+        const ey = readNumber()
         const ax = relative ? x + c1x : c1x
         const ay = relative ? y + c1y : c1y
         const bx = relative ? x + c2x : c2x
@@ -342,8 +420,10 @@ function samplePath(d: string): Array<{ points: Array<[number, number]>; closed:
         break
       }
       case 'S': {
-        const c2x = readNumber(); const c2y = readNumber()
-        const ex = readNumber(); const ey = readNumber()
+        const c2x = readNumber()
+        const c2y = readNumber()
+        const ex = readNumber()
+        const ey = readNumber()
         const ax = lastCubic ? 2 * x - lastCubic[0] : x
         const ay = lastCubic ? 2 * y - lastCubic[1] : y
         const bx = relative ? x + c2x : c2x
@@ -365,8 +445,10 @@ function samplePath(d: string): Array<{ points: Array<[number, number]>; closed:
         break
       }
       case 'Q': {
-        const c1x = readNumber(); const c1y = readNumber()
-        const ex = readNumber(); const ey = readNumber()
+        const c1x = readNumber()
+        const c1y = readNumber()
+        const ex = readNumber()
+        const ey = readNumber()
         const ax = relative ? x + c1x : c1x
         const ay = relative ? y + c1y : c1y
         const dx = relative ? x + ex : ex
@@ -383,7 +465,8 @@ function samplePath(d: string): Array<{ points: Array<[number, number]>; closed:
         break
       }
       case 'T': {
-        const ex = readNumber(); const ey = readNumber()
+        const ex = readNumber()
+        const ey = readNumber()
         // Annotated explicitly: `ax`/`ay` feed `lastQuad`, which feeds them back,
         // so inference would otherwise report a circular initializer.
         const ax: number = lastQuad ? 2 * x - lastQuad[0] : x
@@ -452,7 +535,10 @@ function samplePath(d: string): Array<{ points: Array<[number, number]>; closed:
 
 function pointsFromList(raw: string | null): Array<[number, number]> | null {
   if (!raw) return null
-  const numbers = raw.split(/[\s,]+/).filter(Boolean).map(Number)
+  const numbers = raw
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(Number)
   if (numbers.length < 4 || numbers.length % 2 !== 0 || !numbers.every(Number.isFinite)) return null
   const points: Array<[number, number]> = []
   for (let i = 0; i < numbers.length; i += 2) points.push([numbers[i]!, numbers[i + 1]!])
@@ -622,13 +708,15 @@ function collectDefinitions(root: Element): Definitions {
   const gradientOf = (element: Element, seen: Set<Element>): GradientDef | null => {
     if (seen.has(element)) return null
     seen.add(element)
-    const inheritedId = paintReference(element.getAttribute('href') ?? element.getAttribute('xlink:href'))
+    const inheritedId = paintReference(
+      element.getAttribute('href') ?? element.getAttribute('xlink:href'),
+    )
     const parent = inheritedId ? byId.get(inheritedId) : undefined
     const inherited = parent ? gradientOf(parent, seen) : null
 
     const radial = element.localName === 'radialGradient'
     const own = collectStops(element)
-    const stops = own.length ? own : inherited?.stops ?? []
+    const stops = own.length ? own : (inherited?.stops ?? [])
     if (!stops.length) return null
 
     const unitsAttr = (element.getAttribute('gradientUnits') ?? '').trim()
@@ -640,22 +728,24 @@ function collectDefinitions(root: Element): Definitions {
     const value = (name: string, fallback: number): number => {
       const raw = element.getAttribute(name)
       if (raw === null || raw === '') return fallback
-      const parsed = Number.parseFloat(raw.endsWith('%') ? String(Number.parseFloat(raw) / 100) : raw)
+      const parsed = Number.parseFloat(
+        raw.endsWith('%') ? String(Number.parseFloat(raw) / 100) : raw,
+      )
       return Number.isFinite(parsed) ? parsed : fallback
     }
     const transformAttr = element.getAttribute('gradientTransform')
     return {
       kind: radial ? 'radial' : 'linear',
       stops,
-      x1: value('x1', radial ? 0 : inherited?.x1 ?? 0),
-      y1: value('y1', radial ? 0 : inherited?.y1 ?? 0),
-      x2: value('x2', radial ? 0 : inherited?.x2 ?? 1),
-      y2: value('y2', radial ? 0 : inherited?.y2 ?? 0),
+      x1: value('x1', radial ? 0 : (inherited?.x1 ?? 0)),
+      y1: value('y1', radial ? 0 : (inherited?.y1 ?? 0)),
+      x2: value('x2', radial ? 0 : (inherited?.x2 ?? 1)),
+      y2: value('y2', radial ? 0 : (inherited?.y2 ?? 0)),
       cx: value('cx', inherited?.cx ?? 0.5),
       cy: value('cy', inherited?.cy ?? 0.5),
       radius: value('r', inherited?.radius ?? 0.5),
       objectBoundingBox: usesBoundingBox,
-      transform: transformAttr ? parseTransform(transformAttr) : inherited?.transform ?? null,
+      transform: transformAttr ? parseTransform(transformAttr) : (inherited?.transform ?? null),
     }
   }
 
@@ -688,7 +778,14 @@ function collectDefinitions(root: Element): Definitions {
 }
 
 /** Points around an ellipse under an arbitrary matrix. */
-function ellipseOutline(cx: number, cy: number, rx: number, ry: number, matrix: Matrix, steps = 48): Point[] {
+function ellipseOutline(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  matrix: Matrix,
+  steps = 48,
+): Point[] {
   const points: Point[] = []
   for (let index = 0; index < steps; index += 1) {
     const angle = (index / steps) * Math.PI * 2
@@ -720,7 +817,13 @@ function outlineOf(tag: string, element: Element, matrix: Matrix, _unitScale = 1
     const rx = tag === 'circle' ? num(element.getAttribute('r')) : num(element.getAttribute('rx'))
     const ry = tag === 'circle' ? rx : num(element.getAttribute('ry'))
     if (!(rx > 0) || !(ry > 0)) return null
-    return ellipseOutline(num(element.getAttribute('cx')), num(element.getAttribute('cy')), rx, ry, matrix)
+    return ellipseOutline(
+      num(element.getAttribute('cx')),
+      num(element.getAttribute('cy')),
+      rx,
+      ry,
+      matrix,
+    )
   }
   if (tag === 'line') {
     return [
@@ -742,12 +845,13 @@ function outlineOf(tag: string, element: Element, matrix: Matrix, _unitScale = 1
     // outline (the closest faithful single-region approximation).
     const closed = subpaths.filter((subpath) => subpath.closed)
     const candidates = closed.length ? closed : subpaths
-    const chosen = candidates.reduce((best, current) => (current.points.length > best.points.length ? current : best))
+    const chosen = candidates.reduce((best, current) =>
+      current.points.length > best.points.length ? current : best,
+    )
     return chosen.points.map((point) => applyMatrix(matrix, point[0], point[1]))
   }
   return null
 }
-
 
 /**
  * Why an artwork could not become native shapes.
@@ -769,8 +873,13 @@ export function explainVectorFallback(svg: string): string | null {
   if (has('pattern')) reasons.push('a <pattern> fill, which has no native equivalent')
   if (has('image')) reasons.push('an embedded raster <image>')
   const unapproximable = [
-    'feTurbulence', 'feDisplacementMap', 'feMorphology', 'feTile',
-    'feComponentTransfer', 'feBlend', 'feComposite',
+    'feTurbulence',
+    'feDisplacementMap',
+    'feMorphology',
+    'feTile',
+    'feComponentTransfer',
+    'feBlend',
+    'feComposite',
   ].filter((name) => has(name))
   if (unapproximable.length) {
     reasons.push(`a filter that cannot be approximated (${unapproximable.join(', ')})`)
@@ -795,8 +904,17 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
   const root = parsed.documentElement
   if (root.localName !== 'svg' || root.namespaceURI !== SVG_NS) return null
 
-  const viewBox = (root.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number)
-  if (viewBox.length !== 4 || !viewBox.every(Number.isFinite) || viewBox[2]! <= 0 || viewBox[3]! <= 0) return null
+  const viewBox = (root.getAttribute('viewBox') ?? '')
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number)
+  if (
+    viewBox.length !== 4 ||
+    !viewBox.every(Number.isFinite) ||
+    viewBox[2]! <= 0 ||
+    viewBox[3]! <= 0
+  )
+    return null
   const width = viewBox[2]!
   const height = viewBox[3]!
 
@@ -807,7 +925,7 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
   /** A gradient paint server for this attribute value, when one is referenced. */
   const gradientFor = (value: string | null): GradientDef | null => {
     const id = paintReference(value)
-    return id ? definitions.gradients.get(id) ?? null : null
+    return id ? (definitions.gradients.get(id) ?? null) : null
   }
 
   /**
@@ -949,7 +1067,12 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
     }
   }
 
-  const walk = (element: Element, inherited: Matrix, parentOpacity: number, clip: Point[] | null): boolean => {
+  const walk = (
+    element: Element,
+    inherited: Matrix,
+    parentOpacity: number,
+    clip: Point[] | null,
+  ): boolean => {
     if (primitives.length > MAX_PRIMITIVES) return false
     const tag = element.localName
     // A foreign namespace is a real fidelity problem; a definition element is
@@ -1007,7 +1130,10 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
       if (!gradientFill) return false
       fill = 'transparent'
     }
-    let stroke = paintToHex(element.getAttribute('stroke'), tag === 'line' ? '#000000' : 'transparent')
+    let stroke = paintToHex(
+      element.getAttribute('stroke'),
+      tag === 'line' ? '#000000' : 'transparent',
+    )
     if (stroke === null) {
       const gradientStroke = gradientFor(element.getAttribute('stroke'))
       if (!gradientStroke) return false
@@ -1044,7 +1170,16 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
         const angle = (index / steps) * Math.PI * 2
         points.push(applyMatrix(matrix, cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)))
       }
-      primitives.push({ kind: 'polyline', points, closed: true, fill, stroke, strokeWidth, opacity, dash })
+      primitives.push({
+        kind: 'polyline',
+        points,
+        closed: true,
+        fill,
+        stroke,
+        strokeWidth,
+        opacity,
+        dash,
+      })
     }
 
     if (activeFilter) {
@@ -1099,7 +1234,10 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
           for (const [from, to] of clipSegmentToConvex(start, end, activeClip)) {
             primitives.push({
               kind: 'polyline',
-              points: [[from[0], from[1]], [to[0], to[1]]],
+              points: [
+                [from[0], from[1]],
+                [to[0], to[1]],
+              ],
               closed: false,
               fill: 'transparent',
               stroke,
@@ -1172,7 +1310,16 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
           mapPoint([num(element.getAttribute('x1')), num(element.getAttribute('y1'))]),
           mapPoint([num(element.getAttribute('x2')), num(element.getAttribute('y2'))]),
         ]
-        primitives.push({ kind: 'polyline', points, closed: false, fill: 'transparent', stroke, strokeWidth, opacity, dash })
+        primitives.push({
+          kind: 'polyline',
+          points,
+          closed: false,
+          fill: 'transparent',
+          stroke,
+          strokeWidth,
+          opacity,
+          dash,
+        })
         return true
       }
       case 'polyline':
@@ -1218,7 +1365,16 @@ export function decomposeVectorSvg(svg: string): DecomposedArtwork | null {
         const fontSize = num(element.getAttribute('font-size'), 16) * matrixScale(matrix)
         const [tx, ty] = mapPoint([num(element.getAttribute('x')), num(element.getAttribute('y'))])
         if (text) {
-          primitives.push({ kind: 'text', x: tx, y: ty, text, fontSize, fill: stroke === 'transparent' ? fill : stroke, anchor, opacity })
+          primitives.push({
+            kind: 'text',
+            x: tx,
+            y: ty,
+            text,
+            fontSize,
+            fill: stroke === 'transparent' ? fill : stroke,
+            anchor,
+            opacity,
+          })
         }
         return true
       }

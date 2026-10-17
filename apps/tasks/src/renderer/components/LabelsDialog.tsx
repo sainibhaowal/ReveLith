@@ -39,7 +39,9 @@ export function LabelsDialog({
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-        {labels.length === 0 ? <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No labels yet.</p> : null}
+        {labels.length === 0 ? (
+          <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No labels yet.</p>
+        ) : null}
         {labels.map((label) => (
           <div key={label.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span
@@ -54,7 +56,11 @@ export function LabelsDialog({
             <input
               value={label.name}
               onChange={(event) =>
-                dispatch({ kind: 'label/update', id: label.id, patch: { name: event.target.value } })
+                dispatch({
+                  kind: 'label/update',
+                  id: label.id,
+                  patch: { name: event.target.value },
+                })
               }
               style={{ ...input, flex: 1 }}
             />
@@ -78,7 +84,9 @@ export function LabelsDialog({
               style={btnGhost}
               title="Delete label"
               onClick={() => {
-                if (window.confirm(`Delete label “${label.name}”? It is removed from every task.`)) {
+                if (
+                  window.confirm(`Delete label “${label.name}”? It is removed from every task.`)
+                ) {
                   dispatch({ kind: 'label/delete', id: label.id })
                 }
               }}
@@ -100,8 +108,20 @@ export function LabelsDialog({
             placeholder="New label name"
             style={{ ...input, flex: 1 }}
           />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, whiteSpace: 'nowrap' }}>
-            <input type="checkbox" checked={global} onChange={(event) => setGlobal(event.target.checked)} />
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              fontSize: 12,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={global}
+              onChange={(event) => setGlobal(event.target.checked)}
+            />
             global
           </label>
           <button style={btnPrimary} onClick={add} disabled={!name.trim()}>

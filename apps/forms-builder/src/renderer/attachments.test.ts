@@ -11,7 +11,15 @@ describe('local response attachment contracts', () => {
   })
 
   it('accepts only attachment metadata references as file answers', () => {
-    expect(isAttachmentReference({ attachmentId: 'file-1', name: 'notes.txt', mimeType: 'text/plain', size: 12, lastModified: 0 })).toBe(true)
+    expect(
+      isAttachmentReference({
+        attachmentId: 'file-1',
+        name: 'notes.txt',
+        mimeType: 'text/plain',
+        size: 12,
+        lastModified: 0,
+      }),
+    ).toBe(true)
     expect(isAttachmentReference({ name: 'notes.txt' })).toBe(false)
     expect(isAttachmentReference(null)).toBe(false)
   })

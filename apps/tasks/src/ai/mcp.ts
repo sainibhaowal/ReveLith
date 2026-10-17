@@ -103,7 +103,10 @@ export function handleRpc(ctx: McpContext, request: JsonRpcRequest): JsonRpcResp
       const name = request.params?.name
       const args = request.params?.arguments
       if (typeof name !== 'string') return fail(INVALID_PARAMS, 'tools/call needs a tool name')
-      if (args !== undefined && (typeof args !== 'object' || args === null || Array.isArray(args))) {
+      if (
+        args !== undefined &&
+        (typeof args !== 'object' || args === null || Array.isArray(args))
+      ) {
         return fail(INVALID_PARAMS, 'tools/call arguments must be an object')
       }
       const result = runTool(ctx as never, name, (args ?? {}) as Record<string, unknown>)

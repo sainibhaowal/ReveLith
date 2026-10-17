@@ -74,7 +74,12 @@ export function NewTaskDialog({
       </div>
       <div style={fieldGroup}>
         <span style={label}>Description</span>
-        <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} style={{ ...input, resize: 'vertical' }} />
+        <textarea
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          rows={3}
+          style={{ ...input, resize: 'vertical' }}
+        />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
         <div>
@@ -82,7 +87,11 @@ export function NewTaskDialog({
           <SelectMenu
             label="Task column"
             value={column}
-            options={columns.map((entry) => ({ value: entry.id, label: entry.name, color: entry.color }))}
+            options={columns.map((entry) => ({
+              value: entry.id,
+              label: entry.name,
+              color: entry.color,
+            }))}
             onChange={setColumn}
             style={{ ...input, padding: 0 }}
           />
@@ -92,7 +101,18 @@ export function NewTaskDialog({
           <SelectMenu
             label="Task priority"
             value={priority}
-            options={PRIORITIES.map((entry) => ({ value: entry, label: entry, color: entry === 'urgent' ? 'red' : entry === 'high' ? 'orange' : entry === 'medium' ? 'amber' : 'slate' }))}
+            options={PRIORITIES.map((entry) => ({
+              value: entry,
+              label: entry,
+              color:
+                entry === 'urgent'
+                  ? 'red'
+                  : entry === 'high'
+                    ? 'orange'
+                    : entry === 'medium'
+                      ? 'amber'
+                      : 'slate',
+            }))}
             onChange={setPriority}
             style={{ ...input, padding: 0 }}
           />
@@ -100,7 +120,12 @@ export function NewTaskDialog({
       </div>
       <div style={fieldGroup}>
         <span style={label}>Due date</span>
-        <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} style={input} />
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(event) => setDueDate(event.target.value)}
+          style={input}
+        />
       </div>
       {labels.length ? (
         <div style={fieldGroup}>
@@ -116,7 +141,9 @@ export function NewTaskDialog({
                   data-active={active}
                   onClick={() =>
                     setSelectedLabels((prev) =>
-                      prev.includes(entry.id) ? prev.filter((id) => id !== entry.id) : [...prev, entry.id],
+                      prev.includes(entry.id)
+                        ? prev.filter((id) => id !== entry.id)
+                        : [...prev, entry.id],
                     )
                   }
                   style={{
@@ -129,7 +156,11 @@ export function NewTaskDialog({
                     color: colorVar(entry.color),
                   }}
                 >
-                  <span className="tasks-label-dot" style={{ background: colorVar(entry.color) }} aria-hidden="true" />
+                  <span
+                    className="tasks-label-dot"
+                    style={{ background: colorVar(entry.color) }}
+                    aria-hidden="true"
+                  />
                   {entry.name}
                 </button>
               )

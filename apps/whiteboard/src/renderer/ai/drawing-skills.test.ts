@@ -31,12 +31,12 @@ describe('drawboard drawing skills', () => {
   })
 
   it('does not inject Mermaid instructions when the user rejects Mermaid or requests native Draw tools', () => {
-    expect(ids('Create a native editable flow diagram; do not use Mermaid or external SVG.')).not.toContain(
-      'mermaid',
-    )
-    expect(buildDrawingGuidance('Create a native editable flow diagram; do not use Mermaid.')).not.toContain(
-      'render_mermaid_diagram',
-    )
+    expect(
+      ids('Create a native editable flow diagram; do not use Mermaid or external SVG.'),
+    ).not.toContain('mermaid')
+    expect(
+      buildDrawingGuidance('Create a native editable flow diagram; do not use Mermaid.'),
+    ).not.toContain('render_mermaid_diagram')
     expect(ids('Render this Mermaid source: ```mermaid flowchart LR; A-->B ```')).toContain(
       'mermaid',
     )

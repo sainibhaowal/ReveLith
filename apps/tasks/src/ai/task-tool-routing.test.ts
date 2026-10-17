@@ -51,7 +51,9 @@ describe('dynamic task-tool selection', () => {
   })
 
   it('keeps ordinary task questions read-only', () => {
-    const selected = selectTaskToolNames('What tasks have high priority?', { activeProjectCount: 1 })
+    const selected = selectTaskToolNames('What tasks have high priority?', {
+      activeProjectCount: 1,
+    })
     expect(selected).toContain('list_tasks')
     expect(selected).not.toContain('create_task')
     expect(selected).not.toContain('update_task')
@@ -59,7 +61,9 @@ describe('dynamic task-tool selection', () => {
   })
 
   it('treats "Can you create…" as an action request rather than a read-only query', () => {
-    const selected = selectTaskToolNames('Can you create a launch checklist?', { activeProjectCount: 1 })
+    const selected = selectTaskToolNames('Can you create a launch checklist?', {
+      activeProjectCount: 1,
+    })
     expect(selected).toContain('create_task')
   })
 })

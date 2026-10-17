@@ -16,7 +16,10 @@ const env = {
   CARGO_TARGET_DIR: process.env.CARGO_TARGET_DIR ?? join(tmpdir(), 'ReveLith-Sheets-CargoTarget'),
 }
 
-if (existsSync(cargoBin) && !pathEntries.some((entry) => entry.toLowerCase() === cargoBin.toLowerCase())) {
+if (
+  existsSync(cargoBin) &&
+  !pathEntries.some((entry) => entry.toLowerCase() === cargoBin.toLowerCase())
+) {
   env[pathKey] = [cargoBin, ...pathEntries].join(delimiter)
 }
 

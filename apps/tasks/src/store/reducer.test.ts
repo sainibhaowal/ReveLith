@@ -30,7 +30,12 @@ describe('project/create', () => {
     const state = buildBoard({ kind: 'project/create', name: 'Alpha', key: 'ALP' })
     expect(state.projects).toHaveLength(1)
     expect(state.projects[0].key).toBe('ALP')
-    expect(state.columns.map((column) => column.name)).toEqual(['Backlog', 'In Progress', 'Review', 'Done'])
+    expect(state.columns.map((column) => column.name)).toEqual([
+      'Backlog',
+      'In Progress',
+      'Review',
+      'Done',
+    ])
     expect(state.selectedProjectId).toBe(state.projects[0].id)
   })
 
@@ -40,10 +45,11 @@ describe('project/create', () => {
   })
 
   it('de-duplicates colliding keys', () => {
-    const state = run(
-      buildBoard({ kind: 'project/create', name: 'One', key: 'DUP' }),
-      { kind: 'project/create', name: 'Two', key: 'DUP' },
-    )
+    const state = run(buildBoard({ kind: 'project/create', name: 'One', key: 'DUP' }), {
+      kind: 'project/create',
+      name: 'Two',
+      key: 'DUP',
+    })
     expect(state.projects.map((project) => project.key)).toEqual(['DUP', 'DUP2'])
   })
 
@@ -89,14 +95,24 @@ describe('task/create', () => {
 
   it('ignores a task targeting an unknown column', () => {
     const state = boardWithProject()
-    const next = run(state, { kind: 'task/create', projectId: projectId(state), columnId: 'nope', title: 'Ghost' })
+    const next = run(state, {
+      kind: 'task/create',
+      projectId: projectId(state),
+      columnId: 'nope',
+      title: 'Ghost',
+    })
     expect(next).toBe(state)
   })
 
   it('stamps completedAt when created directly into a done column', () => {
     const state = boardWithProject()
     const done = state.columns.find((column) => column.isDone)
-    const next = run(state, { kind: 'task/create', projectId: projectId(state), columnId: done!.id, title: 'Shipped' })
+    const next = run(state, {
+      kind: 'task/create',
+      projectId: projectId(state),
+      columnId: done!.id,
+      title: 'Shipped',
+    })
     expect(next.tasks[0].completedAt).not.toBeNull()
   })
 })
@@ -105,7 +121,12 @@ describe('task/move', () => {
   it('records a move activity only when the column changes', () => {
     const state = boardWithProject()
     const id = projectId(state)
-    const withTask = run(state, { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'Task' })
+    const withTask = run(state, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(state),
+      title: 'Task',
+    })
     const taskId = withTask.tasks[0].id
     const progress = withTask.columns.find((column) => column.name === 'In Progress')!.id
 
@@ -132,9 +153,19 @@ describe('task/move', () => {
 
   it('refuses to make a task its own parent', () => {
     const state = boardWithProject()
-    const withTask = run(state, { kind: 'task/create', projectId: projectId(state), columnId: firstColumnId(state), title: 'Self' })
+    const withTask = run(state, {
+      kind: 'task/create',
+      projectId: projectId(state),
+      columnId: firstColumnId(state),
+      title: 'Self',
+    })
     const taskId = withTask.tasks[0].id
-    const next = run(withTask, { kind: 'task/move', id: taskId, columnId: firstColumnId(state), parentId: taskId })
+    const next = run(withTask, {
+      kind: 'task/move',
+      id: taskId,
+      columnId: firstColumnId(state),
+      parentId: taskId,
+    })
     expect(next.tasks[0].parentId).toBeNull()
   })
 })
@@ -143,9 +174,20 @@ describe('task/delete', () => {
   it('deletes descendants and their comments', () => {
     const state = boardWithProject()
     const id = projectId(state)
-    const parent = run(state, { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'Parent' })
+    const parent = run(state, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(state),
+      title: 'Parent',
+    })
     const parentId = parent.tasks[0].id
-    const withChild = run(parent, { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'Child', parentId })
+    const withChild = run(parent, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(state),
+      title: 'Child',
+      parentId,
+    })
     const childId = withChild.tasks[1].id
     const withComment = run(withChild, { kind: 'comment/add', taskId: childId, body: 'note' })
 
@@ -157,9 +199,20 @@ describe('task/delete', () => {
   it('promotes orphaned sub-tasks instead of deleting them', () => {
     const state = boardWithProject()
     const id = projectId(state)
-    const parent = run(state, { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'Parent' })
+    const parent = run(state, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(state),
+      title: 'Parent',
+    })
     const parentId = parent.tasks[0].id
-    const withChild = run(parent, { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'Child', parentId })
+    const withChild = run(parent, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(state),
+      title: 'Child',
+      parentId,
+    })
 
     // A deep delete keeps the child by reparenting it.
     const next = reduce(withChild, { kind: 'task/delete', id: parentId })
@@ -170,7 +223,12 @@ describe('task/delete', () => {
   it('clears the selection when the open task is deleted', () => {
     const state = boardWithProject()
     const id = projectId(state)
-    const withTask = run(state, { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'Task' })
+    const withTask = run(state, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(state),
+      title: 'Task',
+    })
     const taskId = withTask.tasks[0].id
     const opened = run(withTask, { kind: 'ui/selectTask', id: taskId })
     expect(opened.selectedTaskId).toBe(taskId)
@@ -181,9 +239,7 @@ describe('task/delete', () => {
 
 describe('column/delete', () => {
   it('refuses to remove the last column', () => {
-    const state = buildBoard(
-      { kind: 'project/create', name: 'Solo', key: 'SOL' },
-    )
+    const state = buildBoard({ kind: 'project/create', name: 'Solo', key: 'SOL' })
     const only = state.columns[0]
     // Reduce down to a single column first.
     for (const column of state.columns.slice(1)) {
@@ -203,7 +259,12 @@ describe('column/delete', () => {
     const state = boardWithProject()
     const id = projectId(state)
     const doomed = state.columns.find((column) => column.name === 'Review')!
-    const withTask = run(state, { kind: 'task/create', projectId: id, columnId: doomed.id, title: 'In review' })
+    const withTask = run(state, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: doomed.id,
+      title: 'In review',
+    })
     const next = run(withTask, { kind: 'column/delete', id: doomed.id })
     expect(next.columns.find((column) => column.id === doomed.id)).toBeUndefined()
     expect(next.tasks[0].columnId).not.toBe(doomed.id)
@@ -220,16 +281,36 @@ describe('relations', () => {
       { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'B' },
     )
     const [a, b] = two.tasks
-    const linked = run(two, { kind: 'relation/link', fromTaskId: a.id, toTaskId: b.id, type: 'blocked_by' })
+    const linked = run(two, {
+      kind: 'relation/link',
+      fromTaskId: a.id,
+      toTaskId: b.id,
+      type: 'blocked_by',
+    })
     expect(linked.relations).toHaveLength(1)
-    const again = run(linked, { kind: 'relation/link', fromTaskId: a.id, toTaskId: b.id, type: 'blocked_by' })
+    const again = run(linked, {
+      kind: 'relation/link',
+      fromTaskId: a.id,
+      toTaskId: b.id,
+      type: 'blocked_by',
+    })
     expect(again).toBe(linked)
   })
 
   it('refuses a self link', () => {
     const state = boardWithProject()
-    const withTask = run(state, { kind: 'task/create', projectId: projectId(state), columnId: firstColumnId(state), title: 'A' })
-    const next = run(withTask, { kind: 'relation/link', fromTaskId: withTask.tasks[0].id, toTaskId: withTask.tasks[0].id, type: 'blocks' })
+    const withTask = run(state, {
+      kind: 'task/create',
+      projectId: projectId(state),
+      columnId: firstColumnId(state),
+      title: 'A',
+    })
+    const next = run(withTask, {
+      kind: 'relation/link',
+      fromTaskId: withTask.tasks[0].id,
+      toTaskId: withTask.tasks[0].id,
+      type: 'blocks',
+    })
     expect(next).toBe(withTask)
   })
 
@@ -242,8 +323,18 @@ describe('relations', () => {
       { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'B' },
     )
     const [a, b] = two.tasks
-    const forward = run(two, { kind: 'relation/link', fromTaskId: a.id, toTaskId: b.id, type: 'blocked_by' })
-    const reverse = run(forward, { kind: 'relation/link', fromTaskId: b.id, toTaskId: a.id, type: 'blocks' })
+    const forward = run(two, {
+      kind: 'relation/link',
+      fromTaskId: a.id,
+      toTaskId: b.id,
+      type: 'blocked_by',
+    })
+    const reverse = run(forward, {
+      kind: 'relation/link',
+      fromTaskId: b.id,
+      toTaskId: a.id,
+      type: 'blocks',
+    })
     expect(reverse.relations).toHaveLength(1)
   })
 })
@@ -252,10 +343,25 @@ describe('custom fields', () => {
   it('strips values from every task when a field is deleted', () => {
     const state = boardWithProject()
     const id = projectId(state)
-    const withField = run(state, { kind: 'customField/define', projectId: id, name: 'Points', type: 'number' })
+    const withField = run(state, {
+      kind: 'customField/define',
+      projectId: id,
+      name: 'Points',
+      type: 'number',
+    })
     const fieldId = withField.customFields[0].id
-    const withTask = run(withField, { kind: 'task/create', projectId: id, columnId: firstColumnId(state), title: 'A' })
-    const withValue = run(withTask, { kind: 'task/setCustomField', taskId: withTask.tasks[0].id, fieldId, value: 5 })
+    const withTask = run(withField, {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(state),
+      title: 'A',
+    })
+    const withValue = run(withTask, {
+      kind: 'task/setCustomField',
+      taskId: withTask.tasks[0].id,
+      fieldId,
+      value: 5,
+    })
     expect(withValue.tasks[0].customFields[fieldId]).toBe(5)
 
     const next = run(withValue, { kind: 'customField/delete', id: fieldId })
@@ -285,7 +391,12 @@ describe('labels', () => {
 describe('comments', () => {
   it('ignores blank comments', () => {
     const state = boardWithProject()
-    const withTask = run(state, { kind: 'task/create', projectId: projectId(state), columnId: firstColumnId(state), title: 'A' })
+    const withTask = run(state, {
+      kind: 'task/create',
+      projectId: projectId(state),
+      columnId: firstColumnId(state),
+      title: 'A',
+    })
     const next = run(withTask, { kind: 'comment/add', taskId: withTask.tasks[0].id, body: '   ' })
     expect(next).toBe(withTask)
   })

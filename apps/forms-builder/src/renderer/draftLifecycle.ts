@@ -3,6 +3,10 @@ export function consumeNewDocumentFlag(href: string, replaceUrl: (href: string) 
   const url = new URL(href)
   if (url.searchParams.get('newDocument') !== '1') return false
   url.searchParams.delete('newDocument')
-  try { replaceUrl(url.href) } catch { /* a restricted host may not permit history replacement */ }
+  try {
+    replaceUrl(url.href)
+  } catch {
+    /* a restricted host may not permit history replacement */
+  }
   return true
 }

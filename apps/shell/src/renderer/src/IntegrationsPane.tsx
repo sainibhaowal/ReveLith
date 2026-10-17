@@ -205,9 +205,7 @@ export function IntegrationsPane({
 
   const bundled = skill?.version ?? status.skillVersion
   const cliTooOld =
-    skill?.needsCli &&
-    status.cli.version &&
-    compare(status.cli.version, skill.needsCli) < 0
+    skill?.needsCli && status.cli.version && compare(status.cli.version, skill.needsCli) < 0
   const anyInstalled = agentRows.some((a) => a.state.status !== 'missing')
   const launch = mcpLaunch(status.cli)
 
@@ -278,7 +276,9 @@ export function IntegrationsPane({
           </div>
         )}
         {skill?.description && (
-          <div className="set-field-desc set-intg-lead set-intg-skill-desc">{skill.description}</div>
+          <div className="set-field-desc set-intg-lead set-intg-skill-desc">
+            {skill.description}
+          </div>
         )}
         {agentRows.map((row) => {
           const { state } = row

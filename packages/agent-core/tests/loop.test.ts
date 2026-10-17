@@ -115,14 +115,24 @@ describe('AgentLoop', () => {
   })
 
   it('recovers a leaked textual tool call and never leaves control markup in chat history', async () => {
-    const executeTool = vi.fn(() => ({ output: 'scene created', summary: 'Scene created', mutated: true }))
+    const executeTool = vi.fn(() => ({
+      output: 'scene created',
+      summary: 'Scene created',
+      mutated: true,
+    }))
     const skill = makeSkill(executeTool)
     skill.tools = [
-      { name: 'build_drawboard_scene', description: 'draw a board scene', inputSchema: { type: 'object' } },
+      {
+        name: 'build_drawboard_scene',
+        description: 'draw a board scene',
+        inputSchema: { type: 'object' },
+      },
     ]
     const transport = scriptedTransport([
       (cb) => {
-        cb.onDelta('Working: <|tool_call>call:build_drawboard_scene{elements:[{kind:<|"|>rect<|"|>,x:10,y:20}]}<tool_call|>')
+        cb.onDelta(
+          'Working: <|tool_call>call:build_drawboard_scene{elements:[{kind:<|"|>rect<|"|>,x:10,y:20}]}<tool_call|>',
+        )
         cb.onDone()
       },
       (cb) => {
@@ -144,7 +154,11 @@ describe('AgentLoop', () => {
       expect.anything(),
     )
     expect(onText.mock.calls.flat().join('')).not.toContain('<|tool_call>')
-    expect(loop.messages.some((message) => message.role === 'assistant' && message.text.includes('<|tool_call>'))).toBe(false)
+    expect(
+      loop.messages.some(
+        (message) => message.role === 'assistant' && message.text.includes('<|tool_call>'),
+      ),
+    ).toBe(false)
     expect(loop.busy).toBe(false)
   })
 
@@ -173,7 +187,11 @@ describe('AgentLoop', () => {
       const firstAttempt = executions.length === 0
       executions.push(firstAttempt ? 'failed' : 'succeeded')
       return firstAttempt
-        ? { output: 'Invalid coordinates; use paired points.', isError: true, summary: 'Invalid scene' }
+        ? {
+            output: 'Invalid coordinates; use paired points.',
+            isError: true,
+            summary: 'Invalid scene',
+          }
         : { output: 'Scene created.', mutated: true, summary: 'Created scene' }
     })
     const loop = new AgentLoop({ transport, skill, events: { onDone }, compaction: false })
@@ -186,8 +204,17 @@ describe('AgentLoop', () => {
     expect(transport.requests).toHaveLength(4)
     expect(transport.requests[2]!.toolCount).toBe(1)
     expect(transport.requests[2]!.system).toContain('Do not stop after the first successful action')
-    expect(loop.messages.some((message) => message.role === 'user' && message.text.includes('last tool result reported an error'))).toBe(true)
-    expect(onDone).toHaveBeenCalledWith({ text: 'The requested change is complete.', cancelled: false, turnLimit: false })
+    expect(
+      loop.messages.some(
+        (message) =>
+          message.role === 'user' && message.text.includes('last tool result reported an error'),
+      ),
+    ).toBe(true)
+    expect(onDone).toHaveBeenCalledWith({
+      text: 'The requested change is complete.',
+      cancelled: false,
+      turnLimit: false,
+    })
   })
 
   it('attaches images to the user message (and omits the field without any)', async () => {
@@ -1581,7 +1608,16 @@ describe('AgentLoop compaction', () => {
       cb.onDone()
     }
     // 2 fails, success, 2 fails: 4 total but never 3 in a row → the run must complete
-    const transport = scriptedTransport([badTurn, badTurn, goodTurn, badTurn, badTurn, finalTurn, goodTurn, finalTurn])
+    const transport = scriptedTransport([
+      badTurn,
+      badTurn,
+      goodTurn,
+      badTurn,
+      badTurn,
+      finalTurn,
+      goodTurn,
+      finalTurn,
+    ])
     const onError = vi.fn()
     const onDone = vi.fn()
     const loop = new AgentLoop({

@@ -205,10 +205,7 @@ test('AI Tasks streams selected-content tokens live while preserving scope and s
     await expect
       .poll(
         () =>
-          inTasks<string>(
-            app,
-            'document.querySelector(".revelith-app-chat-log")?.innerText ?? ""',
-          ),
+          inTasks<string>(app, 'document.querySelector(".revelith-app-chat-log")?.innerText ?? ""'),
         { timeout: 1_200 },
       )
       .toContain('The selected cards')

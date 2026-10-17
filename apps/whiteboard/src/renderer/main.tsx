@@ -32,14 +32,35 @@ class DrawboardErrorBoundary extends React.Component<
   render() {
     if (this.state.error) {
       const toolTrail = (window as Window & { __drawboardToolTrail?: unknown }).__drawboardToolTrail
-      const recentTools = Array.isArray(toolTrail) ? toolTrail.filter((item): item is string => typeof item === 'string') : []
+      const recentTools = Array.isArray(toolTrail)
+        ? toolTrail.filter((item): item is string => typeof item === 'string')
+        : []
       return (
-        <main style={{ minHeight: '100vh', boxSizing: 'border-box', padding: 32, fontFamily: 'system-ui, sans-serif', color: 'var(--text-primary)', background: 'var(--surface-primary)' }}>
+        <main
+          style={{
+            minHeight: '100vh',
+            boxSizing: 'border-box',
+            padding: 32,
+            fontFamily: 'system-ui, sans-serif',
+            color: 'var(--text-primary)',
+            background: 'var(--surface-primary)',
+          }}
+        >
           <h1>Draw hit an error</h1>
           <p>Your board recovery copy is kept locally. Reload Draw to continue.</p>
-          <pre style={{ maxWidth: 900, maxHeight: '55vh', overflow: 'auto', whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
+          <pre
+            style={{
+              maxWidth: 900,
+              maxHeight: '55vh',
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              color: 'var(--text-secondary)',
+            }}
+          >
             {this.state.error.stack ?? this.state.error.message}
-            {this.state.componentStack ? `\n\nReact component stack:${this.state.componentStack}` : ''}
+            {this.state.componentStack
+              ? `\n\nReact component stack:${this.state.componentStack}`
+              : ''}
             {recentTools.length ? `\n\nRecent AI tool calls:\n${recentTools.join('\n')}` : ''}
           </pre>
           <button onClick={() => window.location.reload()}>Reload Draw</button>
@@ -61,7 +82,9 @@ async function bootstrap(): Promise<void> {
   try {
     const [t, l] = await Promise.all([
       window.electronAPI?.getTheme?.().catch(() => 'system' as const),
-      (window.electronAPI as { getLanguage?: () => Promise<string> })?.getLanguage?.().catch(() => 'en'),
+      (window.electronAPI as { getLanguage?: () => Promise<string> })
+        ?.getLanguage?.()
+        .catch(() => 'en'),
     ])
     if (t === 'light' || t === 'dark' || t === 'system') theme = t
     if (typeof l === 'string' && l) lang = l
@@ -78,7 +101,9 @@ async function bootstrap(): Promise<void> {
   document.documentElement.dataset.drawboardAppMounted = 'true'
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <DrawboardErrorBoundary><App /></DrawboardErrorBoundary>
+      <DrawboardErrorBoundary>
+        <App />
+      </DrawboardErrorBoundary>
     </React.StrictMode>,
   )
 }

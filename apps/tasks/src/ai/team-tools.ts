@@ -71,7 +71,10 @@ const createMember: ToolDefinition = {
   description:
     'Add a person who can own tasks. Members are local names only - there are no logins and no accounts to create.',
   inputSchema: json(
-    { name: stringProp('Display name, e.g. "Ada Lovelace".'), color: stringProp('Optional colour name.') },
+    {
+      name: stringProp('Display name, e.g. "Ada Lovelace".'),
+      color: stringProp('Optional colour name.'),
+    },
     ['name'],
   ),
   run(ctx, input) {
@@ -106,7 +109,10 @@ const assignTask: ToolDefinition = {
   name: 'assign_task',
   description: 'Assign a task to a member, or pass an empty member to unassign it.',
   inputSchema: json(
-    { task: stringProp('Task id, ticket id, or exact title.'), member: stringProp('Member name or id. Omit or leave blank to unassign.') },
+    {
+      task: stringProp('Task id, ticket id, or exact title.'),
+      member: stringProp('Member name or id. Omit or leave blank to unassign.'),
+    },
     ['task'],
   ),
   run(ctx, input) {
@@ -122,7 +128,11 @@ const assignTask: ToolDefinition = {
     if (!id) return fail(`No member matches "${reference}". Use list_members to see who exists.`)
     const name = getMember(state, id)?.name ?? reference
     ctx.dispatch({ kind: 'task/setAssignee', id: resolved.value.id, assigneeId: id })
-    return ok(`Assigned ${ticketId(state, resolved.value)} to ${name}.`, `Assigned to ${name}`, true)
+    return ok(
+      `Assigned ${ticketId(state, resolved.value)} to ${name}.`,
+      `Assigned to ${name}`,
+      true,
+    )
   },
 }
 
@@ -200,7 +210,11 @@ const duplicateTask: ToolDefinition = {
       ...(columnId ? { columnId } : {}),
       ...(title ? { title } : {}),
     })
-    return ok(`Duplicated ${ticketId(state, resolved.value)}.`, `Duplicated ${resolved.value.title}`, true)
+    return ok(
+      `Duplicated ${ticketId(state, resolved.value)}.`,
+      `Duplicated ${resolved.value.title}`,
+      true,
+    )
   },
 }
 
@@ -212,9 +226,17 @@ const bulkUpdateTasks: ToolDefinition = {
     'Apply one change to several tasks at once: move them to a column, set priority, owner, due date or labels, or archive them.',
   inputSchema: json(
     {
-      tasks: { type: 'array', items: { type: 'string' }, description: 'Task ids, ticket ids or titles.' },
+      tasks: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Task ids, ticket ids or titles.',
+      },
       column: stringProp('Move every task to this column.'),
-      priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'], description: 'Set priority.' },
+      priority: {
+        type: 'string',
+        enum: ['urgent', 'high', 'medium', 'low'],
+        description: 'Set priority.',
+      },
       member: stringProp('Assign every task to this member.'),
       unassign: { type: 'boolean', description: 'Unassign instead of assigning.' },
       dueDate: stringProp('Set the due date, YYYY-MM-DD. Pass "none" to clear it.'),
@@ -243,8 +265,7 @@ const bulkUpdateTasks: ToolDefinition = {
       const projectId = state.tasks.find((task) => task.id === targets[0])?.projectId
       const column = state.columns.find(
         (entry) =>
-          entry.projectId === projectId &&
-          entry.name.toLowerCase() === columnName.toLowerCase(),
+          entry.projectId === projectId && entry.name.toLowerCase() === columnName.toLowerCase(),
       )
       if (!column) return fail(`No column named "${columnName}" in this project`)
       ctx.dispatch({ kind: 'bulk/move', ids: targets, columnId: column.id })
@@ -255,7 +276,9 @@ const bulkUpdateTasks: ToolDefinition = {
       )
     }
 
-    const patch: Parameters<typeof ctx.dispatch>[0] extends never ? never : Record<string, unknown> = {}
+    const patch: Parameters<typeof ctx.dispatch>[0] extends never
+      ? never
+      : Record<string, unknown> = {}
     const priority = str(input, 'priority') as Priority | undefined
     if (priority) patch['priority'] = priority
     const dueDate = str(input, 'dueDate')?.trim()
@@ -281,7 +304,11 @@ const bulkUpdateTasks: ToolDefinition = {
       patch,
     } as Parameters<typeof ctx.dispatch>[0])
     const fields = Object.keys(patch).join(', ')
-    return ok(`Updated ${targets.length} task(s): ${fields}.`, `Bulk updated ${targets.length} task(s)`, true)
+    return ok(
+      `Updated ${targets.length} task(s): ${fields}.`,
+      `Bulk updated ${targets.length} task(s)`,
+      true,
+    )
   },
 }
 
@@ -297,7 +324,12 @@ const listExternalLinks: ToolDefinition = {
     if (!resolved.value) return fail(`No task matches "${str(input, 'task') ?? ''}"`)
     const rows = state.externalLinks
       .filter((link) => link.taskId === resolved.value!.id)
-      .map((link) => ({ type: link.type, url: link.url, title: link.title, externalId: link.externalId }))
+      .map((link) => ({
+        type: link.type,
+        url: link.url,
+        title: link.title,
+        externalId: link.externalId,
+      }))
     return ok(rows, `Found ${rows.length} external link(s)`)
   },
 }
@@ -309,7 +341,11 @@ const addExternalLink: ToolDefinition = {
     {
       task: stringProp('Task id, ticket id, or exact title.'),
       url: stringProp('The full URL.'),
-      type: { type: 'string', enum: [...EXTERNAL_LINK_TYPES], description: 'What the link points at.' },
+      type: {
+        type: 'string',
+        enum: [...EXTERNAL_LINK_TYPES],
+        description: 'What the link points at.',
+      },
       externalId: stringProp('The provider id, e.g. "482".'),
     },
     ['task', 'url'],
@@ -331,14 +367,24 @@ const addExternalLink: ToolDefinition = {
       url,
       ...(str(input, 'externalId') ? { externalId: str(input, 'externalId')! } : {}),
     })
-    return ok(`Linked ${url} to ${ticketId(state, resolved.value)}.`, `Added a ${type.replace('_', ' ')} link`, true)
+    return ok(
+      `Linked ${url} to ${ticketId(state, resolved.value)}.`,
+      `Added a ${type.replace('_', ' ')} link`,
+      true,
+    )
   },
 }
 
 const removeExternalLink: ToolDefinition = {
   name: 'remove_external_link',
   description: 'Remove an external link from a task by its url or external id.',
-  inputSchema: json({ task: stringProp('Task id, ticket id, or exact title.'), link: stringProp('The url or external id to remove.') }, ['task', 'link']),
+  inputSchema: json(
+    {
+      task: stringProp('Task id, ticket id, or exact title.'),
+      link: stringProp('The url or external id to remove.'),
+    },
+    ['task', 'link'],
+  ),
   run(ctx, input) {
     const state = ctx.getState()
     const resolved = resolveTask(state, str(input, 'task'))

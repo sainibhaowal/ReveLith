@@ -25,11 +25,35 @@ function seeded() {
   const done = base.columns.find((column) => column.isDone)!.id
   const built = apply(
     base,
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Overdue task', dueDate: '2026-03-01' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Soon task', dueDate: '2026-03-12' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Later task', dueDate: '2026-06-01' },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Overdue task',
+      dueDate: '2026-03-01',
+    },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Soon task',
+      dueDate: '2026-03-12',
+    },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Later task',
+      dueDate: '2026-06-01',
+    },
     { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Undated task' },
-    { kind: 'task/create', projectId: id, columnId: firstColumnId(base), title: 'Done task', dueDate: '2026-01-01' },
+    {
+      kind: 'task/create',
+      projectId: id,
+      columnId: firstColumnId(base),
+      title: 'Done task',
+      dueDate: '2026-01-01',
+    },
   )
   const doneTask = built.tasks.find((task) => task.title === 'Done task')!
   return apply(built, { kind: 'task/move', id: doneTask.id, columnId: done })
@@ -107,7 +131,14 @@ describe('buildNotifications', () => {
     const state = apply(
       base,
       { kind: 'task/setArchived', id: base.tasks[0].id, archived: true },
-      { kind: 'task/create', projectId: projectId(base), columnId: firstColumnId(base), title: 'Child', parentId: base.tasks[1].id, dueDate: '2026-03-02' },
+      {
+        kind: 'task/create',
+        projectId: projectId(base),
+        columnId: firstColumnId(base),
+        title: 'Child',
+        parentId: base.tasks[1].id,
+        dueDate: '2026-03-02',
+      },
     )
     const notifications = buildNotifications(state, projectId(state), TODAY)
     expect(notifications.some((entry) => entry.taskTitle === 'Overdue task')).toBe(false)
@@ -179,8 +210,15 @@ describe('mentions', () => {
 
   it('raises a notification for a mention', () => {
     const base = seeded()
-    const state = apply(base, { kind: 'comment/add', taskId: base.tasks[2].id, body: '@rav take a look', author: 'Sam' })
-    const notifications = buildNotifications(state, projectId(state), TODAY, { currentAuthor: 'rav' })
+    const state = apply(base, {
+      kind: 'comment/add',
+      taskId: base.tasks[2].id,
+      body: '@rav take a look',
+      author: 'Sam',
+    })
+    const notifications = buildNotifications(state, projectId(state), TODAY, {
+      currentAuthor: 'rav',
+    })
     const mentions = notifications.filter((entry) => entry.kind === 'mention')
     expect(mentions).toHaveLength(1)
     expect(mentions[0].message).toContain('Sam')
@@ -208,9 +246,11 @@ describe('counts and summary', () => {
   })
 
   it('pluralises mentions correctly', () => {
-    expect(notificationSummary([{ id: '1', kind: 'mention', taskId: null, taskTitle: 't', message: 'm', createdAt: 1 }])).toBe(
-      '1 mention',
-    )
+    expect(
+      notificationSummary([
+        { id: '1', kind: 'mention', taskId: null, taskTitle: 't', message: 'm', createdAt: 1 },
+      ]),
+    ).toBe('1 mention')
     expect(
       notificationSummary([
         { id: '1', kind: 'mention', taskId: null, taskTitle: 't', message: 'm', createdAt: 1 },

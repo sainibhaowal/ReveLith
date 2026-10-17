@@ -53,7 +53,9 @@ export function RibbonToolButton({
     accent && 'is-accent',
     aiEntry && 'is-ai-entry',
     className,
-  ].filter(Boolean).join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <button
@@ -70,9 +72,13 @@ export function RibbonToolButton({
       disabled={disabled}
       style={style}
     >
-      <span className={['revelith-ribbon-tool-icon', iconClassName].filter(Boolean).join(' ')}>{icon}</span>
+      <span className={['revelith-ribbon-tool-icon', iconClassName].filter(Boolean).join(' ')}>
+        {icon}
+      </span>
       {variant !== 'icon' && variant !== 'quick' ? (
-        <span className={['revelith-ribbon-tool-label', labelClassName].filter(Boolean).join(' ')}>{label}</span>
+        <span className={['revelith-ribbon-tool-label', labelClassName].filter(Boolean).join(' ')}>
+          {label}
+        </span>
       ) : null}
     </button>
   )

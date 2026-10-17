@@ -3,7 +3,9 @@ import { requestNeedsWebSearch } from '@revelith/app-chat'
 
 describe('ReveLith chat web tool selection', () => {
   it('does not offer web search for the current form or local form settings', () => {
-    expect(requestNeedsWebSearch('Inspect the current form and count its question fields.')).toBe(false)
+    expect(requestNeedsWebSearch('Inspect the current form and count its question fields.')).toBe(
+      false,
+    )
     expect(requestNeedsWebSearch('Change the current form theme to blue.')).toBe(false)
   })
 

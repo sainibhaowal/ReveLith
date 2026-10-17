@@ -19,7 +19,8 @@ import {
   type Point,
 } from './svg-geometry'
 
-const near = (value: number, target: number, tolerance = 1e-6) => Math.abs(value - target) <= tolerance
+const near = (value: number, target: number, tolerance = 1e-6) =>
+  Math.abs(value - target) <= tolerance
 const distance = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1])
 
 describe('svg geometry kernel', () => {
@@ -78,22 +79,47 @@ describe('svg geometry kernel', () => {
   })
 
   it('clips a polygon against a convex region', () => {
-    const big: Point[] = [[0, 0], [10, 0], [10, 10], [0, 10]]
-    const small: Point[] = [[2, 2], [6, 2], [6, 6], [2, 6]]
+    const big: Point[] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+    ]
+    const small: Point[] = [
+      [2, 2],
+      [6, 2],
+      [6, 6],
+      [2, 6],
+    ]
     const clipped = clipPolygon(big, small)
     expect(near(Math.abs(polygonArea(clipped)), 16, 1e-6)).toBe(true)
     // clipping in the other direction yields the same intersection
     const mirrored = clipPolygon(small, big)
     expect(near(Math.abs(polygonArea(mirrored)), 16, 1e-6)).toBe(true)
     // a half-plane style clip keeps only the overlapping half
-    const half: Point[] = [[0, 0], [10, 0], [10, 5], [0, 5]]
+    const half: Point[] = [
+      [0, 0],
+      [10, 0],
+      [10, 5],
+      [0, 5],
+    ]
     const topHalf = clipPolygon(big, half)
     expect(near(Math.abs(polygonArea(topHalf)), 50, 1e-6)).toBe(true)
   })
 
   it('returns nothing when polygons do not overlap, and ignores degenerate input', () => {
-    const a: Point[] = [[0, 0], [1, 0], [1, 1], [0, 1]]
-    const b: Point[] = [[5, 5], [6, 5], [6, 6], [5, 6]]
+    const a: Point[] = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ]
+    const b: Point[] = [
+      [5, 5],
+      [6, 5],
+      [6, 6],
+      [5, 6],
+    ]
     expect(clipPolygon(a, b)).toHaveLength(0)
     expect(clipPolygon([[0, 0]], b)).toHaveLength(0)
     expect(clipPolygon(a, [])).toHaveLength(0)
@@ -136,7 +162,12 @@ describe('svg geometry kernel', () => {
   })
 
   it('computes bounding boxes and insets a polygon toward its centre', () => {
-    const square: Point[] = [[0, 0], [10, 0], [10, 10], [0, 10]]
+    const square: Point[] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+    ]
     expect(boundingBox(square)).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 })
     const inset = insetPolygon(square, 1)
     const box = boundingBox(inset)
@@ -157,7 +188,12 @@ describe('svg geometry kernel', () => {
     // horizontal axis across a 100x100 square, covered perpendicular to it
     const band = gradientBandPolygon([0, 50], [100, 50], 0, 0.5, 200)
     expect(band).toHaveLength(4)
-    const square: Point[] = [[0, 0], [100, 0], [100, 100], [0, 100]]
+    const square: Point[] = [
+      [0, 0],
+      [100, 0],
+      [100, 100],
+      [0, 100],
+    ]
     const first = clipPolygon(square, band)
     // the first half of the axis covers half the square
     expect(near(Math.abs(polygonArea(first)), 5000, 1e-3)).toBe(true)
@@ -183,14 +219,45 @@ describe('svg geometry kernel', () => {
   })
 
   it('detects convexity so clipping is only attempted where it is valid', () => {
-    expect(isConvexPolygon([[0, 0], [10, 0], [10, 10], [0, 10]])).toBe(true)
-    expect(isConvexPolygon([[0, 0], [10, 0], [5, 3], [10, 10], [0, 10]])).toBe(false)
-    expect(isConvexPolygon([[0, 0], [10, 0]])).toBe(false)
-    expect(isConvexPolygon([[0, 0], [5, 0], [10, 0]])).toBe(false)
+    expect(
+      isConvexPolygon([
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+      ]),
+    ).toBe(true)
+    expect(
+      isConvexPolygon([
+        [0, 0],
+        [10, 0],
+        [5, 3],
+        [10, 10],
+        [0, 10],
+      ]),
+    ).toBe(false)
+    expect(
+      isConvexPolygon([
+        [0, 0],
+        [10, 0],
+      ]),
+    ).toBe(false)
+    expect(
+      isConvexPolygon([
+        [0, 0],
+        [5, 0],
+        [10, 0],
+      ]),
+    ).toBe(false)
   })
 
   it('clips a segment against a convex region instead of filling it', () => {
-    const box: Point[] = [[2, 2], [8, 2], [8, 8], [2, 8]]
+    const box: Point[] = [
+      [2, 2],
+      [8, 2],
+      [8, 8],
+      [2, 8],
+    ]
     // a line crossing the box keeps only the inside part
     const crossing = clipSegmentToConvex([0, 5], [10, 5], box)
     expect(crossing).toHaveLength(1)
@@ -206,6 +273,15 @@ describe('svg geometry kernel', () => {
     // a line collinear with an edge and outside it disappears
     expect(clipSegmentToConvex([0, 0], [10, 0], box)).toHaveLength(0)
     // degenerate clip
-    expect(clipSegmentToConvex([0, 0], [10, 10], [[0, 0], [1, 1]])).toHaveLength(0)
+    expect(
+      clipSegmentToConvex(
+        [0, 0],
+        [10, 10],
+        [
+          [0, 0],
+          [1, 1],
+        ],
+      ),
+    ).toHaveLength(0)
   })
 })

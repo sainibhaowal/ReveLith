@@ -26,12 +26,19 @@ export function TaskCard({
   const labels = state.labels.filter((label) => task.labelIds.includes(label.id))
   const logged = totalLoggedMinutes(task)
   const assignee = state.members.find((member) => member.id === task.assigneeId)
-  const overdue = task.dueDate !== null && task.dueDate < new Date().toISOString().slice(0, 10) && !task.completedAt
+  const overdue =
+    task.dueDate !== null &&
+    task.dueDate < new Date().toISOString().slice(0, 10) &&
+    !task.completedAt
 
   return (
     <article
       data-task-id={task.id}
-      style={{ ...card, opacity: dragging ? 0.5 : 1, borderLeftColor: PRIORITY_COLOR[task.priority] }}
+      style={{
+        ...card,
+        opacity: dragging ? 0.5 : 1,
+        borderLeftColor: PRIORITY_COLOR[task.priority],
+      }}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData('text/task-id', task.id)
@@ -49,18 +56,32 @@ export function TaskCard({
     >
       <div style={titleRow}>
         <span style={ticket}>{ticketId(state, task)}</span>
-        {blocked ? <span style={blockedBadge} title="Blocked by an unfinished task">🚧 blocked</span> : null}
+        {blocked ? (
+          <span style={blockedBadge} title="Blocked by an unfinished task">
+            🚧 blocked
+          </span>
+        ) : null}
       </div>
 
-      <div style={title}>{task.title || <em style={{ color: 'var(--text-tertiary)' }}>Untitled</em>}</div>
+      <div style={title}>
+        {task.title || <em style={{ color: 'var(--text-tertiary)' }}>Untitled</em>}
+      </div>
 
       {task.description ? <div style={excerpt}>{task.description.split('\n')[0]}</div> : null}
 
       {labels.length ? (
         <div style={labelRow}>
           {labels.map((label) => (
-            <span key={label.id} className="tasks-label-badge" style={{ ...chip, borderColor: colorVar(label.color), color: colorVar(label.color) }}>
-              <span className="tasks-label-dot" style={{ background: colorVar(label.color) }} aria-hidden="true" />
+            <span
+              key={label.id}
+              className="tasks-label-badge"
+              style={{ ...chip, borderColor: colorVar(label.color), color: colorVar(label.color) }}
+            >
+              <span
+                className="tasks-label-dot"
+                style={{ background: colorVar(label.color) }}
+                aria-hidden="true"
+              />
               {label.name}
             </span>
           ))}
@@ -124,7 +145,12 @@ const blockedBadge: CSSProperties = {
   padding: '0 5px',
 }
 
-const title: CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35 }
+const title: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--text-primary)',
+  lineHeight: 1.35,
+}
 
 const excerpt: CSSProperties = {
   fontSize: 11,
@@ -137,6 +163,12 @@ const excerpt: CSSProperties = {
 
 const labelRow: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4 }
 
-const metaRow: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 10 }
+const metaRow: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 8,
+  alignItems: 'center',
+  fontSize: 10,
+}
 
 const meta: CSSProperties = { color: 'var(--text-tertiary)', fontWeight: 600 }

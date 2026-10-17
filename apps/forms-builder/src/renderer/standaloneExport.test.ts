@@ -3,8 +3,17 @@ import type { FormSchema } from './types'
 import { buildStandaloneFormHtml } from './standaloneExport'
 
 const form: FormSchema = {
-  id: 'offline-form', title: 'Local <form>', description: 'No network required.', fields: [{ id: 'name', type: 'text', label: 'Name', required: true }],
-  settings: { submitButtonText: 'Send', showProgressBar: false, allowMultipleResponses: true, collectEmail: false, confirmationMessage: 'Thank you.' },
+  id: 'offline-form',
+  title: 'Local <form>',
+  description: 'No network required.',
+  fields: [{ id: 'name', type: 'text', label: 'Name', required: true }],
+  settings: {
+    submitButtonText: 'Send',
+    showProgressBar: false,
+    allowMultipleResponses: true,
+    collectEmail: false,
+    confirmationMessage: 'Thank you.',
+  },
   theme: { primaryColor: '#2563eb', backgroundColor: '#fff', fontFamily: 'system-ui' },
 }
 

@@ -5,8 +5,19 @@ type ElementRecord = Record<string, unknown>
 
 const LINEAR_ELEMENT_TYPES = new Set(['line', 'draw', 'arrow', 'freedraw'])
 const SUPPORTED_ELEMENT_TYPES = new Set([
-  'rectangle', 'ellipse', 'diamond', 'line', 'draw', 'arrow', 'freedraw', 'text', 'image',
-  'iframe', 'embeddable', 'frame', 'magicframe',
+  'rectangle',
+  'ellipse',
+  'diamond',
+  'line',
+  'draw',
+  'arrow',
+  'freedraw',
+  'text',
+  'image',
+  'iframe',
+  'embeddable',
+  'frame',
+  'magicframe',
 ])
 
 function finiteNumber(value: unknown, fallback: number): number {
@@ -27,18 +38,30 @@ function normalizedBindings(value: unknown): Array<{ id: string; type: string }>
   return value.flatMap((binding) => {
     if (!binding || typeof binding !== 'object' || Array.isArray(binding)) return []
     const record = binding as ElementRecord
-    if (typeof record.id !== 'string' || !record.id.trim() || typeof record.type !== 'string' || !record.type.trim()) return []
+    if (
+      typeof record.id !== 'string' ||
+      !record.id.trim() ||
+      typeof record.type !== 'string' ||
+      !record.type.trim()
+    )
+      return []
     return [{ id: record.id, type: record.type }]
   })
 }
 
 function pointTuple(value: unknown): PointTuple | null {
-  if (Array.isArray(value) && value.length >= 2 && Number.isFinite(value[0]) && Number.isFinite(value[1])) {
+  if (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    Number.isFinite(value[0]) &&
+    Number.isFinite(value[1])
+  ) {
     return [Number(value[0]), Number(value[1])]
   }
   if (value && typeof value === 'object') {
     const point = value as { x?: unknown; y?: unknown }
-    if (Number.isFinite(point.x) && Number.isFinite(point.y)) return [Number(point.x), Number(point.y)]
+    if (Number.isFinite(point.x) && Number.isFinite(point.y))
+      return [Number(point.x), Number(point.y)]
   }
   return null
 }
@@ -67,7 +90,13 @@ export function normalizeBoardElementPoints(elements: readonly unknown[]): Board
 
     element.id = normalizedId(element.id, index, usedIds)
     element.groupIds = Array.isArray(element.groupIds)
-      ? Array.from(new Set(element.groupIds.filter((groupId): groupId is string => typeof groupId === 'string' && groupId.trim() !== '')))
+      ? Array.from(
+          new Set(
+            element.groupIds.filter(
+              (groupId): groupId is string => typeof groupId === 'string' && groupId.trim() !== '',
+            ),
+          ),
+        )
       : []
     element.boundElements = normalizedBindings(element.boundElements)
     element.isDeleted = element.isDeleted === true
@@ -82,12 +111,14 @@ export function normalizeBoardElementPoints(elements: readonly unknown[]): Board
     element.seed = Math.max(0, Math.floor(finiteNumber(element.seed, 1)))
     element.updated = Math.max(0, finiteNumber(element.updated, 0))
     element.index = element.index ?? null
-    element.frameId = typeof element.frameId === 'string' && element.frameId.trim() ? element.frameId : null
+    element.frameId =
+      typeof element.frameId === 'string' && element.frameId.trim() ? element.frameId : null
     element.roundness = element.roundness ?? null
     element.isDeleted = element.isDeleted === true
     element.link = typeof element.link === 'string' ? element.link : null
     element.strokeColor = typeof element.strokeColor === 'string' ? element.strokeColor : '#1e1b4b'
-    element.backgroundColor = typeof element.backgroundColor === 'string' ? element.backgroundColor : 'transparent'
+    element.backgroundColor =
+      typeof element.backgroundColor === 'string' ? element.backgroundColor : 'transparent'
     element.fillStyle = typeof element.fillStyle === 'string' ? element.fillStyle : 'solid'
     element.strokeStyle = typeof element.strokeStyle === 'string' ? element.strokeStyle : 'solid'
     element.strokeWidth = Math.max(1, finiteNumber(element.strokeWidth, 2))
@@ -96,21 +127,27 @@ export function normalizeBoardElementPoints(elements: readonly unknown[]): Board
 
     if (type === 'text') {
       element.text = typeof element.text === 'string' ? element.text : ''
-      element.originalText = typeof element.originalText === 'string' ? element.originalText : element.text
+      element.originalText =
+        typeof element.originalText === 'string' ? element.originalText : element.text
       element.fontSize = Math.max(8, finiteNumber(element.fontSize, 20))
       element.fontFamily = Math.max(1, Math.floor(finiteNumber(element.fontFamily, 2)))
       element.textAlign = typeof element.textAlign === 'string' ? element.textAlign : 'left'
-      element.verticalAlign = typeof element.verticalAlign === 'string' ? element.verticalAlign : 'top'
-      element.containerId = typeof element.containerId === 'string' && element.containerId.trim() ? element.containerId : null
+      element.verticalAlign =
+        typeof element.verticalAlign === 'string' ? element.verticalAlign : 'top'
+      element.containerId =
+        typeof element.containerId === 'string' && element.containerId.trim()
+          ? element.containerId
+          : null
       element.autoResize = element.autoResize !== false
     }
 
     if (type === 'image') {
       element.fileId = typeof element.fileId === 'string' ? element.fileId : ''
       element.status = typeof element.status === 'string' ? element.status : 'pending'
-      element.scale = Array.isArray(element.scale) && element.scale.length >= 2
-        ? [finiteNumber(element.scale[0], 1), finiteNumber(element.scale[1], 1)]
-        : [1, 1]
+      element.scale =
+        Array.isArray(element.scale) && element.scale.length >= 2
+          ? [finiteNumber(element.scale[0], 1), finiteNumber(element.scale[1], 1)]
+          : [1, 1]
       element.crop = element.crop ?? null
     }
 
@@ -118,11 +155,18 @@ export function normalizeBoardElementPoints(elements: readonly unknown[]): Board
 
     const rawPoints = Array.isArray(element.points) ? element.points : []
     let points: PointTuple[]
-    if (rawPoints.length > 1 && rawPoints.every((point) => typeof point === 'number' && Number.isFinite(point))) {
+    if (
+      rawPoints.length > 1 &&
+      rawPoints.every((point) => typeof point === 'number' && Number.isFinite(point))
+    ) {
       const flat = rawPoints as number[]
-      points = flat.length % 2 === 0
-        ? Array.from({ length: flat.length / 2 }, (_, index) => [flat[index * 2]!, flat[index * 2 + 1]!] as PointTuple)
-        : []
+      points =
+        flat.length % 2 === 0
+          ? Array.from(
+              { length: flat.length / 2 },
+              (_, index) => [flat[index * 2]!, flat[index * 2 + 1]!] as PointTuple,
+            )
+          : []
     } else {
       points = rawPoints.map(pointTuple).filter((point): point is PointTuple => point !== null)
     }
@@ -130,7 +174,10 @@ export function normalizeBoardElementPoints(elements: readonly unknown[]): Board
     if (points.length < 2) {
       const width = finiteNumber(element.width, 0)
       const height = finiteNumber(element.height, 0)
-      points = [[0, 0], [width || (height ? 0 : 1), height || (width ? 0 : 1)]]
+      points = [
+        [0, 0],
+        [width || (height ? 0 : 1), height || (width ? 0 : 1)],
+      ]
     }
     element.points = points
     element.lastCommittedPoint = null
@@ -148,12 +195,21 @@ export function normalizeBoardElementPoints(elements: readonly unknown[]): Board
   const validIds = new Set(normalized.map((element) => element.id))
   return normalized.map((value) => {
     const element = { ...(value as unknown as ElementRecord) }
-    if (typeof element.frameId !== 'string' || !validIds.has(element.frameId)) element.frameId = null
-    if (typeof element.containerId !== 'string' || !validIds.has(element.containerId)) element.containerId = null
-    element.boundElements = normalizedBindings(element.boundElements).filter((binding) => validIds.has(binding.id))
+    if (typeof element.frameId !== 'string' || !validIds.has(element.frameId))
+      element.frameId = null
+    if (typeof element.containerId !== 'string' || !validIds.has(element.containerId))
+      element.containerId = null
+    element.boundElements = normalizedBindings(element.boundElements).filter((binding) =>
+      validIds.has(binding.id),
+    )
     for (const key of ['startBinding', 'endBinding'] as const) {
       const binding = element[key]
-      if (!binding || typeof binding !== 'object' || typeof (binding as ElementRecord).elementId !== 'string' || !validIds.has((binding as ElementRecord).elementId as string)) {
+      if (
+        !binding ||
+        typeof binding !== 'object' ||
+        typeof (binding as ElementRecord).elementId !== 'string' ||
+        !validIds.has((binding as ElementRecord).elementId as string)
+      ) {
         element[key] = null
       }
     }

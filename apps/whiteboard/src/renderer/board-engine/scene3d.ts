@@ -90,7 +90,8 @@ const normalize = (a: Vec3): Vec3 => {
   return [a[0] / length, a[1] / length, a[2] / length]
 }
 
-const isNum = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+const isNum = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
 
 function vec3(value: unknown, fallback: Vec3, label: string): Vec3 {
   if (value === undefined || value === null) return fallback
@@ -153,9 +154,16 @@ const DEFAULT_CAMERA: Record<ProjectionKind, { yaw: number; pitch: number; dista
   perspective: { yaw: 40, pitch: 18, distance: 1800 },
 }
 
-export function parseScene3dSpec(raw: Record<string, unknown>, anchor: { originX: number; originY: number }): Scene3dSpec {
+export function parseScene3dSpec(
+  raw: Record<string, unknown>,
+  anchor: { originX: number; originY: number },
+): Scene3dSpec {
   const projectionValue = raw.projection ?? 'isometric'
-  if (projectionValue !== 'isometric' && projectionValue !== 'dimetric' && projectionValue !== 'perspective') {
+  if (
+    projectionValue !== 'isometric' &&
+    projectionValue !== 'dimetric' &&
+    projectionValue !== 'perspective'
+  ) {
     throw new Error('projection must be isometric, dimetric or perspective')
   }
   const projection = projectionValue as ProjectionKind
@@ -169,20 +177,28 @@ export function parseScene3dSpec(raw: Record<string, unknown>, anchor: { originX
   }
 
   const rawObjects = raw.objects
-  if (!Array.isArray(rawObjects) || rawObjects.length === 0) throw new Error('objects must be a non-empty array')
-  if (rawObjects.length > MAX_OBJECTS) throw new Error(`objects must contain at most ${MAX_OBJECTS} primitives`)
+  if (!Array.isArray(rawObjects) || rawObjects.length === 0)
+    throw new Error('objects must be a non-empty array')
+  if (rawObjects.length > MAX_OBJECTS)
+    throw new Error(`objects must contain at most ${MAX_OBJECTS} primitives`)
 
   const objects: Scene3dObject[] = rawObjects.map((entry, index) => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error(`object ${index + 1} must be an object`)
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      throw new Error(`object ${index + 1} must be an object`)
     const item = entry as Record<string, unknown>
     const shape = item.shape ?? 'box'
     if (shape !== 'box' && shape !== 'prism' && shape !== 'plane') {
       throw new Error(`object ${index + 1}: shape must be box, prism or plane`)
     }
-    const size = vec3(item.size, shape === 'plane' ? [1200, 0, 900] : [300, 300, 300], `object ${index + 1} size`)
+    const size = vec3(
+      item.size,
+      shape === 'plane' ? [1200, 0, 900] : [300, 300, 300],
+      `object ${index + 1} size`,
+    )
     const radius = num(item.radius, 100, `object ${index + 1} radius`, 0.1, 20000)
     const axisValue = item.axis ?? 'y'
-    if (axisValue !== 'x' && axisValue !== 'y' && axisValue !== 'z') throw new Error(`object ${index + 1}: axis must be x, y or z`)
+    if (axisValue !== 'x' && axisValue !== 'y' && axisValue !== 'z')
+      throw new Error(`object ${index + 1}: axis must be x, y or z`)
     return {
       shape,
       at: vec3(item.at, [0, 0, 0], `object ${index + 1} at`),
@@ -236,8 +252,14 @@ function boxSolid(object: Scene3dObject): Solid {
   const [cx, cy, cz] = object.at
   const p = (sx: number, sy: number, sz: number): Vec3 => [cx + sx * hx, cy + sy * hy, cz + sz * hz]
   const vertices: Vec3[] = [
-    p(-1, -1, -1), p(1, -1, -1), p(1, 1, -1), p(-1, 1, -1),
-    p(-1, -1, 1), p(1, -1, 1), p(1, 1, 1), p(-1, 1, 1),
+    p(-1, -1, -1),
+    p(1, -1, -1),
+    p(1, 1, -1),
+    p(-1, 1, -1),
+    p(-1, -1, 1),
+    p(1, -1, 1),
+    p(1, 1, 1),
+    p(-1, 1, 1),
   ]
   const faces = [
     [4, 5, 6, 7], // +Z
@@ -282,18 +304,24 @@ function planeSolid(object: Scene3dObject): Solid {
   let vertices: Vec3[]
   if (object.axis === 'y') {
     vertices = [
-      [cx - ha, cy, cz - hb], [cx + ha, cy, cz - hb],
-      [cx + ha, cy, cz + hb], [cx - ha, cy, cz + hb],
+      [cx - ha, cy, cz - hb],
+      [cx + ha, cy, cz - hb],
+      [cx + ha, cy, cz + hb],
+      [cx - ha, cy, cz + hb],
     ]
   } else if (object.axis === 'x') {
     vertices = [
-      [cx, cy - hb, cz - ha], [cx, cy + hb, cz - ha],
-      [cx, cy + hb, cz + ha], [cx, cy - hb, cz + ha],
+      [cx, cy - hb, cz - ha],
+      [cx, cy + hb, cz - ha],
+      [cx, cy + hb, cz + ha],
+      [cx, cy - hb, cz + ha],
     ]
   } else {
     vertices = [
-      [cx - ha, cy - hb, cz], [cx + ha, cy - hb, cz],
-      [cx + ha, cy + hb, cz], [cx - ha, cy + hb, cz],
+      [cx - ha, cy - hb, cz],
+      [cx + ha, cy - hb, cz],
+      [cx + ha, cy + hb, cz],
+      [cx - ha, cy + hb, cz],
     ]
   }
   return { vertices, faces: [[0, 1, 2, 3]], color: object.color, opacity: object.opacity }
@@ -313,7 +341,11 @@ export function projectScene3d(spec: Scene3dSpec): Scene3dOutput {
   const target = spec.target
   const cosPitch = Math.cos(spec.pitch)
   // Camera sits on a sphere around the target, looking inwards.
-  const offset: Vec3 = [cosPitch * Math.sin(spec.yaw), Math.sin(spec.pitch), cosPitch * Math.cos(spec.yaw)]
+  const offset: Vec3 = [
+    cosPitch * Math.sin(spec.yaw),
+    Math.sin(spec.pitch),
+    cosPitch * Math.cos(spec.yaw),
+  ]
   const camera: Vec3 = add(target, mul(offset, spec.distance))
   const forward = normalize(sub(target, camera))
   const worldUp: Vec3 = [0, 1, 0]
@@ -337,7 +369,8 @@ export function projectScene3d(spec: Scene3dSpec): Scene3dOutput {
   const solids = spec.objects.map(solidFor)
   let faceBudget = 0
   for (const solid of solids) faceBudget += solid.faces.length
-  if (faceBudget > MAX_FACES) throw new Error(`scene has ${faceBudget} faces; keep it under ${MAX_FACES}`)
+  if (faceBudget > MAX_FACES)
+    throw new Error(`scene has ${faceBudget} faces; keep it under ${MAX_FACES}`)
 
   interface Pending {
     depth: number
@@ -354,13 +387,18 @@ export function projectScene3d(spec: Scene3dSpec): Scene3dOutput {
     const projectedFaces: Array<Array<[number, number]> | null> = []
 
     solid.faces.forEach((face, faceIndex) => {
-      const points = face.map((vertex) => solid.vertices[vertex]).filter((vertex): vertex is Vec3 => vertex !== undefined)
+      const points = face
+        .map((vertex) => solid.vertices[vertex])
+        .filter((vertex): vertex is Vec3 => vertex !== undefined)
       if (points.length < 3) {
         visible[faceIndex] = false
         projectedFaces[faceIndex] = null
         return
       }
-      const faceCenter = mul(points.reduce<Vec3>((acc, vertex) => add(acc, vertex), [0, 0, 0]), 1 / points.length)
+      const faceCenter = mul(
+        points.reduce<Vec3>((acc, vertex) => add(acc, vertex), [0, 0, 0]),
+        1 / points.length,
+      )
       let normal = cross(sub(points[1]!, points[0]!), sub(points[2]!, points[0]!))
       if (Math.hypot(normal[0], normal[1], normal[2]) < 1e-9) {
         visible[faceIndex] = false
@@ -418,7 +456,8 @@ export function projectScene3d(spec: Scene3dSpec): Scene3dOutput {
       }
     })
     for (const entry of edgeFaces.values()) {
-      const isHidden = entry.faces.length === 2 && entry.faces.every((index) => visible[index] === false)
+      const isHidden =
+        entry.faces.length === 2 && entry.faces.every((index) => visible[index] === false)
       if (isHidden && spec.hidden === 'hide') continue
       const a = project(entry.a)
       const b = project(entry.b)

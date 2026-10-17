@@ -18,7 +18,12 @@ vi.mock('@excalidraw/excalidraw', () => ({
 }))
 
 import { BOARD_TOOL_DEFS, executeBoardTool } from './board-engine/ai-tools'
-import { collectSketchModels, solveDraggedSketches, rewriteLine, readSketchModel } from './board-engine/sketch-live'
+import {
+  collectSketchModels,
+  solveDraggedSketches,
+  rewriteLine,
+  readSketchModel,
+} from './board-engine/sketch-live'
 
 const LIVE = process.env.REVELITH_LIVE_E2E === '1'
 const SETTINGS_PATH = `${process.env.APPDATA ?? ''}\\ReveLith\\ai-settings.json`
@@ -41,7 +46,8 @@ async function codexConfig(): Promise<AiProviderConfig> {
     provider?: string
     providers?: Record<string, { apiKey?: string; model?: string; cliPath?: string }>
   }
-  if (settings.provider !== 'codex') throw new Error(`Configured chat provider is ${settings.provider ?? 'missing'}, not Codex.`)
+  if (settings.provider !== 'codex')
+    throw new Error(`Configured chat provider is ${settings.provider ?? 'missing'}, not Codex.`)
   const config = settings.providers?.codex
   if (!config) throw new Error('The saved Codex provider configuration is missing.')
   return { apiKey: config.apiKey ?? '', model: config.model ?? '', cliPath: config.cliPath }
@@ -62,11 +68,14 @@ async function askCodexTool(userText: string, toolName: string): Promise<AgentTo
     6000,
     {
       signal: new AbortController().signal,
-      onDelta: (text) => { responseText += text },
+      onDelta: (text) => {
+        responseText += text
+      },
       onToolCall: (call) => calls.push(call),
     },
   )
-  if (!calls[0]) console.log('[live-codex] model response without a tool call:', responseText.slice(0, 500))
+  if (!calls[0])
+    console.log('[live-codex] model response without a tool call:', responseText.slice(0, 500))
   return calls[0] ?? null
 }
 
@@ -74,12 +83,27 @@ describe.skipIf(!LIVE)('LIVE Draw tools with authenticated Codex CLI', () => {
   it('serves the configured Codex model', async () => {
     const config = await codexConfig()
     let response = ''
-    await streamForProvider('codex', config, 'Answer briefly and exactly as requested.', [{ role: 'user', text: 'Reply with exactly: Draw is ready.' }], [], 256, {
-      signal: new AbortController().signal,
-      onDelta: (text) => { response += text },
-      onToolCall: () => { throw new Error('The readiness check unexpectedly requested a tool.') },
-    })
-    console.log(`[live-codex] configured model ${config.model || '(CLI default)'} responded:`, response.trim())
+    await streamForProvider(
+      'codex',
+      config,
+      'Answer briefly and exactly as requested.',
+      [{ role: 'user', text: 'Reply with exactly: Draw is ready.' }],
+      [],
+      256,
+      {
+        signal: new AbortController().signal,
+        onDelta: (text) => {
+          response += text
+        },
+        onToolCall: () => {
+          throw new Error('The readiness check unexpectedly requested a tool.')
+        },
+      },
+    )
+    console.log(
+      `[live-codex] configured model ${config.model || '(CLI default)'} responded:`,
+      response.trim(),
+    )
     expect(response.trim()).toContain('Draw is ready')
   }, 180_000)
 
@@ -97,11 +121,18 @@ describe.skipIf(!LIVE)('LIVE Draw tools with authenticated Codex CLI', () => {
     )
     expect(call, 'Codex must emit a build_drawboard_scene tool call').toBeTruthy()
     if (!call) throw new Error('Codex did not emit the required Draw tool call.')
-    console.log('[live-codex] sketch tool call:', call.name, JSON.stringify(call.input).slice(0, 700))
+    console.log(
+      '[live-codex] sketch tool call:',
+      call.name,
+      JSON.stringify(call.input).slice(0, 700),
+    )
 
     const started = Date.now()
     const result = await executeBoardTool({ current: api as never }, call)
-    console.log(`[live-codex] tool executed in ${Date.now() - started}ms ->`, result.output?.slice(0, 600))
+    console.log(
+      `[live-codex] tool executed in ${Date.now() - started}ms ->`,
+      result.output?.slice(0, 600),
+    )
     expect(result.isError, `tool errored: ${result.output}`).toBeFalsy()
     expect(result.mutated).toBe(true)
 
@@ -119,7 +150,11 @@ describe.skipIf(!LIVE)('LIVE Draw tools with authenticated Codex CLI', () => {
     const link = model.segments[0]!
     const dragged = (elements as never as Array<Record<string, unknown>>).map((element) =>
       String(element.id) === link.elementId
-        ? (rewriteLine(element as never, [model.originX, model.originY], [model.originX + 400, model.originY + 250]) as unknown as Record<string, unknown>)
+        ? (rewriteLine(
+            element as never,
+            [model.originX, model.originY],
+            [model.originX + 400, model.originY + 250],
+          ) as unknown as Record<string, unknown>)
         : element,
     )
     const settled = solveDraggedSketches(dragged as never)
