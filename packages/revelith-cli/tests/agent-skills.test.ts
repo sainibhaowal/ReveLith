@@ -154,3 +154,53 @@ describe('buildSkillZip', () => {
     expect(await zip.file('revelith/SKILL.md')!.async('string')).toBe(b.text)
   })
 })
+
+describe('multiple bundled skills in one distribution', () => {
+  const drawing = () =>
+    bundledSkillFrom(
+      Buffer.from(
+        "---\nname: drawboard-drawing\ndescription: draw on the board\nmetadata:\n  version: 1.0.0\n  cli: '>=0.10.100'\n---\n\n# Drawing\n",
+      ),
+    )
+
+  it('derives the install folder from the front matter, not a hardcoded constant', () => {
+    expect(bundled('1.2.0').name).toBe('revelith')
+    expect(drawing().name).toBe('drawboard-drawing')
+  })
+
+  it('installs two skills side by side and tracks them independently', () => {
+    const skillsDir = join(home(), 'skills')
+    mkdirSync(skillsDir, { recursive: true })
+    const ledger: SkillLedger = {}
+    const primary = bundled('1.2.0')
+    const board = drawing()
+
+    installSkill(skillsDir, primary, ledger)
+    installSkill(skillsDir, board, ledger)
+    expect(existsSync(join(skillsDir, 'revelith', 'SKILL.md'))).toBe(true)
+    expect(existsSync(join(skillsDir, 'drawboard-drawing', 'SKILL.md'))).toBe(true)
+
+    expect(readInstallState(skillsDir, primary, ledger).status).toBe('installed')
+    expect(readInstallState(skillsDir, board, ledger).status).toBe('installed')
+
+    // removing one leaves the other completely untouched
+    expect(uninstallSkill(skillsDir, ledger, 'drawboard-drawing')).toBe(true)
+    expect(existsSync(join(skillsDir, 'drawboard-drawing'))).toBe(false)
+    expect(existsSync(join(skillsDir, 'revelith', 'SKILL.md'))).toBe(true)
+    expect(readInstallState(skillsDir, primary, ledger).status).toBe('installed')
+  })
+
+  it('zips each skill under its own folder name', async () => {
+    const zip = await JSZip.loadAsync(await buildSkillZip(drawing()))
+    expect(Object.keys(zip.files)).toContain('drawboard-drawing/SKILL.md')
+  })
+
+  it('still defaults to the revelith skill when no name is given', () => {
+    const skillsDir = join(home(), 'skills')
+    mkdirSync(skillsDir, { recursive: true })
+    const ledger: SkillLedger = {}
+    installSkill(skillsDir, bundled('1.2.0'), ledger)
+    expect(existsSync(join(skillsDir, 'revelith', 'SKILL.md'))).toBe(true)
+    expect(uninstallSkill(skillsDir, ledger)).toBe(true)
+  })
+})

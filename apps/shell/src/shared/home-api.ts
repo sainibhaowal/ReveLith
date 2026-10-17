@@ -12,13 +12,6 @@ import type {
 import type { UpdateChannel } from './update-api'
 import type { AiPanelPrefs } from '@revelith/ui/ai-panel-prefs'
 
-/** progress event emitted while generateMatrix runs */
-export interface MatrixProgress {
-  current: number
-  total: number
-  currentFile: string
-}
-
 /** UI language; kept self-contained here (mirrors Lang in @revelith/i18n) */
 export type UiLanguage =
   | 'zh'
@@ -195,18 +188,13 @@ export interface HomeApi {
   newSlide(opts?: NewFileOpts): Promise<void>
   /** open a blank markdown editor tab */
   newMarkdown(opts?: NewFileOpts): Promise<void>
-  /** Hebbia Matrix: extract a comparison grid from source files into a live .xlsx */
-  generateMatrix(input: {
-    files: Array<{ name: string; path: string }>
-    columns: Array<{ id: string; name: string; description?: string; dataType: string }>
-    projectName?: string
-  }): Promise<{ ok: boolean; path?: string; error?: string }>
-  /** progress events emitted while generateMatrix runs */
-  onMatrixProgress(handler: (progress: MatrixProgress) => void): () => void
   /** open a blank html editor tab */
   newHtml(opts?: NewFileOpts): Promise<void>
   /** create a blank single-page PDF in the default save folder and open it */
   newPdf(opts?: NewFileOpts): Promise<void>
+  newFormsBuilder(): Promise<void>
+  newTasks(): Promise<void>
+  newDrawboard(): Promise<void>
   /** drop entries from the recent list (does not touch the files) */
   removeRecent(paths: string[]): Promise<void>
   /** reveal the file in Finder / Explorer */
@@ -237,8 +225,8 @@ export interface HomeApi {
   renameFolder(dir: string, newName: string): Promise<RenameResult>
   /** move files and/or folders into `targetDir` */
   movePaths(paths: string[], targetDir: string, onConflict: MoveConflictPolicy): Promise<MoveResult>
-  /** move a folder (and everything inside) to the trash */
-  deleteFolder(dir: string): Promise<void>
+  /** move a folder (and everything inside) to the trash; failure leaves it intact */
+  deleteFolder(dir: string): Promise<{ ok: true } | { ok: false; error: string }>
   /** a folder under the root changed on disk (created/renamed/deleted/moved, from anywhere) */
   onFolderChanged(handler: (dirs: string[]) => void): () => void
   /** current UI language (persisted in userData/app-settings.json) */
@@ -496,8 +484,9 @@ export const HOME_CHANNELS = {
   newMarkdown: 'home:new-markdown',
   newHtml: 'home:new-html',
   newPdf: 'home:new-pdf',
-  generateMatrix: 'home:matrix-generate',
-  matrixProgress: 'home:matrix-progress',
+  newFormsBuilder: 'home:new-forms-builder',
+  newTasks: 'home:new-tasks',
+  newDrawboard: 'home:new-drawboard',
   removeRecent: 'home:remove-recent',
   revealPath: 'home:reveal-path',
   renameFile: 'home:rename-file',

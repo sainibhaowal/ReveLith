@@ -9,8 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { launchShell, closeAndSaveVideo, screenshotPath } from './helpers'
 
 /**
@@ -18,10 +17,12 @@ import { launchShell, closeAndSaveVideo, screenshotPath } from './helpers'
  * view, and the create / rename / move / delete actions against the real disk.
  */
 test.describe('home folders panel', () => {
+  const fixtureRoot = join(process.cwd(), '.tmp', 'e2e-data')
   let root: string
 
   test.beforeEach(() => {
-    root = realpathSync(mkdtempSync(join(tmpdir(), 'revelith-e2e-root-')))
+    mkdirSync(fixtureRoot, { recursive: true })
+    root = realpathSync(mkdtempSync(join(fixtureRoot, 'revelith-e2e-root-')))
     mkdirSync(join(root, 'Clients', 'A Corp'), { recursive: true })
     mkdirSync(join(root, 'Clients', 'Contracts'), { recursive: true })
     mkdirSync(join(root, 'Personal'))
@@ -45,7 +46,7 @@ test.describe('home folders panel', () => {
       const tree = page.locator('.folder-panel .tree')
       await expect(page.locator('.folder-panel-title')).toHaveText('Folders')
       const rootRow = tree.locator('.tree-row').first()
-      await expect(rootRow).toContainText(root.split('/').pop()!)
+      await expect(rootRow).toContainText(basename(root))
       // root is expanded by default: its first-level folders are listed
       await expect(tree.locator('.tree-name', { hasText: 'Clients' })).toBeVisible()
       await expect(tree.locator('.tree-name', { hasText: 'Personal' })).toBeVisible()
@@ -69,6 +70,7 @@ test.describe('home folders panel', () => {
       const input = page.locator('.folder-panel .tree .folder-rename-input')
       await input.fill('Drafts')
       await input.press('Enter')
+      await expect.poll(() => existsSync(join(root, 'Clients', 'Contracts', 'Drafts'))).toBe(true)
       await expect(
         page.locator('.recent-list .folder-item .recent-name', { hasText: 'Drafts' }),
       ).toBeVisible()
@@ -110,10 +112,10 @@ test.describe('home folders panel', () => {
         has: page.locator('.recent-name', { hasText: 'Final' }),
       })
       await finalRow.locator('.more-btn').click()
-      await page.locator('.folder-menu button.danger').click()
+      await finalRow.locator('.folder-menu button.danger').click()
       await page.locator('.modal .btn-danger').click()
+      await expect.poll(() => existsSync(join(root, 'Clients', 'Contracts', 'Final'))).toBe(false)
       await expect(page.locator('.recent-list .recent-name', { hasText: 'Final' })).toHaveCount(0)
-      expect(existsSync(join(root, 'Clients', 'Contracts', 'Final'))).toBe(false)
 
       // Personal now lists the moved file; the Recent view shows its location
       await tree.locator('.tree-name', { hasText: 'Personal' }).click()
@@ -125,7 +127,7 @@ test.describe('home folders panel', () => {
   })
 
   test('an added folder joins the tree in place and leaves the list without touching disk', async () => {
-    const extra = realpathSync(mkdtempSync(join(tmpdir(), 'revelith-e2e-extra-')))
+    const extra = realpathSync(mkdtempSync(join(fixtureRoot, 'revelith-e2e-extra-')))
     mkdirSync(join(extra, 'Projects', 'Alpha'), { recursive: true })
     writeFileSync(join(extra, 'Projects', 'plan.md'), '# plan')
     const launched = await launchShell({
@@ -138,8 +140,8 @@ test.describe('home folders panel', () => {
       const tree = page.locator('.folder-panel .tree')
       const rootRows = tree.locator(':scope > .tree-item > .tree-row')
       await expect(rootRows).toHaveCount(2)
-      await expect(rootRows.nth(0)).toContainText(root.split('/').pop()!)
-      await expect(rootRows.nth(1)).toContainText(extra.split('/').pop()!)
+      await expect(rootRows.nth(0)).toContainText(basename(root))
+      await expect(rootRows.nth(1)).toContainText(basename(extra))
 
       // every root row opens on a fresh profile, so the added root shows its real contents
       await expect(rootRows.nth(1)).toHaveAttribute('aria-expanded', 'true')
@@ -153,6 +155,7 @@ test.describe('home folders panel', () => {
       const input = page.locator('.folder-panel .tree .folder-rename-input')
       await input.fill('Beta')
       await input.press('Enter')
+      await expect.poll(() => existsSync(join(extra, 'Projects', 'Beta'))).toBe(true)
       await expect(
         page.locator('.recent-list .folder-item .recent-name', { hasText: 'Beta' }),
       ).toBeVisible()
@@ -195,7 +198,8 @@ test.describe('home folders panel', () => {
       await page.locator('.quick-card', { hasText: 'AI PDF' }).click()
       const hasPdf = (dir: string) =>
         existsSync(dir) && readdirSync(dir).some((f) => f.endsWith('.pdf'))
-      await expect.poll(() => hasPdf(join(root, 'Personal')), { timeout: 15_000 }).toBe(true)
+      await expect.poll(() => hasPdf(join(root, 'Personal')) || hasPdf(root), { timeout: 15_000 }).toBe(true)
+      expect(hasPdf(join(root, 'Personal')), 'a folder-scoped PDF must be created inside the selected folder').toBe(true)
       expect(hasPdf(root)).toBe(false)
       // and the tab opened on the moved path, not the vanished root one
       await expect(page.locator('.tab-bar .tab-item', { hasText: '.pdf' })).toBeVisible()

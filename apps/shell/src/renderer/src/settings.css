@@ -704,6 +704,23 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* skill picker: shown only when this build ships more than one skill */
+.set-intg-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 6px;
+}
+
+.set-intg-skills .set-btn {
+  font-family: var(--mono, monospace);
+  font-size: 12px;
+}
+
+.set-intg-skill-desc {
+  margin-bottom: 4px;
+}
+
 .set-intg-row .set-field {
   border-bottom: none;
 }

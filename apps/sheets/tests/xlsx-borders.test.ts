@@ -1,7 +1,6 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
@@ -10,6 +9,7 @@ import { StylesheetEditor } from '@revelith/xlsx-gateway/gateway/xlsx-styles'
 import { XlsxSidecarClient } from '../src/main/xlsx-sidecar-client'
 import { workbookRangeResultSchema } from '../src/shared/desktop-api'
 import { fromNeutralStyle, toNeutralStyle } from '../src/renderer/edit-journal'
+import { sidecarBinaryPath } from './sidecar-path'
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -171,10 +171,3 @@ describe('sidecar read side keeps styled blanks', () => {
     }
   })
 })
-
-function sidecarBinaryPath(): string {
-  const executable = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar'
-  return fileURLToPath(
-    new URL(`../native/xlsx-engine/target/release/${executable}`, import.meta.url),
-  )
-}

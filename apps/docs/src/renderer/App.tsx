@@ -16,9 +16,9 @@ import type { Editor } from '@tiptap/core'
 import { handleDocsControl, type ControlRequest } from './control'
 import { DOMParser as PmDOMParser, type Mark as PmMark, Slice as PmSlice } from '@tiptap/pm/model'
 import { NodeSelection, TextSelection, type Command, type Transaction } from '@tiptap/pm/state'
+import { closeHistory, undoDepth } from '@tiptap/pm/history'
 import { Dropdown, ImageViewer, createZoomWheelClassifier, useAutoSavePref } from '@revelith/ui'
 import { wordRangeAtCaret } from './editor/comments'
-import { requestGhostCompletion, clearGhostCompletion } from './editor/ghost-completion'
 import { setFieldInstr, toggleAllFieldCodes, type FieldRange } from './editor/field-codes'
 import { linkTarget } from './editor/link-actions'
 import { FieldDialog } from './components/FieldDialog'
@@ -117,8 +117,6 @@ import { CommentsPanel } from './components/CommentsPanel'
 import { EquationModal } from './components/EquationModal'
 import { HeaderFooterArea } from './components/HeaderFooterArea'
 import { PageFootnotes, PageEndnotes } from './components/PageNoteAreas'
-import { SourceTray } from './components/SourceTray'
-import { SourceStoreProvider, useSourceStore } from './sources/source-store'
 import { noteMarkText, type NoteKind } from './note-format'
 import { PaginationPreview } from './components/PaginationPreview'
 import { paraPaginationMeta } from './editor/para-flags'
@@ -391,6 +389,22 @@ import {
 const STREAMING_PASS_GAP_MS = 1500
 /** passes wait at least this many times their own duration while streaming */
 const STREAMING_PASS_DUTY = 4
+
+type PageSetupSnapshot = {
+  section: SectionSettings | null
+  sections: SectionInfo[]
+  sectionDirty: boolean
+  sectionsDirty: number[]
+  mirrorMargins: boolean
+  mirrorMarginsDirty: boolean
+}
+
+type PageSetupHistoryEntry = {
+  before: PageSetupSnapshot
+  after: PageSetupSnapshot
+  /** ProseMirror depth is a barrier: text typed after a layout edit must undo first. */
+  editorUndoDepth: number
+}
 const STREAMING_PASS_GAP_MAX_MS = 15_000
 /** after an edit, the pass waits this many times its own last duration (300 ms floor) */
 const EDIT_PASS_DUTY = 3
@@ -740,7 +754,7 @@ function replacesDocument(result: NonNullable<OpenDocxResult>): boolean {
   return !('needsPassword' in result)
 }
 
-// Inner component that has access to SourceStore
+// Main Docs editor component
 function AppInner() {
   // subscribe to language switches for re-render; strings all go through module-level t, so memoized callbacks never capture stale closures
   const { lang } = useI18n()
@@ -817,6 +831,14 @@ function AppInner() {
   const [evenOddHfDirty, setEvenOddHfDirty] = useState(false)
   const [mirrorMargins, setMirrorMargins] = useState(false)
   const [mirrorMarginsDirty, setMirrorMarginsDirty] = useState(false)
+  const pageSetupUndoRef = useRef<PageSetupHistoryEntry[]>([])
+  const pageSetupRedoRef = useRef<PageSetupHistoryEntry[]>([])
+  const [pageSetupHistoryVersion, setPageSetupHistoryVersion] = useState(0)
+  const clearPageSetupHistory = useCallback(() => {
+    pageSetupUndoRef.current = []
+    pageSetupRedoRef.current = []
+    setPageSetupHistoryVersion((version) => version + 1)
+  }, [])
   const [hfView, setHfViewState] = useState<HfView>('default')
   /** false until the user picks a variant (chip/toggle); resting areas then follow their page's variant instead */
   const [hfViewTouched, setHfViewTouched] = useState(false)
@@ -925,8 +947,6 @@ function AppInner() {
   }>({})
   const [showComments, setShowComments] = useState(false)
   const [showStylesPane, setShowStylesPane] = useState(false)
-  const [showSourceTray, setShowSourceTray] = useState(false)
-  const { groundedWrite, getGroundedContext, setDocSessionId } = useSourceStore()
   const [commentFocus, setCommentFocus] = useState<{ id: string; nonce: number } | null>(null)
   /** Style definitions pending write-back (key = styleId), saved via SaveOptions.styleUpserts */
   const [defaultFonts, setDefaultFonts] = useState<DefaultFonts>()
@@ -2080,12 +2100,106 @@ function AppInner() {
 
   const loadFile = useCallback(async (result: OpenDocxResult) => {
     const outcome = await loadFileImpl(fileCtxRef.current, result)
+    if (outcome === 'ok') clearPageSetupHistory()
     // a failed open with no document yet (boot, or the open that superseded the
     // boot open) must land on blank instead of the "Opening…" screen
     if (outcome === 'failed' && !fileCtxRef.current.doc) await newFileImpl(fileCtxRef.current)
     return outcome
-  }, [])
-  const resetFile = useCallback(() => newFileImpl(fileCtxRef.current), [])
+  }, [clearPageSetupHistory])
+  const resetFile = useCallback(async () => {
+    clearPageSetupHistory()
+    await newFileImpl(fileCtxRef.current)
+  }, [clearPageSetupHistory])
+
+  const capturePageSetup = useCallback(
+    (): PageSetupSnapshot => ({
+      section,
+      sections,
+      sectionDirty,
+      sectionsDirty,
+      mirrorMargins,
+      mirrorMarginsDirty,
+    }),
+    [section, sections, sectionDirty, sectionsDirty, mirrorMargins, mirrorMarginsDirty],
+  )
+  const restorePageSetup = useCallback(
+    (snapshot: PageSetupSnapshot) => {
+      setSection(snapshot.section)
+      setSections(snapshot.sections)
+      setSectionDirty(snapshot.sectionDirty)
+      setSectionsDirty(snapshot.sectionsDirty)
+      setMirrorMargins(snapshot.mirrorMargins)
+      setMirrorMarginsDirty(snapshot.mirrorMarginsDirty)
+      if (editor) editor.view.dispatch(closeHistory(editor.state.tr))
+      setPageSetupHistoryVersion((version) => version + 1)
+    },
+    [editor],
+  )
+  const recordPageSetupChange = useCallback(
+    (after: PageSetupSnapshot, apply: () => void) => {
+      const before = capturePageSetup()
+      if (editor) editor.view.dispatch(closeHistory(editor.state.tr))
+      apply()
+      if (editor) editor.view.dispatch(closeHistory(editor.state.tr))
+      pageSetupUndoRef.current.push({
+        before,
+        after,
+        editorUndoDepth: editor ? undoDepth(editor.state) : 0,
+      })
+      pageSetupRedoRef.current = []
+      setPageSetupHistoryVersion((version) => version + 1)
+    },
+    [capturePageSetup, editor],
+  )
+  const canUndoPageSetup = useCallback(() => {
+    const entry = pageSetupUndoRef.current.at(-1)
+    return !!entry && (!editor || undoDepth(editor.state) === entry.editorUndoDepth)
+  }, [editor])
+  const canRedoPageSetup = useCallback(() => {
+    const entry = pageSetupRedoRef.current.at(-1)
+    return !!entry && (!editor || undoDepth(editor.state) === entry.editorUndoDepth)
+  }, [editor])
+  const undoDocument = useCallback(() => {
+    const entry = pageSetupUndoRef.current.at(-1)
+    if (entry && (!editor || undoDepth(editor.state) === entry.editorUndoDepth)) {
+      pageSetupUndoRef.current.pop()
+      pageSetupRedoRef.current.push(entry)
+      restorePageSetup(entry.before)
+      return true
+    }
+    return !!editor?.chain().focus().undo().run()
+  }, [editor, restorePageSetup])
+  const redoDocument = useCallback(() => {
+    const entry = pageSetupRedoRef.current.at(-1)
+    if (entry && (!editor || undoDepth(editor.state) === entry.editorUndoDepth)) {
+      pageSetupRedoRef.current.pop()
+      pageSetupUndoRef.current.push(entry)
+      restorePageSetup(entry.after)
+      return true
+    }
+    return !!editor?.chain().focus().redo().run()
+  }, [editor, restorePageSetup])
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'z')
+        return
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        if (target.closest('input, textarea, select')) return
+        if (target.isContentEditable && !target.closest('.ProseMirror')) return
+      }
+      const shouldHandle = event.shiftKey ? canRedoPageSetup() : canUndoPageSetup()
+      if (!shouldHandle) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      if (event.shiftKey) redoDocument()
+      else undoDocument()
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [canRedoPageSetup, canUndoPageSetup, redoDocument, undoDocument])
+
   const commitOpenedFile = useCallback(
     async (result: OpenDocxResult) => {
       if (!result) return
@@ -5443,10 +5557,10 @@ function AppInner() {
           void save(true)
           break
         case 'undo':
-          editor?.chain().focus().undo().run()
+          undoDocument()
           break
         case 'redo':
-          editor?.chain().focus().redo().run()
+          redoDocument()
           break
         case 'zoom-in':
           setZoom((z) => stepDocsZoom(z, 1))
@@ -5627,6 +5741,8 @@ function AppInner() {
     runAiProofread,
     toggleTableGridlines,
     tableSectionWidthPx,
+    undoDocument,
+    redoDocument,
   ])
 
   // Resolve the bookmark anchor against the original block XML, fall back to
@@ -5959,66 +6075,6 @@ function AppInner() {
   })
 
   useEffect(() => (editor ? installSelectionBar(editor) : undefined), [editor])
-
-  // Keep Source Tray session bound to the open document
-  useEffect(() => {
-    setDocSessionId(doc?.filePath ?? null)
-  }, [doc?.filePath, setDocSessionId])
-
-  // Ghost completion (Cursor-style Tab autocomplete, grounded when enabled)
-  useEffect(() => {
-    if (!editor) return
-    let idleTimer: ReturnType<typeof setTimeout> | null = null
-    let lastSelection = editor.state.selection.from
-
-    const triggerGhost = () => {
-      if (editor.isDestroyed) return
-      const { selection } = editor.state
-      if (!selection.empty) return
-      if (editor.state.selection.from !== lastSelection) {
-        lastSelection = editor.state.selection.from
-        return
-      }
-      // Cursor has been idle at same position; include tray sources when grounded
-      requestGhostCompletion(editor, 320, () =>
-        groundedWrite ? getGroundedContext(4000) : undefined,
-      )
-    }
-
-    const handleTransaction = () => {
-      if (idleTimer) clearTimeout(idleTimer)
-      idleTimer = setTimeout(triggerGhost, 320)
-    }
-
-    // Trigger on cursor idle
-    editor.on('transaction', handleTransaction)
-
-    // Clear ghost on any user input or cursor move
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Tab' || event.key === 'Escape' || event.key === 'ArrowRight') {
-        // Let the ghost plugin handle these
-        return
-      }
-      if (idleTimer) clearTimeout(idleTimer)
-      clearGhostCompletion(editor)
-    }
-
-    const handleClick = () => {
-      if (idleTimer) clearTimeout(idleTimer)
-      clearGhostCompletion(editor)
-    }
-
-    editor.view.dom.addEventListener('keydown', handleKeyDown)
-    editor.view.dom.addEventListener('click', handleClick)
-
-    return () => {
-      if (idleTimer) clearTimeout(idleTimer)
-      editor.off('transaction', handleTransaction)
-      editor.view.dom.removeEventListener('keydown', handleKeyDown)
-      editor.view.dom.removeEventListener('click', handleClick)
-      clearGhostCompletion(editor)
-    }
-  }, [editor, groundedWrite, getGroundedContext])
 
   // e2e/automation hook: lets tests drive open/edit/save without native dialogs
   useEffect(() => {
@@ -6528,16 +6584,69 @@ function AppInner() {
     onToggleAi: () => setShowAi((v) => !v),
     onSection: (next: SectionSettings) => {
       // layout applies to the cursor's section; the final section's sectPr goes through SaveOptions.section (also drives canvas geometry)
-      setSections((prev) =>
-        prev.map((s, i) => (i === activeSection ? { ...s, settings: next } : s)),
+      const nextSections = sections.map((s, i) =>
+        i === activeSection ? { ...s, settings: next } : s,
       )
-      if (sections.length <= 1 || activeSection === sections.length - 1) {
-        setSection(next)
-        setSectionDirty(true)
-      } else {
-        setSectionsDirty((d) => (d.includes(activeSection) ? d : [...d, activeSection]))
-        setStatus(t('appSectionSettingsApplied', { n: activeSection + 1 }))
+      const isFinalSection = sections.length <= 1 || activeSection === sections.length - 1
+      const after: PageSetupSnapshot = {
+        ...capturePageSetup(),
+        sections: nextSections,
+        ...(isFinalSection
+          ? { section: next, sectionDirty: true }
+          : {
+              sectionsDirty: sectionsDirty.includes(activeSection)
+                ? sectionsDirty
+                : [...sectionsDirty, activeSection],
+            }),
       }
+      recordPageSetupChange(after, () => {
+        setSections(nextSections)
+        if (isFinalSection) {
+          setSection(next)
+          setSectionDirty(true)
+        } else {
+          if (!sectionsDirty.includes(activeSection))
+            setSectionsDirty([...sectionsDirty, activeSection])
+          setStatus(t('appSectionSettingsApplied', { n: activeSection + 1 }))
+        }
+      })
+    },
+    onPageMargins: (next: SectionSettings, mirror: boolean) => {
+      const nextSections = sections.map((s, i) =>
+        i === activeSection ? { ...s, settings: next } : s,
+      )
+      const isFinalSection = sections.length <= 1 || activeSection === sections.length - 1
+      const nextSectionsDirty =
+        isFinalSection || sectionsDirty.includes(activeSection)
+          ? sectionsDirty
+          : [...sectionsDirty, activeSection]
+      const mirrorChanged = mirror !== mirrorMargins
+      const hasSectionChange =
+        !section || Object.keys(next).some((key) => next[key as keyof SectionSettings] !== section[key as keyof SectionSettings])
+      if (!hasSectionChange && !mirrorChanged) return
+      recordPageSetupChange(
+        {
+          ...capturePageSetup(),
+          sections: nextSections,
+          ...(isFinalSection ? { section: next, sectionDirty: true } : { sectionsDirty: nextSectionsDirty }),
+          mirrorMargins: mirror,
+          mirrorMarginsDirty: mirrorChanged || mirrorMarginsDirty,
+        },
+        () => {
+          setSections(nextSections)
+          if (isFinalSection) {
+            setSection(next)
+            setSectionDirty(true)
+          } else {
+            if (!sectionsDirty.includes(activeSection)) setSectionsDirty(nextSectionsDirty)
+            setStatus(t('appSectionSettingsApplied', { n: activeSection + 1 }))
+          }
+          if (mirrorChanged) {
+            setMirrorMargins(mirror)
+            setMirrorMarginsDirty(true)
+          }
+        },
+      )
     },
     onPaperSizeAll: (
       portraitW: number,
@@ -6548,18 +6657,27 @@ function AppInner() {
         orientation === 'landscape'
           ? { ...s, orientation, pageWidth: portraitH, pageHeight: portraitW }
           : { ...s, orientation, pageWidth: portraitW, pageHeight: portraitH }
-      setSections((prev) => prev.map((s) => ({ ...s, settings: sized(s.settings) })))
-      if (section) {
-        setSection(sized(section))
-        setSectionDirty(true)
-      }
+      const nextSections = sections.map((s) => ({ ...s, settings: sized(s.settings) }))
+      const nextSection = section ? sized(section) : null
       const earlier = sections.slice(0, -1).map((_, i) => i)
-      if (earlier.length > 0) setSectionsDirty((d) => [...new Set([...d, ...earlier])])
-    },
-    onMirrorMargins: (on: boolean) => {
-      if (on === mirrorMargins) return
-      setMirrorMargins(on)
-      setMirrorMarginsDirty(true)
+      const nextSectionsDirty = [...new Set([...sectionsDirty, ...earlier])]
+      recordPageSetupChange(
+        {
+          ...capturePageSetup(),
+          sections: nextSections,
+          section: nextSection,
+          sectionDirty: section ? true : sectionDirty,
+          sectionsDirty: nextSectionsDirty,
+        },
+        () => {
+          setSections(nextSections)
+          if (nextSection) {
+            setSection(nextSection)
+            setSectionDirty(true)
+          }
+          if (earlier.length > 0) setSectionsDirty(nextSectionsDirty)
+        },
+      )
     },
     onInsertSectionBreak: (type: 'nextPage' | 'continuous' | 'evenPage' | 'oddPage') =>
       insertSectionBreak(type),
@@ -6680,7 +6798,14 @@ function AppInner() {
   useEffect(() => {
     if (!editor) return
     const refresh = ({ transaction }: { transaction?: { docChanged: boolean } } = {}) => {
-      setHistState({ canUndo: editor.can().undo(), canRedo: editor.can().redo() })
+      if (transaction?.docChanged && pageSetupRedoRef.current.length) {
+        pageSetupRedoRef.current = []
+        setPageSetupHistoryVersion((version) => version + 1)
+      }
+      setHistState({
+        canUndo: editor.can().undo() || canUndoPageSetup(),
+        canRedo: editor.can().redo() || canRedoPageSetup(),
+      })
       if (transaction?.docChanged) setDocVersion((v) => v + 1)
     }
     refresh()
@@ -6688,7 +6813,14 @@ function AppInner() {
     return () => {
       editor.off('transaction', refresh)
     }
-  }, [editor])
+  }, [editor, canRedoPageSetup, canUndoPageSetup])
+  useEffect(() => {
+    if (!editor) return
+    setHistState({
+      canUndo: editor.can().undo() || canUndoPageSetup(),
+      canRedo: editor.can().redo() || canRedoPageSetup(),
+    })
+  }, [editor, canRedoPageSetup, canUndoPageSetup, pageSetupHistoryVersion])
   const quickActions = useMemo(
     () => (
       <>
@@ -6706,7 +6838,7 @@ function AppInner() {
           data-tip={t('appUndo')}
           aria-label={t('appUndo')}
           disabled={!hasDoc || !histState.canUndo}
-          onClick={() => editor?.chain().focus().undo().run()}
+          onClick={undoDocument}
         >
           <IconUndo size={16} />
         </button>
@@ -6715,7 +6847,7 @@ function AppInner() {
           data-tip={t('appRedo')}
           aria-label={t('appRedo')}
           disabled={!hasDoc || !histState.canRedo}
-          onClick={() => editor?.chain().focus().redo().run()}
+          onClick={redoDocument}
         >
           <IconRedo size={16} />
         </button>
@@ -6732,7 +6864,7 @@ function AppInner() {
       </>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hasDoc, hasUnsavedChanges, autoSave, editor, save, lang, histState],
+    [hasDoc, hasUnsavedChanges, autoSave, editor, save, lang, histState, undoDocument, redoDocument],
   )
 
   if (!editor) return null
@@ -7319,10 +7451,6 @@ function AppInner() {
                 onClose={() => setCompareResult(null)}
               />
             )}
-            {/* Source Tray - Grounded Sources sidebar */}
-            {doc && showSourceTray && (
-              <SourceTray editor={editor} onClose={() => setShowSourceTray(false)} />
-            )}
           </div>
 
           <footer className="status-bar">
@@ -7354,14 +7482,6 @@ function AppInner() {
                     onClick={() => setTrackChanges((v) => !v)}
                   >
                     {t(trackChanges ? 'appTrackChangesOn' : 'appTrackChangesOff')}
-                  </button>
-                  <button
-                    className={`status-item status-btn${showSourceTray ? ' on' : ''}`}
-                    data-tip="Source Tray"
-                    aria-pressed={showSourceTray}
-                    onClick={() => setShowSourceTray((v) => !v)}
-                  >
-                    Sources
                   </button>
                 </>
               )}
@@ -7822,11 +7942,7 @@ function AppInner() {
 }
 
 function AppWrapper() {
-  return (
-    <SourceStoreProvider>
-      <AppInner />
-    </SourceStoreProvider>
-  )
+  return <AppInner />
 }
 
 export { AppWrapper as App }

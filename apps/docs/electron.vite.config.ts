@@ -38,7 +38,7 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
-    resolve: { alias: localAlias },
+    resolve: { alias: localAlias, dedupe: ['react', 'react-dom'] },
     server: {
       // Overridable so multiple revelith dev instances can coexist (default 5173).
       port: Number(process.env.DOCS_DEV_PORT) || 5173,

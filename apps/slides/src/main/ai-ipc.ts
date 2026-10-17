@@ -70,6 +70,15 @@ function readJson<T>(path: string, fallback: T): T {
   return fallback
 }
 
+/** Resolve settings from disk for each new request; renderers can outlive a
+ * model switch and their initial settings snapshot is not authoritative. */
+function currentAiSettings(): AiSettings {
+  const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(AI_SETTINGS_PATH(), {})
+  const settings = resolveAiSettings(stored, defaultAiSettings())
+  settings.provider = activeProvider(settings)
+  return settings
+}
+
 const activeAiStreams = new Map<string, AbortController>()
 
 // ---- Post-mortem log for runs that produced no usable reply ----
@@ -106,11 +115,7 @@ export function registerAiIpc(): void {
   setAiUserAgent(`ReveLith/${app.getVersion()}`)
 
   ipcMain.handle('ai:get-settings', (): AiSettings => {
-    const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(AI_SETTINGS_PATH(), {})
-    const settings = resolveAiSettings(stored, defaultAiSettings())
-    // a stored BYOK provider is honored when usable; half-filled configs fall back to revelith
-    settings.provider = activeProvider(settings)
-    return settings
+    return currentAiSettings()
   })
 
   // ReveLith account (gsk login state): the auth source for AI features; when logged out the frontend uses this to guide login
@@ -129,7 +134,16 @@ export function registerAiIpc(): void {
   })
 
   ipcMain.handle('ai:set-settings', (_event, settings: AiSettings) => {
+    const previous = currentAiSettings()
     writeJsonAtomic(AI_SETTINGS_PATH(), settings)
+    const next = currentAiSettings()
+    const selectionChanged =
+      previous.provider !== next.provider ||
+      JSON.stringify(previous.providers?.[previous.provider]) !==
+        JSON.stringify(next.providers?.[next.provider])
+    if (selectionChanged) {
+      for (const controller of activeAiStreams.values()) controller.abort()
+    }
   })
 
   ipcMain.handle('ai:log-run-failure', (_event, entry: AiRunFailure) => {
@@ -137,7 +151,8 @@ export function registerAiIpc(): void {
   })
 
   ipcMain.handle('ai:stream', async (event, request: AiStreamRequest) => {
-    const { requestId, settings, system, messages } = request
+    const { requestId, system, messages } = request
+    const settings = currentAiSettings()
     const tools = request.tools ?? []
     const maxTokens = request.maxTokens ?? maxOutputTokensOf(settings)
     const provider = settings.provider

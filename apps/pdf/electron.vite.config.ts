@@ -30,6 +30,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: ['@revelith/i18n', '@revelith/electron-utils'] })],
   },
   renderer: {
+    resolve: { dedupe: ['react', 'react-dom'] },
     plugins: [
       react(),
       viteStaticCopy({

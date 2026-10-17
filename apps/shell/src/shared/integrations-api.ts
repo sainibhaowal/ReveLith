@@ -17,6 +17,19 @@ export interface CliStatus extends InstallOutcome {
   version: string
 }
 
+/** One bundled skill as the Integrations pane sees it. */
+export interface BundledSkillStatus {
+  /** install folder name, taken from the skill's own front matter */
+  name: string
+  version: string
+  /** lowest CLI version that skill describes */
+  needsCli: string
+  /** the skill's own one-line description, straight from its front matter */
+  description?: string
+  /** install state of THIS skill in every agent found on this machine */
+  agents: Array<AgentTarget & { state: SkillInstallState }>
+}
+
 export interface IntegrationsStatus {
   cli: CliStatus
   /** version of the bundled skill (skills/revelith/SKILL.md front matter) */
@@ -24,19 +37,25 @@ export interface IntegrationsStatus {
   /** lowest CLI version that skill describes */
   skillNeedsCli: string
   agents: Array<AgentTarget & { state: SkillInstallState }>
+  /**
+   * Every skill this build ships. `skillVersion` / `skillNeedsCli` / `agents`
+   * above always describe the first (primary) entry, so existing callers and
+   * saved states keep working; a build that ships one skill simply lists one.
+   */
+  skills?: BundledSkillStatus[]
 }
 
 export interface IntegrationsApi {
   /** probe the CLI link and every detected agent's skills directory (no writes) */
   status(): Promise<IntegrationsStatus>
   /** write the bundled skill into one agent's skills directory (or a picked folder) */
-  installSkill(target: { agentId: AgentId } | { dir: string }): Promise<SkillInstallState>
+  installSkill(target: { agentId: AgentId; name?: string } | { dir: string; name?: string }): Promise<SkillInstallState>
   /** remove a skill this app wrote */
-  uninstallSkill(agentId: AgentId): Promise<SkillInstallState>
+  uninstallSkill(agentId: AgentId, name?: string): Promise<SkillInstallState>
   /** folder picker for "install elsewhere"; null when cancelled */
   pickSkillDir(title: string): Promise<string | null>
   /** save dialog + write of revelith-skill-<version>.zip; the saved path, null when cancelled */
-  saveSkillZip(title: string): Promise<string | null>
+  saveSkillZip(title: string, name?: string): Promise<string | null>
   /** put text on the clipboard (paths, the manual PATH command) */
   copyText(text: string): Promise<void>
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   AgentLoop,
+  AGENT_EXECUTION_GUIDANCE,
   COMPLETED_VIA_TOOLS_TEXT,
   TOOL_ABORTED_OUTPUT,
   composeSkills,
@@ -73,7 +74,19 @@ describe('AgentLoop', () => {
     const loop = new AgentLoop({ transport, skill: makeSkill(), systemSuffix: () => '\nSUFFIX' })
     loop.run('q')
     await flush()
-    expect(transport.requests[0].system).toBe(runtimePreamble() + 'system\nSUFFIX')
+    expect(transport.requests[0].system).toBe(
+      runtimePreamble() + AGENT_EXECUTION_GUIDANCE + '\n\nsystem\nSUFFIX',
+    )
+  })
+
+  it('adds the shared multi-step execution and completion contract to every app run', async () => {
+    const transport = scriptedTransport([(cb) => cb.onDone()])
+    const loop = new AgentLoop({ transport, skill: makeSkill() })
+    loop.run('make a multi-step change')
+    await flush()
+    expect(transport.requests[0]!.system).toContain(AGENT_EXECUTION_GUIDANCE)
+    expect(AGENT_EXECUTION_GUIDANCE).toContain('Do not stop after the first successful action')
+    expect(AGENT_EXECUTION_GUIDANCE).toContain('state exactly what remains')
   })
 
   it('runs a plain-text turn to completion', async () => {
@@ -99,6 +112,82 @@ describe('AgentLoop', () => {
     // user message carries the skill context
     expect(loop.messages[0]).toEqual({ role: 'user', text: 'question\n\nCTX' })
     expect(loop.messages[1]).toEqual({ role: 'assistant', text: 'Hello, world' })
+  })
+
+  it('recovers a leaked textual tool call and never leaves control markup in chat history', async () => {
+    const executeTool = vi.fn(() => ({ output: 'scene created', summary: 'Scene created', mutated: true }))
+    const skill = makeSkill(executeTool)
+    skill.tools = [
+      { name: 'build_drawboard_scene', description: 'draw a board scene', inputSchema: { type: 'object' } },
+    ]
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onDelta('Working: <|tool_call>call:build_drawboard_scene{elements:[{kind:<|"|>rect<|"|>,x:10,y:20}]}<tool_call|>')
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onDelta('The scene is on the board.')
+        cb.onDone()
+      },
+    ])
+    const onText = vi.fn()
+    const loop = new AgentLoop({ transport, skill, events: { onText } })
+    loop.run('Draw the scene.')
+    await flush()
+    await flush()
+
+    expect(executeTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'build_drawboard_scene',
+        input: { elements: [{ kind: 'rect', x: 10, y: 20 }] },
+      }),
+      expect.anything(),
+    )
+    expect(onText.mock.calls.flat().join('')).not.toContain('<|tool_call>')
+    expect(loop.messages.some((message) => message.role === 'assistant' && message.text.includes('<|tool_call>'))).toBe(false)
+    expect(loop.busy).toBe(false)
+  })
+
+  it('forces one tool-enabled continuation when a model tries to finish after a tool error', async () => {
+    const transport = scriptedTransport([
+      (cb) => {
+        cb.onToolCall({ id: 'failed', name: 'do_thing', input: {} })
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onDelta('I will correct that now.')
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onToolCall({ id: 'retried', name: 'do_thing', input: {} })
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onDelta('The requested change is complete.')
+        cb.onDone()
+      },
+    ])
+    const executions: string[] = []
+    const onDone = vi.fn()
+    const skill = makeSkill(() => {
+      const firstAttempt = executions.length === 0
+      executions.push(firstAttempt ? 'failed' : 'succeeded')
+      return firstAttempt
+        ? { output: 'Invalid coordinates; use paired points.', isError: true, summary: 'Invalid scene' }
+        : { output: 'Scene created.', mutated: true, summary: 'Created scene' }
+    })
+    const loop = new AgentLoop({ transport, skill, events: { onDone }, compaction: false })
+
+    loop.run('Create the scene')
+    await flush()
+    await flush()
+
+    expect(executions).toEqual(['failed', 'succeeded'])
+    expect(transport.requests).toHaveLength(4)
+    expect(transport.requests[2]!.toolCount).toBe(1)
+    expect(transport.requests[2]!.system).toContain('Do not stop after the first successful action')
+    expect(loop.messages.some((message) => message.role === 'user' && message.text.includes('last tool result reported an error'))).toBe(true)
+    expect(onDone).toHaveBeenCalledWith({ text: 'The requested change is complete.', cancelled: false, turnLimit: false })
   })
 
   it('attaches images to the user message (and omits the field without any)', async () => {
@@ -398,6 +487,7 @@ describe('AgentLoop', () => {
       ...Array.from({ length: 7 }, (_, i) => failingTurn(i)),
       okTurn,
       ...Array.from({ length: 7 }, (_, i) => failingTurn(7 + i)),
+      okTurn,
       done,
     ])
     const onError = vi.fn()
@@ -1191,12 +1281,22 @@ describe('AgentLoop compaction', () => {
         cb.onDone()
       },
       (cb) => {
+        cb.onDelta('I will retry with corrected arguments.')
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onToolCall({ id: 't2', name: 'do_thing', input: {} })
+        cb.onDone()
+      },
+      (cb) => {
         cb.onDelta('OK')
         cb.onDone()
       },
     ])
+    let attempts = 0
     const skill = makeSkill(() => {
-      throw new Error('boom')
+      if (attempts++ === 0) throw new Error('boom')
+      return { output: 'recovered', mutated: true, summary: 'done' }
     })
     const onDone = vi.fn()
     const loop = new AgentLoop({ transport, skill, events: { onDone } })
@@ -1419,6 +1519,14 @@ describe('AgentLoop compaction', () => {
         cb.onDelta('done')
         cb.onDone()
       },
+      (cb) => {
+        cb.onToolCall({ id: 't2', name: 'do_thing', input: { corrected: true } })
+        cb.onDone()
+      },
+      (cb) => {
+        cb.onDelta('done')
+        cb.onDone()
+      },
     ])
     const executed: AgentToolCall[] = []
     const skill = makeSkill((call) => {
@@ -1430,7 +1538,7 @@ describe('AgentLoop compaction', () => {
     loop.run('x')
     await flush()
     await flush()
-    expect(executed).toHaveLength(0)
+    expect(executed).toHaveLength(1)
     const toolMsg = loop.messages[2] as Extract<AgentMessage, { role: 'tool' }>
     expect(toolMsg.results[0].isError).toBe(true)
     expect(toolMsg.results[0].output).toContain('smaller tool calls')
@@ -1473,7 +1581,7 @@ describe('AgentLoop compaction', () => {
       cb.onDone()
     }
     // 2 fails, success, 2 fails: 4 total but never 3 in a row → the run must complete
-    const transport = scriptedTransport([badTurn, badTurn, goodTurn, badTurn, badTurn, finalTurn])
+    const transport = scriptedTransport([badTurn, badTurn, goodTurn, badTurn, badTurn, finalTurn, goodTurn, finalTurn])
     const onError = vi.fn()
     const onDone = vi.fn()
     const loop = new AgentLoop({
@@ -1613,12 +1721,13 @@ describe('AgentLoop: verifyResponse (claimed-action guard)', () => {
         cb.onDone()
       },
       claimText,
+      claimText,
     ])
     const verifyResponse = vi.fn().mockReturnValue(null)
     const skill = makeSkill(() => ({ output: 'boom', isError: true, summary: 'failed' }))
     const loop = new AgentLoop({ transport, skill: { ...skill, verifyResponse } })
     loop.run('x')
-    for (let i = 0; i < 3; i++) await flush()
+    for (let i = 0; i < 5; i++) await flush()
     expect(verifyResponse).toHaveBeenCalledWith('I have selected the row for you', [
       { name: 'do_thing', ok: false },
     ])

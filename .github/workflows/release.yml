@@ -71,7 +71,7 @@ jobs:
         shell: bash
 
   build-desktop:
-    name: Build Desktop (${{ matrix.os }})
+    name: Build Desktop (${{ matrix.os }}${{ matrix.arch }})
     needs: semantic-release
     if: needs.semantic-release.outputs.new_release_published == 'true'
     strategy:
@@ -80,10 +80,17 @@ jobs:
         include:
           - os: windows-latest
             platform: win
+            arch: x64
           - os: ubuntu-latest
             platform: linux
+            arch: x64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
           - os: macos-latest
             platform: mac
+            arch: universal
+            mac_x64: '1'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +112,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libarchive-tools libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2t64 || sudo apt-get install -y libarchive-tools libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2 || true
+          sudo apt-get install -y libarchive-tools libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2t64 rpm || sudo apt-get install -y libarchive-tools libgtk-3-dev libnotify-dev libnss3 libxss1 libasound2 rpm || true
 
       - name: Install dependencies
         run: |
@@ -119,13 +126,18 @@ jobs:
             npm install --prefix apps/markdown --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
             npm install --prefix apps/shell --save-optional @rollup/rollup-darwin-arm64 @rollup/rollup-darwin-x64 || true
           elif [ "${{ runner.os }}" = "Linux" ]; then
-            npm install --save-optional --include=optional @rollup/rollup-linux-x64-gnu
-            npm install --prefix apps/docs --save-optional @rollup/rollup-linux-x64-gnu || true
-            npm install --prefix apps/sheets --save-optional @rollup/rollup-linux-x64-gnu || true
-            npm install --prefix apps/slides --save-optional @rollup/rollup-linux-x64-gnu || true
-            npm install --prefix apps/pdf --save-optional @rollup/rollup-linux-x64-gnu || true
-            npm install --prefix apps/markdown --save-optional @rollup/rollup-linux-x64-gnu || true
-            npm install --prefix apps/shell --save-optional @rollup/rollup-linux-x64-gnu || true
+            if [ "${{ runner.arch }}" = "ARM64" ]; then
+              ROLLUP_PKG="@rollup/rollup-linux-arm64-gnu"
+            else
+              ROLLUP_PKG="@rollup/rollup-linux-x64-gnu"
+            fi
+            npm install --save-optional --include=optional "$ROLLUP_PKG"
+            npm install --prefix apps/docs --save-optional "$ROLLUP_PKG" || true
+            npm install --prefix apps/sheets --save-optional "$ROLLUP_PKG" || true
+            npm install --prefix apps/slides --save-optional "$ROLLUP_PKG" || true
+            npm install --prefix apps/pdf --save-optional "$ROLLUP_PKG" || true
+            npm install --prefix apps/markdown --save-optional "$ROLLUP_PKG" || true
+            npm install --prefix apps/shell --save-optional "$ROLLUP_PKG" || true
           elif [ "${{ runner.os }}" = "Windows" ]; then
             npm install --save-optional --include=optional @rollup/rollup-win32-x64-msvc @rollup/rollup-win32-arm64-msvc || true
           fi
@@ -195,14 +207,16 @@ jobs:
           # unsigned xlsx-sidecar.exe dies with "spawn UNKNOWN" on machines with
           # Smart App Control / WDAC, even when the installer itself is signed.
           node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "apps/sheets/native/xlsx-engine/target/x86_64-pc-windows-gnu/release/xlsx-sidecar.exe" || node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar.exe"
+          node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "apps/sheets/native/xlsx-engine/target/aarch64-pc-windows-msvc/release/xlsx-sidecar.exe" || true
           node scripts/win-sign.cjs "$REVELITH_WIN_SIGN_MODE" "packages/pdf2docx/ocr-helper/win-ocr.exe" || true
         shell: bash
 
-      - name: Package Desktop Artifacts (${{ matrix.platform }})
+      - name: Package Desktop Artifacts (${{ matrix.platform }} ${{ matrix.arch }})
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REVELITH_UPDATE_URL: ${{ secrets.REVELITH_UPDATE_URL }}
           REVELITH_WIN_SIGN_MODE: ${{ env.REVELITH_WIN_SIGN_MODE }}
+          REVELITH_MAC_X64: ${{ matrix.mac_x64 }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
           AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
@@ -217,6 +231,11 @@ jobs:
         run: |
           if [ "${{ matrix.platform }}" = "win" ]; then
             npm run dist:win
+            # Second pass: Windows ARM64 installer. Own output dir + arm64
+            # sidecar (see REVELITH_WIN_ARM64 in electron-builder.cjs); the
+            # renderer bundle from dist:win is reused, unsigned like x64
+            # unless signing secrets are configured.
+            REVELITH_WIN_ARM64=1 BUILD_DIR=release-arm64 npm run dist:win:pack-only -w @revelith/shell
           elif [ "${{ matrix.platform }}" = "linux" ]; then
             npm run dist:linux
           elif [ "${{ matrix.platform }}" = "mac" ]; then
@@ -237,6 +256,9 @@ jobs:
             apps/shell/release/*.zip
             apps/shell/release/*.yml
             apps/shell/release/*.blockmap
+            apps/shell/release-arm64/*.exe
+            apps/shell/release-arm64/*.yml
+            apps/shell/release-arm64/*.blockmap
             apps/shell/dist/*.exe
             apps/shell/dist/*.deb
             apps/shell/dist/*.AppImage
@@ -280,7 +302,26 @@ jobs:
           const repo = process.env.GITHUB_REPOSITORY
           const downloads = assets.map((format) => {
             const lower = format.toLowerCase()
-            const os = lower.endsWith('.exe') ? 'Windows 10 / 11' : lower.endsWith('.dmg') ? 'macOS' : lower.endsWith('.appimage') || lower.endsWith('.deb') || lower.endsWith('.rpm') ? 'Linux' : 'Desktop archive'
+            const isArm =
+              lower.includes('arm64') ||
+              lower.includes('aarch64') ||
+              (lower.includes('.deb') && lower.includes('arm64')) ||
+              (lower.includes('.rpm') && lower.includes('aarch64'))
+            const isIntelMac =
+              lower.endsWith('.dmg') && (lower.includes('x64') || lower.includes('intel'))
+            const os = lower.endsWith('.exe')
+              ? isArm
+                ? 'Windows 11 (ARM64)'
+                : 'Windows 10 / 11'
+              : lower.endsWith('.dmg')
+                ? isIntelMac
+                  ? 'macOS (Intel)'
+                  : 'macOS (Apple Silicon)'
+                : lower.endsWith('.appimage') || lower.endsWith('.deb') || lower.endsWith('.rpm')
+                  ? isArm
+                    ? 'Linux (ARM64)'
+                    : 'Linux'
+                  : 'Desktop archive'
             const url = `https://github.com/${repo}/releases/download/${encodeURIComponent(releaseTag)}/${encodeURIComponent(format)}`
             return { os, format, tag: 'Direct installer', emoji: '↓', url, recommended: lower.endsWith('.exe') }
           })

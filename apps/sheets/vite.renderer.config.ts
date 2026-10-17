@@ -5,6 +5,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   root: 'src/renderer',
   plugins: [react()],
+  resolve: { dedupe: ['react', 'react-dom'] },
   server: {
     port: Number(process.env.SHEETS_DEV_PORT) || 5174,
     strictPort: true,

@@ -252,6 +252,65 @@ describe('generateTableModelXml', () => {
     })
   })
 
+  it('writes edited table spacing and removes stale table- and row-level values at zero', async () => {
+    const template =
+      '<w:tbl><w:tblPr><w:tblCellSpacing w:w="120" w:type="dxa"/></w:tblPr>' +
+      '<w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid>' +
+      '<w:tr><w:trPr><w:cantSplit/><w:tblCellSpacing w:w="240" w:type="dxa"/></w:trPr>' +
+      '<w:tc><w:p><w:r><w:t>Keep row property</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
+    const rows = [[{ paras: ['Keep row property'] }]]
+    const changed = generateTableModelXml(
+      {
+        rows,
+        cellSpacingTwips: 57,
+        cellSpacingEdited: true,
+        rawTrPrs: ['<w:trPr><w:cantSplit/></w:trPr>'],
+      },
+      template,
+    )
+    expect(changed).toContain('<w:tblCellSpacing w:w="57" w:type="dxa"/>')
+    expect(changed).toContain('<w:trPr><w:cantSplit/></w:trPr>')
+    expect(changed).not.toContain('w:w="240"')
+    expect(
+      (await parseDocx(await buildDocx({ bodyXml: changed }))).blocks[0].table?.cellSpacingTwips,
+    ).toBe(57)
+
+    const cleared = generateTableModelXml(
+      {
+        rows,
+        cellSpacingTwips: 0,
+        cellSpacingEdited: true,
+        rawTrPrs: ['<w:trPr><w:cantSplit/><w:tblCellSpacing w:w="240" w:type="dxa"/></w:trPr>'],
+      },
+      template,
+    )
+    expect(cleared).not.toContain('tblCellSpacing')
+    expect(cleared).toContain('<w:trPr><w:cantSplit/></w:trPr>')
+    expect(
+      (await parseDocx(await buildDocx({ bodyXml: cleared }))).blocks[0].table?.cellSpacingTwips,
+    ).toBeUndefined()
+  })
+
+  it('preserves row-level spacing during unrelated structural edits', async () => {
+    const template =
+      '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid>' +
+      '<w:tr><w:trPr><w:cantSplit/><w:tblCellSpacing w:w="120" w:type="dxa"/></w:trPr>' +
+      '<w:tc><w:p><w:r><w:t>Keep row spacing</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
+    const xml = generateTableModelXml(
+      {
+        rows: [[{ paras: ['Updated text'] }]],
+        cellSpacingTwips: 120,
+        rawTrPrs: ['<w:trPr><w:cantSplit/><w:tblCellSpacing w:w="120" w:type="dxa"/></w:trPr>'],
+      },
+      template,
+    )
+    expect(xml).toContain('<w:tblCellSpacing w:w="120" w:type="dxa"/>')
+    expect(xml).toMatch(/<w:trPr><w:cantSplit\/><w:tblCellSpacing w:w="120"/)
+    expect(xml.match(/<w:tblCellSpacing\b/g)).toHaveLength(1)
+    const parsed = await parseDocx(await buildDocx({ bodyXml: xml }))
+    expect(parsed.blocks[0].table?.cellSpacingTwips).toBe(120)
+  })
+
   it('patches imported table properties and repeat-header rows explicitly', () => {
     const template =
       '<w:tbl><w:tblPr><w:tblpPr w:tblpXSpec="right"/><w:tblOverlap w:val="overlap"/>' +

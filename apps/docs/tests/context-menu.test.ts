@@ -75,7 +75,12 @@ function menuProps(editor: Editor, overrides: Record<string, unknown> = {}) {
 }
 
 // LocaleProvider subscribes to the shell's language switch on mount
-Object.assign(window, { desktop: { onLanguageChanged: () => () => undefined } })
+Object.assign(window, {
+  desktop: {
+    onLanguageChanged: () => () => undefined,
+    spellCheckWord: () => ({ misspelled: false, suggestions: [] }),
+  },
+})
 
 setModuleLang('en')
 
@@ -274,7 +279,11 @@ describe('EditorContextMenu picture items', () => {
     const { container, unmount } = render(
       createElement(
         EditorContextMenu,
-        menuProps(editor, { menu: { x: 10, y: 10, imageSrc: src }, onViewImage, onSaveImageAs }),
+        menuProps(editor, {
+          menu: { x: 10, y: 10, imageSrc: src, spell: { word: 'EVs', suggestions: ['Eve'] } },
+          onViewImage,
+          onSaveImageAs,
+        }),
       ),
     )
     const names = labels(container)
@@ -287,6 +296,8 @@ describe('EditorContextMenu picture items', () => {
     byLabel('Save Image As…').click()
     expect(onViewImage).toHaveBeenCalledWith(src)
     expect(onSaveImageAs).toHaveBeenCalledWith(src)
+    expect(names).not.toContain('Eve')
+    expect(names).not.toContain('Add to Dictionary')
     unmount()
   })
 })

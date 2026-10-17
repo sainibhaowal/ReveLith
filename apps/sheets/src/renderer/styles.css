@@ -414,7 +414,8 @@ textarea:disabled {
 
 .excel-header {
   position: relative;
-  z-index: 10;
+  /* Keep ribbon dropdowns above the adjacent AI panel's stacking layer. */
+  z-index: 20;
   /* same divider weight as the docs/slides ribbons: their --border-strong, no drop shadow */
   border-bottom: 1px solid var(--border-strong);
   background: var(--surface);

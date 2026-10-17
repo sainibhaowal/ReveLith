@@ -1,4 +1,14 @@
 import { defineConfig } from '@playwright/test'
+import { mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+// Keep E2E-created files under the workspace. On some Windows developer/CI
+// profiles, the inherited OS temp directory is not writable by the app process.
+const e2eSystemTemp = resolve(process.cwd(), '.tmp', 'e2e', 'system-temp')
+mkdirSync(e2eSystemTemp, { recursive: true })
+process.env.TEMP = e2eSystemTemp
+process.env.TMP = e2eSystemTemp
+process.env.TMPDIR = e2eSystemTemp
 
 /**
  * E2E config for the ReveLith Electron shell.

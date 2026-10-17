@@ -3,7 +3,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
-import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
@@ -14,6 +13,7 @@ import { saveWorkbookViaSidecar } from '@revelith/xlsx-gateway/gateway/xlsx-pack
 import { XlsxSidecarClient } from '../src/main/xlsx-sidecar-client'
 import { workbookRangeResultSchema } from '../src/shared/desktop-api'
 import { buildCompatibilityFixture } from './fixture-builder'
+import { sidecarBinaryPath } from './sidecar-path'
 
 const openResultSchema = z.object({
   sessionId: z.string().uuid(),
@@ -829,13 +829,6 @@ async function buildStructureFixture(): Promise<Buffer> {
     </worksheet>`,
   )
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
-}
-
-function sidecarBinaryPath(): string {
-  const executable = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar'
-  return fileURLToPath(
-    new URL(`../native/xlsx-engine/target/release/${executable}`, import.meta.url),
-  )
 }
 
 async function buildVisualFixture(): Promise<Buffer> {

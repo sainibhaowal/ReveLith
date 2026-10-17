@@ -15,6 +15,7 @@ export { composeSkills } from './skill'
 export type { AgentSkill, ExecutedToolCall } from './skill'
 export {
   AgentLoop,
+  AGENT_EXECUTION_GUIDANCE,
   COMPLETED_VIA_TOOLS_TEXT,
   DEFAULT_MAX_TURNS,
   TOOL_ABORTED_OUTPUT,
@@ -33,16 +34,3 @@ export { createIpcTransport, IPC_STREAM_SILENCE_TIMEOUT_MS } from './electron-tr
 export { streamText } from './stream-text'
 export type { StreamTextOptions, StreamTextOutcome } from './stream-text'
 export type { IpcStreamChunk, IpcStreamStart, IpcTransportOptions } from './electron-transport'
-
-// Citations & Grounded Sources
-export * from './citations/types'
-export * from './citations/citation-engine'
-export * from './citations/source-store'
-export * from './citations/source-adapter'
-
-// Hebbia Matrix Multi-Document Extraction
-// NOTE: matrix-to-xlsx is intentionally NOT re-exported here: it pulls in
-// @revelith/xlsx-gateway's Node-only writer, which breaks browser bundles.
-// Node consumers (shell main, CLI) import '@revelith/agent-core/matrix/matrix-to-xlsx'.
-export * from './matrix/types'
-export * from './matrix/matrix-extractor'

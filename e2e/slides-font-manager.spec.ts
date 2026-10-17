@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl } from './helpers'
+import { launchShell, closeAndSaveVideo, waitForPageWithUrl, zipDirectory } from './helpers'
 
 /**
  * The fixture deck (one slide whose only run uses the catalog font Rubik) is
@@ -15,9 +14,7 @@ async function buildRubikFixture(): Promise<string> {
     await mkdtemp(join(tmpdir(), 'revelith-font-manager-')),
     'font-manager-rubik.pptx',
   )
-  execFileSync('zip', ['-X', '-q', '-r', out, '.'], {
-    cwd: resolve(__dirname, 'assets/font-manager-rubik'),
-  })
+  await zipDirectory(resolve(__dirname, 'assets/font-manager-rubik'), out)
   return out
 }
 

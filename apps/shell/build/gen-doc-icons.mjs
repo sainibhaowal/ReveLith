@@ -29,15 +29,23 @@ function hexRgb(hex) {
 }
 
 class Canvas {
-  constructor(size) {
+  /** `scale` multiplies every coordinate, so one artwork function renders at any
+   *  resolution (the 256px space the artwork is written in stays the reference). */
+  constructor(size, scale = 1) {
     this.size = size
+    this.scale = scale
     this.pixels = new Uint8Array(size * size * 4)
   }
   rect(x, y, w, h, hex, alpha = 255) {
     const [r, g, b] = hexRgb(hex)
     const s = this.size
-    for (let j = Math.max(0, y); j < Math.min(s, y + h); j++) {
-      for (let i = Math.max(0, x); i < Math.min(s, x + w); i++) {
+    const k = this.scale
+    const x0 = Math.round(x * k)
+    const y0 = Math.round(y * k)
+    const x1 = Math.round((x + w) * k)
+    const y1 = Math.round((y + h) * k)
+    for (let j = Math.max(0, y0); j < Math.min(s, y1); j++) {
+      for (let i = Math.max(0, x0); i < Math.min(s, x1); i++) {
         const o = (j * s + i) * 4
         this.pixels[o] = r
         this.pixels[o + 1] = g
@@ -49,9 +57,13 @@ class Canvas {
   circle(cx, cy, r, hex) {
     const [cr, cg, cb] = hexRgb(hex)
     const s = this.size
-    for (let j = Math.max(0, cy - r); j < Math.min(s, cy + r); j++) {
-      for (let i = Math.max(0, cx - r); i < Math.min(s, cx + r); i++) {
-        if ((i - cx) * (i - cx) + (j - cy) * (j - cy) <= r * r) {
+    const k = this.scale
+    const x = cx * k
+    const y = cy * k
+    const rad = r * k
+    for (let j = Math.max(0, Math.floor(y - rad)); j < Math.min(s, Math.ceil(y + rad)); j++) {
+      for (let i = Math.max(0, Math.floor(x - rad)); i < Math.min(s, Math.ceil(x + rad)); i++) {
+        if ((i - x) * (i - x) + (j - y) * (j - y) <= rad * rad) {
           const o = (j * s + i) * 4
           this.pixels[o] = cr
           this.pixels[o + 1] = cg
@@ -64,8 +76,10 @@ class Canvas {
   triangle(ax, ay, bx, by, cx, cy, hex) {
     const [r, g, b] = hexRgb(hex)
     const s = this.size
-    const minY = Math.max(0, Math.min(ay, by, cy))
-    const maxY = Math.min(s, Math.max(ay, by, cy))
+    const k = this.scale
+    ax *= k; ay *= k; bx *= k; by *= k; cx *= k; cy *= k
+    const minY = Math.max(0, Math.floor(Math.min(ay, by, cy)))
+    const maxY = Math.min(s, Math.ceil(Math.max(ay, by, cy)))
     const edge = (x0, y0, x1, y1, y) => (x0 + ((x1 - x0) * (y - y0)) / (y1 - y0 || 1))
     for (let j = minY; j < maxY; j++) {
       const xs = []
@@ -84,15 +98,34 @@ class Canvas {
       }
     }
   }
+  /** A rotated bar (x1,y1)→(x2,y2) with a given thickness, as two triangles:
+   *  the diagonal strokes (check marks, brush strokes) no primitive covers. */
+  bar(x1, y1, x2, y2, thickness, hex) {
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const len = Math.hypot(dx, dy) || 1
+    const nx = (-dy / len) * (thickness / 2)
+    const ny = (dx / len) * (thickness / 2)
+    const p = [
+      [x1 + nx, y1 + ny],
+      [x2 + nx, y2 + ny],
+      [x2 - nx, y2 - ny],
+      [x1 - nx, y1 - ny],
+    ]
+    this.triangle(p[0][0], p[0][1], p[1][0], p[1][1], p[2][0], p[2][1], hex)
+    this.triangle(p[0][0], p[0][1], p[2][0], p[2][1], p[3][0], p[3][1], hex)
+  }
   /** Rounded-square base; corners outside the radius stay transparent. */
   base(hex, radius) {
     const s = this.size
     const [r, g, b] = hexRgb(hex)
+    const k = this.scale
+    const rad = radius * k
     for (let j = 0; j < s; j++) {
       for (let i = 0; i < s; i++) {
-        const cx = Math.min(Math.max(i, radius), s - radius)
-        const cy = Math.min(Math.max(j, radius), s - radius)
-        if ((i - cx) * (i - cx) + (j - cy) * (j - cy) > radius * radius) continue
+        const cx = Math.min(Math.max(i, rad), s - rad)
+        const cy = Math.min(Math.max(j, rad), s - rad)
+        if ((i - cx) * (i - cx) + (j - cy) * (j - cy) > rad * rad) continue
         const o = (j * s + i) * 4
         this.pixels[o] = r
         this.pixels[o + 1] = g
@@ -181,7 +214,54 @@ function artHtml(c) {
   c.triangle(130, 106, 130, 164, 166, 135, '#0FA3A3') // >
 }
 
-const ART = { docx: artDocx, xlsx: artXlsx, pptx: artPptx, pdf: artPdf, md: artMd, html: artHtml }
+// ─── The three AI apps (forms / tasks / draw) ─────────────────────
+// One artwork per app feeds every surface: the Explorer file-association
+// icon, the native menu item, the home/tab tile SVG and the app's own icon,
+// so an app cannot look like one thing here and another thing there.
+
+function artForm(c) {
+  const PURPLE = '#7C3AED'
+  c.base(PURPLE, 48)
+  c.rect(58, 40, 140, 176, WHITE) // form sheet
+  // three filled rows with their checkbox squares, then a wide signature line
+  for (let i = 0; i < 3; i++) {
+    c.rect(76, 68 + i * 38, 24, 24, PURPLE)
+    c.rect(112, 72 + i * 38, 66, 16, PURPLE)
+  }
+  c.rect(76, 186, 102, 14, PURPLE)
+}
+
+function artTasks(c) {
+  const GREEN = '#059669'
+  c.base(GREEN, 48)
+  // bold check: two bars, the short stroke rising into the long one
+  c.bar(70, 138, 112, 180, 30, WHITE)
+  c.bar(112, 180, 190, 84, 30, WHITE)
+}
+
+function artDraw(c) {
+  const BLUE = '#0284C7'
+  c.base(BLUE, 48)
+  // pencil: body, ferrule band, tip — reads as "draw" even at 16px
+  c.rect(104, 46, 48, 104, WHITE)
+  c.rect(104, 150, 48, 14, '#075985')
+  c.triangle(104, 164, 152, 164, 128, 212, WHITE)
+}
+
+const ART = {
+  docx: artDocx,
+  xlsx: artXlsx,
+  pptx: artPptx,
+  pdf: artPdf,
+  md: artMd,
+  html: artHtml,
+  form: artForm,
+  tasks: artTasks,
+  draw: artDraw,
+}
+
+/** The three AI apps, in the order the shell lists them (kind → icon key). */
+export const APP_ICON_NAMES = { forms: 'form', tasks: 'tasks', drawboard: 'draw' }
 
 // ─── PNG encoder (raw RGBA → PNG, CRC32 + zlib from node) ─────────
 
@@ -326,6 +406,130 @@ export function validateIconSet(dir) {
   return report
 }
 
+// ─── SVG tiles (the same artwork the renderer shows) ──────────────
+
+const SHELL_ASSETS = join(HERE, '..', 'src', 'renderer', 'src', 'assets')
+const MENU_ASSETS = join(HERE, '..', 'src', 'main', 'assets')
+const APPS_DIR = join(HERE, '..', '..')
+
+/** Records the Canvas calls as SVG elements, so an app's tile and its .ico can
+ *  never drift apart (same artwork function draws both). */
+class SvgCanvas {
+  constructor() {
+    this.parts = []
+  }
+  rect(x, y, w, h, hex, alpha = 255) {
+    const op = alpha === 255 ? '' : ` fill-opacity="${(alpha / 255).toFixed(2)}"`
+    this.parts.push(
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${hex}"${op}/>`,
+    )
+  }
+  circle(cx, cy, r, hex) {
+    this.parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${hex}"/>`)
+  }
+  triangle(ax, ay, bx, by, cx, cy, hex) {
+    this.parts.push(`<polygon points="${ax},${ay} ${bx},${by} ${cx},${cy}" fill="${hex}"/>`)
+  }
+  bar(x1, y1, x2, y2, thickness, hex) {
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const len = Math.hypot(dx, dy) || 1
+    const nx = (-dy / len) * (thickness / 2)
+    const ny = (dx / len) * (thickness / 2)
+    const p = [
+      [x1 + nx, y1 + ny],
+      [x2 + nx, y2 + ny],
+      [x2 - nx, y2 - ny],
+      [x1 - nx, y1 - ny],
+    ]
+    this.parts.push(
+      `<polygon points="${p.map(([x, y]) => `${Math.round(x * 100) / 100},${Math.round(y * 100) / 100}`).join(' ')}" fill="${hex}"/>`,
+    )
+  }
+  base(hex, radius) {
+    this.parts.unshift(
+      `<rect x="0" y="0" width="256" height="256" rx="${radius}" fill="${hex}"/>`,
+    )
+  }
+}
+
+function svgTile(draw) {
+  const c = new SvgCanvas()
+  draw(c)
+  return [
+    '<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">',
+    ...c.parts,
+    '</svg>',
+    '',
+  ].join('\n')
+}
+
+/** Renderer tiles: the home/tab artwork, named after the file type they mark. */
+function writeSvgTiles() {
+  const written = []
+  for (const [name, draw] of Object.entries(ART)) {
+    const file = join(SHELL_ASSETS, `file-${name}.svg`)
+    // only the AI-app tiles are generated; the office file tiles are hand-authored
+    if (!['form', 'tasks', 'draw'].includes(name)) continue
+    writeFileSync(file, svgTile(draw))
+    written.push(`src/renderer/src/assets/file-${name}.svg`)
+  }
+  return written
+}
+
+/** Native menu icons, at the 16/32px the office menu icons use (the AI apps
+ *  shipped 20/40px art, which is why they looked oversized in the menu). */
+function writeMenuIcons() {
+  const written = []
+  for (const name of ['form', 'tasks', 'draw']) {
+    const master = new Canvas(SIZE)
+    ART[name](master)
+    for (const [suffix, size] of [['', 16], ['@2x', 32]]) {
+      const png = encodePng(master.downscale(size))
+      writeFileSync(join(MENU_ASSETS, `menu-${name}${suffix}.png`), png)
+      written.push(`src/main/assets/menu-${name}${suffix}.png`)
+    }
+  }
+  return written
+}
+
+/** Standalone app icons for the three apps' own installers (electron-builder
+ *  takes a PNG ≥256px); rendered at 512 from the same artwork. */
+function writeAppIcons() {
+  const written = []
+  for (const [kind, name] of Object.entries(APP_ICON_NAMES)) {
+    const slug = { forms: 'forms-builder', tasks: 'tasks', drawboard: 'drawboard' }[kind]
+    const master = new Canvas(512, 2)
+    ART[name](master)
+    const dir = join(APPS_DIR, slug, 'build')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'icon.png'), encodePng(master))
+    written.push(`apps/${slug}/build/icon.png`)
+  }
+  return written
+}
+
+/** electron-builder resolves a fileAssociations `icon: 'name'` to
+ *  build/name.ico (NSIS DefaultIcon) and build/name.icns (mac
+ *  CFBundleDocumentTypes) — NOT to build/icons/, which feeds the linux icon set
+ *  and the validation report. The office types' root copies predate this
+ *  generator (different artwork tool), so only the AI apps are mirrored here:
+ *  leaving the office files alone keeps their shipped Explorer icons untouched.
+ */
+function writePackagerAssociationIcons() {
+  const written = []
+  for (const name of ['form', 'tasks', 'draw']) {
+    const full = new Canvas(SIZE)
+    ART[name](full)
+    writeFileSync(join(HERE, `${name}.ico`), encodeIco(
+      [16, 32, 48, 256].map((s) => ({ size: s, png: encodePng(s === 256 ? full : full.downscale(s)) })),
+    ))
+    writeFileSync(join(HERE, `${name}.icns`), encodeIcns(encodePng(full), encodePng(full.downscale(128))))
+    written.push(`build/${name}.ico`, `build/${name}.icns`)
+  }
+  return written
+}
+
 // ─── Main ─────────────────────────────────────────────────────────
 
 function generate() {
@@ -354,7 +558,15 @@ function generate() {
     }
   }
   writeFileSync(join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
+  const derived = [
+    ...writeSvgTiles(),
+    ...writeMenuIcons(),
+    ...writeAppIcons(),
+    ...writePackagerAssociationIcons(),
+  ]
   console.log(`icons written to ${OUT_DIR}`)
+  console.log(`derived artwork written: ${derived.length} file(s)`)
+  for (const file of derived) console.log(`  ${file}`)
   console.log(JSON.stringify(validateIconSet(OUT_DIR), null, 2))
 }
 
@@ -365,6 +577,12 @@ if (args.includes('--check')) {
     process.exit(1)
   }
   console.log(JSON.stringify(validateIconSet(OUT_DIR), null, 2))
+} else if (args.includes('--packager-only')) {
+  // Packaging (dist:*) only needs the association icons electron-builder
+  // resolves against build/; regenerating them here keeps a fresh clone's
+  // installer correct without rewriting the rendered source tiles.
+  const written = writePackagerAssociationIcons()
+  console.log(`association icons written: ${written.join(', ')}`)
 } else if (process.argv[1] === fileURLToPath(import.meta.url)) {
   generate()
 }

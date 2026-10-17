@@ -1,9 +1,14 @@
 import { Editor } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
-import { parseDocx } from '@revelith/docx-engine'
+import { parseDocx, saveDocx } from '@revelith/docx-engine'
 import { describe, expect, it, vi } from 'vitest'
 import { buildDocx } from '../../../packages/docx-engine/tests/helpers/build-docx'
-import { blocksToPmDoc, pmTableToModel, type PmNode } from '../src/renderer/editor/convert'
+import {
+  blocksToPmDoc,
+  pmDocToSavePlan,
+  pmTableToModel,
+  type PmNode,
+} from '../src/renderer/editor/convert'
 import { editorExtensions } from '../src/renderer/editor/extensions'
 import {
   applyTablePreset,
@@ -13,6 +18,7 @@ import {
   toggleRepeatHeaderRows,
   updateSelectedTableAttrs,
 } from '../src/renderer/editor/table-properties'
+import { applyTableValue, tableValueOf } from '../src/renderer/components/TablePropertiesDialog'
 
 const TABLE =
   '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/>' +
@@ -26,8 +32,8 @@ const TABLE =
   '<w:tr><w:tc><w:p><w:r><w:t>C</w:t></w:r></w:p></w:tc>' +
   '<w:tc><w:p><w:r><w:t>D</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
 
-async function openTable(): Promise<Editor> {
-  const parsed = await parseDocx(await buildDocx({ bodyXml: TABLE }))
+async function openTable(bodyXml = TABLE): Promise<Editor> {
+  const parsed = await parseDocx(await buildDocx({ bodyXml }))
   const editor = new Editor({
     element: document.createElement('div'),
     extensions: editorExtensions,
@@ -135,6 +141,38 @@ describe('editable table properties', () => {
       vertAnchor: 'text',
     })
     expect(model.tableLook?.lastRow).toBe(true)
+    editor.destroy()
+  })
+
+  it('edits inter-cell spacing, supports zero, and saves the exact DOCX value', async () => {
+    const bodyXml = TABLE.replace(
+      '<w:tblW w:w="5000" w:type="pct"/>',
+      '<w:tblCellSpacing w:w="120" w:type="dxa"/><w:tblW w:w="5000" w:type="pct"/>',
+    )
+    const source = await buildDocx({ bodyXml })
+    const parsed = await parseDocx(source)
+    const editor = await openTable(bodyXml)
+    const initial = tableValueOf(editor.getAttributes('docTable'))
+    expect(initial.spacingCm).toBeCloseTo(120 / 567, 2)
+
+    applyTableValue(editor, { ...initial, spacingCm: 0.1 }, new Set(['spacing']), 600)
+    let table = editor.getJSON().content![0] as unknown as PmNode
+    expect(table.attrs).toMatchObject({ cellSpacingTwips: 57, cellSpacingEdited: true })
+    expect(pmTableToModel(table).cellSpacingTwips).toBe(57)
+
+    const changed = pmDocToSavePlan(editor.getJSON() as PmNode, parsed.blocks)
+    expect(changed.changedCount).toBe(1)
+    const saved = await saveDocx(parsed, changed.saveBlocks)
+    const reparsed = await parseDocx(saved)
+    expect(reparsed.blocks[0].table?.cellSpacingTwips).toBe(57)
+
+    const current = tableValueOf(editor.getAttributes('docTable'))
+    applyTableValue(editor, { ...current, spacingCm: 0 }, new Set(['spacing']), 600)
+    table = editor.getJSON().content![0] as unknown as PmNode
+    expect(table.attrs).toMatchObject({ cellSpacingTwips: 0, cellSpacingEdited: true })
+    const clearedPlan = pmDocToSavePlan(editor.getJSON() as PmNode, parsed.blocks)
+    const cleared = await parseDocx(await saveDocx(parsed, clearedPlan.saveBlocks))
+    expect(cleared.blocks[0].table?.cellSpacingTwips).toBeUndefined()
     editor.destroy()
   })
 

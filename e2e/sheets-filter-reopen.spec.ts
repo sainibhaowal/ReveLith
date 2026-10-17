@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
 import { mkdtemp, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl } from './helpers'
+import { launchShell, closeAndSaveVideo, waitForPageWithUrl, readZipText } from './helpers'
 
 // the preload exposes window.__revelithDebug only under this env var
 process.env.REVELITH_DEBUG_HOOKS = '1'
@@ -90,7 +89,7 @@ test.describe('sheets: filter criteria survive save and reopen', () => {
         const files = (await readdir(saveDir)).filter((f) => f.endsWith('.xlsx'))
         expect(files).toHaveLength(1)
         savedPath = join(saveDir, files[0])
-        const xml = execSync(`unzip -p "${savedPath}" xl/worksheets/sheet1.xml`).toString()
+        const xml = await readZipText(savedPath, 'xl/worksheets/sheet1.xml')
         expect(xml).toContain('<autoFilter ref="A1:B5">')
         expect(xml).toContain('<filterColumn colId="1"><filters><filter val="keep"/></filters>')
         expect(xml).toMatch(/<row r="3"[^>]* hidden="1"/)

@@ -122,7 +122,12 @@ export type SaveBlock = (
    *  of a rebuilt page): one block instead of one empty paragraph per picture */
   | { kind: 'images'; images: NewImage[] }
   /** a new embedded chart; data becomes word/charts/chartN.xml + relationship */
-  | { kind: 'chart'; chart: NewChart; extentPx?: { w: number; h: number } }
+  | {
+      kind: 'chart'
+      chart: NewChart
+      extentPx?: { w: number; h: number }
+      align?: 'left' | 'center' | 'right'
+    }
 ) & {
   /** Top-level tracked insertion/deletion wrapper. */
   revision?: { kind: 'ins' | 'del'; author: string; date?: string; id?: string }
@@ -608,7 +613,7 @@ export async function saveDocx(
       '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
       '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
     return image.wrap
-      ? applyImageWrap(xml, image.wrap, image.posOffsetEmu, undefined, image.zOrder)
+      ? applyImageWrap(xml, image.wrap, image.posOffsetEmu, image.posAlign, image.zOrder)
       : xml
   }
   /** the pictures' runs collected into the first picture's holder paragraph */
@@ -634,6 +639,7 @@ export async function saveDocx(
   const embedChart = async (
     chart: NewChart,
     extentPx?: { w: number; h: number },
+    align?: 'left' | 'center' | 'right',
   ): Promise<string> => {
     let n = 1
     while (
@@ -666,8 +672,9 @@ export async function saveDocx(
     const docPrId = chartDocPrId++
     const cx = extentPx ? Math.max(1, Math.round(extentPx.w * 9525)) : 5486400
     const cy = extentPx ? Math.max(1, Math.round(extentPx.h * 9525)) : 3200400
+    const pPr = align && align !== 'left' ? `<w:pPr><w:jc w:val="${align}"/></w:pPr>` : ''
     return (
-      '<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+      `<w:p>${pPr}<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">` +
       `<wp:extent cx="${cx}" cy="${cy}"/>` +
       `<wp:docPr id="${docPrId}" name="Chart ${docPrId}"/>` +
       '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
@@ -1242,7 +1249,7 @@ export async function saveDocx(
       fbDocxIndex = fb.docxIndex
       if (fb.replaceImage) xml = retargetImageBlip(xml, embedImageMedia(fb.replaceImage))
     } else if (fb.kind === 'chart') {
-      xml = await embedChart(fb.chart, fb.extentPx)
+      xml = await embedChart(fb.chart, fb.extentPx, fb.align)
     } else if (fb.kind === 'images') {
       xml = embedImages(fb.images)
     } else {

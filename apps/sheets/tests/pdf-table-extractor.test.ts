@@ -4,9 +4,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { PDFDocument } from 'pdf-lib'
 import {
   extractTablesFromPdf,
   tablesToExcelWorkbook,
@@ -401,9 +402,12 @@ describe('PDF Table Extraction', () => {
       }).rejects.toThrow()
     })
 
-    it.skip('should handle empty PDFs', async () => {
-      // Skip this test - creating a valid minimal PDF for testing is complex
-      // and the main functionality tests cover the important cases
+    it('should handle a valid PDF with no pages', async () => {
+      const path = join(testDir, 'empty.pdf')
+      const emptyPdf = await PDFDocument.create()
+      writeFileSync(path, await emptyPdf.save())
+
+      await expect(extractTablesFromPdf(path)).resolves.toEqual([])
     })
   })
 })

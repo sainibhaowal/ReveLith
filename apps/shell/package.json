@@ -10,14 +10,15 @@
   "desktopName": "revelith.desktop",
   "scripts": {
     "dev": "electron-vite dev --watch",
-    "build": "electron-vite build",
+    "build": "node ../../tools/run-with-local-temp.mjs electron-vite build",
     "notices": "node ../../tools/gen-third-party-notices.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "start": "electron-vite build && electron .",
-    "dist:mac": "npm run notices && electron-vite build && electron-builder --mac",
-    "dist:win": "npm run notices && electron-vite build && electron-builder --win",
-    "dist:linux": "npm run notices && electron-vite build && electron-builder --linux"
+    "start": "electron-vite build \u0026\u0026 electron .",
+    "dist:mac": "npm run notices \u0026\u0026 npm run build \u0026\u0026 node build/gen-doc-icons.mjs --packager-only \u0026\u0026 electron-builder --mac",
+    "dist:win": "npm run notices \u0026\u0026 npm run build \u0026\u0026 node build/gen-doc-icons.mjs --packager-only \u0026\u0026 electron-builder --win",
+    "dist:win:pack-only": "electron-builder --win",
+    "dist:linux": "npm run notices \u0026\u0026 npm run build \u0026\u0026 node build/gen-doc-icons.mjs --packager-only \u0026\u0026 electron-builder --linux"
   },
   "devDependencies": {
     "@revelith/agent-core": "*",

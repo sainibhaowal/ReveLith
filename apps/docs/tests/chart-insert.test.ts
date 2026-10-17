@@ -23,10 +23,11 @@ describe('chart insertion from the editor', () => {
     })
     const display: ChartDisplay = {
       partPath: '',
-      kind: SPEC.kind,
+      kind: SPEC.kind === 'doughnut' ? 'pie' : SPEC.kind,
       title: SPEC.title,
       categories: SPEC.categories,
       series: SPEC.series,
+      ...(SPEC.kind === 'doughnut' ? { holePct: 50 } : {}),
     }
     editor
       .chain()

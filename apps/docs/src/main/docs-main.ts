@@ -67,6 +67,7 @@ import {
   readBodyCapped,
   writeJsonAtomic,
 } from '@revelith/electron-utils'
+import { readGeneratedImage } from '@revelith/electron-utils/generated-images'
 import { configureMetricsCache, familyVerticalMetrics } from '@revelith/font-metrics'
 import { createI18n, getUiLang, normalizeLang, setUiLang } from '@revelith/i18n'
 import { ProjectStore } from '@revelith/project-store'
@@ -80,13 +81,6 @@ import type {
 import { parseFileToText } from '@revelith/file-parse'
 import { convertHtmlToDocx } from '../../../../packages/html2docx/src'
 import { ElectronBrowserDriver } from '../../../../packages/html2docx/src/drivers/electron'
-import {
-  addSourceToSession,
-  getSessionSources,
-  removeSourceFromSession,
-  clearSession,
-  SourceItem,
-} from './source-session'
 import {
   AiCreditsError,
   AiTimeoutError,
@@ -3747,6 +3741,15 @@ const TWIPS_PER_INCH = 1440
 
 const SETTINGS_PATH = () => userDataPath('ai-settings.json')
 
+/** Renderers may stay open across a settings change; resolve the saved
+ * provider/model at the IPC boundary for every new request. */
+function currentAiSettings(): AiSettings {
+  const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
+  const settings = resolveAiSettings(stored, defaultAiSettings())
+  settings.provider = activeProvider(settings)
+  return settings
+}
+
 const activeAiStreams = new Map<string, AbortController>()
 
 /**
@@ -3757,11 +3760,7 @@ const activeAiStreams = new Map<string, AbortController>()
 export function registerAiIpc(): void {
   app.once('before-quit', shutdownCodexAppServers)
   ipcMain.handle('ai:get-settings', async (): Promise<AiSettings> => {
-    const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
-    // pre-lock legacy file: revelith selected with cloud tools opted out. The
-    const settings = resolveAiSettings(stored, defaultAiSettings())
-    settings.provider = activeProvider(settings)
-    return settings
+    return currentAiSettings()
   })
 
   // ReveLith account (gsk login state): auth source for AI features; the frontend uses it to prompt login when logged out
@@ -3780,7 +3779,17 @@ export function registerAiIpc(): void {
   })
 
   ipcMain.handle('ai:set-settings', (_event, settings: AiSettings) => {
+    const previous = currentAiSettings()
     writeJsonAtomic(SETTINGS_PATH(), settings)
+    const next = currentAiSettings()
+    const selectionChanged =
+      previous.provider !== next.provider ||
+      JSON.stringify(previous.providers?.[previous.provider]) !==
+        JSON.stringify(next.providers?.[next.provider])
+    if (selectionChanged) {
+      // Stop streams pinned to the previous model before it is unloaded.
+      for (const controller of activeAiStreams.values()) controller.abort()
+    }
   })
 
   ipcMain.handle('ai:codex-models', async (_event, cliPath: unknown) => {
@@ -3790,7 +3799,8 @@ export function registerAiIpc(): void {
   ipcMain.handle('ai:custom-models', (_event, input: unknown) => listCustomModelsForIpc(input))
 
   ipcMain.handle('ai:stream', async (event, request: AiStreamRequest) => {
-    const { requestId, settings, system, messages } = request
+    const { requestId, system, messages } = request
+    const settings = currentAiSettings()
     const tools = request.tools ?? []
     const maxTokens = request.maxTokens ?? maxOutputTokensOf(settings)
     const provider = settings.provider
@@ -3874,9 +3884,7 @@ export function registerAiIpc(): void {
       _event,
       input: { before: string; after: string; groundedContext?: string },
     ): Promise<{ text: string | null }> => {
-      const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
-      const settings = resolveAiSettings(stored, defaultAiSettings())
-      settings.provider = activeProvider(settings)
+      const settings = currentAiSettings()
       const text = await inlineComplete(
         settings,
         String(input.before ?? ''),
@@ -3969,6 +3977,28 @@ export function registerAiIpc(): void {
       }),
   )
 
+  // drawboard-owned: unlike the document editors the board stores placed
+  // pixels, not a reference to an image in a file, so it needs the raw bytes
+  // (the same shape ai:fetch-image returns) rather than a generated-image URL.
+  // registerAiIpc() runs once from the shell at startup, so this channel exists
+  // whether or not any other app view has been opened.
+  ipcMain.handle(
+    'drawboard:ai-generate-image',
+    async (
+      _event,
+      op: { prompt?: unknown; aspectRatio?: unknown },
+    ): Promise<{ base64: string; mime: string } | { error: string }> => {
+      const result = await generateImageTool(SETTINGS_PATH(), {
+        prompt: String(op?.prompt ?? ''),
+        aspectRatio: op?.aspectRatio ? String(op.aspectRatio) : undefined,
+      })
+      if (!result.url) return { error: result.error ?? 'image generation failed' }
+      const local = readGeneratedImage(result.url)
+      if (!local) return { error: 'the generated image could not be read back' }
+      return { base64: local.bytes.toString('base64'), mime: local.mime }
+    },
+  )
+
   ipcMain.handle('ai:search-test', (_event, input: unknown) => {
     const { provider, apiKey } = (input ?? {}) as { provider?: AiSearchProviderId; apiKey?: string }
     if (!provider) return { ok: false, error: 'No search provider' }
@@ -3986,7 +4016,8 @@ export function registerAiIpc(): void {
   })
 
   ipcMain.handle('ai:chat', async (_event, request: AiChatRequest) => {
-    const { settings, system, user } = request
+    const { system, user } = request
+    const settings = currentAiSettings()
     const provider = settings.provider
     const config = settings.providers?.[provider]
     const needsKey =
@@ -5193,38 +5224,6 @@ export function registerDocsIpc(): void {
     if (win.isMinimized()) win.restore()
     win.show()
     win.focus()
-  })
-
-  // Source Tray session management
-  ipcMain.handle(
-    'docs:source-add',
-    async (
-      _event,
-      docSessionId: string,
-      item: Omit<SourceItem, 'id' | 'docSessionId' | 'addedAt' | 'contentHash'>,
-    ) => {
-      return addSourceToSession(
-        docSessionId,
-        item.filePath,
-        item.fileName,
-        item.mimeType,
-        item.extractedText,
-        item.chunks,
-        item.metadata,
-      )
-    },
-  )
-
-  ipcMain.handle('docs:source-list', async (_event, docSessionId: string) => {
-    return getSessionSources(docSessionId)
-  })
-
-  ipcMain.handle('docs:source-remove', async (_event, docSessionId: string, sourceId: string) => {
-    removeSourceFromSession(docSessionId, sourceId)
-  })
-
-  ipcMain.handle('docs:source-clear', async (_event, docSessionId: string) => {
-    clearSession(docSessionId)
   })
 }
 

@@ -23,13 +23,9 @@ import { BEFORE_CELL_EDIT, INTERCEPTOR_POINT, SheetInterceptorService } from '@u
 import { IEditorBridgeService } from '@univerjs/sheets-ui'
 
 import type { LazyWorkbookState, UniverRuntime } from './univer-state'
+import { formulaViewSheets } from './formula-view-state'
 
-/// Formula-view sheets for blank/demo workbooks (no LazyWorkbookState).
-const demoFormulaViewSheets = new Set<string>()
-
-export function formulaViewSheets(state: LazyWorkbookState | null): Set<string> {
-  return state ? state.showFormulaSheets : demoFormulaViewSheets
-}
+export { formulaViewSheets } from './formula-view-state'
 
 /// Sync the (global) raw-formula render key to the sheet's per-sheet flag;
 /// flipping it makes every skeleton drop its text cache and repaint.

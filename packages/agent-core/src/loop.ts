@@ -9,6 +9,7 @@ import type {
   AgentTransport,
   ToolExecution,
 } from './types'
+import { hideTextToolCallMarkup, recoverTextToolCalls } from './text-tool-calls'
 
 export interface ToolExecutedEvent<TSnapshot> {
   call: AgentToolCall
@@ -81,6 +82,19 @@ const STALE_TOOL_OUTPUT_MAX = 1_000
 
 /** Unified turn budget across the suite's chat panels (apps may still override per loop) */
 export const DEFAULT_MAX_TURNS = 100
+
+/**
+ * Shared execution contract for every app that uses AgentLoop. Models often
+ * treat the first successful tool call as the end of an editing request unless
+ * we explicitly tell them to track the user's requested outcomes and verify
+ * the result before replying.
+ */
+export const AGENT_EXECUTION_GUIDANCE =
+  'For a multi-part or actionable request, identify the requested outcomes and keep an internal checklist. ' +
+  'Use the available tools to complete each requested step, inspect their results, and verify changes with read tools when available. ' +
+  'Do not stop after the first successful action if the request has unfinished steps, and do not claim that an action happened unless its tool succeeded. ' +
+  'When a recoverable tool error occurs, correct the call and retry. If a required tool is unavailable or the task cannot be completed, state exactly what remains. ' +
+  'For a simple question, answer directly without unnecessary tool calls.'
 
 /** Cap on consecutive turns whose tool input was all unusable (a turn that executes a call resets it); abort beyond it (keeps the model from burning turns on bad JSON) */
 const MAX_INPUT_PARSE_RETRIES = 3
@@ -271,6 +285,9 @@ export class AgentLoop<TSnapshot = unknown> {
   private executedCalls: ExecutedToolCall[] = []
   /** verifyResponse may force one extra corrective turn per run — never more */
   private verifyRetryUsed = false
+  /** One forced continuation if the model tries to finish immediately after a tool error. */
+  private toolFailureContinuationUsed = false
+  private lastToolTurnHadErrors = false
   /** user message of the in-flight run; a failed run rolls it (and everything after) back out of history */
   private runUserMsg: AgentMessage | null = null
   /** invalidates stale transport callbacks after cancel/reset */
@@ -346,8 +363,10 @@ export class AgentLoop<TSnapshot = unknown> {
     this.allErrorTurns = 0
     this.executedCalls = []
     this.verifyRetryUsed = false
+    this.toolFailureContinuationUsed = false
+    this.lastToolTurnHadErrors = false
     this.abortController = new AbortController()
-    const context = this.options.skill.buildContext?.() ?? ''
+    const context = this.options.skill.buildContext?.(instruction) ?? ''
     const format =
       this.options.formatUserMessage ??
       ((instr: string, ctx: string) => (ctx ? `${instr}\n\n${ctx}` : instr))
@@ -591,6 +610,8 @@ export class AgentLoop<TSnapshot = unknown> {
       {
         system:
           runtimePreamble() +
+          AGENT_EXECUTION_GUIDANCE +
+          '\n\n' +
           this.options.skill.systemPrompt +
           (this.options.systemSuffix?.() ?? ''),
         messages: [...this.history],
@@ -600,7 +621,7 @@ export class AgentLoop<TSnapshot = unknown> {
         onDelta: (text) => {
           if (generation !== this.generation || settled) return
           this.turnText += text
-          this.options.events?.onText?.(this.turnText)
+          this.options.events?.onText?.(hideTextToolCallMarkup(this.turnText))
         },
         onReasoning: (text) => {
           if (generation !== this.generation || settled) return
@@ -659,7 +680,45 @@ export class AgentLoop<TSnapshot = unknown> {
 
   private async finishTurn(): Promise<void> {
     const { events, skill, captureSnapshot } = this.options
+    if (this.finalizing) {
+      const sanitizedText = hideTextToolCallMarkup(this.turnText).trim()
+      if (sanitizedText !== this.turnText) {
+        this.turnText = sanitizedText
+        events?.onText?.(this.turnText)
+      }
+    } else {
+      const recovered = recoverTextToolCalls(this.turnText, skill.tools)
+      if (recovered.foundMarkers) {
+        this.turnText = recovered.text.trim()
+        this.toolCalls.push(...recovered.calls)
+        // Replace any streamed partial control syntax with clean assistant prose
+        // before the activity card for the recovered calls becomes visible.
+        events?.onText?.(this.turnText)
+      }
+    }
     const toolCalls = this.toolCalls
+
+    // A model can answer with an apology or print pseudo-tool syntax after a
+    // failed call instead of retrying through the provider's structured tool
+    // channel. Give it one real tool-enabled continuation before accepting a
+    // final answer, so a failed edit does not silently end the requested task.
+    if (
+      toolCalls.length === 0 &&
+      !this.cancelled &&
+      !this.finalizing &&
+      this.lastToolTurnHadErrors &&
+      !this.toolFailureContinuationUsed &&
+      skill.tools.length > 0
+    ) {
+      this.toolFailureContinuationUsed = true
+      this.history.push({ role: 'assistant', text: this.turnText })
+      this.history.push({
+        role: 'user',
+        text: '[System] The last tool result reported an error and the requested action is not yet verified. Retry with an actual structured call to a listed tool, correcting the arguments from the error result. Do not print tool-call syntax as text or claim completion until a tool succeeds.',
+      })
+      this.startTurn()
+      return
+    }
 
     // Claimed-action guard: before accepting a final text turn, let the skill
     // check the claims in it against the tools that actually ran this run.
@@ -775,7 +834,7 @@ export class AgentLoop<TSnapshot = unknown> {
         const output = call.truncated
           ? 'Tool arguments were cut off by the output length limit; the tool was not executed. Split this operation into several smaller tool calls (less content per call) and try again.'
           : call.inputError
-            ? `Tool input JSON failed to parse; the tool was not executed: ${call.inputError}\nFix the arguments (make sure quotes inside strings are escaped) and call again.`
+            ? `Tool input could not be parsed or validated; the tool was not executed: ${call.inputError}\nCorrect the arguments and call again using a registered tool.`
             : `Tool call ${call.name} is missing the required argument(s) ${missing.map((f) => `"${f}"`).join(', ')}; the tool was not executed. Put the arguments in the tool call itself (not in your reply text) and call again with every required field.`
         results.push({ id: call.id, name: call.name, output, isError: true })
         events?.onToolExecuted?.({
@@ -832,6 +891,7 @@ export class AgentLoop<TSnapshot = unknown> {
       })
     }
     this.history.push({ role: 'tool', results })
+    this.lastToolTurnHadErrors = results.some((result) => result.isError)
     if (executedInTurn) this.inputParseFails = 0
     else if (unusableInTurn) this.inputParseFails++
 

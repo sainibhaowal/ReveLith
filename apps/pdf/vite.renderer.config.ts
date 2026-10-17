@@ -12,6 +12,7 @@ const pdfjsDir = (sub: string) => normalizePath(join(pdfjsRoot, 'pdfjs-dist', su
 
 export default defineConfig({
   root: 'src/renderer',
+  resolve: { dedupe: ['react', 'react-dom'] },
   plugins: [
     react(),
     viteStaticCopy({

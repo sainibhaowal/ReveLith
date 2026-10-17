@@ -34,5 +34,23 @@
     "pngBytes": 2050,
     "icoBytes": 3371,
     "icnsBytes": 3189
+  },
+  "form": {
+    "sha256": "b8efa87ffaad",
+    "pngBytes": 2165,
+    "icoBytes": 3466,
+    "icnsBytes": 2933
+  },
+  "tasks": {
+    "sha256": "bde67079fd56",
+    "pngBytes": 1816,
+    "icoBytes": 3419,
+    "icnsBytes": 2863
+  },
+  "draw": {
+    "sha256": "dffa28da12e1",
+    "pngBytes": 1828,
+    "icoBytes": 2995,
+    "icnsBytes": 2674
   }
 }

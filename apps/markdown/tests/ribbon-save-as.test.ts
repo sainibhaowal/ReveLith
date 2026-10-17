@@ -5,6 +5,23 @@ import { Editor } from '@tiptap/core'
 import { buildExtensions } from '../src/renderer/editor/extensions'
 import { Ribbon } from '../src/renderer/components/Ribbon'
 
+// This test targets quick-access save behavior. Tiptap's CJS selector shim is
+// externalized by Vitest and resolves the workspace-root React instead of the
+// renderer's paired React runtime, so evaluate the selector directly here.
+vi.mock('@tiptap/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tiptap/react')>()
+  return {
+    ...actual,
+    useEditorState: ({
+      editor,
+      selector,
+    }: {
+      editor: Editor
+      selector: (state: { editor: Editor }) => unknown
+    }) => selector({ editor }),
+  }
+})
+
 // The assistant is unrelated to quick-access file actions.
 vi.mock('../src/renderer/ai/AiPanel', () => ({ ReveLithMark: () => null }))
 

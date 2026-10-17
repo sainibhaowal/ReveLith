@@ -1,10 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
 import { copyFile, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Page } from '@playwright/test'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
+import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath, listZipEntries } from './helpers'
 
 const FIXTURE = resolve(__dirname, '../apps/sheets/fixtures/generated/compatibility-basic.xlsx')
 
@@ -104,8 +103,8 @@ test.describe('sheets: Insert → Recommended Charts and Icons', () => {
         const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
         wc?.send('menu:action', 'save')
       })
-      await expect(() => {
-        const listing = execSync(`unzip -l "${workbook}"`).toString()
+      await expect(async () => {
+        const listing = (await listZipEntries(workbook)).join('\n')
         expect(listing).toContain('xl/media/')
         expect(listing).toContain('xl/charts/')
       }).toPass({ timeout: 20_000 })

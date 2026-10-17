@@ -1,3 +1,46 @@
+/* Shared chat markdown layout. This restores readable block structure even
+   in apps whose global reset removes browser paragraph/list defaults. */
+.ai-md {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ai-md p,
+.ai-md ul,
+.ai-md ol {
+  margin: 0 0 16px;
+}
+.ai-md :last-child {
+  margin-bottom: 0;
+}
+.ai-md p:empty {
+  display: none;
+}
+.ai-md ul,
+.ai-md ol {
+  margin-bottom: 20px;
+  padding-inline-start: 20px;
+}
+.ai-md li {
+  margin-inline-start: 20px;
+  line-height: 28px;
+}
+.ai-md .ai-md-h {
+  margin: 20px 0 8px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.ai-md .ai-md-h:first-child {
+  margin-top: 0;
+}
+.ai-md code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 14px;
+}
+
 /* Block-level markdown in AI chat bubbles (tables, fenced code); inline chips stay per-app */
 .ai-md-table-wrap {
   overflow-x: auto;

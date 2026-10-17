@@ -8,6 +8,7 @@ import {
   findChartWorkbookPath,
   patchChartPartXml,
   patchChartWorkbookXlsxBase64,
+  patchDrawingAlignment,
   saveDocx,
 } from '../src/index'
 import { buildDocx } from './helpers/build-docx'
@@ -41,6 +42,52 @@ describe('buildChartPartXml', () => {
     const pie = buildChartPartXml({ ...SPEC, kind: 'pie', series: [SPEC.series[0]] })
     expect(pie).toContain('<c:pieChart>')
     expect(pie).not.toContain('<c:catAx>')
+  })
+
+  it.each([
+    ['area', '<c:areaChart>', 'area'],
+    ['radar', '<c:radarChart>', 'radar'],
+    ['doughnut', '<c:doughnutChart>', 'pie'],
+  ] as const)('builds a %s chart that parses back with its native model', (kind, tag, parsedKind) => {
+    const xml = buildChartPartXml({ ...SPEC, kind })
+    expect(xml).toContain(tag)
+    const display = parseChartPartXml(xml, 'word/charts/chart1.xml')!
+    expect(display.kind).toBe(parsedKind)
+    if (kind === 'doughnut') expect(display.holePct).toBe(50)
+  })
+})
+
+describe('drawing alignment and floating image presets', () => {
+  it('sets, changes, and clears paragraph alignment without discarding other properties', () => {
+    const original = '<w:p><w:pPr><w:spacing w:after="120"/></w:pPr><w:r/></w:p>'
+    const centered = patchDrawingAlignment(original, 'center')
+    expect(centered).toContain('<w:spacing w:after="120"/><w:jc w:val="center"/>')
+    expect(patchDrawingAlignment(centered, 'right')).toContain('<w:jc w:val="right"/>')
+    expect(patchDrawingAlignment(centered, null)).not.toContain('<w:jc')
+    expect(patchDrawingAlignment(original, 'left')).toBe(original)
+  })
+
+  it('writes position-gallery alignment for newly inserted floating pictures', async () => {
+    const source = await buildDocx({ bodyXml: '<w:p><w:r><w:t>anchor</w:t></w:r></w:p>' })
+    const parsed = await parseDocx(source)
+    const saved = await saveDocx(parsed, [
+      { kind: 'original', docxIndex: 0 },
+      {
+        kind: 'image',
+        image: {
+          base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf8sAAAAASUVORK5CYII=',
+          mime: 'image/png',
+          widthPx: 1,
+          heightPx: 1,
+          wrap: 'square-left',
+          posAlign: { h: 'right', v: 'bottom' },
+        },
+      },
+    ])
+    const zip = await JSZip.loadAsync(saved)
+    const xml = await zip.file('word/document.xml')!.async('string')
+    expect(xml).toContain('<wp:positionH relativeFrom="margin"><wp:align>right</wp:align></wp:positionH>')
+    expect(xml).toContain('<wp:positionV relativeFrom="margin"><wp:align>bottom</wp:align></wp:positionV>')
   })
 })
 
@@ -96,6 +143,32 @@ describe('saveDocx kind:chart', () => {
     const charts = reparsed.blocks.filter((b) => b.chartDisplay)
     expect(charts).toHaveLength(2)
     expect(charts[1].chartDisplay?.kind).toBe('pie')
+  })
+
+  it('round-trips an inserted chart type, extent and paragraph alignment', async () => {
+    const source = await buildDocx({ bodyXml: '<w:p><w:r><w:t>before</w:t></w:r></w:p>' })
+    const parsed = await parseDocx(source)
+    const saved = await saveDocx(parsed, [
+      { kind: 'original', docxIndex: 0 },
+      {
+        kind: 'chart',
+        chart: { ...SPEC, kind: 'radar' },
+        extentPx: { w: 480, h: 300 },
+        align: 'center',
+      },
+    ])
+    const zip = await JSZip.loadAsync(saved)
+    const document = await zip.file('word/document.xml')!.async('string')
+    const chartXml = await zip.file('word/charts/chart1.xml')!.async('string')
+    expect(document).toContain('<w:pPr><w:jc w:val="center"/></w:pPr>')
+    expect(document).toContain('<wp:extent cx="4572000" cy="2857500"/>')
+    expect(chartXml).toContain('<c:radarChart>')
+    const roundTrip = await parseDocx(saved)
+    const chart = roundTrip.blocks.find((block) => block.chartDisplay)
+    expect(chart?.chartDisplay?.kind).toBe('radar')
+    expect(chart?.imageAlign).toBe('center')
+    expect(chart?.chartDisplay?.widthPx).toBe(480)
+    expect(chart?.chartDisplay?.heightPx).toBe(300)
   })
 })
 

@@ -21,7 +21,7 @@ export interface AgentSkill {
    * Fresh context sections attached to every user turn (e.g. document
    * skeleton + selection). Return '' when there is nothing to attach.
    */
-  buildContext?(): string
+  buildContext?(instruction?: string): string
   /**
    * signal: aborted when the user hits stop. Long-running tools (e.g.
    * generate_deck with internal LLM calls) should check signal.aborted in
@@ -64,9 +64,9 @@ export function composeSkills(id: string, intro: string, skills: AgentSkill[]): 
       }
       return all
     },
-    buildContext: () =>
+    buildContext: (instruction) =>
       skills
-        .map((s) => s.buildContext?.() ?? '')
+        .map((s) => s.buildContext?.(instruction) ?? '')
         .filter(Boolean)
         .join('\n\n'),
     executeTool: (call, signal) => {

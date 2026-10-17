@@ -1927,6 +1927,15 @@ function readJson<T>(path: string, fallback: T): T {
 
 const SETTINGS_PATH = () => userDataPath('ai-settings.json')
 
+/** Resolve the persisted selection for every request: live app windows may
+ * still hold an older renderer snapshot after settings are changed elsewhere. */
+function currentAiSettings(): AiSettings {
+  const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
+  const settings = resolveAiSettings(stored, defaultAiSettings())
+  settings.provider = activeProvider(settings)
+  return settings
+}
+
 // Dev-only automation hooks: a fixed CDP port for driving the app from test
 // scripts, and a workbook path that bypasses the native file dialog.
 const debugPort = app.isPackaged ? undefined : process.env.XLSX_DEBUG_PORT
@@ -2439,26 +2448,6 @@ export function registerSheetsIpc(): void {
     closeSaveWaiters.delete(event.sender.id)
     waiter(ok === true)
   })
-
-  // Matrix citations: renderer clicked a cell with a revelith-source:// hyperlink.
-  // Opens the source file so the user can verify the cited passage.
-  ipcMain.handle(
-    IPC_CHANNELS.openSourceCitation,
-    async (
-      _event,
-      payload: { filePath?: unknown; page?: unknown; snippet?: unknown },
-    ): Promise<void> => {
-      const filePath = typeof payload?.filePath === 'string' ? payload.filePath : ''
-      const page = typeof payload?.page === 'number' ? payload.page : 1
-      const snippet = typeof payload?.snippet === 'string' ? payload.snippet : ''
-      if (!filePath) return
-      try {
-        await shell.openPath(filePath)
-      } catch (err) {
-        console.warn('[sheets] open-source-citation failed:', filePath, page, snippet, err)
-      }
-    },
-  )
 
   // shared with the other editor modules — last (identical) registration wins
   ipcMain.removeHandler('app:get-language')
@@ -3388,11 +3377,7 @@ export function registerSheetsAiIpc(): void {
 
   ipcMain.handle(IPC_CHANNELS.aiGetSettings, (event): AiSettings => {
     sessionFor(event)
-    const stored = readJson<Partial<AiSettings> & LegacyAiSettings>(SETTINGS_PATH(), {})
-    const settings = resolveAiSettings(stored, defaultAiSettings())
-    // a stored BYOK provider is honored when usable; half-filled configs fall back to revelith
-    settings.provider = activeProvider(settings)
-    return settings
+    return currentAiSettings()
   })
 
   // ReveLith account (gsk login state): the auth source for AI features; the
@@ -3414,14 +3399,27 @@ export function registerSheetsAiIpc(): void {
   ipcMain.handle(IPC_CHANNELS.aiSetSettings, async (event, input: unknown) => {
     sessionFor(event)
     const settings = aiSettingsInputSchema.parse(input)
+    const previous = currentAiSettings()
     writeJsonAtomic(SETTINGS_PATH(), settings)
+    const next = currentAiSettings()
+    const selectionChanged =
+      previous.provider !== next.provider ||
+      JSON.stringify(previous.providers[previous.provider]) !==
+        JSON.stringify(next.providers[next.provider])
+    if (selectionChanged) {
+      // Release the old model before the settings UI unloads or replaces it.
+      for (const tab of sheetsTabs.values()) {
+        for (const controller of tab.aiStreams.values()) controller.abort()
+      }
+    }
   })
 
   ipcMain.handle(IPC_CHANNELS.aiChat, async (event, input: unknown) => {
     sessionFor(event)
     const request = aiChatRequestSchema.parse(input)
-    const provider = request.settings.provider as AiProviderId
-    const config = request.settings.providers[provider]
+    const settings = currentAiSettings()
+    const provider = settings.provider as AiProviderId
+    const config = settings.providers[provider]
     const needsKey =
       provider !== 'codex' &&
       provider !== 'custom' &&
@@ -3460,9 +3458,10 @@ export function registerSheetsAiIpc(): void {
     const request = aiStreamRequestSchema.parse(input)
     const { requestId, system, messages } = request
     const tools = request.tools ?? []
-    const maxTokens = request.maxTokens ?? maxOutputTokensOf(request.settings)
-    const provider = request.settings.provider as AiProviderId
-    const config = request.settings.providers[provider]
+    const settings = currentAiSettings()
+    const maxTokens = request.maxTokens ?? maxOutputTokensOf(settings)
+    const provider = settings.provider as AiProviderId
+    const config = settings.providers[provider]
     const send = (chunk: AiStreamChunk) => {
       if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.aiStreamChunk, chunk)
     }

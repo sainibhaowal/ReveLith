@@ -386,6 +386,8 @@ export interface DesktopApi {
   /** Chromium's misspelling data for a claimed click */
   onContextMenuRequest(handler: (request: ContextMenuRequest) => void): () => void
   spellAddWord(word: string): Promise<boolean>
+  /** Check a word against Chromium's active dictionary and return its suggestions. */
+  spellCheckWord(word: string): { misspelled: boolean; suggestions: string[] }
   /** Word's Ignore All: skipped while this document is open, forgotten when it closes */
   spellIgnoreWord(word: string): Promise<boolean>
   /** Blink-side replacement of the misspelled word under the last right-click */
@@ -546,11 +548,6 @@ export interface DesktopApi {
   openNewTab(openPath?: string | null): Promise<void>
   /** all open docs tabs, for View → Switch Tab */
   listDocsTabs(): Promise<DocsTabInfo[]>
-  /** Source Tray: research sources bound to the open document's session */
-  sourceAdd(docSessionId: string, item: DocSourceInput): Promise<DocSourceItem>
-  sourceList(docSessionId: string): Promise<DocSourceItem[]>
-  sourceRemove(docSessionId: string, sourceId: string): Promise<void>
-  sourceClear(docSessionId: string): Promise<void>
   focusDocsTab(id: string): Promise<void>
   /** subscribe to AI stream chunks; returns unsubscribe */
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
@@ -568,28 +565,3 @@ export interface DesktopApi {
 
 /** mirrors VIEW_IMAGE_CHANNEL in @revelith/electron-utils (kept literal so the preload stays free of main-only deps) */
 export const VIEW_IMAGE_CHANNEL = 'revelith:view-image'
-
-/** one chunk of extracted source text (renderer-safe copy of the main-process shape) */
-export interface DocSourceChunk {
-  id: string
-  text: string
-  pageNumber?: number
-}
-
-/** a research source bound to a document session (renderer-safe shape) */
-export interface DocSourceItem {
-  id: string
-  docSessionId: string
-  fileName: string
-  filePath: string
-  mimeType: string
-  size: number
-  addedAt: number
-  contentHash: string
-  extractedText: string
-  chunks: DocSourceChunk[]
-  metadata: Record<string, unknown>
-}
-
-/** fields the renderer supplies when adding a source (ids/hashes assigned in main) */
-export type DocSourceInput = Omit<DocSourceItem, 'id' | 'docSessionId' | 'addedAt' | 'contentHash'>

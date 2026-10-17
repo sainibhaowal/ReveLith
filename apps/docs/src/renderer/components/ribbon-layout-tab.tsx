@@ -138,6 +138,7 @@ export function paperSizeKeyOf(pageWidth: number, pageHeight: number): string | 
 interface LayoutTabProps extends TabProps {
   section: SectionSettings | null
   onSection: (next: SectionSettings) => void
+  onPageMargins: (next: SectionSettings, mirror: boolean) => void
   /** Multi-section documents: index of the cursor's section (0-based); null for single-section */
   activeSection: number | null
   onInsertSectionBreak: (type: 'nextPage' | 'continuous' | 'evenPage' | 'oddPage') => void
@@ -147,7 +148,6 @@ interface LayoutTabProps extends TabProps {
     orientation: SectionSettings['orientation'],
   ) => void
   mirrorMargins: boolean
-  onMirrorMargins: (on: boolean) => void
 }
 
 export function LayoutTab({
@@ -157,11 +157,11 @@ export function LayoutTab({
   setDropdown,
   section,
   onSection,
+  onPageMargins,
   activeSection,
   onInsertSectionBreak,
   onPaperSizeAll,
   mirrorMargins,
-  onMirrorMargins,
 }: LayoutTabProps) {
   const { t } = useI18n()
   const { format } = useMeasurement()
@@ -176,7 +176,7 @@ export function LayoutTab({
   const applyMargins = (m: PageMargins, mirror?: boolean) => {
     if (!section || !marginsFitPage(m, section.pageWidth, section.pageHeight)) return
     // a user-set value is an ordinary margin, not the file's header-proof fixed one
-    onSection({
+    onPageMargins({
       ...section,
       marginTop: m.top,
       marginRight: m.right,
@@ -184,8 +184,7 @@ export function LayoutTab({
       marginLeft: m.left,
       marginTopFixed: undefined,
       marginBottomFixed: undefined,
-    })
-    if (mirror !== undefined) onMirrorMargins(mirror)
+    }, mirror ?? mirrorMargins)
   }
 
   const marginsActive = (m: PageMargins & { mirror?: true }) =>
@@ -202,8 +201,8 @@ export function LayoutTab({
   const isFloatingBox =
     Array.isArray(protAttrs?.textboxes) && (protAttrs.textboxes as unknown[]).length > 0
   const canWrap = hasDoc && (isImage || isFloatingBox)
-  // position presets go through imagePatchOf (original-document images only); newly inserted objects work after saving
-  const canPosition = hasDoc && isImage && protAttrs?.docxIndex != null
+  // Both imported and newly inserted images persist their position through the same image attributes.
+  const canPosition = hasDoc && isImage
   const currentWrap = (protAttrs?.imageWrap as string | null) ?? null
 
   const applyWrap = (value: string | null) => {

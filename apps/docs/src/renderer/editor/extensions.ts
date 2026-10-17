@@ -98,8 +98,6 @@ import { dropActiveSubEditor, notifySubEditorState, setActiveSubEditor } from '.
 import { type BorderLine, borderDrawnPx, borderTruePx, cellPadPx } from './border-metrics'
 import { borderLineCss, paraBorderCss, paraBorderPadding, paraBorderPaddingDecls } from './hf-dom'
 import { paraFrameCss } from './para-frame'
-import { GhostCompletionExtension } from './ghost-completion'
-import './ghost-completion.css'
 
 installProseMirrorPerf()
 
@@ -3046,6 +3044,7 @@ export const DocTable = Node.create({
       cellMar: { default: null as Record<string, number> | null },
       /** w:tblCellSpacing (twips, half the inter-cell gap) → CSS border-spacing */
       cellSpacingTwips: { default: null as number | null },
+      cellSpacingEdited: { default: false },
       /** table shading (tblPr w:shd), hex without '#' */
       tblFill: { default: null as string | null },
       cellMarEdited: { default: false },
@@ -4851,6 +4850,9 @@ function protectedDomSpec(node: PmNode): DomSpec {
   }
   if ((chartDisplay as ChartDisplay | null)?.series?.length) {
     attrs.class += ' doc-protected-chart'
+    if (node.attrs.imageAlign === 'center' || node.attrs.imageAlign === 'right') {
+      attrs.style = `text-align:${String(node.attrs.imageAlign)}`
+    }
     // caption text sharing the chart's paragraph (SEQ figure numbers) sits under the plot
     const caption = fieldDisplay ? renderFieldSpec(fieldDisplay as FieldDisplay) : null
     const chartH = (chartDisplay as ChartDisplay).heightPx
@@ -6523,5 +6525,4 @@ export const editorExtensions = [
   ParaMarkDelExtension,
   RevisionOriginalExtension,
   AutoDirectionExtension,
-  GhostCompletionExtension,
 ]

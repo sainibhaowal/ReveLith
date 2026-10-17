@@ -1,0 +1,387 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--surface-subtle);
+  color: var(--text);
+  color-scheme: inherit;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface);
+}
+
+.app-header {
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface);
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  background-color: var(--surface-subtle);
+}
+
+.app-main p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+input:not([type='color']), textarea, select { color: var(--text-primary); background-color: var(--surface); }
+
+/* Forms chrome uses the ReveLith green brand accent used by the app mark and
+ * Tasks ribbon. Keep authored form themes independent below. */
+:root {
+  --accent: #16a34a;
+  --accent-dark: #15803d;
+  --accent-soft: #ecfdf3;
+  --accent-ink: #ffffff;
+  --bg-hover-accent: #dcfce7;
+}
+
+[data-theme='dark'] {
+  --accent: #22c55e;
+  --accent-dark: #4ade80;
+  --accent-soft: #123b25;
+  --accent-ink: #ffffff;
+  --bg-hover-accent: #173f2a;
+}
+
+/* The authored/respondent form keeps its own light document palette by default.
+ * The editor design surface overrides these tokens in dark mode so the authoring
+ * canvas follows ReveLith without changing the form's saved/exported appearance. */
+:root {
+  --form-design-surface: var(--canvas);
+  --form-paper: #fff;
+  --form-ink: #1f2937;
+  --form-muted-ink: #5b6472;
+  --form-faint-ink: #64748b;
+  --form-border: #cbd5e1;
+  --form-rule: #e2e8f0;
+  --form-input-bg: #fff;
+  --form-field-bg: #f8fafc;
+  --form-accent: #2563eb;
+  --form-accent-soft: #eff6ff;
+  --form-danger: #b91c1c;
+  --form-danger-bg: #fef2f2;
+  --form-danger-border: #fecaca;
+  --form-star-on: #d97706;
+  --form-star-off: #64748b;
+  --form-warn-ink: #9a3412;
+  --form-warn-bg: #fff7ed;
+  --form-paper-shadow: 0 1px 3px rgb(15 23 42 / 8%);
+}
+
+.forms-canvas { color-scheme: light; }
+
+:root[data-theme='dark'] .forms-canvas:not([data-form-preview='true']) {
+  --form-design-surface: #2b2b2b;
+  --form-paper: var(--chrome-bg);
+  --form-ink: var(--text);
+  --form-muted-ink: var(--text-secondary);
+  --form-faint-ink: #a0a0a0;
+  --form-border: var(--border-strong);
+  --form-rule: var(--border);
+  --form-input-bg: var(--surface);
+  --form-field-bg: var(--surface-subtle);
+  --form-accent: #b8a0ff;
+  --form-accent-soft: #3b2767;
+  --form-danger: #ff8a80;
+  --form-danger-bg: #3a2020;
+  --form-danger-border: #704040;
+  --form-star-on: #ffbf69;
+  --form-star-off: #a0a0a0;
+  --form-warn-ink: #ffd08a;
+  --form-warn-bg: #3a2f1d;
+  --form-paper-shadow: 0 2px 12px rgb(0 0 0 / 24%);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) .forms-canvas:not([data-form-preview='true']) {
+    --form-design-surface: #2b2b2b;
+    --form-paper: var(--chrome-bg);
+    --form-ink: var(--text);
+    --form-muted-ink: var(--text-secondary);
+    --form-faint-ink: #a0a0a0;
+    --form-border: var(--border-strong);
+    --form-rule: var(--border);
+    --form-input-bg: var(--surface);
+    --form-field-bg: var(--surface-subtle);
+    --form-accent: #b8a0ff;
+    --form-accent-soft: #3b2767;
+    --form-danger: #ff8a80;
+    --form-danger-bg: #3a2020;
+    --form-danger-border: #704040;
+    --form-star-on: #ffbf69;
+    --form-star-off: #a0a0a0;
+    --form-warn-ink: #ffd08a;
+    --form-warn-bg: #3a2f1d;
+    --form-paper-shadow: 0 2px 12px rgb(0 0 0 / 24%);
+    color-scheme: dark;
+  }
+}
+
+.forms-ribbon-btn {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.forms-ribbon-btn:hover:not(:disabled) { background: var(--hover); }
+.forms-ribbon-btn.is-active { border-color: var(--accent); color: var(--accent); background: var(--bg-hover-accent); }
+.forms-ribbon-btn:disabled { cursor: not-allowed; opacity: .48; }
+.forms-ribbon-btn:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--accent, #2563eb); outline-offset: 2px; }
+.forms-ribbon-btn:focus:not(:focus-visible), button:focus:not(:focus-visible), input:focus:not(:focus-visible), textarea:focus:not(:focus-visible), select:focus:not(:focus-visible) { outline: none; }
+.forms-ribbon-select, .forms-ribbon-color { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+.forms-ribbon-select select { min-height: 30px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); background: var(--surface); font: inherit; font-size: 12px; }
+.forms-ribbon-color input { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); }
+.forms-ribbon-hint { max-width: 250px; white-space: normal; line-height: 1.45; font-size: 11px; color: var(--text-secondary); }
+.revelith-app-ribbon-tabs button:hover { background: var(--surface-subtle); }
+.revelith-app-ribbon-tabs button.revelith-app-ribbon-file {
+  align-self: center; min-width: 0; margin: 0 6px 0 0; padding: 5px 12px;
+  border: 0; border-radius: 4px; background: var(--accent); color: #fff;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.revelith-app-ribbon-tabs button.revelith-app-ribbon-file:hover,
+.revelith-app-ribbon-tabs button.revelith-app-ribbon-file.active { background: var(--accent-dark); color: #fff; }
+.revelith-app-ribbon-tabs button.revelith-app-ribbon-file::after { display: none; }
+.revelith-app-ribbon-actions { gap: 4px; padding-left: 8px; }
+.revelith-app-ribbon-actions > .forms-autosave-toggle {
+  min-height: 28px; display: inline-flex; align-items: center; gap: 7px; padding: 3px 8px;
+  border: 1px solid transparent; border-radius: 14px; background: transparent; color: var(--text-secondary); font-size: 11px;
+}
+.revelith-app-ribbon-actions > .forms-autosave-toggle:hover { border-color: transparent; background: var(--surface-subtle); }
+.revelith-app-ribbon-tabs { min-height: 32px; overflow-x: auto; scrollbar-width: thin; }
+.forms-field-icon { display: block; width: 21px; height: 21px; }
+.forms-autosave-switch { width: 27px; height: 16px; position: relative; flex: none; border: 1px solid var(--border-strong, var(--border)); border-radius: 99px; background: var(--surface-subtle); transition: background .16s,border-color .16s; }
+.forms-autosave-switch > span { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--text-secondary); transition: transform .16s,background .16s; }
+.forms-autosave-toggle[data-on='true'] .forms-autosave-switch { border-color: var(--accent); background: var(--accent); }
+.forms-autosave-toggle[data-on='true'] .forms-autosave-switch > span { transform: translateX(11px); background: white; }
+.forms-autosave-toggle:focus-visible { outline: 2px solid var(--border-strong); outline-offset: 1px; }
+.forms-tool-emoji { font-size: 19px; line-height: 1; }
+.forms-theme-palette { width: 34px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 3px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.forms-theme-palette > span:first-child { width: 15px; height: 15px; border: 2px solid var(--surface); outline: 1px solid var(--border); border-radius: 50%; z-index: 1; }
+.forms-theme-palette > span:last-child { width: 13px; height: 17px; margin-left: -2px; border: 1px solid var(--border); border-radius: 3px; }
+.forms-ribbon-range { width: 124px; display: inline-flex; flex-direction: column; gap: 5px; color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
+.forms-ribbon-range > span { display: flex; justify-content: space-between; gap: 8px; }
+.forms-ribbon-range b { color: var(--text-primary); font-weight: 600; }
+.forms-ribbon-range input { width: 100%; height: 14px; margin: 0; accent-color: var(--accent); }
+.forms-ribbon-btn { min-height: 32px; }
+@media (prefers-reduced-motion: reduce) { .revelith-ribbon-tool,.forms-autosave-switch,.forms-autosave-switch > span,.forms-field-drawer,.forms-field-drawer-toggle,.forms-field-list-button,.forms-field-icon-button { transition: none; } }
+.forms-properties-pane {
+  width: clamp(300px, 27vw, 400px); max-width: 40vw; min-width: 48px; min-height: 0;
+  flex: 0 0 clamp(300px, 27vw, 400px); display: flex; flex-direction: row; overflow: hidden; background: var(--surface);
+  transition: width 220ms cubic-bezier(.2, .75, .25, 1), flex-basis 220ms cubic-bezier(.2, .75, .25, 1);
+}
+.forms-properties-pane[data-expanded='false'] { width: 48px; max-width: 48px; flex-basis: 48px; }
+.forms-properties-main {
+  flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+  opacity: 1; transition: opacity 140ms ease;
+}
+.forms-properties-pane[data-expanded='false'] .forms-properties-main { opacity: 0; }
+.forms-editor-pane {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.forms-field-drawer {
+  width: 248px;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 248px;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
+  transition: width 240ms cubic-bezier(.2, .75, .25, 1), flex-basis 240ms cubic-bezier(.2, .75, .25, 1), opacity 170ms ease, transform 240ms cubic-bezier(.2, .75, .25, 1);
+}
+.forms-field-drawer[data-open='false'] {
+  width: 0;
+  flex-basis: 0;
+  opacity: 0;
+  transform: translateX(-16px);
+  pointer-events: none;
+}
+.forms-field-drawer[data-open='true'][data-expanded='false'] { width: 56px; flex-basis: 56px; }
+.forms-field-palette {
+  width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid var(--border); background: var(--surface);
+}
+.forms-field-palette-header { flex: none; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-subtle); }
+.forms-field-palette-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.forms-field-palette-heading h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.forms-field-palette-heading p { margin: 4px 0 0; color: var(--text-secondary); font-size: 11px; }
+.forms-field-drawer-toggle {
+  width: 28px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer;
+  transition: background .14s ease, color .14s ease, border-color .14s ease;
+}
+.forms-field-drawer-toggle:hover { border-color: var(--border); background: var(--surface); color: var(--accent); }
+.forms-field-drawer-toggle.is-collapsed { align-self: center; margin: 8px auto 4px; }
+.forms-field-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
+.forms-field-group { margin-bottom: 8px; }
+.forms-field-group-label { padding: 8px 12px 4px; color: var(--text-secondary); font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; }
+.forms-field-list-button {
+  width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; margin-bottom: 2px; padding: 8px 12px;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-primary); cursor: pointer; font: inherit; font-size: 13px; text-align: left;
+  transition: background .12s ease, border-color .12s ease;
+}
+.forms-field-list-button:hover { border-color: var(--border); background: var(--surface-subtle); }
+.forms-field-list-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; font-size: 17px; }
+.forms-field-icon-rail { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; overflow-y: auto; padding: 4px 6px 8px; }
+.forms-field-icon-button {
+  width: 40px; min-width: 40px; height: 38px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-primary); cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.forms-field-icon-button:hover { border-color: var(--border); background: var(--surface-subtle); color: var(--accent); }
+.forms-field-icon-button:focus-visible, .forms-field-drawer-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.forms-field-search {
+  width: 100%;
+  height: 31px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.forms-field-search::placeholder { color: var(--text-secondary); }
+.forms-field-empty { padding: 12px; color: var(--text-secondary); font-size: 12px; }
+.forms-status-bar {
+  height: 26px;
+  flex: 0 0 26px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  overflow: hidden;
+  background: var(--surface-subtle);
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.forms-properties-tabs {
+  display: flex;
+  flex: 0 0 48px;
+  width: 48px;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 4px;
+  border-left: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+.forms-properties-tab {
+  position: relative;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+.forms-properties-tab:hover:not(:disabled) { border-color: var(--border); background: var(--surface); color: var(--accent); }
+.forms-properties-tab.is-active { border-color: var(--accent-soft, var(--border)); background: var(--accent-soft, var(--surface)); color: var(--accent, #2563eb); }
+.forms-properties-tab:disabled { cursor: not-allowed; opacity: .48; }
+.forms-properties-tab:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 1px; }
+.forms-properties-content { flex: 1; min-height: 0; overflow: auto; padding: 18px 20px 24px; overscroll-behavior: contain; }
+.forms-properties-content :is(input:not([type='checkbox']):not([type='radio']):not([type='color']), textarea, select) { max-width: 100%; }
+@media (prefers-reduced-motion: reduce) { .forms-properties-pane,.forms-properties-main,.forms-properties-tab { transition: none; } }
+@media (max-width: 1100px) {
+  .forms-properties-content { padding: 14px; }
+}
+.form-section-heading { padding: 8px 0 4px; }
+.form-section-heading h2 { margin: 0 0 5px; font-size: 19px; color: var(--form-ink); }
+.form-section-heading p { margin: 0; color: var(--form-muted-ink); font-size: 13px; line-height: 1.5; }
+/* Form controls inherit the canvas color scheme and semantic form palette. */
+.forms-canvas input:not([type='color']), .forms-canvas textarea, .forms-canvas select { color: var(--form-ink); background-color: var(--form-input-bg); }
+.forms-canvas ::placeholder { color: var(--form-faint-ink); opacity: 1; }
+.forms-canvas ::selection { background: var(--form-accent-soft); color: var(--form-ink); }
+/* Design-canvas affordances sit on the form paper, so they read the form
+ * document palette (never the chrome tokens) and look the same in both themes. */
+.form-page-break { display: flex; align-items: center; gap: 10px; color: var(--form-faint-ink); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.form-page-break::before, .form-page-break::after { content: ''; flex: 1; border-top: 1px dashed var(--form-border); }
+
+/* Keep the shared tool activity component legible on the form-builder chat surface. */
+.revelith-app-chat .ai-work-group { gap: 6px; margin: 0 0 12px; }
+.revelith-app-chat .ai-step-row {
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+.revelith-app-chat .ai-step-icon.done { color: var(--success); }
+.revelith-app-chat .ai-step-icon.running { color: var(--color-brand-secondary); }
+.revelith-app-chat .ai-step-icon.error { color: var(--danger); }
+.revelith-app-chat .ai-step-row:has(.ai-step-icon.error) { border-color: var(--danger-border); }
+
+/* System dark mode fallback for accent colors */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --accent: #a78bfa;
+    --accent-dark: #c4b5fd;
+    --accent-soft: #2e1065;
+    --accent-ink: #ffffff;
+    --bg-hover-accent: #3b2767;
+  }
+}
+

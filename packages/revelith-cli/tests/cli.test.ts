@@ -108,7 +108,7 @@ describe('revelith cli', () => {
 
   it.skipIf(!xlsxSidecarPath())('info reads workbook sheets through the xlsx sidecar', async () => {
     const r = await run(['info', XLSX, '--json'])
-    expect(r.code).toBe(0)
+    expect(r.code, `${r.stdout}\n${r.stderr}`).toBe(0)
     expect(r.json().detail.sheets.length).toBeGreaterThan(0)
     expect(r.json().detail.sheets[0]).toMatchObject({ name: expect.any(String) })
   })

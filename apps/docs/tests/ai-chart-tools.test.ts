@@ -72,7 +72,7 @@ describe('insert_chart tool', () => {
     const editor = blankEditor()
     const bad = await executeTool(
       editor,
-      call('insert_chart', { kind: 'radar', categories: ['a'], series: [{ values: [1] }] }),
+      call('insert_chart', { kind: 'bubble', categories: ['a'], series: [{ values: [1] }] }),
       NUM_IDS,
     )
     expect(bad.isError).toBe(true)
@@ -83,6 +83,32 @@ describe('insert_chart tool', () => {
     )
     expect(empty.isError).toBe(true)
     editor.destroy()
+  })
+
+  it('inserts the added chart kinds and maps doughnut display to a ring chart model', async () => {
+    for (const kind of ['area', 'radar', 'doughnut'] as const) {
+      const editor = blankEditor()
+      const exec = await executeTool(
+        editor,
+        call('insert_chart', {
+          kind,
+          categories: ['A', 'B'],
+          series: [
+            { name: 'one', values: [1, 2] },
+            { name: 'ignored for ring', values: [3, 4] },
+          ],
+        }),
+        NUM_IDS,
+      )
+      expect(exec.isError).toBeUndefined()
+      const node = editor.state.doc.child(1)
+      expect((node.attrs.genChart as { kind: string }).kind).toBe(kind)
+      const display = node.attrs.chartDisplay as { kind: string; holePct?: number; series: unknown[] }
+      expect(display.kind).toBe(kind === 'doughnut' ? 'pie' : kind)
+      expect(display.series).toHaveLength(kind === 'doughnut' ? 1 : 2)
+      if (kind === 'doughnut') expect(display.holePct).toBe(50)
+      editor.destroy()
+    }
   })
 })
 

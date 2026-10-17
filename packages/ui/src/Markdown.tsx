@@ -197,9 +197,17 @@ function parseBlocks(text: string): MdBlock[] {
   return blocks
 }
 
-export function Markdown({ text, nav }: { text: string; nav?: MarkdownNav }): React.JSX.Element {
+export function Markdown({
+  text,
+  nav,
+  dir,
+}: {
+  text: string
+  nav?: MarkdownNav
+  dir?: 'auto' | 'ltr' | 'rtl'
+}): React.JSX.Element {
   return (
-    <div className="ai-md">
+    <div className="ai-md" dir={dir}>
       {parseBlocks(text).map((b, i) => {
         if (b.kind === 'h') {
           return (

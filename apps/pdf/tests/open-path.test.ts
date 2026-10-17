@@ -40,7 +40,6 @@ function makeFakeWebContents(): FakeWebContents {
     setWindowOpenHandler: vi.fn(),
     loadURL: vi.fn(),
     loadFile: vi.fn(),
-    loadURL: vi.fn(),
   }
   lastWebContents = wc
   return wc

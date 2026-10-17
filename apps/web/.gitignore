@@ -7,33 +7,28 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Dependencies and generated builds
-node_modules/
-dist/
-dist-ssr/
-.vite/
-.cache/
-coverage/
-playwright-report/
-test-results/
-*.tsbuildinfo
+node_modules
+dist
+dist-ssr
+*.local
 
-# Local configuration and secrets (commit an .env.example file instead)
+# Environment / secrets — never commit keys or VPS credentials
 .env
 .env.*
 !.env.example
-*.local
+*.pem
+*.key
+id_rsa*
+id_ed25519*
 
-# Local deployment/download staging
-downloads/
-web-release/
+# Local screenshot / scratch output
+.shots/
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
-Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj

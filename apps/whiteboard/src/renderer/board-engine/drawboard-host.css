@@ -1,0 +1,90 @@
+/* ReveLith Drawboard — board skin: keep ReveLith tokens, scope board overrides.
+   The board fills its area edge to edge so the canvas, toolbar, and status
+   always feel like one fitted surface. */
+.revelith-board-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  margin: 0;
+  background: var(--surface);
+  overflow: hidden;
+  display: flex;
+}
+
+.revelith-board-host .excalidraw {
+  flex: 1;
+  border-radius: 0;
+  background-color: var(--surface);
+  --color-primary: var(--accent, #4f46e5);
+  --color-primary-darker: var(--accent-strong, #4338ca);
+  --color-primary-darkest: var(--accent-strong, #3730a3);
+  --color-primary-light: color-mix(in srgb, var(--accent, #4f46e5) 14%, white);
+  --island-bg-color: var(--surface);
+  --sidebar-bg-color: var(--surface);
+  --popup-bg-color: var(--surface);
+  --popup-secondary-bg-color: var(--surface-subtle);
+  --input-bg-color: var(--surface);
+  --default-bg-color: var(--surface);
+}
+
+/* Keep Excalidraw's floating tool surfaces opaque. The board scene can contain
+   text or artwork beneath these controls, so translucent island styling makes
+   both the tools and their labels hard to read. --surface follows ReveLith's
+   light/dark theme tokens. */
+.revelith-board-host .excalidraw .Island,
+.revelith-board-host .excalidraw .excalidraw-canvas-buttons,
+.revelith-board-host .excalidraw .dropdown-menu-container,
+.revelith-board-host .excalidraw .context-menu,
+.revelith-board-host .excalidraw .panelColumn,
+.revelith-board-host .excalidraw .sidebar {
+  background-color: var(--surface, #fff) !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+}
+
+/* Canvas text and selection overlays use their own compositor layers. Keep
+   every open menu and style panel above those layers so the scene cannot show
+   through (or paint over labels) even when Chromium promotes the canvas. */
+.revelith-board-host .excalidraw .App-menu__left,
+.revelith-board-host .excalidraw .dropdown-menu-container,
+.revelith-board-host .excalidraw .context-menu,
+.revelith-board-host .excalidraw .App-bottom-bar > .Island,
+.revelith-board-host .excalidraw .FixedSideContainer .Island,
+.revelith-board-host .excalidraw .sidebar {
+  z-index: 20 !important;
+  isolation: isolate;
+}
+
+/* Canvas-background / stroke swatches stay distinguishable in dark mode:
+   the engine paints near-black buttons on a near-black panel, so every
+   sidebar picker button gets a theme-aware outline (no layout shift). */
+.revelith-board-host .excalidraw .panelColumn .buttonList label,
+.revelith-board-host .excalidraw .panelColumn .buttonList button {
+  box-shadow: 0 0 0 1px var(--color-border-outline, #767680);
+}
+
+/* ReveLith link policy (visual layer): engine chrome that points outward or
+   uploads outward is never shown. The broken external library browser and the
+   external library publisher stay hidden; help itself stays available and its
+   links are rewritten to ReveLith by the link policy. */
+.revelith-board-host .excalidraw .library-menu-browse-button,
+.revelith-board-host .excalidraw [data-testid='lib-dropdown--remove'] {
+  display: none !important;
+}
+
+/* Library "..." menu container stays positioned so the menu can be docked
+   precisely (see dropdown-fit.ts). */
+.revelith-board-host .excalidraw .library-menu-dropdown-container {
+  position: relative;
+}
+
+/* Backup for the policy above (href-based, order-independent): the video and
+   blog buttons can never paint, even if a dialog renders before the runtime
+   policy reaches it. Dialogs mount outside the host element, so this rule is
+   document-scoped (this stylesheet only loads in the drawboard renderer). */
+.HelpDialog a[href*='youtube'],
+.HelpDialog a[href*='blog'] {
+  display: none !important;
+}

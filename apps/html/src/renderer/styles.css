@@ -3053,7 +3053,9 @@ html.revelith-popover-open .ribbon-tabs {
 
 .hx-float {
   position: absolute;
-  z-index: 5;
+  /* The selected-element toolbar must stay clickable when the style panel
+     overlaps it; the panel itself remains below this transient control. */
+  z-index: 7;
   display: flex;
   align-items: center;
   gap: 2px;

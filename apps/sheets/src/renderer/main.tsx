@@ -9,6 +9,7 @@ import '@revelith/ui/dropdown.css'
 import '@revelith/ui/ribbon-collapse.css'
 import '@revelith/ui/markdown.css'
 import '@revelith/ui/ai-panel-prefs.css'
+import '@revelith/ui/ai-typing.css'
 import '@revelith/ui/ai-scope-quote.css'
 import '@univerjs/preset-sheets-core/lib/index.css'
 

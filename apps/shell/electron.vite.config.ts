@@ -25,6 +25,11 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
+    // Workspace packages such as @revelith/ui resolve through symlinks under
+    // the monorepo root. Dedupe React so hooks in those packages share the
+    // same dispatcher as ReactDOM in the shell renderer bundle. Without this,
+    // packaged Windows builds can render a blank window with a null hook dispatcher.
+    resolve: { dedupe: ['react', 'react-dom'] },
     build: {
       rollupOptions: {
         input: {

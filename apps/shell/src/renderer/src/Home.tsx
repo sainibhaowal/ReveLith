@@ -6,6 +6,9 @@ import iconPptx from './assets/file-pptx.svg'
 import iconPdf from './assets/file-pdf.svg'
 import iconMd from './assets/file-md.svg'
 import iconHtml from './assets/file-html.svg'
+import iconForm from './assets/file-form.svg'
+import iconTasks from './assets/file-tasks.svg'
+import iconDraw from './assets/file-draw.svg'
 import type {
   AccountStatus,
   FolderEntry,
@@ -26,7 +29,6 @@ import { useI18n } from './locale'
 import type { I18n, StringKey } from './locale'
 import { SettingsModal } from './SettingsModal'
 import type { SettingsTarget } from './SettingsModal'
-import { MatrixModal } from './MatrixModal'
 import { skillUpdateDue } from './IntegrationsPane'
 import { onFilesChanged } from './file-events'
 
@@ -60,6 +62,14 @@ const FILE_ICONS: Record<string, string> = {
   markdown: iconMd,
   html: iconHtml,
   htm: iconHtml,
+  // the three AI apps: the quick-card keys and the real file extensions both
+  // resolve to the one generated tile per app (legacy files included)
+  form: iconForm,
+  task: iconTasks,
+  tasks: iconTasks,
+  wb: iconDraw,
+  draw: iconDraw,
+  drawboard: iconDraw,
 }
 
 /* Formats the open-local card advertises. Too long for the card at any window
@@ -227,7 +237,7 @@ function crumbsOf(root: FolderRoot, dir: string): Array<{ path: string; name: st
   return crumbs
 }
 
-const FILTERS: { key: string; label: StringKey }[] = [
+const FILTERS: { key: string; label: StringKey; labelText?: string }[] = [
   { key: 'all', label: 'filterAll' },
   { key: 'docx', label: 'filterDocs' },
   { key: 'xlsx', label: 'filterSheets' },
@@ -235,6 +245,9 @@ const FILTERS: { key: string; label: StringKey }[] = [
   { key: 'pdf', label: 'filterPdf' },
   { key: 'md', label: 'filterMd' },
   { key: 'html', label: 'filterHtml' },
+  { key: 'form', label: 'filterAll', labelText: 'Forms' },
+  { key: 'task', label: 'filterAll', labelText: 'Tasks' },
+  { key: 'wb', label: 'filterAll', labelText: 'AI Draw' },
 ]
 
 /** sidebar filter keys that stand for a family of extensions (mirrors recent-files.ts) */
@@ -1060,7 +1073,6 @@ export function Home() {
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null)
   // unavailable recent entry (missing flag) the user clicked — offer list removal
   const [confirmMissing, setConfirmMissing] = useState<RecentEntry | null>(null)
-  const [matrixModalOpen, setMatrixModalOpen] = useState(false)
   // name in the greeting; omitted when logged out
   const [accountName] = useState('')
   const [greetAskKey] = useState(
@@ -1602,7 +1614,11 @@ export function Home() {
     const dir = confirmDeleteFolder
     setConfirmDeleteFolder(null)
     if (!dir) return
-    await window.aiOffice.deleteFolder(dir)
+    const result = await window.aiOffice.deleteFolder(dir)
+    if (!result.ok) {
+      window.alert(result.error)
+      return
+    }
     if (selectedFolder && (selectedFolder === dir || isUnder(dir, selectedFolder))) {
       setSelectedFolder(dirOf(dir))
     }
@@ -1735,6 +1751,9 @@ export function Home() {
       sub: '.pdf',
       action: () => window.aiOffice.newPdf(newFileOpts),
     },
+    { ext: 'form', title: 'AI Forms', sub: 'Form builder', action: () => window.aiOffice.newFormsBuilder() },
+    { ext: 'task', title: 'AI Tasks', sub: 'Project board', action: () => window.aiOffice.newTasks() },
+    { ext: 'wb', title: 'AI Draw', sub: 'Diagrams & notes', action: () => window.aiOffice.newDrawboard() },
   ]
 
   function renderQuickCards() {
@@ -1752,17 +1771,6 @@ export function Home() {
             </span>
           </button>
         ))}
-        {/* Matrix Project - separate button */}
-        <button className="quick-card" onClick={() => setMatrixModalOpen(true)}>
-          <FileBadge ext="xlsx" size={30} />
-          <span className="quick-text">
-            <span className="quick-title-row">
-              <span className="quick-title">AI Matrix</span>
-              <span className="ai-chip">AI</span>
-            </span>
-            <span className="quick-sub">Matrix</span>
-          </span>
-        </button>
         <button
           className="quick-card"
           onClick={() => void window.aiOffice.browse()}
@@ -2657,7 +2665,7 @@ export function Home() {
                     className={`filter-pill${filter === f.key ? ' active' : ''}`}
                     onClick={() => changeFilter(f.key)}
                   >
-                    {t(f.label)}
+                    {f.labelText ?? t(f.label)}
                   </button>
                 ))}
               </div>
@@ -2776,7 +2784,7 @@ export function Home() {
                     className={`filter-pill${filter === f.key ? ' active' : ''}`}
                     onClick={() => changeFilter(f.key)}
                   >
-                    {t(f.label)}
+                    {f.labelText ?? t(f.label)}
                   </button>
                 ))}
               </div>
@@ -3063,48 +3071,6 @@ export function Home() {
             else void doMove(conflict.paths, conflict.targetDir, policy)
           }}
         />
-      )}
-
-      {matrixModalOpen && (
-        <div className="modal-overlay" onClick={() => setMatrixModalOpen(false)}>
-          <div
-            className="modal modal-large"
-            role="dialog"
-            aria-modal="true"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <MatrixModal
-              onClose={() => setMatrixModalOpen(false)}
-              onGenerate={async (files, columns) => {
-                const resolved = files.map((file) => ({
-                  name: file.name,
-                  path: window.aiOffice.pathForFile(file),
-                }))
-                const missing = resolved.filter((f) => !f.path)
-                if (missing.length > 0) {
-                  return {
-                    ok: false,
-                    error: 'Could not resolve local paths for the dropped files.',
-                  }
-                }
-                const result = await window.aiOffice.generateMatrix({
-                  files: resolved as Array<{ name: string; path: string }>,
-                  columns: columns.map((c) => ({
-                    id: c.id,
-                    name: c.name,
-                    description: c.description,
-                    dataType: c.dataType,
-                  })),
-                })
-                if (result.ok && result.path) {
-                  await window.aiOffice.openPath(result.path)
-                  setMatrixModalOpen(false)
-                }
-                return result
-              }}
-            />
-          </div>
-        </div>
       )}
 
       <DropToOpenOverlay />

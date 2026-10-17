@@ -27,6 +27,8 @@ import {
 } from 'electron'
 import type { MenuItemConstructorOptions, NativeImage, WebContents } from 'electron'
 import { atomicWriteFile } from './atomic-write'
+import { registerFormFileScan } from './form-file-scan'
+import { moveToWindowsRecycleBin } from './windows-recycle-bin'
 import { tabStripOverlay } from './title-bar-overlay'
 import menuDocxIcon1x from './assets/menu-docx.png?asset'
 import menuDocxIcon2x from './assets/menu-docx@2x.png?asset'
@@ -42,6 +44,12 @@ import menuHtmlIcon1x from './assets/menu-html.png?asset'
 import menuHtmlIcon2x from './assets/menu-html@2x.png?asset'
 import menuHomeIcon1x from './assets/menu-home.png?asset'
 import menuHomeIcon2x from './assets/menu-home@2x.png?asset'
+import menuFormIcon1x from './assets/menu-form.png?asset'
+import menuFormIcon2x from './assets/menu-form@2x.png?asset'
+import menuTasksIcon1x from './assets/menu-tasks.png?asset'
+import menuTasksIcon2x from './assets/menu-tasks@2x.png?asset'
+import menuDrawIcon1x from './assets/menu-draw.png?asset'
+import menuDrawIcon2x from './assets/menu-draw@2x.png?asset'
 import { createI18n, isLang, normalizeLang, setUiLang, type Lang } from '@revelith/i18n'
 import {
   DEFAULT_SAVE_DIR_KEY,
@@ -52,11 +60,13 @@ import {
   editMenuTemplate,
   installContextMenu,
   installNavigationGuard,
+  installRendererProtocol,
   isUsableSaveDir,
   HEADLESS_EXIT,
   formatHeadlessEnvelope,
   headlessExitCode,
   parseHeadlessExportArgv,
+  registerRendererScheme,
   setHeadlessMode,
   type HeadlessArgvParse,
   showOpenDialogWithMemory,
@@ -65,7 +75,6 @@ import {
   aboutMenuItem,
   checkUpdatesMenuItem,
   setUpdateCheckInvoker,
-  installRendererProtocol,
 } from '@revelith/electron-utils'
 import {
   readAppSettings,
@@ -116,23 +125,6 @@ import {
   startReveLithLogin,
   watchGskApiKey,
 } from '@revelith/ai-search'
-import {
-  activeProvider,
-  chatForProvider,
-  defaultAiSettings,
-  resolveAiSettings,
-  type AiSettings,
-  type LegacyAiSettings,
-} from '@revelith/ai-provider'
-import { parseFileToText } from '@revelith/file-parse'
-import {
-  buildMatrixExtractionPrompt,
-  createMatrixProject,
-  parseMatrixExtractionResponse,
-  type MatrixColumnDef,
-} from '@revelith/agent-core'
-import { buildMatrixXlsx } from '@revelith/agent-core/matrix/matrix-to-xlsx'
-
 import {
   buildDocsMenu,
   configureDocsRuntime,
@@ -336,6 +328,7 @@ import {
 } from './file-index/rerank'
 import { runHeadlessExport, type HeadlessExporters } from './headless-export'
 import { TabManager } from './tab-manager'
+import { newAppKindForPath } from './new-app-views'
 import {
   activateDetached,
   closeDetachedWithoutPrompt,
@@ -369,7 +362,7 @@ import { isUpdateChannel, type UpdateChannel } from '../shared/update-api'
 // run silently quits and forwards its argv to the running installed ReveLith.
 // REVELITH_USER_DATA: test drivers point this at a scratch dir so an
 // automated instance can run alongside the dev instance (separate lock).
-if (!app.isPackaged)
+if (!app.isPackaged || process.env.REVELITH_USER_DATA)
   app.setPath(
     'userData',
     process.env.REVELITH_USER_DATA ?? join(app.getPath('appData'), 'ReveLith Dev'),
@@ -3095,6 +3088,7 @@ function createShellWindow(): void {
     const dirtyMarkdown = manager.dirtyMarkdownTabs()
     const dirtyHtml = manager.dirtyHtmlTabs()
     const dirtySlides = manager.dirtySlidesTabs()
+    const dirtyNewApps = manager.dirtyReveLithAppTabs()
     const docsTabs = manager.docsTabs()
     if (
       dirtySheets.length === 0 &&
@@ -3102,6 +3096,7 @@ function createShellWindow(): void {
       dirtyMarkdown.length === 0 &&
       dirtyHtml.length === 0 &&
       dirtySlides.length === 0 &&
+      dirtyNewApps.length === 0 &&
       docsTabs.length === 0
     )
       return
@@ -3126,6 +3121,9 @@ function createShellWindow(): void {
       for (const tab of dirtySlides) {
         manager.activateTab(tab.id)
         if (!(await requestSlidesClose(tab.webContents, win))) return
+      }
+      for (const tab of dirtyNewApps) {
+        if (!(await manager.prepareToCloseReveLithAppTab(tab.id))) return
       }
       for (const tab of docsTabs) {
         if (!(await docsQueryDirty(tab.webContents))) continue
@@ -3181,6 +3179,10 @@ const OPEN_DIALOG_EXTENSIONS = [
   'markdown',
   'html',
   'htm',
+  'form',
+  'tasks',
+  'draw',
+  'drawboard',
 ]
 
 function notifyUnsupportedFile(filePath: string): void {
@@ -3253,6 +3255,14 @@ function routeDocumentPath(filePath: string): boolean {
   // a detached editor window already shows this file — focus it, never a second copy
   if (focusDetachedByPath(filePath)) return true
   if (!tabManager) return false
+  const newAppKind = newAppKindForPath(filePath)
+  if (newAppKind) {
+    recordRecentFile(filePath)
+    const existing = tabManager.findReveLithAppTabByPath(filePath)
+    if (existing) tabManager.activateTab(existing)
+    else tabManager.openReveLithAppTab(newAppKind, filePath)
+    return true
+  }
   if (DOCX_RE.test(filePath)) {
     recordRecentFile(filePath)
     const existing = tabManager.findDocsTabByPath(filePath)
@@ -3752,141 +3762,106 @@ function registerHomeIpc(): void {
     newHtmlTab()
   })
 
-  ipcMain.handle(HOME_CHANNELS.newPdf, (_event, opts?: NewFileOpts) => {
+  ipcMain.handle(HOME_CHANNELS.newPdf, async (_event, opts?: NewFileOpts) => {
     rememberPendingDir('pdf', opts)
-    void newPdfTab()
+    await newPdfTab()
   })
 
-  // Hebbia Matrix: extract a comparison grid from source files into a live .xlsx.
-  // Flow: validate → parse each file to text → one AI extraction per file →
-  // buildMatrixXlsx → save to the default folder → open in Sheets.
+  ipcMain.handle(HOME_CHANNELS.newFormsBuilder, () => tabManager?.openReveLithAppTab('forms'))
+  ipcMain.handle(HOME_CHANNELS.newTasks, () => tabManager?.openReveLithAppTab('tasks'))
+  ipcMain.handle(HOME_CHANNELS.newDrawboard, () => tabManager?.openReveLithAppTab('drawboard'))
+
   ipcMain.handle(
-    HOME_CHANNELS.generateMatrix,
-    async (
-      event,
-      input: {
-        files?: Array<{ name?: unknown; path?: unknown }>
-        columns?: Array<{ id?: unknown; name?: unknown; description?: unknown; dataType?: unknown }>
-        projectName?: unknown
-      },
-    ): Promise<{ ok: boolean; path?: string; error?: string }> => {
-      const sendProgress = (current: number, total: number, currentFile: string) => {
-        try {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send(HOME_CHANNELS.matrixProgress, { current, total, currentFile })
-          }
-        } catch {
-          /* progress is best-effort */
-        }
-      }
-      try {
-        const rawFiles = Array.isArray(input?.files) ? input.files : []
-        const rawColumns = Array.isArray(input?.columns) ? input.columns : []
-        if (rawFiles.length === 0) return { ok: false, error: 'Add at least one source file.' }
-        if (rawFiles.length > 20) return { ok: false, error: 'Matrix supports at most 20 files.' }
-        if (rawColumns.length === 0) return { ok: false, error: 'Define at least one column.' }
-        if (rawColumns.length > 12)
-          return { ok: false, error: 'Matrix supports at most 12 columns.' }
-
-        const files = rawFiles.map((f) => ({
-          name: typeof f?.name === 'string' && f.name ? f.name : 'document',
-          path: typeof f?.path === 'string' ? f.path : '',
-        }))
-        for (const f of files) {
-          if (!f.path || !existsSync(f.path))
-            return { ok: false, error: `Source not found: ${f.name}` }
-        }
-
-        const validTypes = new Set(['text', 'number', 'date', 'boolean'])
-        const columns: MatrixColumnDef[] = rawColumns.map((c, i) => ({
-          id:
-            typeof c?.id === 'string' && c.id
-              ? c.id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || `col-${i + 1}`
-              : `col-${i + 1}`,
-          name: typeof c?.name === 'string' ? c.name.slice(0, 80) : `Column ${i + 1}`,
-          description: typeof c?.description === 'string' ? c.description.slice(0, 300) : '',
-          dataType: validTypes.has(c?.dataType as string)
-            ? (c!.dataType as MatrixColumnDef['dataType'])
-            : 'text',
-        }))
-        if (columns.some((c) => !c.name.trim())) {
-          return { ok: false, error: 'Every column needs a name.' }
-        }
-
-        // AI settings (shared userData/ai-settings.json across every editor)
-        let stored: Partial<AiSettings> & LegacyAiSettings = {}
-        try {
-          const raw = readFileSync(join(app.getPath('userData'), 'ai-settings.json'), 'utf-8')
-          stored = JSON.parse(raw)
-        } catch {
-          stored = {}
-        }
-        const settings = resolveAiSettings(stored, defaultAiSettings())
-        settings.provider = activeProvider(settings)
-
-        const projectName =
-          typeof input?.projectName === 'string' && input.projectName.trim()
-            ? input.projectName.trim().slice(0, 60)
-            : `Matrix ${new Date().toISOString().slice(0, 10)}`
-        const project = createMatrixProject(
-          projectName,
-          columns,
-          files.map((f) => ({ name: f.name, path: f.path })),
-        )
-
-        const total = files.length
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i]!
-          sendProgress(i, total, file.name)
-          const parsed = await parseFileToText(file.path)
-          if (!parsed.ok || parsed.kind !== 'text' || !parsed.text?.trim()) {
-            project.rows[i]!.status = 'error'
-            project.rows[i]!.error = parsed.error ?? 'No extractable text in this file.'
-            sendProgress(i + 1, total, file.name)
-            continue
-          }
-          project.rows[i]!.status = 'processing'
-          const prompt = buildMatrixExtractionPrompt(parsed.text, columns)
-          const response = await chatForProvider(
-            settings.provider,
-            settings.providers[settings.provider],
-            prompt.system,
-            prompt.user,
-          )
-          if (!response.ok || !response.content) {
-            project.rows[i]!.status = 'error'
-            project.rows[i]!.error = response.error ?? 'AI extraction failed.'
-            sendProgress(i + 1, total, file.name)
-            continue
-          }
-          project.rows[i]!.cells = parseMatrixExtractionResponse(response.content, columns)
-          project.rows[i]!.status = 'completed'
-          sendProgress(i + 1, total, file.name)
-        }
-
-        const completed = project.rows.filter((r) => r.status === 'completed').length
-        if (completed === 0) {
-          const firstError = project.rows.find((r) => r.error)?.error
-          return { ok: false, error: firstError ?? 'Extraction failed for every file.' }
-        }
-
-        const result = await buildMatrixXlsx(project)
-        const safeName = `${
-          projectName
-            .replace(/[^a-zA-Z0-9_-]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 50) || 'matrix'
-        }-matrix.xlsx`
-        const outPath = uniquePathIn(defaultSaveDir(), safeName)
-        await atomicWriteFile(outPath, result.buffer)
-        recordRecentFile(outPath)
-        openDocumentPath(outPath)
-        return { ok: true, path: outPath }
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) }
-      }
+    'new-app:get-document',
+    (event) => tabManager?.getReveLithAppDocument(event.sender.id) ?? null,
+  )
+  ipcMain.handle('new-app:new-document', (event, title: unknown) =>
+    tabManager?.startNewReveLithAppDocument(
+      event.sender.id,
+      typeof title === 'string' ? title : 'Untitled',
+    ),
+  )
+  ipcMain.handle('new-app:open-document', async (event) => {
+    try {
+      const result = await tabManager?.openReveLithAppDocument(event.sender.id)
+      return result ?? null
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+  ipcMain.handle(
+    'new-app:save-document',
+    async (event, payload: unknown, title: unknown, saveAs: unknown, prompt: unknown) => {
+      const name = typeof title === 'string' ? title : 'Untitled'
+      const result = await tabManager?.saveReveLithAppDocument(
+        event.sender.id,
+        payload,
+        name,
+        saveAs === true,
+        prompt !== false,
+      )
+      if (result?.filePath) recordRecentFile(result.filePath)
+      return result ?? { error: 'This application tab is no longer open.' }
     },
   )
+  ipcMain.handle('drawboard:save-export-file', async (event, fileName: unknown, bytes: unknown) => {
+    if (typeof fileName !== 'string') return { error: 'Invalid export file name.' }
+    const extension = /\.(png|svg|draw)$/i.exec(fileName)?.[1]?.toLowerCase()
+    if (!extension) return { error: 'Export as PNG, SVG, or a ReveLith Draw file.' }
+    const data =
+      bytes instanceof ArrayBuffer
+        ? Buffer.from(bytes)
+        : ArrayBuffer.isView(bytes)
+          ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+          : null
+    if (!data) return { error: 'The exported file data is invalid.' }
+    const safeName =
+      basename(fileName)
+        // eslint-disable-next-line no-control-regex -- replace Windows-forbidden filename control characters.
+        .replace(/[<>:"|?*\x00-\x1f]/g, '-')
+        .trim() || `drawing.${extension}`
+    const defaultName = safeName.toLowerCase().endsWith(`.${extension}`)
+      ? safeName
+      : `${safeName}.${extension}`
+    const extensionLabel = extension === 'draw' ? 'ReveLith Draw' : extension.toUpperCase()
+    const options = {
+      title: `Export ${extensionLabel}`,
+      defaultPath: join(app.getPath('documents'), defaultName),
+      filters: [{ name: extensionLabel, extensions: [extension] }],
+    }
+    const picked = shellWindow
+      ? await dialog.showSaveDialog(shellWindow, options)
+      : await dialog.showSaveDialog(options)
+    if (picked.canceled || !picked.filePath) return { canceled: true as const }
+    const target = picked.filePath.toLowerCase().endsWith(`.${extension}`)
+      ? picked.filePath
+      : `${picked.filePath}.${extension}`
+    try {
+      await atomicWriteFile(target, data)
+      return { filePath: target }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+  ipcMain.handle('new-app:set-document-state', (event, dirty: unknown, title: unknown) => {
+    if (typeof dirty === 'boolean')
+      tabManager?.setReveLithAppDocumentState(
+        event.sender.id,
+        dirty,
+        typeof title === 'string' ? title : undefined,
+      )
+  })
+  ipcMain.handle('new-app:set-document-path', (event, filePath: unknown, title: unknown) => {
+    if (typeof filePath !== 'string' || !existsSync(filePath)) return false
+    const saved =
+      tabManager?.setReveLithAppDocumentPath(
+        event.sender.id,
+        filePath,
+        typeof title === 'string' ? title : undefined,
+      ) ?? false
+    if (saved) recordRecentFile(filePath)
+    return saved
+  })
 
   ipcMain.handle(HOME_CHANNELS.removeRecent, (_event, paths: unknown) => {
     const list = stringPaths(paths)
@@ -4273,15 +4248,24 @@ function registerHomeIpc(): void {
   )
 
   ipcMain.handle(HOME_CHANNELS.deleteFolder, async (_event, dir: unknown) => {
-    if (!insideRoot(dir) || isRoot(dir)) return
+    if (!insideRoot(dir) || isRoot(dir)) return { ok: false, error: tm('errBadArgs') }
     const files = trackedFilesUnder(dir)
     try {
-      await shell.trashItem(dir)
-    } catch {
-      return
+      try {
+        await shell.trashItem(dir)
+      } catch (nativeError) {
+        if (process.platform !== 'win32' || !existsSync(dir)) throw nativeError
+        await moveToWindowsRecycleBin(dir)
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : tm('errRenameFailed'),
+      }
     }
     removeRecentFiles(files)
     removeStarredFiles(files)
+    return { ok: true }
   })
 
   ipcMain.handle(HOME_CHANNELS.getDefaultSaveDir, (): string => defaultSaveDir())
@@ -4402,6 +4386,9 @@ interface MenuIconSet {
   md: NativeImage
   html: NativeImage
   home: NativeImage
+  forms: NativeImage
+  tasks: NativeImage
+  draw: NativeImage
 }
 let menuIconCache: MenuIconSet | null = null
 function menuIcons(): MenuIconSet {
@@ -4413,6 +4400,9 @@ function menuIcons(): MenuIconSet {
     md: loadMenuIcon(menuMdIcon1x, menuMdIcon2x),
     html: loadMenuIcon(menuHtmlIcon1x, menuHtmlIcon2x),
     home: loadMenuIcon(menuHomeIcon1x, menuHomeIcon2x),
+    forms: loadMenuIcon(menuFormIcon1x, menuFormIcon2x),
+    tasks: loadMenuIcon(menuTasksIcon1x, menuTasksIcon2x),
+    draw: loadMenuIcon(menuDrawIcon1x, menuDrawIcon2x),
   }
   return menuIconCache
 }
@@ -4425,6 +4415,9 @@ const TAB_MENU_ICON: Record<TabKind, keyof MenuIconSet> = {
   pdf: 'pdf',
   markdown: 'md',
   html: 'html',
+  forms: 'forms',
+  tasks: 'tasks',
+  drawboard: 'draw',
 }
 
 // tab views see neither DOM events nor a focus change when the user clicks the
@@ -4569,6 +4562,21 @@ function registerTabsIpc(): void {
         icon: menuIcons().pdf,
         click: () => void newPdfTab(),
       },
+      {
+        label: 'AI Forms',
+        icon: menuIcons().forms,
+        click: () => void tabManager?.openReveLithAppTab('forms'),
+      },
+      {
+        label: 'AI Tasks',
+        icon: menuIcons().tasks,
+        click: () => void tabManager?.openReveLithAppTab('tasks'),
+      },
+      {
+        label: 'AI Draw',
+        icon: menuIcons().draw,
+        click: () => void tabManager?.openReveLithAppTab('drawboard'),
+      },
       { type: 'separator' },
       { label: tm('menuOpen'), click: () => void openFileViaDialog() },
     ])
@@ -4614,6 +4622,9 @@ function buildHomeMenu(): void {
         { label: tm('menuNewMarkdown'), click: () => newMarkdownTab() },
         { label: tm('menuNewHtml'), click: () => newHtmlTab() },
         { label: tm('menuNewPdf'), click: () => void newPdfTab() },
+        { label: 'AI Forms', click: () => void tabManager?.openReveLithAppTab('forms') },
+        { label: 'AI Tasks', click: () => void tabManager?.openReveLithAppTab('tasks') },
+        { label: 'AI Draw', click: () => void tabManager?.openReveLithAppTab('drawboard') },
         { type: 'separator' },
         {
           label: tm('menuOpen'),
@@ -5364,6 +5375,9 @@ function installDockMenu(): void {
       { label: tm('menuNewSlide'), click: () => newSlideTab() },
       { label: tm('menuNewMarkdown'), click: () => newMarkdownTab() },
       { label: tm('menuNewPdf'), click: () => void newPdfTab() },
+      { label: 'AI Forms', click: () => void tabManager?.openReveLithAppTab('forms') },
+      { label: 'AI Tasks', click: () => void tabManager?.openReveLithAppTab('tasks') },
+      { label: 'AI Draw', click: () => void tabManager?.openReveLithAppTab('drawboard') },
     ]),
   )
 }
@@ -5452,6 +5466,7 @@ app.on('second-instance', (_event, argv, _cwd, additionalData) => {
 
 installNavigationGuard(app)
 installContextMenu(app, () => contextMenuLabels(currentLang()))
+registerRendererScheme()
 registerAiIpc()
 registerProjectIpc()
 registerDocsIpc()
@@ -5461,13 +5476,19 @@ registerIntegrationsIpc({
   window: () => shellWindow,
   cliDir: app.isPackaged
     ? join(process.resourcesPath, 'cli')
-    : join(APPS_ROOT, '..', 'packages', 'cli', 'bin'),
+    : join(APPS_ROOT, '..', 'packages', 'revelith-cli', 'bin'),
   skillPath: app.isPackaged
     ? join(process.resourcesPath, 'cli', 'skills', 'revelith', 'SKILL.md')
     : join(APPS_ROOT, '..', 'skills', 'revelith', 'SKILL.md'),
+  // Every further bundled skill; each file's front matter names its own folder.
+  extraSkillPaths: [
+    app.isPackaged
+      ? join(process.resourcesPath, 'cli', 'skills', 'revelith-draw', 'SKILL.md')
+      : join(APPS_ROOT, '..', 'skills', 'revelith-draw', 'SKILL.md'),
+  ],
   cliPackageJson: app.isPackaged
     ? join(process.resourcesPath, 'cli', 'package.json')
-    : join(APPS_ROOT, '..', 'packages', 'cli', 'package.json'),
+    : join(APPS_ROOT, '..', 'packages', 'revelith-cli', 'package.json'),
 })
 registerTabsIpc()
 registerDroppedFilesIpc()
@@ -5518,6 +5539,7 @@ async function runHeadlessExportEntry(
 }
 
 app.whenReady().then(async () => {
+  registerFormFileScan()
   // first scan waits for the windows to come up; later ones follow folder changes
   setTimeout(() => ensureFileIndexer()?.refresh(), 4000)
   installRendererProtocol({
@@ -5687,7 +5709,7 @@ app.whenReady().then(async () => {
       executable: process.execPath,
       entry: app.isPackaged
         ? join(process.resourcesPath, 'cli', 'revelith.cjs')
-        : join(APPS_ROOT, '..', 'packages', 'cli', 'dist', 'revelith.cjs'),
+        : join(APPS_ROOT, '..', 'packages', 'revelith-cli', 'dist', 'revelith.cjs'),
     }),
     // lets the content tools take a `document` argument (tab id or path) and edit
     // a tab the *user* has open, with no create_session involved

@@ -229,6 +229,11 @@ body.overlay-title-bar .tab-bar-drag-spacer {
   white-space: nowrap;
 }
 
+.tab-dirty-dot {
+  color: var(--accent, #2563eb);
+  font-size: 9px;
+}
+
 .tab-close {
   -webkit-app-region: no-drag;
   flex-shrink: 0;

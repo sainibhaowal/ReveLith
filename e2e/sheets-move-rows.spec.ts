@@ -1,10 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
 import { copyFile, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Page } from '@playwright/test'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
+import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath, readZipText } from './helpers'
 
 const FIXTURE = resolve(__dirname, '../apps/sheets/fixtures/generated/compatibility-basic.xlsx')
 
@@ -75,8 +74,8 @@ test.describe('sheets: whole-row move', () => {
           const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
           wc?.send('menu:action', 'save')
         })
-        await expect(() => {
-          const xml = execSync(`unzip -p "${workbook}" xl/worksheets/sheet1.xml`).toString()
+        await expect(async () => {
+          const xml = await readZipText(workbook, 'xl/worksheets/sheet1.xml')
           const order = [...xml.matchAll(/<is><t[^>]*>(one|two|three|four)<\/t><\/is>/g)].map(
             (m) => m[1],
           )

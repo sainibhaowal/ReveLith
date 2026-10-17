@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { LoadingScreen } from '@revelith/ui'
 import { handlePdfControl, type ControlRequest } from './control'
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react'
 // legacy build: the modern build relies on new APIs like Math.sumPrecise that the current
@@ -5860,11 +5861,20 @@ export default function App() {
     )
   }
 
+  if (status === 'loading') {
+    return (
+      <LoadingScreen
+        title="ReveLith PDF"
+        message={t('loading').replace(/(?:…|\.{1,3})$/u, '')}
+      />
+    )
+  }
+
   if (status !== 'ready' || !doc) {
     return (
       <div className="app">
         <div className="pdf-placeholder">
-          {status === 'loading' ? t('loading') : status === 'error' ? t('loadError') : t('noFile')}
+          {status === 'error' ? t('loadError') : t('noFile')}
         </div>
       </div>
     )

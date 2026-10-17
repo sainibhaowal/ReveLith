@@ -8,6 +8,10 @@ const local = (rel: string) => fileURLToPath(new URL(rel, import.meta.url))
 
 export default defineConfig({
   resolve: {
+    // The workspace has multiple compatible React versions installed; tests
+    // render shared @revelith/ui components with ReactDOM, so keep hooks and
+    // the renderer on one React module just as the Docs Vite build does.
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@revelith/docx-engine/lazy-media': local('../../packages/docx-engine/src/lazy-media.ts'),
       '@revelith/docx-engine': local('../../packages/docx-engine/src/index.ts'),
@@ -29,6 +33,7 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'jsdom',
+    maxWorkers: 4,
     testTimeout: 20000,
   },
 })

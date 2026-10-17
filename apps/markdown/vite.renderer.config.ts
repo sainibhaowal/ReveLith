@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 // different version) and nests others under this app — dedupe forces every
 // import onto this app's single copy so the bundle never carries two cores.
 const TIPTAP_DEDUPE = [
+  'react',
+  'react-dom',
   '@tiptap/core',
   '@tiptap/pm',
   '@tiptap/react',

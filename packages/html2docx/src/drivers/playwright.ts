@@ -10,6 +10,9 @@ import type { BrowserDriver, ScreenshotOptions, Viewport } from '../driver'
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_PATH,
+  // playwright-core knows the versioned browser cache path on every platform.
+  // Use it when no system Chrome is installed (for example on Windows CI).
+  chromium.executablePath(),
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/usr/bin/google-chrome',
   '/usr/bin/google-chrome-stable',

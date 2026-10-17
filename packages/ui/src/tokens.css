@@ -45,7 +45,6 @@
   --shadow-modal-strong: 0 20px 25px rgb(0 0 0 / 10%);
   --shadow-btn-hover: 0 2px 8px rgb(35 36 37 / 15%);
   --shadow-menu: 0 8px 24px rgb(0 0 0 / 18%);
-
   /* AI panel (canonical names from the former per-app copies) */
   --gs-font-sans:
     'Arial', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
@@ -67,6 +66,16 @@
   --color-border-brand: #0f7fff;
   --color-error: #ef4444;
   --color-error-hover: #dc2626;
+  /* focus rings and the multi-select checkmark glyph for shared choice rows
+     (the clarifications card); the same values the html/slides apps define. */
+  --hx-focus-ring: rgb(35 36 37 / 20%);
+  --hx-focus-ring-soft: rgb(35 36 37 / 18%);
+  --hx-focus-ring-strong: rgb(35 36 37 / 35%);
+  --hx-choice-check: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 6.5l2.5 2.5 4.5-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  /* the "Thinking…" shimmer sweep and its highlight (same values docs/sheets/
+     slides/markdown/pdf define per app); the shared AiTypingIndicator reads them */
+  --ai-shimmer-base: #666666;
+  --ai-shimmer-hi: #d9d9d9;
 
   /* non-color */
   --radius-6: 6px;
@@ -136,6 +145,12 @@
   --color-border-default: #3a3a3a;
   --color-border-strong: #555;
   --color-border-brand: #4a9eff;
+  --hx-focus-ring: rgb(255 255 255 / 22%);
+  --hx-focus-ring-soft: rgb(228 228 228 / 22%);
+  --hx-focus-ring-strong: rgb(228 228 228 / 40%);
+  --hx-choice-check: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 6.5l2.5 2.5 4.5-5' fill='none' stroke='%231e1e1e' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  --ai-shimmer-base: #8a8a8a;
+  --ai-shimmer-hi: #d0d0d0;
 
   color-scheme: dark;
 }
@@ -195,6 +210,12 @@
     --color-border-default: #3a3a3a;
     --color-border-strong: #555;
     --color-border-brand: #4a9eff;
+    --hx-focus-ring: rgb(255 255 255 / 22%);
+    --hx-focus-ring-soft: rgb(228 228 228 / 22%);
+    --hx-focus-ring-strong: rgb(228 228 228 / 40%);
+    --hx-choice-check: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 6.5l2.5 2.5 4.5-5' fill='none' stroke='%231e1e1e' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    --ai-shimmer-base: #8a8a8a;
+    --ai-shimmer-hi: #d0d0d0;
 
     color-scheme: dark;
   }

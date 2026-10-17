@@ -1,41 +1,27 @@
 {
-  "version": "v0.10.100",
+  "version": "v0.9.6",
   "downloads": [
     {
-      "os": "Windows 10 / 11",
-      "format": "ReveLith.Setup.0.10.100.exe",
-      "tag": "Installer",
+      "os": "Linux",
+      "format": "ReveLith-0.9.6.AppImage",
+      "tag": "AppImage",
       "emoji": "↓",
-      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith.Setup.0.10.100.exe",
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.9.6/ReveLith-0.9.6.AppImage",
       "recommended": true
     },
     {
-      "os": "macOS Apple Silicon",
-      "format": "ReveLith-0.10.100-arm64.dmg",
-      "tag": "DMG installer",
-      "emoji": "⌘",
-      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith-0.10.100-arm64.dmg"
-    },
-    {
-      "os": "Linux",
-      "format": "ReveLith-0.10.100.AppImage",
-      "tag": "AppImage",
-      "emoji": "◒",
-      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith-0.10.100.AppImage"
-    },
-    {
       "os": "Debian / Ubuntu",
-      "format": "ReveLith_0.10.100_amd64.deb",
+      "format": "revelith_0.9.6_amd64.deb",
       "tag": "DEB package",
       "emoji": "◒",
-      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith_0.10.100_amd64.deb"
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.9.6/revelith_0.9.6_amd64.deb"
     },
     {
       "os": "Fedora / RPM Linux",
-      "format": "ReveLith-0.10.100.x86_64.rpm",
+      "format": "revelith-0.9.6.x86_64.rpm",
       "tag": "RPM package",
       "emoji": "◒",
-      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.10.100/ReveLith-0.10.100.x86_64.rpm"
+      "url": "https://github.com/sainibhaowal/ReveLith/releases/download/v0.9.6/revelith-0.9.6.x86_64.rpm"
     }
   ]
 }
