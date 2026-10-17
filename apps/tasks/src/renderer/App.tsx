@@ -1,6 +1,7 @@
 ﻿import { AppChatPanel, withWebSearch } from '@revelith/app-chat'
 import {
   AppRibbon,
+  LocalFirstNotice,
   RibbonGroup,
   RibbonQuickButton as SharedRibbonQuickButton,
   RibbonToolButton,
@@ -490,6 +491,13 @@ export default function App() {
         background: 'var(--surface-subtle)',
       }}
     >
+      <LocalFirstNotice
+        storageKey="revelith-tasks/local-first-notice-dismissed"
+        title="AI Tasks is local-first"
+      >
+        Boards stay on this device; ReveLith doesn&apos;t host or publish them. Export a copy from
+        the File tab to share. AI requests use your configured provider.
+      </LocalFirstNotice>
       <div className="tasks-ribbon-shell">
         <AppRibbon
           title={documentTitle}

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import App from './App'
 import { seedBoard, serializeDocument } from '../store/migrate'
 import { defaultStorageKey } from '../store/persistence'
@@ -43,6 +43,14 @@ describe('App shell', () => {
     render(<App />)
     expect(document.querySelector('section[aria-label="Backlog"]')).toBeTruthy()
     expect(screen.getByText(/Welcome to ReveLith Tasks/)).toBeTruthy()
+  })
+
+  it('explains local-first storage and persists the user dismissal', () => {
+    render(<App />)
+    const notice = screen.getByRole('complementary', { name: 'AI Tasks is local-first' })
+    expect(notice.textContent).toContain("doesn't host or publish")
+    fireEvent.click(screen.getByRole('button', { name: "Don't show again" }))
+    expect(window.localStorage.getItem('revelith-tasks/local-first-notice-dismissed')).toBe('1')
   })
 
   it('shows the default columns of the sample project', () => {

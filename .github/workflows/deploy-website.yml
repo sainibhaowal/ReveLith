@@ -1,0 +1,104 @@
+name: Deploy Website to VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional stable v0.x.x release tag; otherwise deploy the latest stable 0.x release'
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Release tag created by the release workflow
+        required: false
+        type: string
+      release_version:
+        description: Release version created by the release workflow
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revelith-website-vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and publish website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Select and validate a stable 0.x release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+          REQUESTED_VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          if [ -n "$REQUESTED_TAG" ]; then
+            TAG="$REQUESTED_TAG"
+          else
+            RELEASES_JSON="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft,isPrerelease)"
+            TAG="$(RELEASES_JSON="$RELEASES_JSON" node tools/select-latest-zero-tag.mjs)"
+          fi
+          [[ "$TAG" =~ ^v0\.[0-9]+\.[0-9]+$ ]]
+          VERSION="${TAG#v}"
+          if [ -n "$REQUESTED_VERSION" ] && [ "$REQUESTED_VERSION" != "$VERSION" ]; then
+            echo "Requested version $REQUESTED_VERSION does not match tag $TAG" >&2
+            exit 1
+          fi
+          ASSETS="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name]')"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_ASSETS=$ASSETS" >> "$GITHUB_ENV"
+          echo "Deploying website manifest for $TAG."
+        shell: bash
+
+      - name: Install dependencies, generate the real download manifest, and build
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          npm ci --prefix apps/web
+          node apps/web/scripts/create-release-manifest.mjs
+          npm run build --prefix apps/web
+          test -s apps/web/dist/index.html
+          test -s apps/web/dist/release.json
+          node --input-type=module -e "const m=JSON.parse(await (await import('node:fs/promises')).readFile('apps/web/dist/release.json','utf8')); if(m.version !== process.env.RELEASE_TAG || !m.downloads.length) process.exit(1)"
+
+      - name: Configure VPS SSH access
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Publish without removing the existing web root
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_WEB_PATH: /opt/revelith_web
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST" && test -n "$VPS_USER"
+          test "$VPS_WEB_PATH" = "/opt/revelith_web"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          ssh "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_WEB_PATH'"
+          rsync -az --delete-delay --delay-updates apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"
+
+      - name: Verify the public site and deployed manifest
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
+            https://revelith.averqel.com/ -o "$RUNNER_TEMP/deployed-index.html"
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
+            https://revelith.averqel.com/release.json -o "$RUNNER_TEMP/deployed-release.json"
+          EXPECTED_VERSION="$RELEASE_TAG" node --input-type=module -e "const m=JSON.parse(await (await import('node:fs/promises')).readFile(process.argv[1],'utf8')); if(m.version !== process.env.EXPECTED_VERSION || !m.downloads.length) throw new Error('deployed release manifest failed verification')" \
+            "$RUNNER_TEMP/deployed-release.json"

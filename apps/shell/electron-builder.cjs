@@ -67,6 +67,8 @@ const includeMacX64 = process.env.REVELITH_MAC_X64 === '1'
 // exist at beforePack because electron-builder exits 0 on a missing
 // extraResources source (Sheets would ship dead on every ARM install).
 const winArm64 = process.env.REVELITH_WIN_ARM64 === '1'
+const arm64UpdateChannel =
+  winArm64 || (process.platform === 'linux' && process.arch === 'arm64') ? 'latest-arm64' : 'latest'
 // 7-Zip packs ARM64 executables with its ARM64 branch filter, which the NSIS
 // install-time extractor (Nsis7z) cannot decode: it silently skips
 // ReveLith.exe and every dll (electron-builder#9983). BCJ it can decode.
@@ -781,7 +783,7 @@ if (updateUrl) {
     {
       provider: 'generic',
       url: updateUrl.replace(/\/+$/, ''),
-      channel: 'latest',
+      channel: arm64UpdateChannel,
     },
   ]
 }

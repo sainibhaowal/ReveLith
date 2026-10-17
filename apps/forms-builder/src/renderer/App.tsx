@@ -5,6 +5,7 @@ import {
   type AppAgentSkill,
   type AppChatCommand,
 } from '@revelith/app-chat'
+import { LocalFirstNotice } from '@revelith/ui'
 import type { AgentToolCall } from '@revelith/agent-core'
 import { Ribbon, type FieldTypeDef, type FormAiAction } from './components/Ribbon'
 import { PropertiesPane } from './components/PropertiesPane'
@@ -3087,6 +3088,14 @@ export default function App() {
         fontFamily: 'system-ui, sans-serif',
       }}
     >
+      <LocalFirstNotice
+        storageKey="revelith-forms-builder/local-first-notice-dismissed"
+        title="AI Forms is local-first, not a hosted service"
+      >
+        Drafts and responses stay on this device; ReveLith doesn&apos;t host forms or collect
+        responses. Export a standalone form to share it; responses won&apos;t sync back here. AI
+        requests use your configured provider.
+      </LocalFirstNotice>
       <Ribbon
         documentTitle={schema.title || 'Untitled Form'}
         statusText={documentStatus}
