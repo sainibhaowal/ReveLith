@@ -15,6 +15,11 @@ const env = {
   // profiles, the in-repo Cargo target can be executable but not writable.
   CARGO_TARGET_DIR: process.env.CARGO_TARGET_DIR ?? join(tmpdir(), 'ReveLith-Sheets-CargoTarget'),
 }
+// The CLI test suite consumes the same Windows binary built by the Sheets
+// package above. Point it at Cargo's isolated target rather than a stale or
+// policy-blocked executable under the repository checkout.
+const sidecarExecutable = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar'
+env.XLSX_SIDECAR_PATH ??= join(env.CARGO_TARGET_DIR, 'release', sidecarExecutable)
 
 if (
   existsSync(cargoBin) &&
