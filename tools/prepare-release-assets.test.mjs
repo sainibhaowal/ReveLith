@@ -106,6 +106,33 @@ test('release asset collection', async (t) => {
     }
   })
 
+  await t.test('publishes architecture-specific RPMs without a basename collision', async () => {
+    const { source, destination, temporaryDirectory } = await fixture()
+    try {
+      await asset(source, 'desktop-linux-x64', 'release', 'revelith-0.11.0.x86_64.rpm', 'x64 rpm')
+      await asset(
+        source,
+        'desktop-linux-arm64',
+        'release',
+        'revelith-0.11.0.aarch64.rpm',
+        'arm64 rpm',
+      )
+
+      const names = await prepareReleaseAssets(source, destination)
+      assert.deepEqual(names, ['revelith-0.11.0.aarch64.rpm', 'revelith-0.11.0.x86_64.rpm'])
+      assert.equal(
+        await readFile(join(destination, 'revelith-0.11.0.x86_64.rpm'), 'utf8'),
+        'x64 rpm',
+      )
+      assert.equal(
+        await readFile(join(destination, 'revelith-0.11.0.aarch64.rpm'), 'utf8'),
+        'arm64 rpm',
+      )
+    } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true })
+    }
+  })
+
   await t.test('requires at least one installer', async () => {
     const { source, destination, temporaryDirectory } = await fixture()
     try {

@@ -38,6 +38,7 @@ function loadConfig(opts: {
     process: { platform: 'linux', arch: 'x64', env: {}, execPath: '/usr/bin/node' },
     require: (id: string) => {
       if (id === './package.json') return shellPackage
+      if (id === './build/linux-target-arch.cjs') return require('../build/linux-target-arch.cjs')
       if (id === 'node:child_process') {
         return {
           execFileSync: (_file: string, args: string[], runOpts: { env?: NodeJS.ProcessEnv }) => {

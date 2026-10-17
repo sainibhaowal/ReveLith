@@ -76,6 +76,7 @@ if (winArm64 && !process.env.ELECTRON_BUILDER_7Z_FILTER) {
   process.env.ELECTRON_BUILDER_7Z_FILTER = 'BCJ'
 }
 const winArch = winArm64 ? 'arm64' : 'x64'
+const linuxBuildArch = require('./build/linux-target-arch.cjs').linuxTargetArch(process.arch)
 const winSidecarTarget = winArm64 ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-gnu'
 const WIN_SIDECAR = existsSync(
   join(
@@ -626,14 +627,12 @@ const config = {
   linux: {
     // AppImage (self-contained, any distro) + deb (apt install, pulls in the
     // GTK/NSS runtime deps) + rpm (dnf/zypper install on Fedora / RHEL /
-    // openSUSE). Default artifact names are kept on purpose —
-    // ReveLith-<v>.AppImage / revelith_<v>_amd64.deb — because the public
-    // README download links and the already-published linux-v0.5.149 release
-    // use them.
+    // openSUSE). Match the native build runner so x64 and ARM64 jobs produce
+    // architecture-correct packages with distinct filenames.
     target: [
-      { target: 'AppImage', arch: ['x64'] },
-      { target: 'deb', arch: ['x64'] },
-      { target: 'rpm', arch: ['x64'] },
+      { target: 'AppImage', arch: [linuxBuildArch] },
+      { target: 'deb', arch: [linuxBuildArch] },
+      { target: 'rpm', arch: [linuxBuildArch] },
     ],
     // deb control metadata; values match the manually published 0.5.149 deb
     // so apt sees the new packages as the same lineage. Homepage comes from
