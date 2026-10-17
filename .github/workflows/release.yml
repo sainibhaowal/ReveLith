@@ -47,8 +47,13 @@ jobs:
           set -euo pipefail
           VERSION="$(node tools/release-version.mjs)"
           TAG="v$VERSION"
+          NOTES_START_TAG="$(git tag --list 'v0.*' --sort=-version:refname | grep -E '^v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sed -n '1p' || true)"
+          NOTES_ARGS=()
+          if [ -n "$NOTES_START_TAG" ]; then
+            NOTES_ARGS+=(--notes-start-tag "$NOTES_START_TAG")
+          fi
           echo "Creating release $TAG ($RELEASE_TYPE policy)"
-          gh release create "$TAG" --target "$GITHUB_SHA" --title "ReveLith $TAG" --generate-notes
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "ReveLith $TAG" --generate-notes "${NOTES_ARGS[@]}"
           echo "published=true" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
