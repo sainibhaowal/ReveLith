@@ -324,7 +324,7 @@ export function ChartInsertModal({ editor, onClose }: { editor: Editor; onClose:
       kind,
       title: title.trim() || t('ribbonChartTitlePh'),
       categories,
-      series: series.map((s) => ({
+      series: series.slice(0, kind === 'pie' || kind === 'doughnut' ? 1 : undefined).map((s) => ({
         name: s.name,
         values: s.values.map((v) => {
           const n = Number(v.trim().replace(/,/g, ''))
@@ -334,10 +334,13 @@ export function ChartInsertModal({ editor, onClose }: { editor: Editor; onClose:
     }
     const display: ChartDisplay = {
       partPath: '',
-      kind: spec.kind,
+      kind: spec.kind === 'doughnut' ? 'pie' : spec.kind,
       title: spec.title,
       categories: spec.categories,
       series: spec.series,
+      ...(spec.kind === 'doughnut' ? { holePct: 50 } : {}),
+      widthPx: 576,
+      heightPx: 336,
     }
     const inserted = insertTopLevelBlockAtSelection(editor, {
       type: 'docProtected',
@@ -362,6 +365,9 @@ export function ChartInsertModal({ editor, onClose }: { editor: Editor; onClose:
               ['bar', t('ribbonChartBar')],
               ['line', t('ribbonChartLine')],
               ['pie', t('ribbonChartPie')],
+              ['area', t('ribbonChartArea')],
+              ['radar', t('ribbonChartRadar')],
+              ['doughnut', t('ribbonChartDoughnut')],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -392,7 +398,7 @@ export function ChartInsertModal({ editor, onClose }: { editor: Editor; onClose:
             </tr>
           </thead>
           <tbody>
-            {series.map((s, i) => (
+            {series.slice(0, kind === 'pie' || kind === 'doughnut' ? 1 : undefined).map((s, i) => (
               <tr key={i}>
                 <th>
                   <input value={s.name} onChange={(e) => setSerName(i, e.target.value)} />
@@ -412,7 +418,7 @@ export function ChartInsertModal({ editor, onClose }: { editor: Editor; onClose:
         </table>
         <div className="modal-row">
           <button onClick={addCategory}>{t('ribbonChartAddCategory')}</button>
-          <button onClick={addSeries} disabled={kind === 'pie'}>
+          <button onClick={addSeries} disabled={kind === 'pie' || kind === 'doughnut'}>
             {t('ribbonChartAddSeries')}
           </button>
         </div>

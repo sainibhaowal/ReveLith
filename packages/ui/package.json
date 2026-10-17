@@ -16,9 +16,12 @@
     "./ribbon-collapse.css": "./src/ribbon-collapse.css",
     "./markdown.css": "./src/markdown.css",
     "./ai-panel-prefs.css": "./src/ai-panel-prefs.css",
+    "./ai-typing.css": "./src/ai-typing.css",
     "./ai-scope-quote.css": "./src/ai-scope-quote.css",
     "./image-dialogs.css": "./src/image-dialogs.css",
     "./image-viewer.css": "./src/image-viewer.css",
+    "./app-ribbon.css": "./src/app-ribbon.css",
+    "./loading-screen.css": "./src/loading-screen.css",
     "./fonts/*": "./src/fonts/*"
   },
   "scripts": {

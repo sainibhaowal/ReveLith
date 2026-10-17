@@ -24,6 +24,7 @@ const en = {
   ribbonVerticalPosition: 'Vertical position',
   ribbonDistanceFromText: 'Distance from text',
   ribbonCellMargins: 'Default cell margins',
+  ribbonCellSpacing: 'Spacing between cells',
 }
 
 /**

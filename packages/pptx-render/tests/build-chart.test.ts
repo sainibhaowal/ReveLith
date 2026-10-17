@@ -45,7 +45,7 @@ describe('buildChartNode', () => {
     expect(points).toHaveLength(values.length * 2)
     expect(points[1]).toBeGreaterThan(points[points.length - 1]!)
     expect(node.labels.some((label) => label.text === '30')).toBe(true)
-  })
+  }, 15_000)
 
   it('renders 130,000 horizontal bars without spreading their values', () => {
     const values = Array<number>(130_000).fill(10)

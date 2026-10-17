@@ -1,7 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import JSZip from 'jszip'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -12,6 +11,7 @@ import {
   saveWorkbookViaSidecar,
 } from '@revelith/xlsx-gateway/gateway/xlsx-package-io'
 import { XlsxSidecarClient } from '../src/main/xlsx-sidecar-client'
+import { sidecarBinaryPath } from './sidecar-path'
 import { buildEditFixture } from './fixture-builder'
 
 describe('saveWorkbookViaSidecar', () => {
@@ -229,10 +229,3 @@ describe('assertManifestPreserved', () => {
     ).toThrow('should have created new.xml')
   })
 })
-
-function sidecarBinaryPath(): string {
-  const executable = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar'
-  return fileURLToPath(
-    new URL(`../native/xlsx-engine/target/release/${executable}`, import.meta.url),
-  )
-}

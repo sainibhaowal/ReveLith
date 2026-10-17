@@ -32,17 +32,32 @@ export interface IntegrationsDeps {
   cliDir: string
   /** skills/revelith/SKILL.md (repo file in dev, Resources/cli/skills/... packaged) */
   skillPath: string
+  /** any further bundled skills (skills/<name>/SKILL.md); the folder name comes from each file's front matter */
+  extraSkillPaths?: string[]
   /** packages/cli/package.json (its version is the CLI version) */
   cliPackageJson: string
 }
 
 /** Settings → Integrations: probe, install, uninstall, zip. No write happens without a click in that pane. */
 export function registerIntegrationsIpc(deps: IntegrationsDeps): void {
-  const bundled = (): BundledSkill => bundledSkillFrom(readFileSync(deps.skillPath))
+  /** Every skill this build ships, primary first. */
+  const bundledList = (): BundledSkill[] =>
+    [deps.skillPath, ...(deps.extraSkillPaths ?? [])]
+      .filter((path): path is string => Boolean(path))
+      .map((path) => bundledSkillFrom(readFileSync(path)))
+  const bundled = (): BundledSkill => bundledList()[0]!
+  /** Pick one skill by folder name; unknown names fall back to the primary. */
+  const pickSkill = (name?: unknown): BundledSkill => {
+    const all = bundledList()
+    if (typeof name !== 'string' || !name) return all[0]!
+    return all.find((skill) => skill.name === name) ?? all[0]!
+  }
+  const cliRequirement = (text: string): string =>
+    /^\s+cli:\s*['"]?>=\s*(\d+\.\d+\.\d+)/m.exec(text)?.[1] ?? ''
   const ledger = (): SkillLedger => ledgerFromSettings(readAppSettings(deps.settingsPath()))
   const saveLedger = (l: SkillLedger) => writeAppSetting(deps.settingsPath(), LEDGER_KEY, l)
-  const stateOf = (skillsDir: string): SkillInstallState =>
-    readInstallState(skillsDir, bundled(), ledger())
+  const stateOf = (skillsDir: string, name?: unknown): SkillInstallState =>
+    readInstallState(skillsDir, pickSkill(name), ledger())
 
   ipcMain.handle(INTEGRATIONS_CHANNELS.status, (): IntegrationsStatus => {
     const skill = bundled()
@@ -56,31 +71,47 @@ export function registerIntegrationsIpc(deps: IntegrationsDeps): void {
         version: cliVersion(deps.cliPackageJson),
       },
       skillVersion: skill.version,
-      skillNeedsCli: /^\s+cli:\s*['"]?>=\s*(\d+\.\d+\.\d+)/m.exec(skill.text)?.[1] ?? '',
+      skillNeedsCli: cliRequirement(skill.text),
+      // Every skill this build ships, each with its own install state per
+      // agent, so the pane can list and install all of them.
+      skills: bundledList().map((entry) => ({
+        name: entry.name,
+        version: entry.version,
+        needsCli: cliRequirement(entry.text),
+        description:
+          /^\s*description:\s*(.+)$/m
+            .exec(entry.text)?.[1]
+            ?.trim()
+            .replace(/^['"]|['"]$/g, '') ?? '',
+        agents: detectAgents().map((target) => ({
+          ...target,
+          state: readInstallState(target.skillsDir, entry, l),
+        })),
+      })),
       agents: detectAgents().map((a) => ({ ...a, state: readInstallState(a.skillsDir, skill, l) })),
     }
   })
 
   ipcMain.handle(
     INTEGRATIONS_CHANNELS.installSkill,
-    (_e, target: { agentId?: AgentId; dir?: string }): SkillInstallState => {
+    (_e, target: { agentId?: AgentId; dir?: string; name?: string }): SkillInstallState => {
       const skillsDir = target.dir ?? agentTarget(target.agentId!)?.skillsDir
       if (!skillsDir) throw new Error('unknown skill target')
       const l = ledger()
-      installSkill(skillsDir, bundled(), l)
+      installSkill(skillsDir, pickSkill(target.name), l)
       saveLedger(l)
-      return stateOf(skillsDir)
+      return stateOf(skillsDir, target.name)
     },
   )
 
   ipcMain.handle(
     INTEGRATIONS_CHANNELS.uninstallSkill,
-    (_e, agentId: AgentId): SkillInstallState => {
+    (_e, agentId: AgentId, name?: string): SkillInstallState => {
       const target = agentTarget(agentId)
       if (!target) throw new Error('unknown skill target')
       const l = ledger()
-      if (uninstallSkill(target.skillsDir, l)) saveLedger(l)
-      return stateOf(target.skillsDir)
+      if (uninstallSkill(target.skillsDir, l, pickSkill(name).name)) saveLedger(l)
+      return stateOf(target.skillsDir, name)
     },
   )
 
@@ -100,8 +131,8 @@ export function registerIntegrationsIpc(deps: IntegrationsDeps): void {
 
   ipcMain.handle(
     INTEGRATIONS_CHANNELS.saveSkillZip,
-    async (_e, title: string): Promise<string | null> => {
-      const skill = bundled()
+    async (_e, title: string, name?: string): Promise<string | null> => {
+      const skill = pickSkill(name)
       const opts: Electron.SaveDialogOptions = {
         title: String(title ?? ''),
         defaultPath: join(app.getPath('downloads'), `revelith-skill-${skill.version}.zip`),

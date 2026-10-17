@@ -1,7 +1,17 @@
-export type TabKind = 'home' | 'docs' | 'sheets' | 'slides' | 'pdf' | 'markdown' | 'html'
+export type TabKind =
+  | 'home'
+  | 'docs'
+  | 'sheets'
+  | 'slides'
+  | 'pdf'
+  | 'markdown'
+  | 'html'
+  | 'forms'
+  | 'tasks'
+  | 'drawboard'
 
 /** a tab that holds a document — every kind except the Home screen */
-export type DocumentTabKind = Exclude<TabKind, 'home'>
+export type DocumentTabKind = Exclude<TabKind, 'home' | 'forms' | 'tasks' | 'drawboard'>
 
 /** one open tab in the top tab strip; Home is always id 'home' and not closable */
 export interface TabSummary {
@@ -12,6 +22,7 @@ export interface TabSummary {
   active: boolean
   /** absolute path behind the tab; absent while the document is untitled */
   filePath?: string
+  dirty?: boolean
 }
 
 /**

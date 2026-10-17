@@ -1,0 +1,120 @@
+/* Shared waiting/thinking treatment for every app that renders AiTypingIndicator.
+ *
+ * These are the values the older apps (docs, html, sheets, slides, markdown, pdf)
+ * carry per app: a 14px label whose text sweeps through a lighter highlight, over
+ * two grow/shrink dots. It used to be a different, bluer animation here while the
+ * apps kept their own copies, so the four newer apps looked unlike the rest; the
+ * app-level copies still win in those apps (their styles.css loads later), and
+ * everything else now gets this one. */
+
+.ai-typing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.ai-typing-label {
+  display: inline-block;
+  position: relative;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--ai-shimmer-base, #666666);
+  -webkit-text-fill-color: transparent;
+  background: var(--ai-shimmer-base, #666666)
+    linear-gradient(
+      to left,
+      var(--ai-shimmer-base, #666666),
+      var(--ai-shimmer-hi, #d9d9d9) 50%,
+      var(--ai-shimmer-base, #666666)
+    );
+  background-clip: text;
+  -webkit-background-clip: text;
+  background-repeat: no-repeat;
+  background-size: 70% 100%;
+  animation: revelith-ai-thinking-shimmer 1.2s infinite alternate linear;
+}
+
+.ai-typing-elapsed {
+  color: var(--color-text-tertiary, #8a8a8a);
+  font-variant-numeric: tabular-nums;
+  -webkit-text-fill-color: var(--color-text-tertiary, #8a8a8a);
+}
+
+.ai-typing-dots {
+  height: 12px;
+  display: flex;
+  gap: 2px;
+}
+
+.ai-typing-dot-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 12px;
+}
+
+.ai-typing-dot-grow,
+.ai-typing-dot-shrink {
+  flex: none;
+  background: var(--color-brand-secondary, #0f7fff);
+  border-radius: 50%;
+}
+
+.ai-typing-dot-grow {
+  animation: revelith-ai-dot-grow 2s infinite;
+}
+.ai-typing-dot-shrink {
+  animation: revelith-ai-dot-shrink 2s infinite;
+}
+
+/* App-scoped names on purpose: the older apps already define ai-thinking-shimmer
+   and ai-dot-* in their own stylesheets, and redefining those names here could
+   reach into them depending on bundle order. */
+@keyframes revelith-ai-thinking-shimmer {
+  0% {
+    background-position: -100% top;
+  }
+  100% {
+    background-position: 250% top;
+  }
+}
+
+@keyframes revelith-ai-dot-grow {
+  0%,
+  100% {
+    width: 4px;
+    height: 4px;
+    opacity: 0.45;
+  }
+  50% {
+    width: 12px;
+    height: 12px;
+    opacity: 1;
+  }
+}
+
+@keyframes revelith-ai-dot-shrink {
+  0%,
+  100% {
+    width: 12px;
+    height: 12px;
+    opacity: 1;
+  }
+  50% {
+    width: 4px;
+    height: 4px;
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-typing-label,
+  .ai-typing-dot-grow,
+  .ai-typing-dot-shrink {
+    animation-duration: 4s;
+  }
+}

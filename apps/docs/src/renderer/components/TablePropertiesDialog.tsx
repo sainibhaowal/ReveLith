@@ -51,6 +51,7 @@ export interface TableValue {
   marginRightCm: number
   marginBottomCm: number
   marginLeftCm: number
+  spacingCm: number
 }
 
 const cmOf = (value: unknown, fallback = 0) =>
@@ -78,10 +79,11 @@ export function tableValueOf(attrs: Record<string, unknown>): TableValue {
     marginRightCm: cmOf(margins.right, 108),
     marginBottomCm: cmOf(margins.bottom),
     marginLeftCm: cmOf(margins.left, 108),
+    spacingCm: cmOf(attrs.cellSpacingTwips),
   }
 }
 
-type TableGroup = 'autoFit' | 'align' | 'wrap' | 'margins'
+type TableGroup = 'autoFit' | 'align' | 'wrap' | 'margins' | 'spacing'
 
 /** writes only the touched groups; the width measurement mirrors the ribbon's AutoFit path */
 export function applyTableValue(
@@ -108,6 +110,10 @@ export function applyTableValue(
       left: twips(value.marginLeftCm),
     }
     patch.cellMarEdited = true
+  }
+  if (touched.has('spacing')) {
+    patch.cellSpacingTwips = Math.max(0, Math.round(value.spacingCm * TWIPS_PER_CM))
+    patch.cellSpacingEdited = true
   }
   if (touched.has('wrap')) {
     let measuredWidthPx = Number(tableAttrs.widthPx) || 0
@@ -548,6 +554,15 @@ export function TablePropertiesDialog({
                   (n) => updateTable('margins', { marginRightCm: n }),
                   { label: t('ribbonMarginRight') },
                 )}
+              </div>
+            </section>
+            <section className="table-properties-card">
+              <h3>{t('ribbonCellSpacing')}</h3>
+              <div className="table-properties-grid">
+                {cmInput(tableValue.spacingCm, (n) => updateTable('spacing', { spacingCm: n }), {
+                  min: 0,
+                  label: t('ribbonCellSpacing'),
+                })}
               </div>
             </section>
           </>

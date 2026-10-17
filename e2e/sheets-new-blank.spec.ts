@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
+import {
+  launchShell,
+  closeAndSaveVideo,
+  waitForPageWithUrl,
+  screenshotPath,
+  readZipText,
+} from './helpers'
 
 /**
  * Regression for "new spreadsheet cannot be saved" (feedback 2368785), updated
@@ -63,8 +68,8 @@ test.describe('sheets: new blank workbook', () => {
         const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
         wc?.send('menu:action', 'save')
       })
-      await expect(() => {
-        const xml = execSync(`unzip -p "${workbook}" xl/worksheets/sheet1.xml`).toString()
+      await expect(async () => {
+        const xml = await readZipText(workbook, 'xl/worksheets/sheet1.xml')
         expect(xml).toContain('<v>42</v>')
       }).toPass({ timeout: 15_000 })
     } finally {

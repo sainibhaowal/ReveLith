@@ -1280,6 +1280,9 @@ async function buildBlock(
         if (runs) caption.runs = runs
       }
       const diagramText = isChart ? null : await extractDiagramText(detect, ctx)
+      const chartJc = isChart
+        ? /<w:jc w:val="([^"]+)"/.exec(stripTextboxes(detect))?.[1]
+        : undefined
       const diagramDisplay = isChart ? null : await extractDiagramDrawing(detect, ctx)
       // the diagram may share its paragraph with other anchored drawings
       // (photos, gallery shapes): extract those too, each at its own anchor,
@@ -1309,6 +1312,11 @@ async function buildBlock(
         type: 'passthrough',
         label: isChart ? 'Chart' : 'SmartArt',
         ...(chartDisplay ? { chartDisplay, previewText: chartDisplay.title ?? '' } : {}),
+        ...(chartJc === 'center'
+          ? { imageAlign: 'center' as const }
+          : chartJc === 'right' || chartJc === 'end'
+            ? { imageAlign: 'right' as const }
+            : {}),
         ...(caption?.kind === 'text' ? { fieldDisplay: caption } : {}),
         ...(diagramText ? { previewText: diagramText } : {}),
         ...(diagramDisplay ? { diagramDisplay } : {}),

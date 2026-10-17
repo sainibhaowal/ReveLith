@@ -32,7 +32,6 @@ function makeWebContents(): FakeWebContents {
     isDestroyed: vi.fn(() => false),
     loadFile: vi.fn(),
     loadURL: vi.fn(),
-    loadURL: vi.fn(),
     once: vi.fn((event: string, listener: () => void) => listeners.set(event, listener)),
     send: vi.fn(),
     setWindowOpenHandler: vi.fn(),

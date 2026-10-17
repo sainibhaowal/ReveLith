@@ -1,0 +1,106 @@
+{
+  "name": "@revelith/drawboard",
+  "productName": "ReveLith Draw",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "description": "AI-native drawing canvas for brainstorming, flowcharts, and diagrams",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "dev:renderer": "vite --config vite.renderer.config.ts",
+    "build": "electron-vite build",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dist:mac": "electron-vite build \u0026\u0026 electron-builder --mac",
+    "dist:win": "electron-vite build \u0026\u0026 electron-builder --win",
+    "dist:dir": "electron-vite build \u0026\u0026 electron-builder --dir"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "jsdom": "^28.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.11"
+  },
+  "author": "ReveLith",
+  "build": {
+    "appId": "com.revelith.drawboard",
+    "productName": "ReveLith Draw",
+    "electronVersion": "43.3.0",
+    "artifactName": "AIDraw-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "wb",
+        "name": "ReveLith Draw",
+        "role": "Editor"
+      },
+      {
+        "ext": "draw",
+        "name": "ReveLith Drawboard file",
+        "role": "Editor"
+      },
+      {
+        "ext": "drawboard",
+        "name": "ReveLith Drawboard file (legacy)",
+        "role": "Editor"
+      },
+      {
+        "ext": "whiteboard",
+        "name": "Legacy ReveLith drawing",
+        "role": "Editor"
+      }
+    ],
+    "npmRebuild": false,
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "icon": "build/icon.png"
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@revelith/agent-core": "*",
+    "@revelith/ai-provider": "*",
+    "@revelith/ai-search": "*",
+    "@revelith/app-chat": "*",
+    "@revelith/electron-utils": "*",
+    "@revelith/file-parse": "*",
+    "@revelith/ui": "*",
+    "mermaid": "^11.17.2",
+    "electron-updater": "^6.8.9"
+  }
+}

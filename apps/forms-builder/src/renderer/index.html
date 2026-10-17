@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReveLith Forms Builder</title>
+  </head>
+  <body>
+    <div id="root">
+      <style>
+        html,
+        body,
+        #root {
+          min-height: 100%;
+          margin: 0;
+        }
+        .rvl-loading-screen {
+          min-height: 100vh;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 18px;
+          box-sizing: border-box;
+          font-family:
+            system-ui,
+            -apple-system,
+            'Segoe UI',
+            sans-serif;
+          background: #f6f7f9;
+          color: #3d3d3d;
+          -webkit-font-smoothing: antialiased;
+        }
+        .rvl-loading-mark {
+          animation: rvl-loading-pulse 2.2s ease-in-out infinite;
+        }
+        .rvl-loading-title {
+          margin: 0;
+          font-size: 20px;
+          font-weight: 650;
+          letter-spacing: 0.01em;
+        }
+        .rvl-loading-message {
+          margin: 0;
+          font-size: 13px;
+          opacity: 0.72;
+        }
+        .rvl-loading-ring {
+          width: 38px;
+          height: 38px;
+          border: 3px solid rgb(105 101 219 / 22%);
+          border-top-color: #6965db;
+          border-radius: 50%;
+          animation: rvl-loading-spin 0.9s linear infinite;
+        }
+        .rvl-loading-dots span {
+          animation: rvl-loading-blink 1.4s infinite;
+        }
+        .rvl-loading-dots span:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .rvl-loading-dots span:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+        @keyframes rvl-loading-spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        @keyframes rvl-loading-pulse {
+          0%,
+          100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.82;
+            transform: scale(0.97);
+          }
+        }
+        @keyframes rvl-loading-blink {
+          0%,
+          100% {
+            opacity: 0.25;
+          }
+          50% {
+            opacity: 1;
+          }
+        }
+        @media (prefers-color-scheme: dark) {
+          .rvl-loading-screen {
+            background: #1e1e1e;
+            color: #e3e3e8;
+          }
+          .rvl-loading-ring {
+            border-color: rgb(168 165 255 / 22%);
+            border-top-color: #a8a5ff;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .rvl-loading-mark,
+          .rvl-loading-ring,
+          .rvl-loading-dots span {
+            animation: none;
+          }
+        }
+      </style>
+      <div
+        class="rvl-loading-screen"
+        role="status"
+        aria-live="polite"
+        aria-label="ReveLith Forms Builder: Loading your form"
+      >
+        <svg
+          class="rvl-loading-mark"
+          width="60"
+          height="60"
+          viewBox="0 0 120 120"
+          fill="none"
+          aria-hidden="true"
+        >
+          <g transform="translate(10 10)">
+            <circle cx="50" cy="50" r="7.5" fill="#38bdf8" />
+            <ellipse cx="50" cy="50" rx="42" ry="18" stroke="#38bdf8" stroke-width="6.5" />
+            <circle cx="88" cy="50" r="6.5" fill="#67e8f9" />
+            <ellipse
+              cx="50"
+              cy="50"
+              rx="42"
+              ry="18"
+              stroke="#60a5fa"
+              stroke-width="6.5"
+              transform="rotate(60 50 50)"
+            />
+            <circle cx="31" cy="17" r="6.5" fill="#93c5fd" />
+            <ellipse
+              cx="50"
+              cy="50"
+              rx="42"
+              ry="18"
+              stroke="#818cf8"
+              stroke-width="6.5"
+              transform="rotate(120 50 50)"
+            />
+            <circle cx="31" cy="83" r="6.5" fill="#c7d2fe" />
+          </g>
+        </svg>
+        <p class="rvl-loading-title">ReveLith Forms Builder</p>
+        <span class="rvl-loading-ring" aria-hidden="true"></span>
+        <p class="rvl-loading-message">
+          Loading your form<span class="rvl-loading-dots" aria-hidden="true"
+            ><span>.</span><span>.</span><span>.</span></span
+          >
+        </p>
+      </div>
+    </div>
+    <script>
+      // Dev diagnostic: surface renderer boot errors on screen and ping the
+      // dev server (visible as a 404 in its terminal output).
+      ;(function () {
+        function esc(s) {
+          return String(s).replace(/</g, '&lt;')
+        }
+        function report(msg, src) {
+          try {
+            fetch(
+              '/__rvlerr__?msg=' +
+                encodeURIComponent(String(msg).slice(0, 500)) +
+                '&src=' +
+                encodeURIComponent(String(src || '').slice(0, 200)),
+            ).catch(function () {})
+          } catch (e) {}
+          var root = document.getElementById('root')
+          if (root) {
+            root.innerHTML =
+              '<pre style="padding:20px;color:#b91c1c;font-size:14px;white-space:pre-wrap">Renderer error:\n' +
+              esc(msg) +
+              '\n' +
+              esc(src || '') +
+              '</pre>'
+          }
+        }
+        window.addEventListener(
+          'error',
+          function (e) {
+            // A respondent image/video failing to load is not a renderer boot
+            // failure. Keep the editor mounted so offline/removed media does
+            // not replace the complete form UI with this diagnostic screen.
+            if (
+              e.target &&
+              e.target !== window &&
+              String(e.target.tagName || '').toUpperCase() !== 'SCRIPT'
+            )
+              return
+            var src = (e.target && e.target.src) || e.filename + ':' + e.lineno + ':' + e.colno
+            report(e.message || 'resource load error', src)
+          },
+          true,
+        )
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason
+          report('unhandled rejection: ' + ((r && r.message) || r), '')
+        })
+      })()
+    </script>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

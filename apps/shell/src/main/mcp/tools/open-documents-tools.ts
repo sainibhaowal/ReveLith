@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { z } from 'zod'
-import type { OpenDocumentTab, TabKind } from '../../../shared/tabs-api'
+import type { DocumentTabKind, OpenDocumentTab, TabKind } from '../../../shared/tabs-api'
 import type { McpToolDefinition } from '../mcp-server'
 import { formatFamily, familyLabel, type EditorFamily } from './formats'
 import { sanitizeFileBase, uniquePathIn } from './document-tools'
@@ -18,7 +18,7 @@ import { sanitizeFileBase, uniquePathIn } from './document-tools'
  */
 
 /** tab kind -> format family (the registry's vocabulary, for the type label) */
-const FAMILY_BY_KIND: Record<Exclude<TabKind, 'home'>, EditorFamily> = {
+const FAMILY_BY_KIND: Record<DocumentTabKind, EditorFamily> = {
   docs: 'docx',
   sheets: 'xlsx',
   slides: 'pptx',

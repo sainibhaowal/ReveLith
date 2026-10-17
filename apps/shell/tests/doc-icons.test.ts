@@ -19,8 +19,12 @@ function runGeneratorCheck(): string {
 }
 
 describe('doc icon artifacts', () => {
+  // the six office file types plus the three AI apps (forms/tasks/draw),
+  // which are generated from the same artwork the home and tab tiles use
+  const NAMES = ['docx', 'xlsx', 'pptx', 'pdf', 'md', 'html', 'form', 'tasks', 'draw']
+
   it('every document type has .ico/.icns/.png artifacts', () => {
-    for (const name of ['docx', 'xlsx', 'pptx', 'pdf', 'md', 'html']) {
+    for (const name of NAMES) {
       for (const ext of ['ico', 'icns', 'png']) {
         expect(existsSync(`${ICONS_DIR}/${name}.${ext}`), `${name}.${ext}`).toBe(true)
       }
@@ -30,7 +34,7 @@ describe('doc icon artifacts', () => {
   it('the generator self-validation passes on the committed files', () => {
     const out = runGeneratorCheck()
     const report = JSON.parse(out) as Record<string, { ico: number[]; icns: string[] }>
-    expect(Object.keys(report).sort()).toEqual(['docx', 'html', 'md', 'pdf', 'pptx', 'xlsx'])
+    expect(Object.keys(report).sort()).toEqual([...NAMES].sort())
     for (const [name, entry] of Object.entries(report)) {
       // ICO carries 16/32/48/256px PNG entries; ICNS carries ic07/ic08
       expect(entry.ico, `${name} ico sizes`).toEqual([16, 32, 48, 256])
@@ -40,7 +44,7 @@ describe('doc icon artifacts', () => {
 
   it('icons are distinct per type (no copy-paste duplicates)', () => {
     const hashes = new Set<string>()
-    for (const name of ['docx', 'xlsx', 'pptx', 'pdf', 'md', 'html']) {
+    for (const name of NAMES) {
       const png = readFileSync(`${ICONS_DIR}/${name}.png`)
       // compare pixels, not container bytes (timestamps could differ)
       const idat = png.subarray(png.indexOf(Buffer.from('IDAT')) + 8)
@@ -49,13 +53,35 @@ describe('doc icon artifacts', () => {
       hashes.add(key)
     }
   })
+
+  it('the app artwork the renderer tiles use matches the generated icons', () => {
+    // home/tab load file-<name>.svg while Explorer and the menu load the PNGs;
+    // both come from one artwork function per app, so every surface agrees
+    for (const [name, file] of [
+      ['form', 'form'],
+      ['tasks', 'tasks'],
+      ['draw', 'draw'],
+    ] as const) {
+      const svg = readFileSync(`${SHELL_DIR}/src/renderer/src/assets/file-${file}.svg`, 'utf8')
+      const png = readFileSync(`${ICONS_DIR}/${name}.png`)
+      // the tile colour and the rounded-square radius must be the same artwork
+      const fill =
+        /<rect x="0" y="0" width="256" height="256" rx="(\d+)" fill="(#[0-9A-F]{6})"/.exec(svg)
+      expect(fill, `file-${file}.svg carries the generated base tile`).toBeTruthy()
+      expect(Number(fill![1]), `${name} tile radius`).toBe(48)
+      expect(svg).toContain(fill![2])
+      expect(png.length).toBeGreaterThan(0)
+    }
+  })
 })
 
 describe('packager wiring', () => {
   it('every fileAssociation has a per-type icon that exists on disk', () => {
     const config = readFileSync(`${SHELL_DIR}/electron-builder.cjs`, 'utf8')
     // fileAssociations name the icon (icon: 'docx'); electron-builder resolves
-    // that against build/icons/<name>.ico rather than taking a path.
+    // 'docx' to build/docx.ico for the NSIS DefaultIcon registry value and
+    // build/docx.icns for the mac CFBundleDocumentTypes entry — not to
+    // build/icons/, which is the linux icon set.
     const entries = [...config.matchAll(/ext: '([^']+)'[\s\S]*?icon: '([^']+)'/g)].map((m) => ({
       ext: m[1],
       icon: m[2],
@@ -63,9 +89,33 @@ describe('packager wiring', () => {
     expect(entries.length).toBeGreaterThanOrEqual(8)
     for (const { ext, icon } of entries) {
       expect(icon, `${ext} icon name`).toMatch(/^[a-z]+$/)
-      const relative = `build/icons/${icon}.ico`
-      expect(existsSync(`${SHELL_DIR}/${relative}`), `${ext} icon file (${relative})`).toBe(true)
+      for (const kind of ['ico', 'icns']) {
+        const relative = `build/${icon}.${kind}`
+        expect(existsSync(`${SHELL_DIR}/${relative}`), `${ext} icon file (${relative})`).toBe(true)
+      }
+      // and the linux/app set the generator validates
+      expect(existsSync(`${ICONS_DIR}/${icon}.ico`), `${ext} build/icons/${icon}.ico`).toBe(true)
     }
+  })
+
+  it('the home and tab tiles come from the same file as the association icon', () => {
+    const cases = [
+      { ext: 'form', tile: 'file-form.svg' },
+      { ext: 'tasks', tile: 'file-tasks.svg' },
+      { ext: 'draw', tile: 'file-draw.svg' },
+    ]
+    const config = readFileSync(`${SHELL_DIR}/electron-builder.cjs`, 'utf8')
+    const home = readFileSync(`${SHELL_DIR}/src/renderer/src/Home.tsx`, 'utf8')
+    const tabs = readFileSync(`${SHELL_DIR}/src/renderer/src/TabBar.tsx`, 'utf8')
+    for (const { tile } of cases) {
+      expect(existsSync(`${SHELL_DIR}/src/renderer/src/assets/${tile}`), tile).toBe(true)
+      expect(home, `home uses ${tile}`).toContain(tile)
+      expect(tabs, `tab bar uses ${tile}`).toContain(tile)
+    }
+    // the AI apps are the only ones whose tile artwork is generated, so the
+    // generator must cover the app associations added above
+    expect(config).toContain("ext: 'draw'")
+    expect(config).toContain("ext: 'tasks'")
   })
 
   it('windows signing is opt-in and unsigned builds keep working', () => {

@@ -1069,6 +1069,27 @@ export function patchDrawingExtent(paragraphXml: string, wPx: number, hPx: numbe
     .replace(/(<a:ext\b[^>]*\bcy=")\d+(")/, `$1${cy}$2`)
 }
 
+/** Set or clear the containing paragraph alignment for a chart/drawing block. */
+export function patchDrawingAlignment(
+  paragraphXml: string,
+  align: 'left' | 'center' | 'right' | null,
+): string {
+  let out = paragraphXml.replace(/<w:jc\b[^>]*\/>/, '')
+  out = out.replace(/<w:pPr\s*\/>/, '<w:pPr></w:pPr>')
+  if (!align || align === 'left') return out
+  const jc = `<w:jc w:val="${align}"/>`
+  const pPr = /(<w:pPr(?: [^>]*)?>)([\s\S]*?)<\/w:pPr>/.exec(out)
+  if (pPr) {
+    const [, open, inner] = pPr
+    const rPrIdx = inner.indexOf('<w:rPr')
+    const patched = rPrIdx === -1 ? inner + jc : inner.slice(0, rPrIdx) + jc + inner.slice(rPrIdx)
+    return (
+      out.slice(0, pPr.index) + open + patched + '</w:pPr>' + out.slice(pPr.index + pPr[0].length)
+    )
+  }
+  return out.replace(/(<w:p(?: [^>]*)?>)/, `$1<w:pPr>${jc}</w:pPr>`)
+}
+
 /** Insertable line/connector kinds: stroke-only wps:wsp with optional arrow ends */
 export const LINE_KINDS: Record<string, { prst: string; head?: boolean; tail?: boolean }> = {
   line: { prst: 'line' },
@@ -2065,6 +2086,8 @@ function tableLookXml(look: NonNullable<TableModel['tableLook']>): string {
 }
 
 export function generateTableModelXml(model: TableModel, originalTableXml?: string): string {
+  const writeCellSpacing =
+    model.cellSpacingTwips !== undefined && (model.cellSpacingEdited === true || !originalTableXml)
   // the widest row decides the column count; folding it in a loop keeps the
   // argument count off the call (a spread here blew the stack past ~125k rows)
   let columnCount = Math.max(1, model.colWidthsPct?.length ?? 0)
@@ -2141,6 +2164,18 @@ export function generateTableModelXml(model: TableModel, originalTableXml?: stri
       // replaced/inserted/removed per the model
       let trPr = model.rawTrPrs?.[ri] ?? ''
       if (trPr && !trPr.endsWith('</w:trPr>')) trPr = ''
+      // Explicit table spacing is written once at tblPr level. Remove any row-local
+      // overrides so a user can reliably change or clear imported spacing.
+      if (writeCellSpacing && trPr) {
+        const open = /^<w:trPr(?:\s[^>]*)?>/.exec(trPr)?.[0]
+        if (open) {
+          const inner = trPr.slice(open.length, trPr.lastIndexOf('</w:trPr>'))
+          const children = splitXmlChildren(inner).filter(
+            (child) => child.name !== 'w:tblCellSpacing',
+          )
+          trPr = `${open}${children.map((child) => child.xml).join('')}</w:trPr>`
+        }
+      }
       // the placeholders are the truth for the grid edges: stale raw edge tags go, the
       // computed ones lead the trPr (CT_TrPr order: cnfStyle, divId, gridBefore, gridAfter, wBefore, wAfter, …)
       trPr = trPr.replace(/<w:(?:gridBefore|gridAfter|wBefore|wAfter)\b[^>]*\/>/g, '')
@@ -2264,6 +2299,14 @@ export function generateTableModelXml(model: TableModel, originalTableXml?: stri
   }
   if (model.cellMarTwips !== undefined) {
     tblPr = setTblPrChild(tblPr, 'w:tblCellMar', cellMar || null)
+  }
+  if (writeCellSpacing) {
+    const spacing = Math.max(0, Math.round(model.cellSpacingTwips ?? 0))
+    tblPr = setTblPrChild(
+      tblPr,
+      'w:tblCellSpacing',
+      spacing > 0 ? `<w:tblCellSpacing w:w="${spacing}" w:type="dxa"/>` : null,
+    )
   }
   if (model.tableLook) {
     tblPr = setTblPrChild(tblPr, 'w:tblLook', tableLookXml(model.tableLook))

@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
 import { mkdtemp, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl } from './helpers'
+import { launchShell, closeAndSaveVideo, waitForPageWithUrl, readZipText } from './helpers'
 
 // the preload exposes window.__revelithDebug only under this env var
 process.env.REVELITH_DEBUG_HOOKS = '1'
@@ -107,9 +106,7 @@ test.describe('sheets: tiled paste of formulas survives save', () => {
       await expect(async () => {
         const files = (await readdir(saveDir)).filter((f) => f.endsWith('.xlsx'))
         expect(files).toHaveLength(1)
-        const xml = execSync(
-          `unzip -p "${join(saveDir, files[0])}" xl/worksheets/sheet1.xml`,
-        ).toString()
+        const xml = await readZipText(join(saveDir, files[0]!), 'xl/worksheets/sheet1.xml')
         // both pasted repetitions keep values and a row-shifted formula
         expect(xml).toContain('<c r="A2" s="1"><v>10</v></c>')
         expect(xml).toContain('<c r="A3" s="1"><v>10</v></c>')

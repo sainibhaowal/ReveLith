@@ -9,6 +9,57 @@
 !include "WinMessages.nsh"
 !include "StrFunc.nsh"
 
+; electron-builder's stock CHECK_APP_RUNNING routine prompts and terminates
+; the app before installing; keep this include focused on app-specific shell
+; registration so the same script remains safe in installer and uninstaller.
+
+; This installer keeps electron-builder's stock layout: a per-user install under
+; %LOCALAPPDATA%\Programs\${APP_FILENAME}, which is where the other
+; electron-builder apps on this machine live and update from.
+;
+; An earlier revision redirected $INSTDIR to a "-Local" sibling. That redirect
+; never took effect: setInstallModePerUser (multiUser.nsh) re-derives $INSTDIR
+; from HKCU\Software\${APP_GUID}\InstallLocation every time the install-mode
+; page is left (multiUserUi.nsh), so the install landed back on the standard
+; directory regardless. It also seeded the registry from preInit, which never
+; ran. Removing it keeps $INSTDIR, the registry InstallLocation and electron-
+; builder's own upgrade detection consistent between releases.
+
+; Fail-safe only: an interrupted previous install can leave the uninstaller icon
+; behind, and NSIS cannot overwrite a read-only file.
+!macro customInit
+  SetFileAttributes "$INSTDIR\uninstallerIcon.ico" NORMAL
+  Delete "$INSTDIR\uninstallerIcon.ico"
+!macroend
+
+; Replace electron-builder's stock "is the app running?" check
+; (allowOnlyOneInstallerInstance.nsh). That implementation asks whether ANY
+; process' executable path starts with $INSTDIR and then kills every match. When
+; $INSTDIR is not yet resolved the comparison matches every process on the
+; machine, so the installer concludes the app is running, fails to kill
+; protected processes, and loops on "cannot be closed" forever while the files
+; it still has to write stay locked. Match the app executable by name instead,
+; and give up after one bounded attempt so the installer can never hang.
+!macro customCheckAppRunning
+  nsExec::Exec `"$CmdPath" /C tasklist /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FI "USERNAME eq %USERNAME%" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
+  Pop $R0
+  ${if} $R0 == 0
+    DetailPrint "Closing ${PRODUCT_NAME}..."
+    nsExec::Exec `"$CmdPath" /C taskkill /IM "${APP_EXECUTABLE_FILENAME}" /T /FI "USERNAME eq %USERNAME%"`
+    Pop $R0
+    Sleep 2000
+    nsExec::Exec `"$CmdPath" /C taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /T /FI "USERNAME eq %USERNAME%"`
+    Pop $R0
+    Sleep 1500
+    nsExec::Exec `"$CmdPath" /C tasklist /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FI "USERNAME eq %USERNAME%" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
+    Pop $R0
+    ${if} $R0 == 0
+      MessageBox MB_OK|MB_ICONSTOP "${PRODUCT_NAME} is still running and could not be closed automatically. Close it, then run this installer again." /SD IDOK
+      Quit
+    ${endif}
+  ${endif}
+!macroend
+
 !define REVELITH_PATH_MAX 7900
 
 ; Scope templates to our ProgIDs (electron-builder uses fileAssociations.name).
@@ -37,7 +88,13 @@
 !macroend
 
 !macro REVELITH_REMOVE_SHELL_VERB EXT
-  DeleteRegKey SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.${EXT}\shell\ReveLith"
+  ; A second ReveLith installation may have replaced this verb since this
+  ; instance was installed. Remove it only when the command still targets the
+  ; installation being uninstalled.
+  ReadRegStr $0 SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.${EXT}\shell\ReveLith\command" ""
+  ${If} $0 == '"$INSTDIR\ReveLith.exe" "%1"'
+    DeleteRegKey SHELL_CONTEXT "Software\Classes\SystemFileAssociations\.${EXT}\shell\ReveLith"
+  ${EndIf}
 !macroend
 
 !macro customInstall

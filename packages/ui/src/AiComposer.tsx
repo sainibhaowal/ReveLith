@@ -14,6 +14,7 @@ const MAX_TEXTAREA_HEIGHT = 168
 export function AiComposer({
   value,
   busy,
+  disabled = false,
   placeholder,
   hintIdle,
   hintBusy,
@@ -36,6 +37,7 @@ export function AiComposer({
 }: {
   readonly value: string
   readonly busy: boolean
+  readonly disabled?: boolean | undefined
   readonly placeholder: string
   readonly hintIdle: string
   readonly hintBusy: string
@@ -66,7 +68,7 @@ export function AiComposer({
 }): React.JSX.Element {
   const innerRef = useRef<HTMLTextAreaElement | null>(null)
   const ref = textareaRef ?? innerRef
-  const canSend = value.trim().length > 0 && !busy
+  const canSend = value.trim().length > 0 && !busy && !disabled
   const { spellcheck } = useAiPanelPrefs()
 
   // auto-grow up to ~6 lines; empty clears the inline height outright so the
@@ -90,6 +92,7 @@ export function AiComposer({
         value={value}
         placeholder={placeholder}
         aria-label={ariaLabel}
+        disabled={busy || disabled}
         rows={1}
         dir="auto"
         spellCheck={spellcheck}

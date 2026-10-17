@@ -177,6 +177,65 @@ describe('Settings → Integrations', () => {
     expect(host.textContent).toContain('assistant picks one')
   })
 
+  it('offers every bundled skill and installs the one that is selected', async () => {
+    const calls: Array<{ agentId: string; name?: string }> = []
+    const multi = (): IntegrationsStatus => {
+      const base = baseStatus()
+      return {
+        ...base,
+        skills: [
+          {
+            name: 'revelith',
+            version: '2.1.0',
+            needsCli: '0.4.0',
+            description: 'Office and PDF work',
+            agents: base.agents,
+          },
+          {
+            name: 'revelith-draw',
+            version: '1.0.0',
+            needsCli: '0.10.100',
+            description: 'Create and edit drawings in ReveLith Draw',
+            agents: base.agents.map((agent) => ({
+              ...agent,
+              state: {
+                ...agent.state,
+                status: 'missing' as const,
+                path: agent.state.path.replace('/revelith/', '/revelith-draw/'),
+              },
+            })),
+          },
+        ],
+      }
+    }
+    await openIntegrations({
+      status: async () => multi(),
+      copyText: async () => {},
+      installSkill: async (target) => {
+        calls.push(target as { agentId: string; name?: string })
+        return { status: 'installed', path: '/tmp/x' }
+      },
+    })
+
+    // both skills are offered, the first is selected, its description shown
+    const picker = [...host.querySelectorAll('.set-intg-skills button')]
+    expect(picker.map((b) => b.textContent?.trim())).toEqual(['revelith', 'revelith-draw'])
+    expect(picker[0]!.getAttribute('aria-checked')).toBe('true')
+    expect(host.textContent).toContain('Office and PDF work')
+
+    // switching swaps the rows and description without another fetch
+    await click(picker[1])
+    expect(picker[1]!.getAttribute('aria-checked')).toBe('true')
+    expect(host.textContent).toContain('Create and edit drawings in ReveLith Draw')
+    expect(host.textContent).not.toContain('Office and PDF work')
+
+    // installing targets the SELECTED skill and shows ITS path before writing
+    const rows = [...host.querySelectorAll('.set-intg-row')]
+    await click(buttonWithText('Install', rows[0]!))
+    expect(host.textContent).toContain('revelith-draw/SKILL.md')
+    await click(host.querySelector('.set-intg-confirm .set-btn.primary'))
+    expect(calls).toEqual([{ agentId: 'claude-code', name: 'revelith-draw' }])
+  })
   it('names the bare command once revelith is on the PATH and runs the app as Node on Windows', () => {
     expect(
       mcpLaunch({

@@ -13,6 +13,7 @@ import {
   type CellParaPatch,
   type CellTextsPatch,
   patchDrawingExtent,
+  patchDrawingAlignment,
   patchTextboxSizes,
   patchShapeStyles,
   type ShapeStylePatch,
@@ -1137,6 +1138,8 @@ export function tableStructureSignature(table: PmNode): string {
     autoFitEdited: table.attrs?.tblAutoFitEdited ?? false,
     cellMar: table.attrs?.cellMar ?? null,
     cellMarEdited: table.attrs?.cellMarEdited ?? false,
+    cellSpacingTwips: table.attrs?.cellSpacingTwips ?? null,
+    cellSpacingEdited: table.attrs?.cellSpacingEdited ?? false,
     tblStyle: table.attrs?.tblStyleId ?? null,
     tblAlign: table.attrs?.tblAlign ?? null,
     tblFloat: table.attrs?.tblFloat ?? null,
@@ -1383,6 +1386,7 @@ export function pmTableToModel(table: PmNode): TableModel {
   }
   const tblStyleAttr = table.attrs?.tblStyleId as string | null | undefined
   const isNew = table.attrs?.docxIndex == null
+  const cellSpacingTwips = Number(table.attrs?.cellSpacingTwips)
   const tablePropsEdited = (name: string): boolean => isNew || table.attrs?.[name] === true
   const visibleFloat =
     table.attrs?.tblFloat === 'left' || table.attrs?.tblFloat === 'right'
@@ -1426,9 +1430,14 @@ export function pmTableToModel(table: PmNode): TableModel {
     rows,
     ...(colWidthsPct ? { colWidthsPct } : {}),
     ...(colWidthsTwips ? { colWidthsTwips } : {}),
-    ...(table.attrs?.cellSpacingTwips
-      ? { cellSpacingTwips: Number(table.attrs.cellSpacingTwips) }
-      : {}),
+    ...(tablePropsEdited('cellSpacingEdited') && table.attrs?.cellSpacingTwips != null
+      ? {
+          cellSpacingTwips: Math.max(0, Number(table.attrs.cellSpacingTwips) || 0),
+          cellSpacingEdited: true,
+        }
+      : cellSpacingTwips > 0
+        ? { cellSpacingTwips }
+        : {}),
     ...(table.attrs?.tblFill ? { fill: String(table.attrs.tblFill) } : {}),
     ...(rowHeightsTwips.some((h) => h !== null) ? { rowHeightsTwips, rowHeightRules } : {}),
     ...(repeatHeaderRows.some((value) => value !== null) ? { repeatHeaderRows } : {}),
@@ -2081,6 +2090,10 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
             chartDisplay.heightPx !== original.chartDisplay?.heightPx)
             ? { w: chartDisplay.widthPx, h: chartDisplay.heightPx }
             : null
+        const currentChartAlign =
+          (node.attrs?.imageAlign as 'left' | 'center' | 'right' | null | undefined) ?? null
+        const chartAlignChanged =
+          !!original.chartDisplay && currentChartAlign !== (original.imageAlign ?? null)
         const imageReplace =
           original.type === 'image'
             ? (node.attrs?.imageReplace as { base64: string; mime: string } | null)
@@ -2169,11 +2182,14 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
         } else if (formulaTokens && original.originalXml) {
           changedCount++
           pushBlock({ kind: 'xml', xml: patchMathTokens(original.originalXml, formulaTokens) })
-        } else if (chartSize && original.originalXml) {
+        } else if ((chartSize || chartAlignChanged) && original.originalXml) {
           changedCount++
+          let xml = original.originalXml
+          if (chartSize) xml = patchDrawingExtent(xml, chartSize.w, chartSize.h)
+          if (chartAlignChanged) xml = patchDrawingAlignment(xml, currentChartAlign)
           pushBlock({
             kind: 'xml',
-            xml: patchDrawingExtent(original.originalXml, chartSize.w, chartSize.h),
+            xml,
           })
         } else if (
           harmonizeZOrders &&
@@ -2279,6 +2295,25 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
         if (align) image.align = align
         const wrap = node.attrs.imageWrap as ImageWrap | null
         if (wrap) image.wrap = wrap
+        const posH = node.attrs.imagePosH as string | null
+        const posV = node.attrs.imagePosV as string | null
+        if (
+          (posH === 'left' || posH === 'center' || posH === 'right') &&
+          (posV === 'top' || posV === 'center' || posV === 'bottom')
+        ) {
+          image.posAlign = { h: posH, v: posV }
+        }
+        const offsetX = node.attrs.imageOffsetXEmu
+        const offsetY = node.attrs.imageOffsetYEmu
+        if (typeof offsetX === 'number' && typeof offsetY === 'number') {
+          const relativeTo = image.posOffsetEmu?.relativeTo
+          image.posOffsetEmu = {
+            x: offsetX,
+            y: offsetY,
+            ...(relativeTo ? { relativeTo } : {}),
+          }
+          delete image.posAlign
+        }
         if (node.attrs.imageZOrder != null) image.zOrder = Number(node.attrs.imageZOrder)
         if (node.attrs.imageRotDeg) image.rotDeg = Number(node.attrs.imageRotDeg)
         if (node.attrs.imageFlipH) image.flipH = true
@@ -2300,6 +2335,7 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
         pushBlock({
           kind: 'chart',
           chart: spec,
+          ...(node.attrs.imageAlign ? { align: node.attrs.imageAlign as 'center' | 'right' } : {}),
           ...(display?.widthPx && display.heightPx
             ? { extentPx: { w: display.widthPx, h: display.heightPx } }
             : {}),
@@ -2468,6 +2504,26 @@ function imageFromProtectedAttrs(node: PmNode): NewImage | null {
   if (align) image.align = align
   const wrap = node.attrs?.imageWrap as ImageWrap | null
   if (wrap) image.wrap = wrap
+  const posH = node.attrs?.imagePosH as string | null
+  const posV = node.attrs?.imagePosV as string | null
+  if (
+    (posH === 'left' || posH === 'center' || posH === 'right') &&
+    (posV === 'top' || posV === 'center' || posV === 'bottom')
+  ) {
+    image.posAlign = { h: posH, v: posV }
+  }
+  const offsetX = node.attrs?.imageOffsetXEmu
+  const offsetY = node.attrs?.imageOffsetYEmu
+  if (typeof offsetX === 'number' && typeof offsetY === 'number') {
+    const generated = node.attrs?.genImage as NewImage | undefined
+    const relativeTo = generated?.posOffsetEmu?.relativeTo
+    image.posOffsetEmu = {
+      x: offsetX,
+      y: offsetY,
+      ...(relativeTo ? { relativeTo } : {}),
+    }
+    delete image.posAlign
+  }
   if (node.attrs?.imageZOrder != null) image.zOrder = Number(node.attrs.imageZOrder)
   if (node.attrs?.imageRotDeg) image.rotDeg = Number(node.attrs.imageRotDeg)
   if (node.attrs?.imageFlipH) image.flipH = true

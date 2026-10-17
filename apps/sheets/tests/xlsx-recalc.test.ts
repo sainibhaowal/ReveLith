@@ -1,13 +1,13 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { afterAll, describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 import { z } from 'zod'
 
 import { XlsxSidecarClient } from '../src/main/xlsx-sidecar-client'
+import { sidecarBinaryPath } from './sidecar-path'
 
 const recalcResultSchema = z
   .object({
@@ -365,10 +365,3 @@ describe('sidecar IronCalc recalculation channel', () => {
     }
   })
 })
-
-function sidecarBinaryPath(): string {
-  const executable = process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar'
-  return fileURLToPath(
-    new URL(`../native/xlsx-engine/target/release/${executable}`, import.meta.url),
-  )
-}

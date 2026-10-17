@@ -231,7 +231,7 @@ test.describe('MCP sheet values and addressing', () => {
     execFileSync(
       process.execPath,
       [
-        join(APP_ROOT, 'packages', 'cli', 'dist', 'revelith.cjs'),
+        join(APP_ROOT, 'packages', 'revelith-cli', 'dist', 'revelith.cjs'),
         'create',
         '--type',
         'xlsx',

@@ -220,6 +220,8 @@ test.describe.serial('docs Word interaction smoke', () => {
   let app: ElectronApplication
   let editor: Page
   let savedPath: string
+  let layoutOriginalWidth = 0
+  let layoutOriginalPadding = ''
 
   const tab = (name: string) => editor.locator('.ribbon-tab', { hasText: new RegExp(`^${name}$`) })
   const activeTab = () => editor.locator('.ribbon-tab.active')
@@ -569,6 +571,8 @@ test.describe.serial('docs Word interaction smoke', () => {
     await expect(status).toContainText('of 1')
     const width0 = (await docPage().boundingBox())!.width
     const padLeft0 = await docPage().evaluate((el) => getComputedStyle(el).paddingLeft)
+    layoutOriginalWidth = width0
+    layoutOriginalPadding = padLeft0
 
     await caretAt(editor, 'closing paragraph', 'closing paragraph'.length)
     await showTab('Layout')
@@ -594,10 +598,24 @@ test.describe.serial('docs Word interaction smoke', () => {
   })
 
   test('8b undo reverts the page setup changes', async () => {
-    test.fixme(
-      true,
-      'Margins and paper size live outside the editor history: Cmd+Z after Mirrored / A5 undoes the section break and earlier text edits instead (App.tsx onSection / onMirrorMargins setState); Word undoes page setup like any edit',
-    )
+    const widthA5 = (await docPage().boundingBox())!.width
+    const paddingMirrored = await docPage().evaluate((el) => getComputedStyle(el).paddingLeft)
+    await undo()
+    await expect
+      .poll(async () => (await docPage().boundingBox())!.width, POLL)
+      .toBeGreaterThan(widthA5 * 1.2)
+    // Undoing A5 first leaves the preceding mirrored-margin action intact.
+    await expect(docPage()).toHaveCSS('padding-left', paddingMirrored)
+
+    await undo()
+    await expect(docPage()).toHaveCSS('padding-left', layoutOriginalPadding)
+    // Page-setup redo replays in the same order as Word: margins, then paper size.
+    await redo()
+    await expect(docPage()).toHaveCSS('padding-left', paddingMirrored)
+    await redo()
+    await expect
+      .poll(async () => (await docPage().boundingBox())!.width, POLL)
+      .toBeLessThan(layoutOriginalWidth * 0.8)
   })
 
   test('9 paste: Keep Text Only drops bold, the context menu Paste keeps it', async () => {

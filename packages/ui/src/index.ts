@@ -50,7 +50,35 @@ export {
   type RibbonCollapseLabels,
 } from './ribbon-collapse'
 export { AiTypingIndicator } from './AiTypingIndicator'
-export { IconSend, IconStop, type IconProps } from './icons'
+export { LoadingScreen, type LoadingScreenProps } from './LoadingScreen'
+export {
+  AiMessageActions,
+  type AiMessageActionsLabels,
+  type AiMessageActionsProps,
+} from './AiMessageActions'
+export {
+  AiToolActivity,
+  type AiToolActivityLabels,
+  type AiToolActivityProps,
+  type ToolActivity,
+} from './AiToolActivity'
+export {
+  AiClarifyCard,
+  DEFAULT_AI_CLARIFY_LABELS,
+  type AiClarifyCardProps,
+  type AiClarifyLabels,
+  type ClarifyAnswer,
+  type ClarifyQuestion,
+} from './AiClarifyCard'
+export { AppRibbon, RibbonGroup, type AppRibbonTab } from './AppRibbon'
+export {
+  RibbonToolButton,
+  RibbonQuickButton,
+  type RibbonToolButtonProps,
+  type RibbonQuickButtonProps,
+  type RibbonToolVariant,
+} from './RibbonToolButton'
+export { IconEnter, IconSend, IconStop, type IconProps } from './icons'
 export { Markdown, type MarkdownNav } from './Markdown'
 export { isSymbolFontFamily } from './symbol-fonts'
 export { BUILTIN_FONT_FAMILIES, fontFamiliesFor } from './font-list'

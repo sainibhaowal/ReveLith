@@ -30,5 +30,6 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
+    resolve: { dedupe: ['react', 'react-dom'] },
   },
 })

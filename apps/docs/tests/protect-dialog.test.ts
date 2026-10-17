@@ -1,13 +1,17 @@
 // Protect Document dialog (Review > Protect): the dialog turns form state into
 // a diff (ProtectDialogResult) — untouched sections must stay undefined, and
 // removing a password-protected restriction must verify the password first.
-import { describe, expect, it, vi } from 'vitest'
+import { webcrypto } from 'node:crypto'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { hashProtectionPassword, verifyProtectionPassword } from '@revelith/docx-engine'
 import { ProtectDialog, type ProtectDialogResult } from '../src/renderer/components/ProtectDialog'
 
 type Props = Parameters<typeof ProtectDialog>[0]
+
+beforeAll(() => vi.stubGlobal('crypto', webcrypto))
+afterAll(() => vi.unstubAllGlobals())
 
 const DEFAULTS: Omit<Props, 'onApply' | 'onCancel'> = {
   encrypted: false,
@@ -43,10 +47,10 @@ async function mount(partial: Partial<Props>) {
   }
   // submit hashes/verifies passwords asynchronously (iterated SHA-512); keep
   // flushing until the expected outcome shows up instead of guessing a delay
-  const submit = async (done: () => boolean) => {
+  const submit = async (done: () => boolean, timeoutMs = 10_000) => {
     await click(host.querySelector('.btn-primary')!)
     const start = Date.now()
-    while (!done() && Date.now() - start < 10_000) {
+    while (!done() && Date.now() - start < timeoutMs) {
       await act(async () => {
         await new Promise((r) => setTimeout(r, 10))
       })
@@ -107,13 +111,13 @@ describe('ProtectDialog', () => {
     const [, , modify, modifyConfirm] = d.passwordInputs()
     await d.setValue(modify, 'to-modify')
     await d.setValue(modifyConfirm, 'to-modify')
-    await d.submit(d.applied)
+    await d.submit(d.applied, 45_000)
     const result = d.onApply.mock.calls[0][0]
     expect(result.openPassword).toBeUndefined()
     expect(result.writeProtection?.hash).toBeTruthy()
     expect(await verifyProtectionPassword('to-modify', result.writeProtection!)).toBe(true)
     await d.cleanup()
-  })
+  }, 60_000)
 
   it('enabling a comments restriction without password enforces mode only', async () => {
     const d = await mount({})

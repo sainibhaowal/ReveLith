@@ -17,6 +17,7 @@ import { platformShortcuts } from '@revelith/i18n'
 
 import { useI18n, type StringKey } from '../i18n/locale'
 import { wordRangeAtCaret } from '../editor/comments'
+import { wordSegmentAt } from '../editor/word-range'
 import { pasteFromClipboard } from '../editor/paste-actions'
 import { setTableAutoFit } from '../editor/table-properties'
 import { distributeSelectedColumns } from '../editor/table-sizing'
@@ -105,6 +106,11 @@ const TRANSLATE_TARGETS: Array<{ labelKey: StringKey }> = [
 ]
 
 const MENU_WIDTH = 240
+// Some Windows Chromium builds omit `misspelledWord` after the first right
+// click on a word. Retain native data by word so another occurrence of that
+// same misspelling still gets its own context-menu actions. Never reuse it for
+// a different word.
+const nativeSpellCache = new Map<string, { word: string; suggestions: string[] }>()
 
 const CTX_CELL_ALIGN: Array<[CellVAlign, CellHAlign, StringKey]> = [
   ['top', 'left', 'ribbonAlignTopLeft'],
@@ -152,7 +158,61 @@ export function EditorContextMenu({
   const [submenu, setSubmenu] = useState<string | null>(null)
 
   // ---- spelling section (Word: suggestions · Add to Dictionary · Language) ----
-  const spell = spellcheckEnabled() && editor.isEditable ? menu.spell : null
+  // Use the document position captured from the pointer event. Chromium can
+  // leave the editor selection at its previous caret after a contextmenu
+  // event, so the selection alone may describe a different word.
+  const clickedWordRange = useMemo(() => {
+    // Image context menus have no text position. Do not reuse a stale editor
+    // caret here, or a picture menu can incorrectly offer spelling actions.
+    if (menu.imageSrc) return null
+    const position = menu.pos
+    if (position == null) return wordRangeAtCaret(editor)
+    const doc = editor.state.doc
+    const $position = doc.resolve(Math.max(0, Math.min(position, doc.content.size)))
+    if (!$position.parent.isTextblock) return null
+    const text = $position.parent.textBetween(0, $position.parent.content.size, '\0', '\0')
+    const segment = wordSegmentAt(text, $position.parentOffset)
+    if (!segment) return null
+    const start = $position.start()
+    return { from: start + segment.start, to: start + segment.end }
+  }, [editor, menu.pos])
+  const clickedWord = clickedWordRange
+    ? editor.state.doc.textBetween(clickedWordRange.from, clickedWordRange.to)
+    : null
+  const checkedClickedWord = useMemo(() => {
+    if (!clickedWord || !spellcheckEnabled() || !editor.isEditable) return null
+    const checked = window.desktop.spellCheckWord(clickedWord)
+    const browserWordMatches =
+      menu.spell?.word.toLocaleLowerCase() === clickedWord.toLocaleLowerCase()
+    const nativeSpell = browserWordMatches
+      ? menu.spell!
+      : nativeSpellCache.get(clickedWord.toLocaleLowerCase())
+    if (browserWordMatches) {
+      nativeSpellCache.set(clickedWord.toLocaleLowerCase(), menu.spell!)
+    }
+    if (!checked.misspelled && !nativeSpell) return null
+    return {
+      word: clickedWord,
+      suggestions:
+        checked.suggestions.length > 0
+          ? checked.suggestions
+          : nativeSpell
+            ? nativeSpell.suggestions
+            : [],
+    }
+  }, [clickedWord, editor.isEditable, menu.spell])
+  // Chromium's context-menu event can lag the right-click and report an empty
+  // or previous word. Check the word at the editor caret instead of attaching
+  // that stale spelling data to the current menu.
+  const spell =
+    !menu.imageSrc && spellcheckEnabled() && editor.isEditable
+      ? (checkedClickedWord ?? (clickedWord ? null : menu.spell))
+      : null
+  // Electron's Windows checker sometimes returns no per-word metadata for a
+  // later misspelling. Keep an explicit Add to Dictionary action for the
+  // actual word under the pointer even when suggestions are unavailable.
+  const dictionaryWord =
+    spell?.word ?? (spellcheckEnabled() && editor.isEditable ? clickedWord : null)
   const [spellLangs, setSpellLangs] = useState<SpellLanguages | null>(null)
   useEffect(() => {
     if (!spell) return
@@ -191,7 +251,19 @@ export function EditorContextMenu({
     )
   }
   const addToDictionary = () => {
-    if (spell) void window.desktop.spellAddWord?.(spell.word).then(() => onRespell?.())
+    if (dictionaryWord) {
+      nativeSpellCache.delete(dictionaryWord.toLocaleLowerCase())
+      void window.desktop.spellAddWord?.(dictionaryWord).then((added) => {
+        if (!added) return
+        // Clicking the menu moved DOM focus away from the editor. Restore the
+        // exact word range before the trusted respell kick so Blink rechecks
+        // the paragraph where this dictionary entry was added.
+        if (clickedWordRange) {
+          editor.commands.setTextSelection(clickedWordRange)
+        }
+        onRespell?.()
+      })
+    }
   }
   const ignoreAll = () => {
     if (spell) void window.desktop.spellIgnoreWord?.(spell.word).then(() => onRespell?.())
@@ -403,6 +475,12 @@ export function EditorContextMenu({
               )}
             </div>
           )}
+          <div className="ctx-sep" />
+        </>
+      )}
+      {!spell && dictionaryWord && (
+        <>
+          {item(t('appSpellAddToDictionary'), { onClick: run(addToDictionary) })}
           <div className="ctx-sep" />
         </>
       )}

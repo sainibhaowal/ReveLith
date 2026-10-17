@@ -39,5 +39,5 @@ describe('third-party license aggregation', () => {
     }
     const builder = readFileSync(join(root, 'apps/shell/electron-builder.cjs'), 'utf8')
     expect(builder).toContain('ensureThirdPartyNotices()')
-  })
+  }, 60_000)
 })

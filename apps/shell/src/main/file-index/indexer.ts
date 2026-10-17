@@ -8,7 +8,7 @@ import type { FileIndexStore } from './store'
 export interface IndexProgress {
   /** files currently in the index */
   indexed: number
-  /** files waiting for extraction */
+  /** files queued or currently being extracted */
   pending: number
   scanning: boolean
 }
@@ -48,7 +48,11 @@ export class FileIndexer {
   ) {}
 
   progress(): IndexProgress {
-    return { indexed: this.store.count(), pending: this.queue.length, scanning: this.scanning }
+    return {
+      indexed: this.store.count(),
+      pending: this.queue.length + (this.draining ? 1 : 0),
+      scanning: this.scanning,
+    }
   }
 
   /** schedule a scan soon; repeated calls within the debounce window fold into one */
@@ -168,7 +172,14 @@ export class FileIndexer {
 
   private ensureWorker(): Worker {
     if (this.worker) return this.worker
-    const w = new Worker(this.workerPath)
+    // Keep worker diagnostics off the Electron process stdout/stderr pipes.
+    // A GUI app can outlive the terminal that launched it; forwarding worker
+    // console output to a closed parent pipe raises an uncaught EPIPE in the
+    // main process. Drain the captured streams so a noisy parser cannot block
+    // the indexing worker.
+    const w = new Worker(this.workerPath, { stdout: true, stderr: true })
+    w.stdout.resume()
+    w.stderr.resume()
     w.on('message', (msg: WorkerResponse) => {
       const cb = this.waiting.get(msg.id)
       if (!cb) return

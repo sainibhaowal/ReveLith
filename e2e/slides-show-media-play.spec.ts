@@ -23,8 +23,8 @@ async function clickSequenceVideoDeck(): Promise<string> {
   const EMU = 914400
   const r = addMedia(opened, 0, {
     kind: 'video',
-    bytes: new Uint8Array(await readFile(resolve(__dirname, 'assets/click-sequence-video.mp4'))),
-    ext: 'mp4',
+    bytes: new Uint8Array(await readFile(resolve(__dirname, 'assets/click-sequence-video.webm'))),
+    ext: 'webm',
     offset: { x: 2 * EMU, y: 1.2 * EMU, cx: 6 * EMU, cy: 3.375 * EMU },
     name: 'Clip',
   })
@@ -72,11 +72,26 @@ test('click-sequence video plays on the first click of the show', async () => {
 
     // First click = the media call step: the video starts and the page does not turn
     await page.locator('.slideshow').click({ position: { x: 8, y: 8 } })
-    await expect
-      .poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && v.currentTime > 0), {
-        timeout: 10_000,
+    try {
+      await expect
+        .poll(() => video.evaluate((v: HTMLVideoElement) => !v.paused && v.currentTime > 0), {
+          timeout: 10_000,
+        })
+        .toBe(true)
+    } catch (error) {
+      const mediaState = await video.evaluate((v: HTMLVideoElement) => ({
+        paused: v.paused,
+        currentTime: v.currentTime,
+        readyState: v.readyState,
+        networkState: v.networkState,
+        error: v.error ? { code: v.error.code, message: v.error.message } : null,
+        canPlayMp4: v.canPlayType('video/mp4'),
+        source: v.currentSrc,
+      }))
+      throw new Error(`media did not start: ${JSON.stringify(mediaState)}; ${String(error)}`, {
+        cause: error,
       })
-      .toBe(true)
+    }
     await expect(page.locator('.slideshow .ss-counter')).toHaveText('1 / 1')
     await page.keyboard.press('Escape')
   } finally {

@@ -42,37 +42,52 @@ async function redUnder(page: Page, rect: { x: number; y: number; w: number; h: 
 const pageText = (page: Page) =>
   page.evaluate(() => document.querySelector('.doc-page')?.textContent ?? '')
 
-/** viewport rect of the first occurrence of `word` in the document body */
-const wordRect = (page: Page, word: string) =>
-  page.evaluate((w) => {
-    const root = document.querySelector('.doc-page')
-    if (!root) return null
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const idx = node.textContent?.indexOf(w) ?? -1
-      if (idx === -1) continue
-      const range = document.createRange()
-      range.setStart(node, idx)
-      range.setEnd(node, idx + w.length)
-      const r = range.getBoundingClientRect()
-      return { x: r.left, y: r.top, w: r.width, h: r.height }
-    }
-    return null
-  }, word)
+/** viewport rect of the `occurrence`th occurrence of `word` in the document body */
+const wordRect = (page: Page, word: string, occurrence = 0) =>
+  page.evaluate(
+    ({ word: w, occurrence }) => {
+      const root = document.querySelector('.doc-page')
+      if (!root) return null
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+      let remaining = occurrence
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        let from = 0
+        while (true) {
+          const idx = node.textContent?.indexOf(w, from) ?? -1
+          if (idx === -1) break
+          if (remaining-- === 0) {
+            const range = document.createRange()
+            range.setStart(node, idx)
+            range.setEnd(node, idx + w.length)
+            const r = range.getBoundingClientRect()
+            return { x: r.left, y: r.top, w: r.width, h: r.height }
+          }
+          from = idx + w.length
+        }
+      }
+      return null
+    },
+    { word, occurrence },
+  )
 
 const center = (r: { x: number; y: number; w: number; h: number }) => ({
   x: r.x + r.w / 2,
   y: r.y + r.h / 2,
 })
 
-// the native spellchecker is outside the app's control
-test.describe.configure({ retries: 1 })
+test.describe.configure({ retries: 0 })
 
 test('context menu offers spelling suggestions and applies one', async () => {
   test.setTimeout(120_000)
   const launched = await launchShell({ onboardingSeen: true, videoDir: 'spell-suggestions' })
   const { app, page } = launched
   try {
+    // Native dictionaries may persist across app launches on Windows/macOS.
+    // Keep this fixture deterministic when an earlier test run added the word.
+    await app.evaluate(({ session }) => {
+      session.defaultSession.removeWordFromSpellCheckerDictionary('jumsp')
+      session.defaultSession.removeWordFromSpellCheckerDictionary('wierd')
+    })
     await page.locator('.quick-card').first().click()
     const editor = await waitForPageWithUrl(app, '://docs/')
     const docPage = editor.locator('.doc-page[contenteditable="true"][spellcheck="true"]')
@@ -92,10 +107,10 @@ test('context menu offers spelling suggestions and applies one', async () => {
     const nativePopups = () =>
       app.evaluate(() => (globalThis as unknown as { __popups: number }).__popups)
 
-    // a word no dictionary has, unique per run: Add to Dictionary writes to the
-    // OS custom dictionary on some platforms, so a fixed word would stop being
-    // flagged after the first run on a developer machine
-    const dictWord = `qzv${Date.now() % 100000}x`
+    // Choose a recognized alphabetic typo so Blink's checker can identify it
+    // under the pointer; rotate words because Add to Dictionary persists on
+    // Windows/macOS between runs.
+    const dictWord = 'wierd'
     await docPage.click()
     await editor.keyboard.type(`The quick brown fox jumsp over the ${dictWord} lazyy dog `, {
       delay: 20,
@@ -122,7 +137,7 @@ test('context menu offers spelling suggestions and applies one', async () => {
         await editor.waitForTimeout(1000)
       }
     }
-    test.skip(!suggestion, 'native spellchecker produced no suggestions in this environment')
+    expect(suggestion, 'native spellchecker must provide spelling suggestions').toBeTruthy()
     await editor.screenshot({ path: test.info().outputPath('spell-menu.png') })
 
     // the custom menu claimed the click: no native menu popped alongside it
@@ -148,52 +163,42 @@ test('context menu offers spelling suggestions and applies one', async () => {
     await expect.poll(nativePopups, POLL).toBe(1)
     await editor.keyboard.press('Escape')
 
-    // Add to Dictionary must clear the existing squiggle without the user
-    // typing. Done before the replace/undo below: an undo re-renders the
-    // paragraph DOM and Blink only re-marks on typing, so the typed word is
-    // still marked here
     const blank = { x: other.x, y: other.y + 200 }
-    await editor.mouse.click(blank.x, blank.y)
-    await editor.waitForTimeout(500)
-    const marked = await redUnder(editor, otherRect!)
-    expect(marked).toBeGreaterThan(0)
-    const addToDict = editor.locator('.ctx-menu .ctx-item', { hasText: 'Add to Dictionary' })
-    // Chromium reports the misspelling only once its marker is in place: retry the right-click
-    for (let attempt = 0; attempt < 6 && !(await addToDict.count()); attempt++) {
-      await editor.mouse.click(other.x, other.y, { button: 'right' })
-      await editor.locator('.ctx-menu').waitFor()
-      await editor.waitForTimeout(400)
-      if (!(await addToDict.count())) {
-        await editor.keyboard.press('Escape')
-        await editor.waitForTimeout(800)
-      }
-    }
-    await addToDict.click()
-    await editor.mouse.click(blank.x, blank.y)
-    await expect
-      .poll(() => redUnder(editor, otherRect!), {
-        ...POLL,
-        message: 'squiggle gone after Add to Dictionary',
-      })
-      .toBe(0)
-    // the other misspelling keeps its marker: the dictionary changed, not the checker
-    expect(await redUnder(editor, targetRect!)).toBeGreaterThan(0)
-
-    // "jumsp" was typed too and never re-rendered, so its marker is still there
+    // Apply a suggestion first, while the original word still has native spell data.
     await editor.mouse.click(target.x, target.y, { button: 'right' })
     await editor.locator('.ctx-menu .ctx-item-strong').first().waitFor()
     await editor.locator('.ctx-menu .ctx-item-strong').first().click()
-    await expect.poll(() => pageText(editor), POLL).toContain(`fox ${suggestion} over`)
-    await expect.poll(() => pageText(editor), POLL).not.toContain('jumsp')
+    await expect.poll(() => pageText(editor), POLL).toContain(`fox ${suggestion!} over`)
+    await expect.poll(() => pageText(editor), POLL).not.toContain('fox jumsp over')
+    await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+    await expect.poll(() => pageText(editor), POLL).toContain('fox jumsp over')
     // the fix went through Blink, so the paragraph's other misspelling keeps
     // its marker (a scripted text-node rewrite would have dropped it)
     await editor.mouse.click(blank.x, blank.y)
     await editor.waitForTimeout(500)
     expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
 
-    await editor.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
-    await expect.poll(() => pageText(editor), POLL).toContain('jumsp')
+    // Chromium can omit spelling metadata for a different misspelled word on
+    // later clicks. The menu must still let the user add the clicked word.
+    const remainingRect = (await wordRect(editor, dictWord))!
+    const remaining = center(remainingRect)
+    expect(await redUnder(editor, remainingRect)).toBeGreaterThan(0)
+    await editor.mouse.click(remaining.x, remaining.y, { button: 'right' })
+    const addToDict = editor.locator('.ctx-menu .ctx-item', { hasText: 'Add to Dictionary' })
+    await expect(addToDict).toBeVisible()
+    await addToDict.click()
+    await expect
+      .poll(() => redUnder(editor, remainingRect), {
+        ...POLL,
+        message: 'squiggle gone after Add to Dictionary',
+      })
+      .toBe(0)
+    expect(await redUnder(editor, (await wordRect(editor, 'lazyy'))!)).toBeGreaterThan(0)
   } finally {
+    await app.evaluate(({ session }) => {
+      session.defaultSession.removeWordFromSpellCheckerDictionary('jumsp')
+      session.defaultSession.removeWordFromSpellCheckerDictionary('wierd')
+    })
     await closeAndSaveVideo(launched)
   }
 })

@@ -110,7 +110,7 @@ describe('op catalogs', () => {
       'afterBlockIndex',
     )
     const text = await run(['guide', 'docs', 'content'])
-    expect(text.stdout).toContain('insert_chart {kind: bar|line|pie')
+    expect(text.stdout).toMatch(/insert_chart\s+\{\s+kind: bar\|line\|pie\|area\|radar\|doughnut,/)
     expect(text.stdout).toContain('Only these tags are allowed')
     expect(text.stdout).not.toContain('setFont')
   })

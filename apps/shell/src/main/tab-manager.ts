@@ -1,6 +1,7 @@
-import { basename } from 'node:path'
+import { basename, join } from 'node:path'
 import { realpathSync } from 'node:fs'
-import { BrowserWindow } from 'electron'
+import { readFile } from 'node:fs/promises'
+import { app, BrowserWindow, dialog } from 'electron'
 import type { Rectangle, WebContents, WebContentsView } from 'electron'
 
 import {
@@ -46,6 +47,13 @@ import {
   slidesIsDirty,
 } from '../../../slides/src/main/slides-main'
 import type { DocumentTabKind, OpenDocumentTab, TabKind, TabSummary } from '../shared/tabs-api'
+import {
+  createNewAppView,
+  newAppExtensions,
+  REVELITH_APP_DOCUMENTS,
+  type ReveLithAppKind,
+} from './new-app-views'
+import { atomicWriteFile } from './atomic-write'
 
 interface TabRecord {
   id: string
@@ -54,6 +62,8 @@ interface TabRecord {
   view: WebContentsView | null
   title: string
   filePath?: string
+  dirty?: boolean
+  documentTitle?: string
   /** chrome-free Present tab: no file, no editor menu or save/export targets */
   present?: boolean
 }
@@ -205,6 +215,7 @@ export class TabManager {
       closable: t.id !== HOME_ID,
       active: t.id === this.activeId,
       ...(t.filePath ? { filePath: t.filePath } : {}),
+      ...(t.dirty ? { dirty: true } : {}),
     }))
   }
 
@@ -218,7 +229,9 @@ export class TabManager {
    * renderer. Hence the async signature.
    */
   async openDocuments(): Promise<OpenDocumentTab[]> {
-    const tabs = this.tabs.filter((tab) => tab.kind !== 'home' && !tab.present && tab.view)
+    const tabs = this.tabs.filter(
+      (tab) => tab.kind !== 'home' && !isReveLithAppKind(tab.kind) && !tab.present && tab.view,
+    )
     return Promise.all(
       tabs.map(async (tab) => ({
         id: tab.id,
@@ -246,6 +259,10 @@ export class TabManager {
         return htmlIsDirty(wc.id)
       case 'slides':
         return slidesIsDirty(wc.id)
+      case 'forms':
+      case 'tasks':
+      case 'drawboard':
+        return tab.dirty ?? false
       case 'docs':
         return docsQueryDirty(wc)
       default:
@@ -379,6 +396,25 @@ export class TabManager {
     return id
   }
 
+  openReveLithAppTab(kind: ReveLithAppKind, openPath?: string): string {
+    const view = createNewAppView(kind, openPath)
+    const id = `t${this.nextId++}`
+    this.shellWindow.contentView.addChildView(view)
+    view.setVisible(false)
+    const title = openPath ? basename(openPath) : REVELITH_APP_DOCUMENTS[kind].untitled
+    this.tabs.push({
+      id,
+      kind,
+      view,
+      title,
+      filePath: openPath,
+      documentTitle: openPath ? basename(openPath) : title,
+    })
+    this.trackHtmlFullScreen(id, view)
+    this.activateTab(id)
+    return id
+  }
+
   /** Present → New tab: a chrome-free html tab showing the owner tab's live preview */
   openHtmlPresentTab(owner: WebContents, title: string): string {
     const view = createHtmlPresentView(owner, title)
@@ -470,6 +506,151 @@ export class TabManager {
     if (!tab || tab.filePath || tab.title === title) return
     tab.title = title
     this.onChanged()
+  }
+
+  setReveLithAppDocumentState(webContentsId: number, dirty: boolean, title?: string): void {
+    const tab = this.tabs.find((t) => t.view?.webContents.id === webContentsId)
+    if (!tab || !isReveLithAppKind(tab.kind)) return
+    tab.dirty = dirty
+    if (!tab.filePath && title) {
+      tab.documentTitle = title
+      tab.title = title
+    }
+    this.onChanged()
+  }
+
+  startNewReveLithAppDocument(webContentsId: number, title: string): boolean {
+    const tab = this.tabs.find((t) => t.view?.webContents.id === webContentsId)
+    if (!tab || !isReveLithAppKind(tab.kind)) return false
+    tab.filePath = undefined
+    tab.documentTitle = title || REVELITH_APP_DOCUMENTS[tab.kind].untitled
+    tab.title = tab.documentTitle
+    tab.dirty = false
+    this.onChanged()
+    return true
+  }
+
+  async getReveLithAppDocument(webContentsId: number): Promise<{
+    kind: ReveLithAppKind
+    filePath?: string
+    title: string
+    content?: unknown
+  } | null> {
+    const tab = this.tabs.find((t) => t.view?.webContents.id === webContentsId)
+    if (!tab || !isReveLithAppKind(tab.kind)) return null
+    if (!tab.filePath) return { kind: tab.kind, title: tab.documentTitle ?? tab.title }
+    const content = JSON.parse(await readFile(tab.filePath, 'utf8')) as unknown
+    return { kind: tab.kind, filePath: tab.filePath, title: basename(tab.filePath), content }
+  }
+
+  async openReveLithAppDocument(
+    webContentsId: number,
+  ): Promise<{ kind: ReveLithAppKind; filePath: string; title: string; content: unknown } | null> {
+    const tab = this.tabs.find((t) => t.view?.webContents.id === webContentsId)
+    if (!tab || !isReveLithAppKind(tab.kind)) return null
+    const info = REVELITH_APP_DOCUMENTS[tab.kind]
+    const result = await dialog.showOpenDialog(this.shellWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: info.title, extensions: newAppExtensions(tab.kind) },
+        { name: 'JSON documents', extensions: ['json'] },
+      ],
+    })
+    const filePath = result.filePaths[0]
+    if (result.canceled || !filePath) return null
+    const content = JSON.parse(await readFile(filePath, 'utf8')) as unknown
+    return { kind: tab.kind, filePath, title: basename(filePath), content }
+  }
+
+  setReveLithAppDocumentPath(webContentsId: number, filePath: string, title?: string): boolean {
+    const tab = this.tabs.find((t) => t.view?.webContents.id === webContentsId)
+    if (!tab || !isReveLithAppKind(tab.kind)) return false
+    tab.filePath = filePath
+    tab.title = basename(filePath)
+    tab.documentTitle = title || tab.title
+    tab.dirty = false
+    this.onChanged()
+    return true
+  }
+
+  async saveReveLithAppDocument(
+    webContentsId: number,
+    content: unknown,
+    title: string,
+    saveAs = false,
+    prompt = true,
+  ): Promise<{ canceled?: true; filePath?: string; title?: string; error?: string }> {
+    const tab = this.tabs.find((t) => t.view?.webContents.id === webContentsId)
+    if (!tab || !isReveLithAppKind(tab.kind))
+      return { error: 'This application tab is no longer open.' }
+    const info = REVELITH_APP_DOCUMENTS[tab.kind]
+    let filePath = saveAs ? undefined : tab.filePath
+    if (!filePath) {
+      if (!prompt) return { canceled: true }
+      const suggested = `${sanitizeDocumentBase(title || info.untitled)}.${info.extension}`
+      const picked = await dialog.showSaveDialog(this.shellWindow, {
+        defaultPath: join(app.getPath('documents'), suggested),
+        filters: [{ name: info.title, extensions: newAppExtensions(tab.kind) }],
+      })
+      if (picked.canceled || !picked.filePath) return { canceled: true }
+      filePath = ensureExtension(picked.filePath, info.extension)
+    }
+    try {
+      const serialized = JSON.stringify(content, null, 2)
+      if (!serialized || serialized.length > 100_000_000)
+        return { error: 'This document is too large to save.' }
+      await atomicWriteFile(filePath, new TextEncoder().encode(serialized))
+      tab.filePath = filePath
+      tab.title = basename(filePath)
+      tab.documentTitle = title || tab.title
+      tab.dirty = false
+      this.onChanged()
+      return { filePath, title: tab.title }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  dirtyReveLithAppTabs(): Array<{ id: string; webContents: WebContents }> {
+    return this.tabs
+      .filter((t) => isReveLithAppKind(t.kind) && t.dirty && t.view)
+      .map((t) => ({ id: t.id, webContents: t.view!.webContents }))
+  }
+
+  async prepareToCloseReveLithAppTab(id: string): Promise<boolean> {
+    const tab = this.tabs.find((t) => t.id === id)
+    if (!tab || !isReveLithAppKind(tab.kind) || !tab.dirty || !tab.view) return true
+    const { response } = await dialog.showMessageBox(this.shellWindow, {
+      type: 'warning',
+      title: 'Unsaved changes',
+      message: `Save changes to ${tab.title}?`,
+      detail: 'Your changes have not been saved to a document file.',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    })
+    if (response === 2) return false
+    if (response === 1) {
+      // New-app renderers may own a local recovery draft in addition to the
+      // shell's file dirty flag. Explicitly discard it when the user chooses
+      // Don't Save; apps without this optional hook retain their prior behavior.
+      try {
+        await tab.view.webContents.executeJavaScript('window.revelithDiscardDocument?.()')
+      } catch {
+        // Closing is still allowed if the renderer disappeared during cleanup.
+      }
+      tab.dirty = false
+      this.onChanged()
+      return true
+    }
+    try {
+      return await tab.view.webContents.executeJavaScript(
+        'window.revelithSaveDocument ? window.revelithSaveDocument() : false',
+      )
+    } catch {
+      return false
+    }
   }
 
   /** a file was renamed on disk (rename from the Home list) — sync any open tab's title/path;
@@ -586,6 +767,30 @@ export class TabManager {
         if (!(await closeGuard(tab.view.webContents, this.shellWindow))) return
       } finally {
         this.closingIds.delete(id)
+      }
+    }
+    if (isReveLithAppKind(tab.kind) && tab.view) {
+      // Ask the live editor as well as checking the main-process flag. This
+      // closes the small race between a renderer edit and its dirty-state IPC.
+      let appDirty = Boolean(tab.dirty)
+      try {
+        const rendererDirty = await tab.view.webContents.executeJavaScript(
+          'typeof window.revelithIsDocumentDirty === "function" ? window.revelithIsDocumentDirty() : null',
+        )
+        if (rendererDirty === true) appDirty = true
+      } catch {
+        // If the renderer is navigating or unavailable, retain the last known
+        // main-process dirty state rather than risk dropping an unsaved edit.
+      }
+      if (appDirty) {
+        tab.dirty = true
+        if (this.activeId !== id) this.activateTab(id)
+        this.closingIds.add(id)
+        try {
+          if (!(await this.prepareToCloseReveLithAppTab(id))) return
+        } finally {
+          this.closingIds.delete(id)
+        }
       }
     }
     this.removeTab(id)
@@ -715,6 +920,14 @@ export class TabManager {
     return this.findTabOfKindByPath('html', path)
   }
 
+  findReveLithAppTabByPath(path?: string): string | undefined {
+    const wanted = canonicalPath(path)
+    return this.tabs.find(
+      (tab) =>
+        isReveLithAppKind(tab.kind) && tab.filePath && canonicalPath(tab.filePath) === wanted,
+    )?.id
+  }
+
   /** the active tab's html view, if the active tab is html (html menu target) */
   activeHtmlTab(): { id: string; webContents: WebContents; filePath?: string } | undefined {
     const tab = this.tabs.find((t) => t.id === this.activeId)
@@ -747,4 +960,22 @@ export function canonicalPath(path: string | undefined): string | undefined {
   } catch {
     return path
   }
+}
+
+function isReveLithAppKind(kind: TabKind): kind is ReveLithAppKind {
+  return kind === 'forms' || kind === 'tasks' || kind === 'drawboard'
+}
+
+function sanitizeDocumentBase(value: string): string {
+  return (
+    value
+      .trim()
+      // eslint-disable-next-line no-control-regex -- Windows filenames reject ASCII control characters.
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
+      .replace(/[. ]+$/g, '') || 'Untitled'
+  )
+}
+
+function ensureExtension(filePath: string, extension: string): string {
+  return filePath.toLowerCase().endsWith(`.${extension}`) ? filePath : `${filePath}.${extension}`
 }

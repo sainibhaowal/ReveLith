@@ -57,6 +57,7 @@ export {
   patchShapeStyles,
   type ShapeStylePatch,
   patchDrawingExtent,
+  patchDrawingAlignment,
   buildLineParagraphXml,
   LINE_KINDS,
   type TextboxSizePatch,

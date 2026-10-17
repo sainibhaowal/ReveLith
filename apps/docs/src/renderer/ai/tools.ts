@@ -519,7 +519,11 @@ export const AGENT_TOOLS: AgentToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['bar', 'line', 'pie'], description: 'chart type' },
+        kind: {
+          type: 'string',
+          enum: ['bar', 'line', 'pie', 'area', 'radar', 'doughnut'],
+          description: 'chart type',
+        },
         title: { type: 'string', description: 'chart title' },
         categories: {
           type: 'array',
@@ -529,7 +533,7 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         series: {
           type: 'array',
           description:
-            'data series; values has the same length as categories, use null for missing data. Pie charts use only the first series',
+            'data series; values has the same length as categories, use null for missing data. Pie and doughnut charts use only the first series',
           items: {
             type: 'object',
             properties: {
@@ -1493,8 +1497,8 @@ function executeSyncTool(
 
     case 'insert_chart': {
       const kind = String(call.input.kind ?? '') as NewChart['kind']
-      if (!['bar', 'line', 'pie'].includes(kind))
-        return fail(t('aiSumInsertChart'), 'kind must be one of bar/line/pie')
+      if (!['bar', 'line', 'pie', 'area', 'radar', 'doughnut'].includes(kind))
+        return fail(t('aiSumInsertChart'), 'kind must be bar/line/pie/area/radar/doughnut')
       const categories = Array.isArray(call.input.categories)
         ? (call.input.categories as unknown[]).map((c) => String(c ?? ''))
         : []
@@ -1503,7 +1507,7 @@ function executeSyncTool(
         : []
       if (!categories.length || !seriesIn.length)
         return fail(t('aiSumInsertChart'), 'categories and series must not be empty')
-      const series = seriesIn.map((s, i) => {
+      const allSeries = seriesIn.map((s, i) => {
         const values: unknown[] = Array.isArray(s?.values) ? s.values : []
         return {
           name: String(s?.name ?? `Series ${i + 1}`),
@@ -1514,9 +1518,19 @@ function executeSyncTool(
           }),
         }
       })
+      const series = kind === 'pie' || kind === 'doughnut' ? allSeries.slice(0, 1) : allSeries
       const title = String(call.input.title ?? '').trim() || 'Chart title'
       const spec: NewChart = { kind, title, categories, series }
-      const display: ChartDisplay = { partPath: '', kind, title, categories, series }
+      const display: ChartDisplay = {
+        partPath: '',
+        kind: kind === 'doughnut' ? 'pie' : kind,
+        title,
+        categories,
+        series,
+        widthPx: 576,
+        heightPx: 336,
+        ...(kind === 'doughnut' ? { holePct: 50 } : {}),
+      }
       const count = editor.state.doc.childCount
       const after =
         call.input.afterBlockIndex === undefined

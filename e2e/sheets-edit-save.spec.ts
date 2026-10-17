@@ -4,7 +4,13 @@ import { copyFile, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Page } from '@playwright/test'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
+import {
+  launchShell,
+  closeAndSaveVideo,
+  waitForPageWithUrl,
+  screenshotPath,
+  readZipText,
+} from './helpers'
 
 const FIXTURE = resolve(__dirname, '../apps/sheets/fixtures/generated/compatibility-basic.xlsx')
 
@@ -39,8 +45,8 @@ async function copyActiveCell(page: Page): Promise<string> {
   return execSync('pbpaste').toString()
 }
 
-function sheetXml(workbookPath: string): string {
-  return execSync(`unzip -p "${workbookPath}" xl/worksheets/sheet1.xml`).toString()
+function sheetXml(workbookPath: string): Promise<string> {
+  return readZipText(workbookPath, 'xl/worksheets/sheet1.xml')
 }
 
 test.describe('sheets: edit and save an external workbook', () => {
@@ -77,11 +83,11 @@ test.describe('sheets: edit and save an external workbook', () => {
         const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
         wc?.send('menu:action', 'save')
       })
-      await expect(() => {
-        expect(sheetXml(workbook)).toContain('Hello')
+      await expect(async () => {
+        expect(await sheetXml(workbook)).toContain('Hello')
       }).toPass({ timeout: 15_000 })
       // surgical save: the untouched sibling cell survives byte-identical
-      expect(sheetXml(workbook)).toContain('<v>10</v>')
+      expect(await sheetXml(workbook)).toContain('<v>10</v>')
     } finally {
       await closeAndSaveVideo(first, 'sheets-edit-save')
     }

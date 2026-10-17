@@ -206,6 +206,9 @@ export function ledgerFromSettings(settings: Record<string, unknown>): SkillLedg
 export interface BundledSkill {
   bytes: Uint8Array
   text: string
+  /** folder name this skill installs into; parsed from the front matter so one
+   *  distribution can carry several skills without a hardcoded name */
+  name: string
   version: string
   sha256: string
 }
@@ -213,11 +216,17 @@ export interface BundledSkill {
 export function bundledSkillFrom(bytes: Uint8Array): BundledSkill {
   const text = Buffer.from(bytes).toString('utf-8')
   const fm = parseSkillFrontmatter(text)
-  return { bytes, text, version: fm?.version ?? '0.0.0', sha256: sha256(bytes) }
+  return {
+    bytes,
+    text,
+    name: fm?.name ?? SKILL_NAME,
+    version: fm?.version ?? '0.0.0',
+    sha256: sha256(bytes),
+  }
 }
 
-export function skillFilePath(skillsDir: string): string {
-  return join(skillsDir, SKILL_NAME, 'SKILL.md')
+export function skillFilePath(skillsDir: string, name: string = SKILL_NAME): string {
+  return join(skillsDir, name, 'SKILL.md')
 }
 
 export function readInstallState(
@@ -225,8 +234,8 @@ export function readInstallState(
   bundled: BundledSkill,
   ledger: SkillLedger,
 ): SkillInstallState {
-  const path = skillFilePath(skillsDir)
-  const dir = join(skillsDir, SKILL_NAME)
+  const path = skillFilePath(skillsDir, bundled.name)
+  const dir = join(skillsDir, bundled.name)
   if (!existsSync(dir)) return { status: 'missing', path }
   let text: string
   try {
@@ -235,7 +244,7 @@ export function readInstallState(
     return { status: 'occupied', path }
   }
   const fm = parseSkillFrontmatter(text)
-  if (!fm || fm.name !== SKILL_NAME) return { status: 'occupied', path }
+  if (!fm || fm.name !== bundled.name) return { status: 'occupied', path }
   const installedVersion = fm.version
   const cmp = compareVersions(installedVersion, bundled.version)
   if (cmp > 0) return { status: 'newer', path, installedVersion }
@@ -254,7 +263,7 @@ export function installSkill(
   ledger: SkillLedger,
   channel: LedgerEntry['channel'] = 'app',
 ): string {
-  const path = skillFilePath(skillsDir)
+  const path = skillFilePath(skillsDir, bundled.name)
   let existing: Stats | undefined
   try {
     existing = lstatSync(path)
@@ -262,7 +271,7 @@ export function installSkill(
   if (existing?.isSymbolicLink()) {
     throw new Error(`${path} is a symlink; refusing to overwrite whatever it points at`)
   }
-  mkdirSync(join(skillsDir, SKILL_NAME), { recursive: true })
+  mkdirSync(join(skillsDir, bundled.name), { recursive: true })
   writeFileSync(path, bundled.bytes)
   ledger[path] = {
     version: bundled.version,
@@ -274,11 +283,15 @@ export function installSkill(
 }
 
 /** Remove only what this app wrote; a folder holding other files keeps them. */
-export function uninstallSkill(skillsDir: string, ledger: SkillLedger): boolean {
-  const path = skillFilePath(skillsDir)
+export function uninstallSkill(
+  skillsDir: string,
+  ledger: SkillLedger,
+  name: string = SKILL_NAME,
+): boolean {
+  const path = skillFilePath(skillsDir, name)
   if (!ledger[path]) return false
   rmSync(path, { force: true })
-  const dir = join(skillsDir, SKILL_NAME)
+  const dir = join(skillsDir, name)
   try {
     if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true })
   } catch {}
@@ -289,7 +302,7 @@ export function uninstallSkill(skillsDir: string, ledger: SkillLedger): boolean 
 /** `revelith/SKILL.md` inside a zip: the layout claude.ai and the desktop apps accept for an uploaded skill. */
 export async function buildSkillZip(bundled: BundledSkill): Promise<Buffer> {
   const zip = new JSZip()
-  zip.file(`${SKILL_NAME}/SKILL.md`, bundled.bytes, { date: new Date(0) })
+  zip.file(`${bundled.name}/SKILL.md`, bundled.bytes, { date: new Date(0) })
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
 }
 

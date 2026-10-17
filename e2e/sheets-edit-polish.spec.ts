@@ -1,10 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
 import { copyFile, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Page } from '@playwright/test'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
+import {
+  launchShell,
+  closeAndSaveVideo,
+  waitForPageWithUrl,
+  screenshotPath,
+  readZipText,
+} from './helpers'
 
 const FIXTURE = resolve(__dirname, '../apps/sheets/fixtures/generated/compatibility-basic.xlsx')
 
@@ -99,8 +104,8 @@ test.describe('sheets: freeze journal follows undo', () => {
         const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
         wc?.send('menu:action', 'save')
       })
-      await expect(() => {
-        const xml = execSync(`unzip -p "${workbook}" xl/worksheets/sheet1.xml`).toString()
+      await expect(async () => {
+        const xml = await readZipText(workbook, 'xl/worksheets/sheet1.xml')
         expect(xml).toContain('marker')
         expect(xml).not.toContain('<pane')
       }).toPass({ timeout: 20_000 })
@@ -137,8 +142,8 @@ test.describe('sheets: Data → From Text/CSV', () => {
         const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
         wc?.send('menu:action', 'save')
       })
-      await expect(() => {
-        const xml = execSync(`unzip -p "${workbook}" xl/worksheets/sheet1.xml`).toString()
+      await expect(async () => {
+        const xml = await readZipText(workbook, 'xl/worksheets/sheet1.xml')
         expect(xml).toContain('Tokyo')
         expect(xml).toContain('<v>37</v>')
       }).toPass({ timeout: 20_000 })

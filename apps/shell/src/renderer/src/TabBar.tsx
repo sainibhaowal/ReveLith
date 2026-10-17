@@ -3,6 +3,9 @@ import type { CSSProperties, ReactElement } from 'react'
 import type { TabsApi, TabSummary } from '../../shared/tabs-api'
 import { notifyFilesChanged } from './file-events'
 import { useI18n } from './locale'
+import iconForm from './assets/file-form.svg'
+import iconTasks from './assets/file-tasks.svg'
+import iconDraw from './assets/file-draw.svg'
 
 declare global {
   interface Window {
@@ -117,6 +120,12 @@ function HtmlIcon() {
   )
 }
 
+/** The three AI apps' tabs use the same generated tiles as the home screen and
+ *  the Explorer/menu icons — one artwork per app, not a letter stand-in. */
+function AppIcon({ src }: { src: string }) {
+  return <img src={src} width="16" height="16" alt="" aria-hidden="true" />
+}
+
 const KIND_ICON: Record<TabSummary['kind'], ReactElement> = {
   home: <HomeIcon />,
   docs: <DocIcon />,
@@ -125,6 +134,9 @@ const KIND_ICON: Record<TabSummary['kind'], ReactElement> = {
   pdf: <PdfIcon />,
   markdown: <MarkdownIcon />,
   html: <HtmlIcon />,
+  forms: <AppIcon src={iconForm} />,
+  tasks: <AppIcon src={iconTasks} />,
+  drawboard: <AppIcon src={iconDraw} />,
 }
 
 /**
@@ -322,6 +334,7 @@ export function TabBar() {
             <div
               key={tab.id}
               className={`tab-item ${tab.kind === 'home' ? 'tab-home' : ''} ${tab.active ? 'active' : ''} ${dragVisual?.id === tab.id ? 'drag-source' : ''}`}
+              data-kind={tab.kind}
               // long file names ellipsize in the strip — hover reveals the
               // full title (the close button's own tooltip still wins there)
               title={tab.title}
@@ -460,7 +473,18 @@ export function TabBar() {
                   onBlur={commitRename}
                 />
               ) : (
-                <span className="tab-title">{tab.title}</span>
+                <span className="tab-title">
+                  {tab.dirty ? (
+                    <span
+                      className="tab-dirty-dot"
+                      aria-label="Unsaved changes"
+                      title="Unsaved changes"
+                    >
+                      ●{' '}
+                    </span>
+                  ) : null}
+                  {tab.title}
+                </span>
               )}
               {tab.closable && (
                 <button

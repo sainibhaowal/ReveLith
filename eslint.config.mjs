@@ -84,4 +84,13 @@ export default tseslint.config(
       '@typescript-eslint/ban-ts-comment': ['error', { 'ts-nocheck': false }],
     },
   },
+  {
+    // This runtime is serialized verbatim into exported HTML via Function#toString;
+    // it must remain browser JavaScript, while the export boundary is fully typed.
+    // Generated offline-form behavior is covered by standalone export tests.
+    files: ['apps/forms-builder/src/renderer/standaloneExport.ts'],
+    rules: {
+      '@typescript-eslint/ban-ts-comment': ['error', { 'ts-nocheck': false }],
+    },
+  },
 )

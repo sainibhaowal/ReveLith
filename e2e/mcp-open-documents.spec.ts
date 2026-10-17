@@ -213,7 +213,7 @@ test.describe('MCP open documents', () => {
     execFileSync(
       process.execPath,
       [
-        join(APP_ROOT, 'packages', 'cli', 'dist', 'revelith.cjs'),
+        join(APP_ROOT, 'packages', 'revelith-cli', 'dist', 'revelith.cjs'),
         'create',
         '--type',
         'docx',

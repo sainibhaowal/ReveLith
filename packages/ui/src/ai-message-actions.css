@@ -1,0 +1,91 @@
+/* The assistant-message action row. Shared so every app's chat uses the same
+   row instead of a per-app copy of this CSS. Only design tokens here, so it
+   follows the app's theme and accent. */
+.ai-msg-toolbar {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.ai-msg-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 30px;
+  min-width: 30px;
+  padding: 5px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-msg-tool-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ai-msg-tool-btn:hover:not(:disabled) {
+  background: var(--color-bg-subtle);
+}
+
+.ai-msg-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ai-msg-tool-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+/* Global press feedback */
+.ai-msg-tool-btn:active {
+  filter: brightness(0.88);
+  transform: scale(0.98);
+}
+
+/* Hairline before the roll-back action; hidden unless an icon action precedes it */
+.ai-rollback-sep {
+  display: none;
+  width: 1px;
+  height: 14px;
+  align-self: center;
+  background: var(--border);
+}
+
+.ai-msg-tool-btn ~ .ai-rollback-sep {
+  display: block;
+}
+
+/* Quiet roll-back after copy/regenerate: dim at rest, solid on hover */
+.ai-rollback-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 30px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 0 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ai-rollback-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.ai-rollback-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

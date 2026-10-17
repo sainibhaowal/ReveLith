@@ -212,7 +212,7 @@ test.describe('MCP visible document session', () => {
 
       // read it back through the file tool to confirm the content persisted
       const readBack = await call('read_docx', { path: outFile })
-      expect(readBack.isError).toBeFalsy()
+      expect(readBack.isError, readBack.text).toBeFalsy()
       expect(readBack.text).toContain('Quarterly Report')
       expect(readBack.text).toContain('Revenue grew steadily')
     } finally {

@@ -285,7 +285,9 @@ describe('packaging consistency', () => {
   it('electron-builder fileAssociations cover exactly SHELL_MENU_EXTS', () => {
     const config = readFileSync(`${SHELL_DIR}/electron-builder.cjs`, 'utf8')
     const exts = [...config.matchAll(/ext: '([^']+)'/g)].map((m) => m[1]).sort()
-    expect(exts).toEqual([...SHELL_MENU_EXTS].sort())
+    expect(exts).toEqual(
+      [...SHELL_MENU_EXTS, 'form', 'tasks', 'draw', 'drawboard', 'whiteboard'].sort(),
+    )
   })
 
   it('the nsis block includes the shell-menu script', () => {

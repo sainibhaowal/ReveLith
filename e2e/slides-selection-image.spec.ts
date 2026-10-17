@@ -13,6 +13,7 @@ test.beforeAll(async () => {
     configFile: false,
     root: resolve('apps/slides/src/renderer'),
     plugins: [react()],
+    resolve: { dedupe: ['react', 'react-dom'] },
     server: { host: '127.0.0.1', port: 0, fs: { allow: [process.cwd()] } },
   })
   server.middlewares.use('/clipboard-test', async (_req, res) => {

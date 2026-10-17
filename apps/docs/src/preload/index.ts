@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { VIEW_IMAGE_CHANNEL } from '../shared/ipc'
 import type { AiPanelPrefs } from '@revelith/ui'
@@ -8,7 +8,6 @@ import type {
   AiStreamChunk,
   AiStreamRequest,
   DesktopApi,
-  DocSourceInput,
   MenuCommand,
   AutoSaveDefault,
   ContextMenuRequest,
@@ -116,6 +115,10 @@ const api: DesktopApi = {
     return () => ipcRenderer.removeListener('docs:context-menu', listener)
   },
   spellAddWord: (word: string) => ipcRenderer.invoke('docs:spell-add-word', word),
+  spellCheckWord: (word: string) => ({
+    misspelled: webFrame.isWordMisspelled(word),
+    suggestions: webFrame.getWordSuggestions(word),
+  }),
   spellIgnoreWord: (word: string) => ipcRenderer.invoke('docs:spell-ignore-word', word),
   spellReplace: (word: string) => ipcRenderer.invoke('docs:spell-replace', word),
   spellLanguages: () => ipcRenderer.invoke('docs:spell-languages'),
@@ -198,12 +201,6 @@ const api: DesktopApi = {
   readAttachmentImage: (path: string) => ipcRenderer.invoke('files:read-image', path),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   openNewTab: (openPath?: string | null) => ipcRenderer.invoke('win:new', openPath ?? null),
-  sourceAdd: (docSessionId: string, item: DocSourceInput) =>
-    ipcRenderer.invoke('docs:source-add', docSessionId, item),
-  sourceList: (docSessionId: string) => ipcRenderer.invoke('docs:source-list', docSessionId),
-  sourceRemove: (docSessionId: string, sourceId: string) =>
-    ipcRenderer.invoke('docs:source-remove', docSessionId, sourceId),
-  sourceClear: (docSessionId: string) => ipcRenderer.invoke('docs:source-clear', docSessionId),
   listDocsTabs: () => ipcRenderer.invoke('win:list'),
   focusDocsTab: (id: string) => ipcRenderer.invoke('win:focus', id),
   onAiStream: (handler: (chunk: AiStreamChunk) => void) => {

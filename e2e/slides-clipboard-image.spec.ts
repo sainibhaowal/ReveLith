@@ -1,11 +1,11 @@
 import { test, expect, _electron as electron } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
 import { cp, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { PNG } from 'pngjs'
 import type { SlidesApi } from '../apps/slides/src/shared/ipc'
+import { zipDirectory } from './helpers'
 
 test('Slides copy provides an OS image while internal paste stays editable and stale captures are rejected', async ({
   browserName: _browserName,
@@ -16,13 +16,19 @@ test('Slides copy provides an OS image while internal paste stays editable and s
   const xmlPath = join(fixture, 'ppt/slides/slide1.xml')
   await writeFile(xmlPath, (await readFile(xmlPath, 'utf8')).replaceAll('Rubik', 'Arial'))
   const pptx = join(dir, 'selection.pptx')
-  execFileSync('zip', ['-X', '-q', '-r', pptx, '.'], { cwd: fixture })
+  await zipDirectory(fixture, pptx)
   const require = createRequire(resolve('apps/slides/package.json'))
-  const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
+  const {
+    ELECTRON_RUN_AS_NODE: _node,
+    CHROME_CRASHPAD_PIPE_NAME: _crashpadPipeName,
+    ...env
+  } = process.env
   const app = await electron.launch({
     executablePath: require('electron'),
     args: [
-      ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : []),
+      ...(process.platform === 'win32' || process.platform === 'linux'
+        ? ['--no-sandbox', '--disable-gpu']
+        : []),
       resolve('apps/slides'),
       pptx,
     ],

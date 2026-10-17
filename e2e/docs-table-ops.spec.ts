@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import JSZip from 'jszip'
 import { launchShell, closeAndSaveVideo, screenshotPath, waitForPageWithUrl } from './helpers'
@@ -56,7 +55,9 @@ test.describe('docs table operations', () => {
   let docPath: string
 
   test.beforeEach(async () => {
-    dir = realpathSync(mkdtempSync(join(tmpdir(), 'revelith-e2e-table-')))
+    const scratch = join(process.cwd(), '.tmp', 'e2e')
+    mkdirSync(scratch, { recursive: true })
+    dir = realpathSync(mkdtempSync(join(scratch, 'revelith-e2e-table-')))
     docPath = join(dir, 'grid.docx')
     writeFileSync(docPath, await minimalDocx())
   })
@@ -133,24 +134,51 @@ test.describe('docs table operations', () => {
       await props.getByRole('tab', { name: 'Alt Text' }).click()
       await props.getByLabel('Title').fill('Quarterly grid')
       await props.getByLabel('Description').fill('Three quarters of sample cells')
+      await props.getByRole('tab', { name: 'Table', exact: true }).click()
+      await props.getByLabel('Spacing between cells').fill('0.1 cm')
       await props.screenshot({ path: screenshotPath('docs-table-ops-properties') })
       await props.getByRole('button', { name: 'OK' }).click()
       await expect(props).toBeHidden()
+      const spacingState = await editorPage.evaluate(() => {
+        const editor = (window as unknown as AidocsWindow).__aidocs!.editor as {
+          state: {
+            doc: {
+              descendants: (
+                fn: (node: {
+                  type: { name: string }
+                  attrs: Record<string, unknown>
+                }) => boolean | void,
+              ) => void
+            }
+          }
+        }
+        let spacingTwips: unknown
+        editor.state.doc.descendants((node) => {
+          if (node.type.name !== 'docTable' || spacingTwips !== undefined) return
+          spacingTwips = node.attrs.cellSpacingTwips
+        })
+        const table = document.querySelector<HTMLTableElement>('.doc-page .doc-table')
+        return { spacingTwips, borderSpacing: table?.style.borderSpacing }
+      })
+      expect(spacingState.spacingTwips).toBe(57)
+      expect(parseFloat(spacingState.borderSpacing ?? '')).toBeCloseTo(7.6, 1)
 
       // ---- Split Table at the last row
       await cell(3, 0).click()
       await editorPage.getByRole('button', { name: 'Split Table' }).click()
       await expect(editorPage.locator('.doc-page .doc-table')).toHaveCount(2)
 
-      expect(
-        await editorPage.evaluate(() => (window as unknown as AidocsWindow).__aidocs!.save!()),
-      ).toBe(true)
+      const saved = await editorPage.evaluate(() =>
+        (window as unknown as AidocsWindow).__aidocs!.save!(),
+      )
+      expect(saved, await editorPage.locator('.status-bar').innerText()).toBe(true)
       await expect
         .poll(() => documentXml(docPath), { timeout: 15_000 })
         .toContain('<w:tblDescription w:val="Three quarters of sample cells"/>')
       const xml = await documentXml(docPath)
       expect(xml.match(/<w:tbl>/g)).toHaveLength(2)
       expect(xml).toContain('<w:tblCaption w:val="Quarterly grid"/>')
+      expect(xml).toContain('<w:tblCellSpacing w:w="57" w:type="dxa"/>')
       expect(xml).toContain('<w:vAlign w:val="bottom"/>')
       expect(xml).toContain('<w:jc w:val="right"/>')
       expect(xml).toMatch(/<w:tcBorders><w:top w:val="double"/)

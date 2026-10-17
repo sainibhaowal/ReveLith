@@ -1,0 +1,548 @@
+/* ReveLith native clarification card.
+ *
+ * This is intentionally a complete surface: the header, question body and
+ * actions are visually separated so the card still reads correctly when it is
+ * docked inside the narrow Draw composer. All colours come from shared tokens
+ * so the same card works in light and dark mode.
+ */
+
+.ai-clarify-card {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-height: min(620px, calc(100vh - 8px));
+  overflow: hidden;
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 12%);
+  animation: ai-clarify-rise 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Header: identity, progress and navigation are three stable regions. */
+.ai-clarify-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 13px 14px 12px;
+  background: linear-gradient(180deg, var(--color-bg-subtle), var(--color-bg-page));
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.ai-clarify-head-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+/* Small brand marker makes the panel feel like a ReveLith surface instead of
+ * an unstyled form dropped into the chat. */
+.ai-clarify-head-label::before {
+  content: '✦';
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: var(--color-brand-secondary, #0f7fff);
+  border-radius: 7px;
+  box-shadow: 0 3px 8px rgb(15 127 255 / 22%);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ai-clarify-head-progress {
+  min-width: 42px;
+  padding: 4px 8px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ai-clarify-head-arrows {
+  display: inline-flex;
+  overflow: hidden;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+}
+
+.ai-clarify-head-arrow {
+  width: 27px;
+  height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition:
+    background 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-clarify-head-arrow + .ai-clarify-head-arrow {
+  border-left: 1px solid var(--color-border-default);
+}
+
+.ai-clarify-head-arrow:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  background: var(--color-bg-subtle);
+}
+
+.ai-clarify-head-arrow:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--hx-focus-ring-soft);
+}
+
+.ai-clarify-head-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* One question at a time; directional slide (240ms / cubic-bezier(.16,1,.3,1)). */
+.ai-clarify-q {
+  min-height: 210px;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  overflow-y: auto;
+  margin: 0;
+  padding: 17px 16px 16px;
+}
+
+.ai-clarify-q.slide-next {
+  animation: ai-clarify-slide-next 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-clarify-q.slide-prev {
+  animation: ai-clarify-slide-prev 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-clarify-question-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.ai-clarify-label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ai-clarify-multi-badge {
+  flex-shrink: 0;
+  margin-top: 2px;
+  padding: 3px 7px;
+  color: var(--color-brand-secondary, #0f7fff);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-brand, var(--color-border-default));
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.ai-clarify-desc {
+  margin: 0 0 14px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Choice rows: generous hit areas, explicit radio/checkbox affordances and a
+ * blue selected state that remains legible in a narrow panel. */
+.ai-clarify-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ai-clarify-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition:
+    background 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-clarify-opt:hover {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-strong);
+}
+
+.ai-clarify-opt:active {
+  transform: translateY(1px);
+}
+
+.ai-clarify-opt:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--hx-focus-ring-soft);
+}
+
+.ai-clarify-opt-label {
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.ai-clarify-opt-box {
+  position: relative;
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  box-sizing: border-box;
+  background: var(--color-bg-page);
+  border: 2px solid var(--color-border-strong);
+  border-radius: 50%;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-clarify-opt.multi .ai-clarify-opt-box {
+  border-radius: 5px;
+}
+
+.ai-clarify-opt-on {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-brand-secondary, #0f7fff);
+  box-shadow: inset 3px 0 0 var(--color-brand-secondary, #0f7fff);
+}
+
+.ai-clarify-opt-on .ai-clarify-opt-box {
+  background: var(--color-brand-secondary, #0f7fff);
+  border-color: var(--color-brand-secondary, #0f7fff);
+}
+
+.ai-clarify-opt-on:not(.multi) .ai-clarify-opt-box::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.ai-clarify-opt-on.multi .ai-clarify-opt-box::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ai-clarify-opt-arrow {
+  margin-left: auto;
+  color: var(--color-brand-secondary, #0f7fff);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition:
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-clarify-opt:hover .ai-clarify-opt-arrow,
+.ai-clarify-opt-on .ai-clarify-opt-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Free-text answer gets its own field treatment rather than looking like a
+ * fifth option. */
+.ai-clarify-other {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-subtle);
+  border: 1px dashed var(--color-border-default);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 21px;
+  transition:
+    background 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-clarify-other::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.ai-clarify-other:hover {
+  border-color: var(--color-border-strong);
+}
+
+.ai-clarify-other:focus {
+  outline: none;
+  background: var(--color-bg-page);
+  border-color: var(--color-brand-secondary, #0f7fff);
+  box-shadow: 0 0 0 3px var(--hx-focus-ring-soft);
+}
+
+/* Footer: always pinned to the bottom and separated from the scrollable body. */
+.ai-clarify-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: 62px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--color-bg-subtle);
+  border-top: 1px solid var(--color-border-default);
+  flex-wrap: wrap;
+}
+
+.ai-clarify-actions.multi {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
+.ai-clarify-count {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-clarify-actions-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ai-clarify-next,
+.ai-clarify-submit {
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 0 15px;
+  color: var(--color-btn-primary-text);
+  background: var(--color-btn-primary);
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-clarify-next {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 82px;
+}
+
+.ai-clarify-next-arrow {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.ai-clarify-next:hover:not(:disabled),
+.ai-clarify-submit:hover:not(:disabled) {
+  opacity: 0.86;
+}
+
+.ai-clarify-next:active:not(:disabled),
+.ai-clarify-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ai-clarify-next:focus-visible,
+.ai-clarify-submit:focus-visible,
+.ai-clarify-skip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--hx-focus-ring-soft);
+}
+
+.ai-clarify-next:disabled,
+.ai-clarify-submit:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.ai-clarify-skip {
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-clarify-skip:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+}
+
+@keyframes ai-clarify-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ai-clarify-slide-next {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ai-clarify-slide-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 360px) {
+  .ai-clarify-head {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .ai-clarify-q {
+    min-height: 0;
+    padding: 13px 12px 10px;
+  }
+
+  .ai-clarify-label {
+    font-size: 16px;
+  }
+
+  .ai-clarify-desc {
+    margin-bottom: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .ai-clarify-opts {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .ai-clarify-opt {
+    min-height: 36px;
+    padding: 7px 9px;
+  }
+
+  .ai-clarify-opt-label,
+  .ai-clarify-other {
+    font-size: 13px;
+  }
+
+  .ai-clarify-other {
+    min-height: 36px;
+    padding: 7px 9px;
+  }
+
+  .ai-clarify-actions {
+    min-height: 48px;
+    padding: 7px 10px;
+  }
+
+  .ai-clarify-next,
+  .ai-clarify-submit,
+  .ai-clarify-skip {
+    min-height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-clarify-card,
+  .ai-clarify-q.slide-next,
+  .ai-clarify-q.slide-prev,
+  .ai-clarify-opt,
+  .ai-clarify-head-arrow,
+  .ai-clarify-next,
+  .ai-clarify-submit,
+  .ai-clarify-skip {
+    animation: none;
+    transition: none;
+  }
+}

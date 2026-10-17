@@ -1,0 +1,71 @@
+# ReveLith Drawboard — TODO (scope: `apps/drawboard` only)
+
+External references are read-only and NEVER modified. Allowed to modify: ONLY `apps/drawboard` (+ root `package-lock.json` via npm install — no other source files).
+
+- [x] Phase 0 — Dependencies + assets + bundler
+  - [x] Add the pinned canvas-engine dependency + declare `@revelith/ui` in `apps/drawboard/package.json`
+  - [x] `npm install -w @revelith/drawboard` (updates lockfile only)
+  - [x] Board-engine fonts + asset path
+  - [x] Update `electron.vite.config.ts` for board CSS/fonts
+  - [x] Fix `vite.renderer.config.ts` (`root: 'src/renderer'`, same as slides/docs)
+  - [x] Verify: `typecheck`, `vite build` smoke
+- [x] Phase 1 — ReveLith hardening
+  - [x] NEW `src/shared/ipc.ts` + `src/shared/types.ts` (DrawboardDocument v1/v2 compat)
+  - [x] NEW `src/main/drawboard-main.ts`, wire into `src/main/index.ts`
+  - [x] EDIT `src/preload/index.ts` (keep electronAPI, add drawboardApi)
+  - [x] EDIT `src/renderer/main.tsx` (async bootstrap theme/locale)
+  - [x] Verify: typecheck + tests
+- [x] Phase 2 — Editor swap (ReveLith UI shell + board canvas)
+  - [x] NEW `src/renderer/board-engine/DrawboardHost.tsx`
+  - [x] NEW `src/renderer/board-engine/persistence.ts` (old Op[] migration)
+  - [x] NEW `src/renderer/board-engine/exporters.ts`
+  - [x] NEW `src/renderer/board-engine/library.ts`
+  - [x] NEW `src/renderer/board-engine/ai-tools.ts`
+  - [x] EDIT `src/renderer/App.tsx` (keep AppRibbon + AppChatPanel + shell save)
+  - [x] Verify: typecheck + vitest + manual save/open
+- [x] Phase 3 — Full parity, ReveLith visual skin
+  - [x] File: New/Open/Save/SaveAs/Export PNG/SVG/board file/.drawboard
+  - [x] Tools: all board tools, laser, frame, image, embeddables blocked
+  - [x] Settings: theme, grid, background, language
+  - [x] Board menu/welcome/footer ReveLith-branded (no third-party names in UI)
+  - [x] Collaboration off (local + shell save only)
+  - [x] Verify: full checklist
+- [x] Phase 4 — Tests + docs + final verification
+  - [x] NEW tests: persistence roundtrip, ai-tools, exporters
+  - [x] NEW `README.md` + `ADOPTION_NOTES.md`
+  - [x] Run: typecheck, test, build, regression (shell `new-app:*` unchanged)
+- [x] Phase 5 — Rich ribbon + advanced tools (docs house parity)
+  - [x] NEW `src/renderer/ribbon/` (`DrawboardRibbon.tsx` 7 tabs, `icons.tsx`, `board-actions.ts`, `ribbon.css`)
+  - [x] NEW `src/renderer/board-engine/history.ts` (real undo/redo shared by ribbon + agent)
+  - [x] Agent surface grown 13 -> 28 board tools (+ global web_search), router + guard extended
+  - [x] AI quick prompts feed the composer; attached images reach the model as vision input
+  - [x] Verify: typecheck, 50 tests, production build, live screenshots
+- [x] Phase 6 — Docs-pattern toolbar shell + native menu (this round)
+  - [x] Local ribbon shell: blue File button, quick access, AutoSave left; tabs; short status right (shared CSS classes kept)
+  - [x] New Home tab (Quick edit/Arrange/Style); no AI tab (panel toggles from its own header/rail, like other apps)
+  - [x] Rich footer status bar: elements, selection, saved state, grid/snap/present, zoom controls, theme cycle
+  - [x] Specificity-hardened tab-strip CSS (shared package untouched); 28px icons; compact gaps
+  - [x] Native app menu File/Edit/View/Window/Help with working actions + Ctrl+S (no double-firing keys)
+  - [x] Short status (element count stays in footer)
+  - [x] Verify: typecheck, 50 tests, production build, single prod instance
+
+- [x] Phase 7 — Home AI group + polish (this round)
+  - [x] Home "AI assist": ReveLith AI toggle (expand/collapse) + Summarize/Flowchart/Brainstorm prompts (docs Review-tab pattern)
+  - [x] Verify: typecheck, 50 tests, production build, single prod instance
+
+- [x] Phase 8 - Agentic tools, complex scene authoring, and visible execution
+  - [x] Prevent unknown or aliased tool names from appearing as generic "Invalid tool" loops
+  - [x] Expose actual tool name, arguments, result, and errors in expandable activity cards
+  - [x] Show public working phases with ReveLith shimmer/sweep styling; keep private model reasoning hidden
+  - [x] Add transactional batch scene and sanitized scalable SVG artwork tools
+  - [x] Guide the agent to plan, draw, inspect, and revise complex scenes from natural language
+  - [x] Test tool routing, alias normalization, scene validation/creation, and activity details
+  - [x] Build the full desktop app and confirm Drawboard resources are included
+
+- [x] Phase 9 - Agent-loop drawing integration check
+  - [x] Exercise a natural-language illustration request through dynamic tool selection and multiple model turns
+  - [x] Verify board read, batch scene creation, SVG artwork, follow-up inspection, mutation results, and visible tool lifecycle events
+  - [x] Verify errors and unsupported actions do not get reported as successful drawing
+- [ ] Phase 10 - Live desktop/provider acceptance
+  - [ ] Run the packaged ReveLith desktop app and submit a natural-language complex drawing request through the configured provider
+  - [ ] Visually confirm the drawing, expandable tool inputs/results, progress animation, and follow-up edits in the real app

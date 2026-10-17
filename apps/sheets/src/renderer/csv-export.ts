@@ -4,7 +4,7 @@
 /// and writes UTF-8 with a BOM so Excel reopens it correctly.
 
 import { MAX_CSV_EXPORT_CHARS } from '../shared/ipc-channels'
-import { formulaViewSheets } from './formula-view'
+import { formulaViewSheets } from './formula-view-state'
 import { t } from './i18n/locale'
 import { showToast } from './toast-bus'
 import type { LazyWorkbookState, UniverRuntime } from './univer-state'

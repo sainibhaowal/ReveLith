@@ -1162,7 +1162,7 @@ export interface DiagramDisplay {
 
 /** A new chart to embed at save time (becomes word/charts/chartN.xml + relationship). */
 export interface NewChart {
-  kind: 'bar' | 'line' | 'pie'
+  kind: 'bar' | 'line' | 'pie' | 'area' | 'radar' | 'doughnut'
   title?: string
   categories: string[]
   series: Array<{ name: string; values: (number | null)[] }>
@@ -1294,6 +1294,8 @@ export interface TableModel {
   cellMarTwips?: CellMargins
   /** w:tblCellSpacing (twips, half the gap between adjacent cells); cells render boxed with gaps */
   cellSpacingTwips?: number
+  /** True only when Docs intentionally changed spacing; otherwise preserve raw row/table placement. */
+  cellSpacingEdited?: boolean
   /** table shading (tblPr w:shd), hex without '#'; shows through transparent cells and cell-spacing gaps */
   fill?: string
   /** table-level borders (w:tblBorders); undefined = not declared (default gridlines apply) */
@@ -1421,6 +1423,8 @@ export interface NewImage {
    * axes to the page box instead (full-page backgrounds).
    */
   posOffsetEmu?: { x: number; y: number; relativeTo?: 'page' | 'margin' }
+  /** named position-gallery alignment when floating; ignored with posOffsetEmu */
+  posAlign?: { h: 'left' | 'center' | 'right'; v: 'top' | 'center' | 'bottom' }
   /**
    * stacking rank among anchored drawings (only with `wrap`): written as
    * relativeHeight base + zOrder, so overlapping behindDoc anchors keep a

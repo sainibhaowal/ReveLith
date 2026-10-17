@@ -66,7 +66,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: ['@revelith/electron-utils'] })],
   },
   renderer: {
-    resolve: { alias: workspaceAlias },
+    resolve: { alias: workspaceAlias, dedupe: ['react', 'react-dom'] },
     plugins: [react()],
     server: {
       port: Number(process.env.SLIDES_DEV_PORT) || 5175,

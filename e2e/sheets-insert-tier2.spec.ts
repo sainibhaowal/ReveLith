@@ -1,10 +1,16 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
 import { copyFile, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Page } from '@playwright/test'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
+import {
+  launchShell,
+  closeAndSaveVideo,
+  waitForPageWithUrl,
+  screenshotPath,
+  listZipEntries,
+  readZipText,
+} from './helpers'
 
 const FIXTURE = resolve(__dirname, '../apps/sheets/fixtures/generated/compatibility-basic.xlsx')
 
@@ -74,8 +80,8 @@ test.describe('sheets: Insert → Equation and Checkbox', () => {
       await sheets.screenshot({ path: screenshotPath('equation-inserted') })
 
       await saveWorkbook(launched.app)
-      await expect(() => {
-        const listing = execSync(`unzip -l "${workbook}"`).toString()
+      await expect(async () => {
+        const listing = (await listZipEntries(workbook)).join('\n')
         expect(listing).toContain('xl/media/')
       }).toPass({ timeout: 20_000 })
     } finally {
@@ -103,7 +109,7 @@ test.describe('sheets: Insert → Equation and Checkbox', () => {
       await expect(async () => {
         await sheets.getByRole('button', { name: 'Checkbox' }).click()
         await saveWorkbook(launched.app)
-        const sheetXml = execSync(`unzip -p "${workbook}" xl/worksheets/sheet1.xml`).toString()
+        const sheetXml = await readZipText(workbook, 'xl/worksheets/sheet1.xml')
         expect(sheetXml).toContain('<dataValidation type="list"')
         expect(sheetXml).toContain('<formula1>"1,0"</formula1>')
       }).toPass({ timeout: 30_000 })

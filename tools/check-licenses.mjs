@@ -35,6 +35,8 @@ const EXCEPTIONS = {
   '@univerjs/telemetry': 'Apache-2.0',
   // mermaid dependency; ships an MIT `license` file but no package.json field
   khroma: 'MIT',
+  // fuzzy@0.1.3 omits package.json's `license` key but ships LICENSE-MIT.
+  fuzzy: 'MIT',
 }
 
 /** Production packages that declare no license upstream, where we could not

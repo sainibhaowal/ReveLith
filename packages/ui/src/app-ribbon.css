@@ -1,0 +1,299 @@
+.revelith-app-ribbon {
+  flex: 0 0 auto;
+  color: var(--text-primary, var(--text, #202124));
+  background: var(--surface, #fff);
+  border-bottom: 1px solid var(--border, #d9dde5);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  z-index: 5;
+}
+.revelith-app-ribbon-status {
+  min-width: 0;
+  max-width: min(42vw, 520px);
+  overflow: hidden;
+  color: var(--text-secondary, #687078);
+  font-size: 11px;
+  margin-left: auto;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.revelith-app-ribbon-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.revelith-app-ribbon-actions > button {
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid var(--border, #d9dde5);
+  border-radius: 5px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #202124);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.revelith-app-ribbon-actions > button:hover {
+  background: var(--surface-subtle, #f3f5f8);
+}
+.revelith-app-ribbon-tabs {
+  min-height: 32px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.revelith-app-ribbon-tabs button {
+  position: relative;
+  min-width: 62px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+  color: var(--text-secondary, #50565e);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.revelith-app-ribbon-tabs button:hover {
+  background: var(--surface-subtle, #f3f5f8);
+  color: var(--text-primary, #202124);
+}
+.revelith-app-ribbon-tabs button.active {
+  color: var(--accent, #2563eb);
+  font-weight: 600;
+}
+.revelith-app-ribbon-tabs button.active::after {
+  content: '';
+  position: absolute;
+  height: 2px;
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  background: var(--accent, #2563eb);
+  border-radius: 2px 2px 0 0;
+}
+.revelith-app-ribbon-body {
+  min-height: 76px;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 5px 10px 3px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.revelith-app-ribbon-body[hidden] {
+  display: none;
+}
+.revelith-app-ribbon-group {
+  flex: 0 0 auto;
+  min-width: max-content;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1px 9px 0;
+  border-right: 1px solid var(--border, #e5e7eb);
+}
+.revelith-app-ribbon-group:last-child {
+  border-right: 0;
+}
+.revelith-app-ribbon-group-items {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  gap: 6px;
+}
+.revelith-app-ribbon-group-label {
+  text-align: center;
+  color: var(--text-secondary, #72777f);
+  font-size: 10px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+/* One native ReveLith command-button language shared by ribbon-based apps.
+   App accents remain token-driven; hover and selected states stay neutral. */
+.revelith-ribbon-tool {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 7px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary, var(--text, #232425));
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    outline-color 120ms ease;
+}
+.revelith-ribbon-tool--large {
+  min-height: 58px;
+  flex-direction: column;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.15;
+}
+.revelith-ribbon-tool-icon {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 0 28px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: 3px 4px;
+  margin: 0 -4px;
+  border-radius: 4px;
+  color: inherit;
+}
+.revelith-ribbon-tool--large .revelith-ribbon-tool-icon > svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.revelith-ribbon-tool-label {
+  color: inherit;
+}
+.revelith-ribbon-tool--large .revelith-ribbon-tool-label {
+  max-width: 180px;
+  text-align: center;
+}
+.revelith-ribbon-tool--large:hover:not(:disabled) .revelith-ribbon-tool-icon,
+.revelith-ribbon-tool--large:focus-visible:not(:disabled) .revelith-ribbon-tool-icon {
+  background: var(--hover, var(--surface-subtle, #f3f4f6));
+}
+.revelith-ribbon-tool--large.active .revelith-ribbon-tool-icon,
+.revelith-ribbon-tool--large.is-active .revelith-ribbon-tool-icon {
+  background: var(--active-bg, var(--pressed, #eaeaea));
+}
+.revelith-ribbon-tool--large.is-ai-entry {
+  border-radius: 4px;
+}
+.revelith-ribbon-tool--large.is-ai-entry:hover:not(:disabled),
+.revelith-ribbon-tool--large.is-ai-entry.active,
+.revelith-ribbon-tool--large.is-ai-entry.is-active {
+  background: var(--hover, var(--surface-subtle, #f3f4f6));
+}
+.revelith-ribbon-tool--large.is-ai-entry.active,
+.revelith-ribbon-tool--large.is-ai-entry.is-active {
+  background: var(--active-bg, var(--pressed, #eaeaea));
+}
+.revelith-ribbon-tool--large.is-ai-entry:hover:not(:disabled) .revelith-ribbon-tool-icon,
+.revelith-ribbon-tool--large.is-ai-entry.active .revelith-ribbon-tool-icon,
+.revelith-ribbon-tool--large.is-ai-entry.is-active .revelith-ribbon-tool-icon {
+  background: transparent;
+}
+.revelith-ribbon-tool.is-accent {
+  color: var(--accent, var(--tasks-accent, var(--color-brand-secondary, #0f7fff)));
+}
+.revelith-ribbon-tool--compact {
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+.revelith-ribbon-tool--compact .revelith-ribbon-tool-icon {
+  flex: 0 0 auto;
+  min-height: 14px;
+  padding: 0;
+  margin: 0;
+}
+.revelith-ribbon-tool--compact .revelith-ribbon-tool-icon > svg {
+  width: 14px;
+  height: 14px;
+}
+.revelith-ribbon-tool--compact:hover:not(:disabled),
+.revelith-ribbon-tool--compact:focus-visible:not(:disabled),
+.revelith-ribbon-tool--compact.active,
+.revelith-ribbon-tool--compact.is-active {
+  background: var(--hover, var(--surface-subtle, #f3f4f6));
+}
+.revelith-ribbon-tool--icon,
+.revelith-ribbon-tool--quick {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 4px;
+}
+.revelith-ribbon-tool--icon .revelith-ribbon-tool-icon,
+.revelith-ribbon-tool--quick .revelith-ribbon-tool-icon {
+  flex: none;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+}
+.revelith-ribbon-tool--icon .revelith-ribbon-tool-icon > svg {
+  width: 14px;
+  height: 14px;
+}
+.revelith-ribbon-tool--quick .revelith-ribbon-tool-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+.revelith-ribbon-tool--icon:hover:not(:disabled),
+.revelith-ribbon-tool--icon:focus-visible:not(:disabled),
+.revelith-ribbon-tool--icon.active,
+.revelith-ribbon-tool--icon.is-active,
+.revelith-ribbon-tool--quick:hover:not(:disabled),
+.revelith-ribbon-tool--quick:focus-visible:not(:disabled),
+.revelith-ribbon-tool--quick.active,
+.revelith-ribbon-tool--quick.is-active {
+  background: var(--hover, var(--surface-subtle, #f3f4f6));
+}
+.revelith-app-ribbon-actions > .revelith-ribbon-tool--quick {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #606366);
+  font-size: 12px;
+}
+.revelith-app-ribbon-actions > .revelith-ribbon-tool--quick:hover:not(:disabled),
+.revelith-app-ribbon-actions > .revelith-ribbon-tool--quick:focus-visible:not(:disabled) {
+  color: var(--text-primary, #232425);
+}
+.revelith-app-ribbon-actions > .revelith-ribbon-tool--quick.is-accent,
+.revelith-app-ribbon-actions > .revelith-ribbon-tool--quick.is-accent:hover:not(:disabled),
+.revelith-app-ribbon-actions > .revelith-ribbon-tool--quick.is-accent:focus-visible:not(:disabled) {
+  color: var(--accent, var(--tasks-accent, var(--color-brand-secondary, #0f7fff)));
+}
+.revelith-ribbon-tool:focus-visible:not(:disabled) {
+  outline: 2px solid var(--border-strong, #9b9b9b);
+  outline-offset: 1px;
+}
+.revelith-ribbon-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .revelith-ribbon-tool {
+    transition: none;
+  }
+}
+@media (max-width: 640px) {
+  .revelith-app-ribbon-status {
+    display: none;
+  }
+  .revelith-app-ribbon-body {
+    min-height: 68px;
+  }
+  .revelith-app-ribbon-group-items {
+    min-height: 44px;
+  }
+}

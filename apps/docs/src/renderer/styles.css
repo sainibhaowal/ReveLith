@@ -4100,6 +4100,16 @@ th.cell-rev-del {
   --doc-autospace-pad: 0.125em;
 }
 
+/* Chromium keeps existing native spelling markers attached to text nodes when
+   spellcheck is disabled. Hide those markers with the same state attribute so
+   Review → Spelling Off takes effect immediately for existing text too. */
+.doc-page[spellcheck='false']::spelling-error,
+.doc-page[spellcheck='false'] *::spelling-error {
+  text-decoration-line: none !important;
+  text-decoration: none !important;
+  text-decoration-color: transparent !important;
+}
+
 /* CJK/Latin autospace pad: the character after the boundary carries the extra
    1/8em as a start margin. Plain inline (not inline-block): an atomic inline
    would suppress Chromium's own text-autospace gap. Not an empty span: when an
@@ -6470,8 +6480,9 @@ body.docs-crop-active .doc-protected[data-doc-protected='image'] .doc-img-wrap {
    height already budgets a 22px title row); the editing-only data grid
    carries its own top margin instead */
 .doc-chart {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
+  max-width: 100%;
 }
 
 .doc-chart-title {
@@ -7470,51 +7481,10 @@ body.docs-crop-active
 
 /* tool activity chips inside assistant bubbles */
 /* Collapsible tool-activity group */
-.ai-work-group {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  margin-top: 12px;
-}
 
 .ai-msg-assistant .ai-work-group:first-child,
 .ai-work-group:only-child {
   margin-top: 0;
-}
-
-.ai-work-group-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  margin: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  user-select: none;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-text-tertiary);
-  transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ai-work-group-summary:hover {
-  color: var(--color-text-secondary);
-}
-
-.ai-work-group-summary:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--docs-focus-ring);
-  border-radius: 4px;
-}
-
-.ai-work-group-summary.running {
-  color: var(--color-text-secondary);
-}
-
-.ai-work-group-summary.running .ai-work-group-label {
-  animation: ai-summary-pulse 1500ms linear infinite;
 }
 
 @keyframes ai-summary-pulse {
@@ -7527,74 +7497,7 @@ body.docs-crop-active
   }
 }
 
-.ai-work-group-body {
-  align-self: stretch;
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ai-work-group-body.open {
-  grid-template-rows: 1fr;
-}
-
-.ai-work-group-body-inner {
-  overflow: hidden;
-  min-height: 0;
-  padding: 0 0 0 8px;
-  transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ai-work-group-body.open .ai-work-group-body-inner {
-  padding: 4px 0 8px 8px;
-}
-
 /* Step rows inside the group: 20px icon slot + 1px connector */
-.ai-step-row {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 0;
-  color: var(--color-text-tertiary);
-  animation: ai-row-ease-in 320ms ease-out;
-}
-
-.ai-step-row:not(:last-child) {
-  padding-bottom: 16px;
-}
-
-.ai-step-row:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 9.5px;
-  top: 32px;
-  bottom: -4px;
-  width: 1px;
-  background: var(--color-border-default);
-}
-
-.ai-step-icon {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-tertiary);
-}
-
-.ai-step-icon.done {
-  color: var(--color-text-secondary);
-}
-
-.ai-step-icon.error {
-  color: var(--color-error);
-}
-
-.ai-step-icon.running svg {
-  animation: ai-hourglass-flip 1.8s ease-in-out infinite;
-}
 
 @keyframes ai-hourglass-flip {
   0%,
@@ -7611,49 +7514,7 @@ body.docs-crop-active
   }
 }
 
-.ai-step-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 1px;
-}
-
-.ai-step-title {
-  font-size: 14px;
-  line-height: 1.3;
-  color: var(--color-text-secondary);
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font-family: inherit;
-}
-
-.ai-step-title.clickable {
-  cursor: pointer;
-  transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ai-step-title.clickable:hover {
-  color: var(--text-primary);
-}
-
-.ai-step-title.clickable:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--docs-focus-ring);
-  border-radius: 4px;
-}
-
 /* Step detail opens instantly, no animation */
-.ai-step-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .ai-step-row,
@@ -7664,31 +7525,8 @@ body.docs-crop-active
 }
 
 /* Running tool row: two grow/shrink brand dots */
-.ai-tool-chip-spinner {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: 12px;
-}
 
 .ai-tool-chip-spinner::before,
-.ai-tool-chip-spinner::after {
-  content: '';
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--color-brand-secondary);
-}
-
-.ai-tool-chip-spinner::before {
-  animation: ai-tool-dot-grow 2s infinite;
-}
-
-.ai-tool-chip-spinner::after {
-  animation: ai-tool-dot-shrink 2s infinite;
-}
-
 @keyframes ai-tool-dot-grow {
   0%,
   100% {
@@ -7735,16 +7573,6 @@ body.docs-crop-active
 }
 
 /* caret: text glyph right after the label, always visible, rotates open */
-.ai-tool-chip-caret {
-  margin-left: 4px;
-  opacity: 0.7;
-  display: inline-block;
-  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ai-tool-chip-caret.open {
-  transform: rotate(90deg);
-}
 
 /* stream rows ease in */
 @keyframes ai-row-ease-in {
@@ -7759,26 +7587,6 @@ body.docs-crop-active
 }
 
 /* expanded step detail: subtle gray card, no border */
-.ai-tool-output {
-  background: var(--color-bg-subtle);
-  border: none;
-  border-radius: 12px;
-  font-family:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  font-size: 14px;
-  color: var(--text-primary);
-  max-height: 300px;
-  overflow-y: auto;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.ai-tool-output-pre {
-  padding: 12px 16px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.5;
-}
 
 /* streaming typing indicator */
 /* Thinking indicator (white background, no container):
@@ -7920,98 +7728,14 @@ body.docs-crop-active
 
 /* hover actions under assistant messages (copy / regenerate):
  * borderless 30px icon buttons, radius 8, hover = subtle gray fill */
-.ai-msg-toolbar {
-  display: flex;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.ai-msg-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  height: 30px;
-  min-width: 30px;
-  padding: 5px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.ai-msg-tool-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.ai-msg-tool-btn:hover:not(:disabled) {
-  background: var(--color-bg-subtle);
-}
-
-.ai-msg-tool-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 
 /* Hairline before the roll-back action; hidden unless an icon action precedes it */
-.ai-rollback-sep {
-  display: none;
-  width: 1px;
-  height: 14px;
-  align-self: center;
-  background: var(--border);
-}
-
-.ai-msg-tool-btn ~ .ai-rollback-sep {
-  display: block;
-}
 
 /* Quiet roll-back in the message toolbar (after copy/regenerate): dim at rest, solid on hover */
-.ai-rollback-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  height: 30px;
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  font-size: 12px;
-  font-family: inherit;
-  padding: 0 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.ai-rollback-btn:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--hover);
-}
-
-.ai-rollback-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.ai-msg-tool-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--docs-focus-ring-blue);
-}
 
 /* Tooltip: dark pill under the button, 0.3s hover delay */
-.ai-msg-tool-btn {
-  position: relative;
-}
 
 /* Global press feedback */
-.ai-msg-tool-btn:active {
-  filter: brightness(0.88);
-  transform: scale(0.98);
-}
 
 .ai-continue-btn {
   margin-top: 8px;
@@ -12757,4 +12481,262 @@ tr > .page-gap-cut {
     outline: 1px dashed var(--border-strong);
     outline-offset: -1px;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SOURCE TRAY  (st-* namespace)
+   Uses tokens from @revelith/ui/tokens.css (--surface, --border, --text,
+   --accent, --accent-soft, --bg-hover, --danger, etc.) and from styles.css
+   (--docs-shadow-menu, --docs-scroll-thumb, --docs-input-focus …).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Panel shell ──────────────────────────────────────────────────────────── */
+
+/* Chat message actions and tool-run group */
+.ai-work-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.ai-work-group-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  margin: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+  transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-work-group-summary:hover {
+  color: var(--color-text-secondary);
+}
+
+.ai-work-group-summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--docs-focus-ring-blue);
+  border-radius: 4px;
+}
+
+.ai-work-group-summary.running {
+  color: var(--color-text-secondary);
+}
+
+.ai-work-group-summary.running .ai-work-group-label {
+  animation: ai-summary-pulse 1500ms linear infinite;
+}
+
+.ai-work-group-body {
+  align-self: stretch;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-work-group-body.open {
+  grid-template-rows: 1fr;
+}
+
+.ai-work-group-body-inner {
+  overflow: hidden;
+  min-height: 0;
+  padding: 0 0 0 8px;
+  transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-work-group-body.open .ai-work-group-body-inner {
+  padding: 4px 0 8px 8px;
+}
+
+.ai-step-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  color: var(--color-text-tertiary);
+  animation: ai-row-ease-in 320ms ease-out;
+}
+
+.ai-step-row:not(:last-child) {
+  padding-bottom: 16px;
+}
+
+.ai-step-row:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 9.5px;
+  top: 32px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--color-border-default);
+}
+
+.ai-step-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+}
+
+.ai-step-icon.done {
+  color: var(--color-text-secondary);
+}
+
+.ai-step-icon.error {
+  color: var(--hx-error);
+}
+
+.ai-step-icon.running svg {
+  animation: ai-hourglass-flip 1.8s ease-in-out infinite;
+}
+
+.ai-step-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 1px;
+}
+
+.ai-step-title {
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--color-text-secondary);
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+}
+
+.ai-step-title.clickable {
+  cursor: pointer;
+  transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-step-title.clickable:hover {
+  color: var(--text-primary);
+}
+
+.ai-step-title.clickable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--docs-focus-ring-blue);
+  border-radius: 4px;
+}
+
+.ai-step-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ai-tool-chip-spinner {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 12px;
+}
+
+.ai-tool-chip-spinner::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-brand-secondary);
+}
+
+.ai-tool-chip-spinner::before {
+  animation: ai-tool-dot-grow 2s infinite;
+}
+
+.ai-tool-chip-spinner::after {
+  animation: ai-tool-dot-shrink 2s infinite;
+}
+
+.ai-tool-chip-caret {
+  margin-left: 4px;
+  opacity: 0.7;
+  display: inline-block;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-tool-chip-caret.open {
+  transform: rotate(90deg);
+}
+
+.ai-tool-output {
+  background: var(--color-bg-subtle);
+  border: none;
+  border-radius: 12px;
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 14px;
+  color: var(--text-primary);
+  max-height: 300px;
+  overflow-y: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ai-tool-output-pre {
+  padding: 12px 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.ai-msg-toolbar {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.ai-msg-tool-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 30px;
+  min-width: 30px;
+  padding: 5px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-msg-tool-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ai-msg-tool-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--hx-focus-ring-blue);
+}
+
+.ai-msg-tool-btn:active {
+  filter: brightness(0.88);
+  transform: scale(0.98);
 }

@@ -769,8 +769,11 @@ export function buildChartPartXml(chart: NewChart, externalDataRId?: string): st
     .join('')
 
   let plot: string
-  if (chart.kind === 'pie') {
-    plot = `<c:pieChart><c:varyColors val="1"/>${sers}<c:firstSliceAng val="0"/></c:pieChart>`
+  if (chart.kind === 'pie' || chart.kind === 'doughnut') {
+    plot =
+      chart.kind === 'doughnut'
+        ? `<c:doughnutChart><c:varyColors val="1"/>${sers}<c:holeSize val="50"/><c:firstSliceAng val="0"/></c:doughnutChart>`
+        : `<c:pieChart><c:varyColors val="1"/>${sers}<c:firstSliceAng val="0"/></c:pieChart>`
   } else {
     const axes =
       '<c:catAx><c:axId val="111111111"/><c:scaling><c:orientation val="minMax"/></c:scaling>' +
@@ -781,8 +784,14 @@ export function buildChartPartXml(chart: NewChart, externalDataRId?: string): st
       chart.kind === 'bar'
         ? `<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>${sers}` +
           '<c:axId val="111111111"/><c:axId val="222222222"/></c:barChart>'
-        : `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${sers}<c:marker val="1"/>` +
-          '<c:axId val="111111111"/><c:axId val="222222222"/></c:lineChart>'
+        : chart.kind === 'line'
+          ? `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${sers}<c:marker val="1"/>` +
+            '<c:axId val="111111111"/><c:axId val="222222222"/></c:lineChart>'
+          : chart.kind === 'area'
+            ? `<c:areaChart><c:grouping val="standard"/><c:varyColors val="0"/>${sers}` +
+              '<c:axId val="111111111"/><c:axId val="222222222"/></c:areaChart>'
+            : `<c:radarChart><c:radarStyle val="standard"/>${sers}` +
+              '<c:axId val="111111111"/><c:axId val="222222222"/></c:radarChart>'
     plot = inner + axes
   }
 

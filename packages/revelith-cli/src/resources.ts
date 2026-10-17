@@ -63,6 +63,9 @@ export function xlsxSidecarPath(): string | null {
   const packaged = packagedResourcesDir()
   const candidates = [
     ...(packaged ? [join(packaged, 'native', executable)] : []),
+    ...(!packaged && process.env.CARGO_TARGET_DIR
+      ? [join(resolve(process.env.CARGO_TARGET_DIR), 'release', executable)]
+      : []),
     ...(repoRoot()
       ? [join(repoRoot()!, 'apps/sheets/native/xlsx-engine/target/release', executable)]
       : []),

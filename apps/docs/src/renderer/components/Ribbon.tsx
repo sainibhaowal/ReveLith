@@ -262,12 +262,9 @@ interface RibbonProps {
   onSaveAs: () => void
   showAi: boolean
   onToggleAi: () => void
-  ghostCompletion?: boolean
-  onToggleGhostCompletion?: () => void
-  showSourceTray?: boolean
-  onToggleSourceTray?: () => void
   section: SectionSettings | null
   onSection: (next: SectionSettings) => void
+  onPageMargins?: (next: SectionSettings, mirror: boolean) => void
   /** Multi-section documents: index of the cursor's section (0-based); null for single-section */
   activeSection: number | null
   onInsertSectionBreak: (type: 'nextPage' | 'continuous' | 'evenPage' | 'oddPage') => void
@@ -278,7 +275,7 @@ interface RibbonProps {
     orientation: SectionSettings['orientation'],
   ) => void
   mirrorMargins: boolean
-  onMirrorMargins: (on: boolean) => void
+  onMirrorMargins?: (on: boolean) => void
   pageColor: string | null
   onPageColor: (hex: string | null) => void
   /** Design → Watermark / Themes */
@@ -552,12 +549,14 @@ const CELL_TEXT_DIRECTIONS: Array<[CellTextDirection, StringKey]> = [
   ['btLr', 'ribbonTextDirectionRotate270'],
 ]
 const IMAGE_TABS = ['pictureFormat'] as const
+const CHART_TABS = ['chartFormat'] as const
 const SHAPE_TABS = ['shapeFormat'] as const
 const HF_TABS = ['headerFooter'] as const
 type RibbonTab =
   | (typeof TABS)[number]
   | (typeof TABLE_TABS)[number]
   | (typeof IMAGE_TABS)[number]
+  | (typeof CHART_TABS)[number]
   | (typeof SHAPE_TABS)[number]
   | (typeof HF_TABS)[number]
 
@@ -619,6 +618,7 @@ const TAB_LABEL_KEYS: Record<string, StringKey> = {
   tableDesign: 'ribbonTabTableDesign',
   tableLayout: 'ribbonTabTableLayout',
   pictureFormat: 'ribbonTabPictureFormat',
+  chartFormat: 'ribbonTabChartFormat',
   shapeFormat: 'ribbonTabShapeFormat',
   headerFooter: 'ribbonTabHeaderFooter',
 }
@@ -705,12 +705,9 @@ function RibbonInner({
   onSaveAs,
   showAi,
   onToggleAi,
-  ghostCompletion,
-  onToggleGhostCompletion,
-  showSourceTray,
-  onToggleSourceTray,
   section,
   onSection,
+  onPageMargins,
   activeSection,
   onInsertSectionBreak,
   onPaperSizeAll,
@@ -835,6 +832,7 @@ function RibbonInner({
   const lastRegularTab = useRef<(typeof TABS)[number]>('home')
   const wasInTable = useRef(false)
   const wasInImage = useRef(false)
+  const wasInChart = useRef(false)
   const wasInHf = useRef(false)
   /** Picture Format → remove background / crop dialogs */
   const [pictureDialog, setPictureDialog] = useState<'cutout' | 'crop' | null>(null)
@@ -931,6 +929,20 @@ function RibbonInner({
       setTab((current) => (current === 'pictureFormat' ? lastRegularTab.current : current))
     }
   }, [inImage])
+
+  // ---- Chart Format (contextual tab for native and inserted charts) ----
+  const inChart = !sub && fs.chartSelected
+  useEffect(() => {
+    if (inChart && !wasInChart.current) {
+      wasInChart.current = true
+      setDropdown(null)
+      setTab('chartFormat')
+    } else if (!inChart && wasInChart.current) {
+      wasInChart.current = false
+      setDropdown(null)
+      setTab((current) => (current === 'chartFormat' ? lastRegularTab.current : current))
+    }
+  }, [inChart])
 
   // ---- Shape Format (contextual tab when a floating box is selected, same mechanism) ----
   // Unlike the picture tab this one survives `sub`: double-clicking into the
@@ -1140,6 +1152,27 @@ function RibbonInner({
             imageHeightPx: side,
           }
     editor.chain().focus().updateAttributes('docProtected', next).run()
+  }
+
+  const setChartSize = (dim: 'w' | 'h', twips: number) => {
+    if (!canEdit || !Number.isFinite(twips) || twips <= 0) return
+    const attrs = editor.getAttributes('docProtected')
+    const display = attrs?.chartDisplay as {
+      series?: unknown[]
+      widthPx?: number
+      heightPx?: number
+    } | null
+    if (!Array.isArray(display?.series) || display.series.length === 0) return
+    const minPx = dim === 'w' ? 120 : 80
+    const maxPx = dim === 'w' ? 1200 : 2400
+    const px = Math.round(Math.min(maxPx, Math.max(minPx, twipsToPx(twips))))
+    editor
+      .chain()
+      .focus()
+      .updateAttributes('docProtected', {
+        chartDisplay: { ...display, [dim === 'w' ? 'widthPx' : 'heightPx']: px },
+      })
+      .run()
   }
 
   /** Word's Reset Size: the picture's own pixel size at 96 dpi. A picture wider
@@ -2055,6 +2088,21 @@ function RibbonInner({
               {t(TAB_LABEL_KEYS[imageTab])}
             </button>
           ))}
+        {inChart &&
+          CHART_TABS.map((chartTab) => (
+            <button
+              key={chartTab}
+              className={`ribbon-tab ${collapse.tabClass(tab === chartTab)}`}
+              data-tip={collapse.tabTip(tab === chartTab)}
+              onClick={() => {
+                collapse.onTabPress(tab === chartTab)
+                setTab(chartTab)
+                setDropdown(null)
+              }}
+            >
+              {t(TAB_LABEL_KEYS[chartTab])}
+            </button>
+          ))}
         {inShape &&
           SHAPE_TABS.map((shapeTab) => (
             <button
@@ -2401,6 +2449,72 @@ function RibbonInner({
                 <button data-tip={t('ribbonResetSizeTip')} onClick={() => void resetPictureSize()}>
                   {t('ribbonResetSize')}
                 </button>
+              </div>
+              <div className="ribbon-group-label">{t('ribbonGroupSize')}</div>
+            </div>
+          </div>
+        ) : tab === 'chartFormat' && inChart ? (
+          <div className="table-ribbon-body">
+            <div className="table-tool-group">
+              <div className="table-tool-row">
+                {(
+                  [
+                    ['left', <IconAlignLeft key="l" />, t('ribbonAlignLeftTip')],
+                    ['center', <IconAlignCenter key="c" />, t('ribbonAlignCenterTip')],
+                    ['right', <IconAlignRight key="r" />, t('ribbonAlignRightTip')],
+                  ] as const
+                ).map(([value, icon, label]) => (
+                  <button
+                    key={value}
+                    className={
+                      (editor.getAttributes('docProtected').imageAlign ?? 'left') === value
+                        ? 'table-tool-button active'
+                        : 'table-tool-button'
+                    }
+                    disabled={!canEdit}
+                    data-tip={label}
+                    aria-label={label}
+                    onClick={() =>
+                      editor
+                        .chain()
+                        .focus()
+                        .updateAttributes('docProtected', {
+                          imageAlign: value === 'left' ? null : value,
+                        })
+                        .run()
+                    }
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+              <div className="ribbon-group-label">{t('ribbonGroupArrange')}</div>
+            </div>
+            <div className="ribbon-sep" />
+            <div className="table-tool-group">
+              <div className="table-tool-row table-size-inputs" key={fs.chartKey ?? 'nosel'}>
+                <label>
+                  {t('ribbonPicHeight')}
+                  <LengthInput
+                    value={fs.chartHeightPx !== null ? pxToTwips(fs.chartHeightPx) : null}
+                    min={pxToTwips(80)}
+                    max={pxToTwips(2400)}
+                    disabled={!canEdit}
+                    ariaLabel={t('ribbonPicHeight')}
+                    onCommit={(twips) => twips && setChartSize('h', twips)}
+                  />
+                </label>
+                <label>
+                  {t('ribbonPicWidth')}
+                  <LengthInput
+                    value={fs.chartWidthPx !== null ? pxToTwips(fs.chartWidthPx) : null}
+                    min={pxToTwips(120)}
+                    max={pxToTwips(1200)}
+                    disabled={!canEdit}
+                    ariaLabel={t('ribbonPicWidth')}
+                    onCommit={(twips) => twips && setChartSize('w', twips)}
+                  />
+                </label>
               </div>
               <div className="ribbon-group-label">{t('ribbonGroupSize')}</div>
             </div>
@@ -4048,11 +4162,17 @@ function RibbonInner({
             setDropdown={setDropdown}
             section={section}
             onSection={onSection}
+            onPageMargins={
+              onPageMargins ??
+              ((next, mirror) => {
+                onSection(next)
+                if (mirror !== mirrorMargins) onMirrorMargins?.(mirror)
+              })
+            }
             activeSection={activeSection}
             onInsertSectionBreak={onInsertSectionBreak}
             onPaperSizeAll={onPaperSizeAll}
             mirrorMargins={mirrorMargins}
-            onMirrorMargins={onMirrorMargins}
           />
         ) : tab === 'references' ? (
           <ReferencesTab
@@ -4111,10 +4231,6 @@ function RibbonInner({
             onZoomDialog={onZoomDialog}
             showAi={showAi}
             onToggleAi={onToggleAi}
-            ghostCompletion={ghostCompletion}
-            onToggleGhostCompletion={onToggleGhostCompletion}
-            showSourceTray={showSourceTray}
-            onToggleSourceTray={onToggleSourceTray}
             darkPage={darkPage}
             onDarkPage={onDarkPage}
             showRuler={showRuler}

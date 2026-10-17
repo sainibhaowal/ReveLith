@@ -1,10 +1,16 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
-import { copyFile, mkdtemp } from 'node:fs/promises'
+import { copyFile, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Page } from '@playwright/test'
-import { launchShell, closeAndSaveVideo, waitForPageWithUrl, screenshotPath } from './helpers'
+import JSZip from 'jszip'
+import {
+  launchShell,
+  closeAndSaveVideo,
+  waitForPageWithUrl,
+  screenshotPath,
+  readZipText,
+} from './helpers'
 
 const FIXTURE = resolve(__dirname, '../apps/sheets/fixtures/generated/compatibility-basic.xlsx')
 
@@ -28,8 +34,8 @@ async function gridOrigin(page: Page): Promise<{ x: number; y: number }> {
   return { x: grid.x + 46, y: grid.y + 24 }
 }
 
-function sheetXml(workbookPath: string): string {
-  return execSync(`unzip -p "${workbookPath}" xl/worksheets/sheet1.xml`).toString()
+function sheetXml(workbookPath: string): Promise<string> {
+  return readZipText(workbookPath, 'xl/worksheets/sheet1.xml')
 }
 
 test.describe('sheets: ribbon batch-1 features', () => {
@@ -94,8 +100,8 @@ test.describe('sheets: ribbon batch-1 features', () => {
         const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
         wc?.send('menu:action', 'save')
       })
-      await expect(() => {
-        expect(sheetXml(workbook)).toContain('showRowColHeaders="0"')
+      await expect(async () => {
+        expect(await sheetXml(workbook)).toContain('showRowColHeaders="0"')
       }).toPass({ timeout: 15_000 })
     } finally {
       await closeAndSaveVideo(launched, 'sheets-ribbon-batch')
@@ -193,8 +199,8 @@ const MINIMAL_THEME =
   '<a:minorFont><a:latin typeface="Calibri"/></a:minorFont>' +
   '</a:fontScheme><a:fmtScheme name="Office"/></a:themeElements></a:theme>'
 
-function archiveEntry(workbookPath: string, entry: string): string {
-  return execSync(`unzip -p "${workbookPath}" ${entry}`).toString()
+function archiveEntry(workbookPath: string, entry: string): Promise<string> {
+  return readZipText(workbookPath, entry)
 }
 
 test.describe('sheets: ribbon batch-3 features', () => {
@@ -202,11 +208,10 @@ test.describe('sheets: ribbon batch-3 features', () => {
     const scratch = await mkdtemp(join(tmpdir(), 'revelith-ribbon3-e2e-'))
     const workbook = join(scratch, 'ribbon-batch3.xlsx')
     await copyFile(FIXTURE, workbook)
-    // The generated fixture ships no theme part; the theme engine needs one.
-    execSync(
-      `mkdir -p "${scratch}/xl/theme" && printf '%s' '${MINIMAL_THEME}' > "${scratch}/xl/theme/theme1.xml" ` +
-        `&& cd "${scratch}" && zip -q "${workbook}" xl/theme/theme1.xml`,
-    )
+    // The generated fixture ships no theme part; add it without shell-specific tools.
+    const archive = await JSZip.loadAsync(await readFile(workbook))
+    archive.file('xl/theme/theme1.xml', MINIMAL_THEME)
+    await writeFile(workbook, await archive.generateAsync({ type: 'nodebuffer' }))
 
     const launched = await launchShell({
       onboardingSeen: true,
@@ -267,14 +272,14 @@ test.describe('sheets: ribbon batch-3 features', () => {
         const wc = webContents.getAllWebContents().find((w) => w.getURL().includes('://sheets/'))
         wc?.send('menu:action', 'save')
       })
-      await expect(() => {
-        const sheet = sheetXml(workbook)
+      await expect(async () => {
+        const sheet = await sheetXml(workbook)
         expect(sheet).toContain('<rowBreaks count="1" manualBreakCount="1">')
         expect(sheet).toContain('<brk id="2" max="16383" man="1"/>')
         expect(sheet).toContain('<brk id="1" max="1048575" man="1"/>')
         expect(sheet).toContain('<protectedRange sqref="A1:B2" name="Range1"/>')
-        expect(archiveEntry(workbook, 'xl/workbook.xml')).toContain('lockStructure="1"')
-        const theme = archiveEntry(workbook, 'xl/theme/theme1.xml')
+        expect(await archiveEntry(workbook, 'xl/workbook.xml')).toContain('lockStructure="1"')
+        const theme = await archiveEntry(workbook, 'xl/theme/theme1.xml')
         expect(theme).toContain('<a:clrScheme name="Indigo">')
         expect(theme).toContain('<a:accent1><a:srgbClr val="2E4FA3"/></a:accent1>')
         expect(theme).toContain('<a:latin typeface="Segoe UI"/>')

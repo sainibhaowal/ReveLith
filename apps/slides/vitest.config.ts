@@ -1,13 +1,21 @@
 import { dirname, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 const here = dirname(fileURLToPath(import.meta.url))
+const appRequire = createRequire(new URL('./package.json', import.meta.url))
+const reactRoot = dirname(appRequire.resolve('react/package.json'))
+const reactDomRoot = dirname(appRequire.resolve('react-dom/package.json'))
 
 export default defineConfig({
   // Pin resolution to this repo's workspace sources (matches tsconfig paths)
   resolve: {
     alias: {
+      // Linked @revelith/ui resolves from the repo root, where ReactDOM may be
+      // a different peer version. Keep test renderer and hooks on Slides' pair.
+      'react-dom': reactDomRoot,
+      react: reactRoot,
       // Subpath before the bare name: string aliases are prefix replacements
       '@revelith/pptx-engine/table-grid': resolve(
         here,
@@ -39,10 +47,12 @@ export default defineConfig({
       '@revelith/pipelines/slides': resolve(here, '../../packages/pipelines/src/slides/index.ts'),
       '@revelith/docx-engine/metafile': resolve(here, '../../packages/docx-engine/src/metafile.ts'),
     },
+    dedupe: ['react', 'react-dom'],
   },
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'jsdom',
     testTimeout: 20000,
+    server: { deps: { inline: ['@testing-library/react'] } },
   },
 })

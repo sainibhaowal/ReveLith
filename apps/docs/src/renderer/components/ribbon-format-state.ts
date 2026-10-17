@@ -42,6 +42,10 @@ export interface RibbonFormatState {
   imageHasDocxIndex: boolean
   /** document position of the selected picture: per-picture UI state keys on it */
   imageKey: number | null
+  chartSelected: boolean
+  chartWidthPx: number | null
+  chartHeightPx: number | null
+  chartKey: number | null
   textboxSelected: boolean
   shapeFill: string | null
   shapeBorderColor: string | null
@@ -117,6 +121,10 @@ export const EMPTY_FORMAT_STATE: RibbonFormatState = {
   imageFlipV: false,
   imageHasDocxIndex: false,
   imageKey: null,
+  chartSelected: false,
+  chartWidthPx: null,
+  chartHeightPx: null,
+  chartKey: null,
   textboxSelected: false,
   shapeFill: null,
   shapeBorderColor: null,
@@ -269,6 +277,12 @@ export function computeFormatState(
 
   const protAttrs = editor.getAttributes('docProtected')
   const imageSelected = protAttrs.blockType === 'image' && !!protAttrs.imageDataUrl
+  const chartDisplay = protAttrs.chartDisplay as {
+    series?: unknown[]
+    widthPx?: number
+    heightPx?: number
+  } | null
+  const chartSelected = Array.isArray(chartDisplay?.series) && chartDisplay.series.length > 0
 
   const textAttrs = ed.getAttributes('docTextStyle')
   const fonts = selectedFonts(ed, styles, docDefaults)
@@ -311,6 +325,10 @@ export function computeFormatState(
     imageFlipV: !!protAttrs.imageFlipV,
     imageHasDocxIndex: protAttrs.docxIndex != null,
     imageKey: imageSelected ? editor.state.selection.from : null,
+    chartSelected,
+    chartWidthPx: chartSelected ? num(chartDisplay?.widthPx) : null,
+    chartHeightPx: chartSelected ? num(chartDisplay?.heightPx) : null,
+    chartKey: chartSelected ? editor.state.selection.from : null,
     textboxSelected: Array.isArray(protAttrs.textboxes) && protAttrs.textboxes.length > 0,
     shapeFill: Array.isArray(protAttrs.textboxes)
       ? str((protAttrs.textboxes[0] as { fill?: string } | undefined)?.fill)

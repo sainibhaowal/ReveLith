@@ -29,6 +29,9 @@
 const { execFileSync } = require('node:child_process')
 const { existsSync, readFileSync, rmSync } = require('node:fs')
 const { join } = require('node:path')
+const DRAWBOARD_OUT = existsSync(join(__dirname, '../drawboard/out'))
+  ? '../drawboard/out'
+  : '../whiteboard/out'
 
 function normalizeHttpsBaseUrl(name, value) {
   if (!value || !value.trim()) return null
@@ -344,6 +347,18 @@ const config = {
       from: '../html/out',
       to: 'modules/html',
     },
+    {
+      from: '../forms-builder/out',
+      to: 'modules/forms-builder',
+    },
+    {
+      from: '../tasks/out',
+      to: 'modules/tasks',
+    },
+    {
+      from: DRAWBOARD_OUT,
+      to: 'modules/drawboard',
+    },
     // PDF text editing engines: the bundled main resolves these under
     // Resources/wasm when node_modules is absent (apps/pdf/src/main/wasm-path.ts)
     {
@@ -395,6 +410,12 @@ const config = {
       from: '../../skills/revelith/SKILL.md',
       to: 'cli/skills/revelith/SKILL.md',
     },
+    // the AI Draw skill ships beside it: same distribution format,
+    // its own folder taken from the front matter
+    {
+      from: '../../skills/revelith-draw/SKILL.md',
+      to: 'cli/skills/revelith-draw/SKILL.md',
+    },
     // runtime deps the revelith bundle leaves external (jsdom for the Word/Markdown
     // paths); collected by packages/cli/collect-deps.mjs during its build
     {
@@ -423,6 +444,42 @@ const config = {
   // pairs are generated from the shell renderer's file-type tiles by
   // tools/gen-file-association-icons.mjs.
   fileAssociations: [
+    {
+      ext: 'form',
+      name: 'ReveLith Form',
+      description: 'ReveLith Form',
+      role: 'Editor',
+      icon: 'form',
+    },
+    {
+      ext: 'tasks',
+      name: 'ReveLith Task Board',
+      description: 'ReveLith Task Board',
+      role: 'Editor',
+      icon: 'tasks',
+    },
+    {
+      ext: 'draw',
+      name: 'ReveLith Drawing',
+      description: 'ReveLith Drawing',
+      role: 'Editor',
+      icon: 'draw',
+    },
+    // Keep both older extensions associated so existing drawings still open.
+    {
+      ext: 'drawboard',
+      name: 'ReveLith Drawboard file (legacy)',
+      description: 'ReveLith Drawboard file (legacy)',
+      role: 'Editor',
+      icon: 'draw',
+    },
+    {
+      ext: 'whiteboard',
+      name: 'Legacy ReveLith drawing',
+      description: 'Legacy ReveLith drawing',
+      role: 'Editor',
+      icon: 'draw',
+    },
     {
       ext: 'docx',
       name: 'Word Document',
@@ -656,6 +713,10 @@ const config = {
     installerIcon: 'build/installerIcon.ico',
     uninstallerIcon: 'build/uninstallerIcon.ico',
     installerHeaderIcon: 'build/icon.ico',
+    // Arch-qualified artifact name for the ARM64 pass so both installers can
+    // be published side by side. The x64 string reproduces electron-builder's
+    // default exactly (existing download links keep working).
+    artifactName: 'ReveLith Setup ${version}' + (winArm64 ? '-arm64' : '') + '.${ext}',
     // Explorer "Open with ReveLith" verbs + ShellNew templates (see
     // build/installer.nsh customInstall/customUnInstall).
     include: 'build/installer.nsh',

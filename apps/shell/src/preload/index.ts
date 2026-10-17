@@ -16,7 +16,6 @@ import type {
   DefaultAppStatus,
   FolderListing,
   FolderRoot,
-  MatrixProgress,
   MoveResult,
   HomeApi,
   RecentEntry,
@@ -164,18 +163,14 @@ const homeApi: HomeApi = {
   async newPdf(opts) {
     await ipcRenderer.invoke(HOME_CHANNELS.newPdf, opts)
   },
-  async generateMatrix(input) {
-    const result: unknown = await ipcRenderer.invoke(HOME_CHANNELS.generateMatrix, input)
-    if (result && typeof result === 'object')
-      return result as { ok: boolean; path?: string; error?: string }
-    return { ok: false, error: 'Matrix generation failed' }
+  async newFormsBuilder() {
+    await ipcRenderer.invoke(HOME_CHANNELS.newFormsBuilder)
   },
-  onMatrixProgress(handler) {
-    const listener = (_event: IpcRendererEvent, progress: unknown) => {
-      if (progress && typeof progress === 'object') handler(progress as MatrixProgress)
-    }
-    ipcRenderer.on(HOME_CHANNELS.matrixProgress, listener)
-    return () => ipcRenderer.removeListener(HOME_CHANNELS.matrixProgress, listener)
+  async newTasks() {
+    await ipcRenderer.invoke(HOME_CHANNELS.newTasks)
+  },
+  async newDrawboard() {
+    await ipcRenderer.invoke(HOME_CHANNELS.newDrawboard)
   },
   async removeRecent(paths) {
     await ipcRenderer.invoke(HOME_CHANNELS.removeRecent, paths)
@@ -229,7 +224,7 @@ const homeApi: HomeApi = {
     )) as MoveResult
   },
   async deleteFolder(dir) {
-    await ipcRenderer.invoke(HOME_CHANNELS.deleteFolder, dir)
+    return ipcRenderer.invoke(HOME_CHANNELS.deleteFolder, dir)
   },
   onFolderChanged(handler) {
     const listener = (_event: IpcRendererEvent, dirs: unknown) => {

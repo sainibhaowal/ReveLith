@@ -5,6 +5,7 @@ import { McpServerSection } from './McpServerSection'
 import type {
   AgentId,
   AgentTarget,
+  BundledSkillStatus,
   IntegrationsStatus,
   SkillInstallState,
 } from '../../shared/integrations-api'
@@ -23,7 +24,7 @@ interface Pending {
   path: string
   /** extra warning line (overwriting edits, replacing a foreign SKILL.md) */
   note?: string
-  target: { agentId: AgentId } | { dir: string }
+  target: { agentId: AgentId; name?: string } | { dir: string; name?: string }
   /** row the block renders under; the custom-folder install has none */
   agentId?: AgentId
 }
@@ -32,7 +33,9 @@ export const NPX_INSTALL_COMMAND = 'npx skills add revelith-ai/revelith'
 
 /** some detected assistant holds an older copy of the skill than the bundled one */
 export const skillUpdateDue = (s: IntegrationsStatus): boolean =>
-  s.agents.some((a) => a.state.older === true)
+  (s.skills?.length ? s.skills.flatMap((skill) => skill.agents) : s.agents).some(
+    (a) => a.state.older === true,
+  )
 
 const EXAMPLE_KEYS = ['intgExample1', 'intgExample2', 'intgExample3'] as const
 
@@ -62,6 +65,8 @@ export function IntegrationsPane({
   onStatus?: (s: IntegrationsStatus) => void
 }) {
   const [status, setStatus] = useState<IntegrationsStatus | null>(null)
+  /** which bundled skill the controls below act on; null means the first */
+  const [activeSkill, setActiveSkill] = useState<string | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
   const [busy, setBusy] = useState(false)
   /** one-line outcome shown until the next action: installed hint, saved zip path, copied */
@@ -90,7 +95,8 @@ export function IntegrationsPane({
     setBusy(true)
     try {
       if (pending.kind === 'install') await api()!.installSkill(pending.target)
-      else if ('agentId' in pending.target) await api()!.uninstallSkill(pending.target.agentId)
+      else if ('agentId' in pending.target)
+        await api()!.uninstallSkill(pending.target.agentId, pending.target.name)
       setNotice(
         pending.kind === 'install' && !pending.agentId ? { text: t('intgInstalledHint') } : null,
       )
@@ -101,13 +107,39 @@ export function IntegrationsPane({
     }
   }
 
+  /**
+   * Every bundled skill, each with its own install state. A single-entry list is
+   * rebuilt from the legacy fields when the main process is an older build, so
+   * the pane keeps working against either shape.
+   */
+  const skills: BundledSkillStatus[] = status?.skills?.length
+    ? status.skills
+    : status
+      ? [
+          {
+            name: 'revelith',
+            version: status.skillVersion,
+            needsCli: status.skillNeedsCli,
+            agents: status.agents,
+          },
+        ]
+      : []
+  const skill = skills.find((entry) => entry.name === activeSkill) ?? skills[0]
+  const skillName = skill?.name
+  const agentRows = skill?.agents ?? status?.agents ?? []
+  /**
+   * Only sent when several skills exist. A one-skill build keeps the original
+   * { agentId } call shape, so nothing downstream has to change.
+   */
+  const skillParam = skills.length > 1 ? skillName : undefined
+
   const askInstall = (row: AgentRow, note?: string) => {
     setNotice(null)
     setPending({
       kind: 'install',
       path: row.state.path,
       note,
-      target: { agentId: row.id },
+      target: { agentId: row.id, name: skillParam },
       agentId: row.id,
     })
   }
@@ -117,7 +149,7 @@ export function IntegrationsPane({
     setPending({
       kind: 'uninstall',
       path: row.state.path,
-      target: { agentId: row.id },
+      target: { agentId: row.id, name: skillParam },
       agentId: row.id,
     })
   }
@@ -129,13 +161,17 @@ export function IntegrationsPane({
     const sep = dir.includes('\\') && !dir.includes('/') ? '\\' : '/'
     setPending({
       kind: 'install',
-      path: `${dir}${sep}revelith${sep}SKILL.md`,
-      target: { dir },
+      path: `${dir}${sep}${skillName ?? 'revelith'}${sep}SKILL.md`,
+      target: { dir, name: skillParam },
     })
   }
 
   const downloadZip = async () => {
-    const path = await api()?.saveSkillZip(t('intgSaveZipTitle'))
+    const title = t('intgSaveZipTitle')
+    // a one-skill build calls with one argument, exactly as before
+    const path = skillParam
+      ? await api()?.saveSkillZip(title, skillParam)
+      : await api()?.saveSkillZip(title)
     if (path) setNotice({ text: t('intgSavedTo', { path }) })
   }
 
@@ -167,12 +203,10 @@ export function IntegrationsPane({
     )
   }
 
-  const bundled = status.skillVersion
+  const bundled = skill?.version ?? status.skillVersion
   const cliTooOld =
-    status.skillNeedsCli &&
-    status.cli.version &&
-    compare(status.cli.version, status.skillNeedsCli) < 0
-  const anyInstalled = status.agents.some((a) => a.state.status !== 'missing')
+    skill?.needsCli && status.cli.version && compare(status.cli.version, skill.needsCli) < 0
+  const anyInstalled = agentRows.some((a) => a.state.status !== 'missing')
   const launch = mcpLaunch(status.cli)
 
   const examples = (
@@ -216,10 +250,37 @@ export function IntegrationsPane({
         </div>
         {cliTooOld && (
           <div className="set-field-desc set-intg-warn">
-            {t('intgCliNeedsUpdate', { v: status.skillNeedsCli })}
+            {t('intgCliNeedsUpdate', { v: skill?.needsCli ?? '' })}
           </div>
         )}
-        {status.agents.map((row) => {
+        {skills.length > 1 && (
+          <div className="set-intg-skills" role="radiogroup" aria-label={t('setSecIntegrations')}>
+            {skills.map((entry) => (
+              <button
+                key={entry.name}
+                type="button"
+                role="radio"
+                aria-checked={entry.name === skill?.name}
+                className={`set-btn${entry.name === skill?.name ? ' primary' : ''}`}
+                data-skill={entry.name}
+                title={entry.description || entry.name}
+                onClick={() => {
+                  setActiveSkill(entry.name)
+                  setPending(null)
+                  setNotice(null)
+                }}
+              >
+                {entry.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {skill?.description && (
+          <div className="set-field-desc set-intg-lead set-intg-skill-desc">
+            {skill.description}
+          </div>
+        )}
+        {agentRows.map((row) => {
           const { state } = row
           return (
             <div
@@ -286,7 +347,7 @@ export function IntegrationsPane({
           )
         })}
 
-        <details className="set-intg-details" open={status.agents.length === 0}>
+        <details className="set-intg-details" open={agentRows.length === 0}>
           <summary>{t('intgOtherToggle')}</summary>
           <div className="set-field-desc set-intg-lead">{t('intgOtherDesc')}</div>
 

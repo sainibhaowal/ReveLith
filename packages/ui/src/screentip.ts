@@ -151,7 +151,12 @@ export function installScreenTips(doc: Document = document): () => void {
     }, delay)
   }
   const onPointerOver = (e: PointerEvent): void => arm(e.target)
-  const onFocusIn = (e: FocusEvent): void => arm(e.target)
+  const onFocusIn = (e: FocusEvent): void => {
+    const el = (e.target instanceof Element ? e.target : null)?.closest('[data-tip]')
+    // Focus can land on the document body when an Electron view activates.
+    // That should not cancel a pointer hover already targeting a toolbar tool.
+    if (el) arm(el)
+  }
   const onFocusOut = (e: FocusEvent): void => {
     if (anchor && e.target instanceof Node && anchor.contains(e.target)) hide()
   }

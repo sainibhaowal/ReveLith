@@ -14,9 +14,6 @@ import {
   type SaveBlock,
 } from '../src/index'
 import { buildDocx } from './helpers/build-docx'
-import { existsSync, readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 const GEN_CTX: GenerateContext = {
   headingStyleIds: new Map([[1, 'Heading1']]),
@@ -123,21 +120,27 @@ describe('rawRPr passthrough', () => {
   })
 })
 
-const here = dirname(fileURLToPath(import.meta.url))
-const REAL = join(
-  here,
-  '..',
-  '..',
-  '..',
-  'example',
-  'docx',
-  'OpenClaw开源项目调研分析报告文档.docx',
-)
-
-// Runs only when the local (gitignored) sample document is present.
-describe.skipIf(!existsSync(REAL))('real document invariant (example/docx)', () => {
-  it('edit one paragraph: all other zip entries and w:p slices stay byte-identical, edited one keeps char spacing', async () => {
-    const bytes = new Uint8Array(readFileSync(REAL))
+describe('document save preservation invariant', () => {
+  it('edits one paragraph while preserving other zip entries and paragraph slices', async () => {
+    // Keep this invariant deterministic instead of depending on a local,
+    // git-ignored sample DOCX that is absent in clean clones and CI.
+    const bodyXml = [
+      '<w:p><w:r><w:rPr><w:spacing w:val="20"/></w:rPr><w:t>Spacing-sensitive target</w:t></w:r></w:p>',
+      ...Array.from(
+        { length: 12 },
+        (_, i) => `<w:p><w:r><w:t>Untouched paragraph ${i + 1}</w:t></w:r></w:p>`,
+      ),
+    ].join('')
+    const bytes = await buildDocx({
+      bodyXml,
+      extraParts: [
+        {
+          path: 'customXml/item1.xml',
+          xml: '<?xml version="1.0"?><item>preserve this package part</item>',
+          contentType: 'application/xml',
+        },
+      ],
+    })
     const doc = await parseDocx(bytes)
     const visible = doc.blocks.filter((b) => !b.hidden)
     // Pick the first editable paragraph with a run-level w:spacing (character spacing, unmodeled)
@@ -176,7 +179,7 @@ describe.skipIf(!existsSync(REAL))('real document invariant (example/docx)', () 
         .sort()
     expect(fileNames(zAfter)).toEqual(fileNames(zBefore))
     for (const name of fileNames(zBefore)) {
-      // core.xml is the exception: a real save updates dcterms:modified / cp:revision
+      // Some source documents update core properties during save.
       if (name === 'word/document.xml' || name === 'docProps/core.xml') continue
       const [a, b] = await Promise.all([
         zBefore.files[name].async('uint8array'),
