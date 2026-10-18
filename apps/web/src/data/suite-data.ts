@@ -678,7 +678,3 @@ export const COMPARISON_DATA = [
 
 export const GITHUB_REPO_URL = 'https://github.com/sainibhaowal/ReveLith'
 export const RELEASES_URL = 'https://github.com/sainibhaowal/ReveLith/releases'
-// Only used by the standalone legal copy in LegalModal. The version shown in
-// the top bar, download dialog and footer comes from /release.json, which the
-// deploy workflow regenerates from the latest GitHub release.
-export const LATEST_VERSION = 'v0.9.6'
