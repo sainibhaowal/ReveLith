@@ -8,7 +8,7 @@ import { PatchGrid } from './components/PatchGrid'
 import { GithubIcon } from './components/GithubIcon'
 import { useReveal, useScrollProgress, useStickyHeader } from './hooks/useReveal'
 import { APP_MODULES, GITHUB_REPO_URL } from './data/suite-data'
-import { FALLBACK_RELEASE, getReleaseManifest } from './release-manifest'
+import { BUILD_RELEASE, getReleaseManifest } from './release-manifest'
 import './App.css'
 
 export function App() {
@@ -22,10 +22,9 @@ export function App() {
       APP_MODULES[0],
   )
   const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null)
-  // Version and download links come from /release.json, regenerated from the
-  // latest GitHub release by the deploy workflow. The hardcoded fallback is
-  // only used when that manifest cannot be fetched.
-  const [release, setRelease] = useState(FALLBACK_RELEASE)
+  // The build-time manifest is generated from the selected release. A fresh
+  // /release.json fetch can refresh it without ever showing a stale version.
+  const [release, setRelease] = useState(BUILD_RELEASE)
   // True once the reader picks an app themselves — that stops the showcase
   // from rotating underneath them. A deep link counts as a deliberate choice.
   const [pinned, setPinned] = useState(() =>
