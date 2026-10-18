@@ -2,7 +2,7 @@
 
 Marketing site for **ReveLith**, the offline-first office suite for people who care about the file after they save it.
 
-Edit DOCX, XLSX, PPTX, PDF and Markdown with byte-preserving fidelity, a local AI copilot, and zero telemetry.
+Edit DOCX, XLSX, PPTX, PDF and Markdown with byte-preserving fidelity and local file processing. Optional AI, search, image and media features may send request content to the provider you configure; see the repository's [privacy policy](../../PRIVACY.md).
 
 > This repository is the **landing page only**. The ReveLith desktop application lives at
 > [sainibhaowal/ReveLith](https://github.com/sainibhaowal/ReveLith) — download installers from
@@ -17,7 +17,7 @@ Edit DOCX, XLSX, PPTX, PDF and Markdown with byte-preserving fidelity, a local A
 | Hero           | Positioning, primary download CTA, trust markers                     |
 | Workspace deck | Five realistic in-app canvases — Docs, Sheets, Slides, PDF, Markdown |
 | Architecture   | Parse-once / patch-precisely / save-cleanly explainer                |
-| Privacy        | The local-first boundary and its guarantees                          |
+| Privacy        | Local editing, optional provider requests, and analytics controls    |
 | Footer         | Navigation, release links, legal                                     |
 
 The workspace deck renders a **simulated desktop shell per engine** rather than a static screenshot:
@@ -32,7 +32,7 @@ PDF, and a source/preview split for Markdown. None of it is a raster image.
 - **Tailwind CSS 4** via `@tailwindcss/vite`, plus hand-authored component CSS
 - **oxlint** for linting
 
-No analytics, no tracking scripts, no third-party runtime dependencies beyond the web fonts.
+The landing site source contains no analytics or tracking scripts. It loads web fonts from Google Fonts. The desktop app is separate; its provider requests and optional packaged-build analytics are described in the repository's privacy policy.
 
 ## Getting started
 
