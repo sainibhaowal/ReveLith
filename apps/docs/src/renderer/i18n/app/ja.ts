@@ -329,7 +329,6 @@ export const ja = {
   appLoggedInEmail: 'サインイン済み:{email}',
   appNotLoggedIn: '未サインイン(AI 機能には ReveLith アカウントが必要です)',
   appWaitingBrowserLogin: 'ブラウザーでのサインインを待っています…',
-  appLoginReveLith: 'ReveLith にサインイン',
   appModel: 'モデル',
   // Context menu
   appCut: '切り取り',

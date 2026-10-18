@@ -316,7 +316,6 @@ export const it = {
   appLoggedInEmail: 'Accesso effettuato: {email}',
   appNotLoggedIn: 'Accesso non effettuato (le funzionalità IA richiedono un account ReveLith)',
   appWaitingBrowserLogin: "In attesa dell'accesso dal browser…",
-  appLoginReveLith: 'Accedi a ReveLith',
   appModel: 'Modello',
   appCut: 'Taglia',
   appCopy: 'Copia',

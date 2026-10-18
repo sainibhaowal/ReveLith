@@ -8,7 +8,6 @@ export const vi = {
   aiStarterPolishAll: 'Trau chuốt toàn bộ tài liệu để có giọng văn chuyên nghiệp hơn',
   aiStarterContinue: 'Viết tiếp từ nội dung hiện tại của tài liệu',
   aiStarterFillTemplate: 'Tìm và điền vào các vị trí giữ chỗ trong tài liệu này',
-  aiGskLoginBtn: 'Đăng nhập vào ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'Mở trợ lý AI',
   aiSummarizeBtn: 'AI Tóm tắt',

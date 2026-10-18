@@ -1,12 +1,7 @@
 import type { AiPanelPrefs } from '@revelith/ui'
 import type { HeadlessExportTarget } from '@revelith/electron-utils/headless-export'
 import type { Lang } from '@revelith/i18n'
-import type {
-  AiSettings,
-  AiStreamChunk,
-  AiStreamRequest,
-  ReveLithAccountStatus,
-} from '@revelith/ai-provider'
+import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@revelith/ai-provider'
 
 export const HTML_CHANNELS = {
   consumePending: 'html:consume-pending',
@@ -125,7 +120,6 @@ export type SaveHtmlResult =
 /** AI channels are app-wide shared ipcMain handlers (shell registers via docs-main registerAiIpc); pass-through only */
 export const AI_CHANNELS = {
   getSettings: 'ai:get-settings',
-  gskStatus: 'ai:gsk-status',
   stream: 'ai:stream',
   streamChunk: 'ai:stream-chunk',
   streamCancel: 'ai:stream-cancel',
@@ -279,8 +273,6 @@ export interface HtmlApi {
    *  clicks produce no DOM event here) — dismiss open popovers */
   onChromePressed(handler: () => void): () => void
   getAiSettings(): Promise<AiSettings>
-  /** ReveLith login state (shell-registered ai:gsk-status) — gates generate_image with the cloud-tools toggle */
-  aiGskStatus(): Promise<ReveLithAccountStatus>
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
@@ -290,7 +282,7 @@ export interface HtmlApi {
   imageSearch(query: string, maxResults?: number): Promise<ImageSearchResult>
   /** Download an image URL in the main process (CORS-free, scheme/target validated) */
   fetchImage(url: string): Promise<ImageData | null>
-  /** ReveLith cloud image generation (html-owned channel, gsk login required) */
+  /** Image generation using the configured media provider (html-owned channel). */
   aiGenerateImage(op: { prompt: string; aspectRatio?: string }): Promise<{
     url?: string
     error?: string

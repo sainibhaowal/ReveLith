@@ -43,7 +43,6 @@ interface ElectronAPI {
     prompt: string
     aspectRatio?: string
   }) => Promise<{ base64: string; mime: string } | { error: string }>
-  getGskStatus?: (withEmail?: boolean) => Promise<{ loggedIn: boolean; email?: string }>
 }
 
 declare global {

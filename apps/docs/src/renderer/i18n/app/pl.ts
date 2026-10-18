@@ -315,7 +315,6 @@ export const pl = {
   appLoggedInEmail: 'Zalogowano: {email}',
   appNotLoggedIn: 'Nie zalogowano (funkcje AI wymagają konta ReveLith)',
   appWaitingBrowserLogin: 'Oczekiwanie na logowanie w przeglądarce…',
-  appLoginReveLith: 'Zaloguj się do ReveLith',
   appModel: 'Model',
   appCut: 'Wytnij',
   appCopy: 'Kopiuj',

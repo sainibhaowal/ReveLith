@@ -253,8 +253,6 @@ export const fr = {
   appSettingsLoggedIn: 'Connecté',
   appSettingsLoggedInEmail: 'Connecté : {email}',
   appSettingsLoggedOut: 'Non connecté (les fonctionnalités IA nécessitent un compte ReveLith)',
-  appSettingsLoginPending: 'En attente de la connexion dans le navigateur…',
-  appSettingsLogin: 'Se connecter à ReveLith',
   appSettingsModel: 'Modèle',
   appSettingsCancel: 'Annuler',
   appSettingsSave: 'Enregistrer',

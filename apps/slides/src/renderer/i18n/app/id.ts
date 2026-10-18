@@ -245,8 +245,6 @@ export const id = {
   appSettingsLoggedIn: 'Sudah masuk',
   appSettingsLoggedInEmail: 'Sudah masuk: {email}',
   appSettingsLoggedOut: 'Belum masuk (fitur AI memerlukan akun ReveLith)',
-  appSettingsLoginPending: 'Menunggu proses masuk di browser…',
-  appSettingsLogin: 'Masuk ke ReveLith',
   appSettingsModel: 'Model',
   appSettingsCancel: 'Batal',
   appSettingsSave: 'Simpan',

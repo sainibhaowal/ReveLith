@@ -312,7 +312,6 @@ export const id = {
   appLoggedInEmail: 'Sudah masuk: {email}',
   appNotLoggedIn: 'Belum masuk (fitur AI memerlukan akun ReveLith)',
   appWaitingBrowserLogin: 'Menunggu masuk lewat browser…',
-  appLoginReveLith: 'Masuk ke ReveLith',
   appModel: 'Model',
   appCut: 'Potong',
   appCopy: 'Salin',

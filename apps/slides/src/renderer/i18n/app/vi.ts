@@ -242,8 +242,6 @@ export const vi = {
   appSettingsLoggedIn: 'Đã đăng nhập',
   appSettingsLoggedInEmail: 'Đã đăng nhập: {email}',
   appSettingsLoggedOut: 'Chưa đăng nhập (các tính năng AI yêu cầu tài khoản ReveLith)',
-  appSettingsLoginPending: 'Đang chờ đăng nhập trên trình duyệt…',
-  appSettingsLogin: 'Đăng nhập vào ReveLith',
   appSettingsModel: 'Mô hình',
   appSettingsCancel: 'Hủy',
   appSettingsSave: 'Lưu',

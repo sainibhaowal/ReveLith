@@ -234,8 +234,6 @@ export const he = {
   appSettingsLoggedIn: 'מחובר',
   appSettingsLoggedInEmail: 'מחובר: {email}',
   appSettingsLoggedOut: 'לא מחובר (תכונות AI דורשות חשבון ReveLith)',
-  appSettingsLoginPending: 'ממתין להתחברות בדפדפן…',
-  appSettingsLogin: 'התחבר אל ReveLith',
   appSettingsModel: 'מודל',
   appSettingsCancel: 'ביטול',
   appSettingsSave: 'שמור',

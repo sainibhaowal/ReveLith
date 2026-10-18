@@ -383,12 +383,8 @@ const config = {
       from: '../../packages/pdf2docx/ocr-helper/win-ocr.exe',
       to: 'ocr/win-ocr.exe',
     },
-    {
-      from: '../../node_modules/@revelith/cli',
-      to: 'gsk/node_modules/@revelith/cli',
-    },
-    // revelith command line: runs on the app binary with ELECTRON_RUN_AS_NODE (as
-    // the gsk CLI above already does), so the RunAsNode fuse must stay enabled.
+    // ReveLith command line: runs on the app binary with ELECTRON_RUN_AS_NODE,
+    // so the RunAsNode fuse must stay enabled.
     // Layout (Resources/cli next to wasm/, native/, ocr/) is what
     // packages/cli/src/resources.ts expects.
     {
@@ -424,15 +420,6 @@ const config = {
     {
       from: '../../packages/revelith-cli/dist/node_modules',
       to: 'cli/node_modules',
-    },
-    {
-      // commander is hoisted to monorepo root by npm (not nested under @revelith/cli)
-      from: '../../node_modules/commander',
-      to: 'gsk/node_modules/commander',
-    },
-    {
-      from: '../../node_modules/ws',
-      to: 'gsk/node_modules/ws',
     },
   ],
   // `mimeType` is read only by the Linux target, where it becomes the

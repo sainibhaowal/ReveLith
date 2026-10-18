@@ -320,7 +320,6 @@ export const nl = {
   appLoggedInEmail: 'Aangemeld: {email}',
   appNotLoggedIn: 'Niet aangemeld (AI-functies vereisen een ReveLith-account)',
   appWaitingBrowserLogin: 'Wachten op aanmelding in de browser…',
-  appLoginReveLith: 'Aanmelden bij ReveLith',
   appModel: 'Model',
   appCut: 'Knippen',
   appCopy: 'Kopiëren',

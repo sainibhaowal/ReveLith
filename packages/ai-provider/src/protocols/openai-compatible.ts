@@ -2,7 +2,7 @@ import type { AgentMessage, AgentToolCall, AgentToolDef } from '@revelith/agent-
 import { aiFetch } from '../fetch'
 import { httpBodyDetail } from '../http-error'
 import { openAiContentText } from '../media-protocols'
-import { revelithAttributionHeaders, opencodeSessionHeaders } from '../providers'
+import { opencodeSessionHeaders } from '../providers'
 import { modelEchoesReasoning } from '../registry'
 import type { AiChatResponse, AiProviderConfig } from '../types'
 import { createStreamWatchdog, type StreamWatchdog } from '../watchdog'
@@ -171,7 +171,6 @@ async function openAiCompatibleTurn(
     headers: {
       'Content-Type': 'application/json',
       ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
-      ...revelithAttributionHeaders(baseUrl),
       ...opencodeSessionHeaders(baseUrl, cb.sessionId),
     },
     body: JSON.stringify({
@@ -355,7 +354,6 @@ export async function chatOpenAiCompatible(
     headers: {
       'Content-Type': 'application/json',
       ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
-      ...revelithAttributionHeaders(baseUrl),
       ...opencodeSessionHeaders(baseUrl),
     },
     body: JSON.stringify({

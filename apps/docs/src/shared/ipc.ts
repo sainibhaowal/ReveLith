@@ -41,7 +41,6 @@ import type {
   AiSettings,
   AiStreamChunk,
   AiStreamRequest,
-  ReveLithAccountStatus,
 } from '@revelith/ai-provider'
 import type { HeadlessExportTarget } from '@revelith/electron-utils/headless-export'
 import type { FaceVerticalMetrics } from '@revelith/font-metrics'
@@ -58,7 +57,6 @@ export type {
   AiSettings,
   AiStreamChunk,
   AiStreamRequest,
-  ReveLithAccountStatus,
 } from '@revelith/ai-provider'
 export { AI_PROVIDERS } from '@revelith/ai-provider/browser'
 
@@ -488,10 +486,6 @@ export interface DesktopApi {
   /** start a streaming AI call; deltas arrive via onAiStream with the same requestId */
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
-  /** ReveLith account status (gsk login state); withEmail also returns the email (needs a network request, slower) */
-  aiGskStatus(withEmail?: boolean): Promise<ReveLithAccountStatus>
-  /** Open the browser to log in to ReveLith (fire-and-forget; aiGskStatus flips to logged-in when done) */
-  aiGskLogin(): Promise<void>
   webSearch(
     query: string,
     maxResults?: number,
@@ -524,7 +518,7 @@ export interface DesktopApi {
     requirements: string
   }): Promise<{ text?: string; error?: string }>
   fetchImage(url: string): Promise<{ base64: string; mime: string } | null>
-  /** AI image generation via the ReveLith cloud channel (requires login + cloud tools) */
+  /** AI image generation through the provider configured in AI settings. */
   aiGenerateImage(op: {
     prompt: string
     aspectRatio?: string

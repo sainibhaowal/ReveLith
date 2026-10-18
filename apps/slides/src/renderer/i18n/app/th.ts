@@ -236,8 +236,6 @@ export const th = {
   appSettingsLoggedIn: 'ลงชื่อเข้าใช้แล้ว',
   appSettingsLoggedInEmail: 'ลงชื่อเข้าใช้แล้ว: {email}',
   appSettingsLoggedOut: 'ยังไม่ได้ลงชื่อเข้าใช้ (ฟีเจอร์ AI ต้องใช้บัญชี ReveLith)',
-  appSettingsLoginPending: 'กำลังรอการลงชื่อเข้าใช้ในเบราว์เซอร์…',
-  appSettingsLogin: 'ลงชื่อเข้าใช้ ReveLith',
   appSettingsModel: 'โมเดล',
   appSettingsCancel: 'ยกเลิก',
   appSettingsSave: 'บันทึก',

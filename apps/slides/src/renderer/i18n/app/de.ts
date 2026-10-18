@@ -256,8 +256,6 @@ export const de = {
   appSettingsLoggedIn: 'Angemeldet',
   appSettingsLoggedInEmail: 'Angemeldet: {email}',
   appSettingsLoggedOut: 'Nicht angemeldet (KI-Funktionen erfordern ein ReveLith-Konto)',
-  appSettingsLoginPending: 'Warten auf Anmeldung im Browser…',
-  appSettingsLogin: 'Bei ReveLith anmelden',
   appSettingsModel: 'Modell',
   appSettingsCancel: 'Abbrechen',
   appSettingsSave: 'Speichern',

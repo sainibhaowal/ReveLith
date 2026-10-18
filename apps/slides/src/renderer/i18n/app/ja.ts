@@ -241,8 +241,6 @@ export const ja = {
   appSettingsLoggedIn: 'サインイン済み',
   appSettingsLoggedInEmail: 'サインイン済み：{email}',
   appSettingsLoggedOut: '未サインイン（AI 機能には ReveLith アカウントへのサインインが必要）',
-  appSettingsLoginPending: 'ブラウザーでのサインインを待機中…',
-  appSettingsLogin: 'ReveLith にサインイン',
   appSettingsModel: 'モデル',
   appSettingsCancel: 'キャンセル',
   appSettingsSave: '保存',

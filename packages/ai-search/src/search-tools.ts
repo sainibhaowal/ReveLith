@@ -7,7 +7,6 @@ import { imageSearch, webSearch } from './index'
 import { readAiSettingsFile } from './media-tools'
 
 export interface SearchOptions {
-  useGsk?: boolean
   serperKey?: string
   serplyKey?: string
   tavilyKey?: string
@@ -22,11 +21,9 @@ export function searchOptionsFromSettings(settings: AiSettings): SearchOptions {
     searchProviders && provider in searchProviders
       ? ((searchProviders as any)[provider]?.apiKey?.trim() ?? '')
       : ''
-  if (provider === 'parallel') return { useGsk: false, parallelKey: key, prefer: 'parallel' }
-  if (provider === 'serply') return { useGsk: false, serplyKey: key, prefer: 'serply' }
-  return provider === 'tavily'
-    ? { useGsk: false, tavilyKey: key, prefer: 'tavily' }
-    : { useGsk: false, serperKey: key }
+  if (provider === 'parallel') return { parallelKey: key, prefer: 'parallel' }
+  if (provider === 'serply') return { serplyKey: key, prefer: 'serply' }
+  return provider === 'tavily' ? { tavilyKey: key, prefer: 'tavily' } : { serperKey: key }
 }
 
 export function webSearchTool(settingsPath: string, query: string, maxResults = 6) {

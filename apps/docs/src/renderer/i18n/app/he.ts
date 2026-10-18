@@ -303,7 +303,6 @@ export const he = {
   appLoggedInEmail: 'מחובר: {email}',
   appNotLoggedIn: 'לא מחובר (תכונות ה-AI דורשות חשבון ReveLith)',
   appWaitingBrowserLogin: 'ממתין להתחברות בדפדפן…',
-  appLoginReveLith: 'התחברות ל-ReveLith',
   appModel: 'מודל',
   appCut: 'גזירה',
   appCopy: 'העתקה',

@@ -5,7 +5,6 @@ export const cs = {
   aiEmptyBuildTitle: 'Nechte AI sestavit tento sešit za vás',
   aiEmptyBuildBody:
     'Popište tabulku, data nebo graf, které potřebujete — AI je vytvoří přímo na místě.',
-  aiGskLoginBtn: 'Přihlásit se ke ReveLith',
   aiUndelivered: 'Neodesláno',
   aiRetry: 'Zkusit znovu',
   aiOpenAssistant: 'Otevřít asistenta AI',
@@ -55,7 +54,6 @@ export const cs = {
   aiLoggedInAs: 'Přihlášeno: {email}',
   aiNotLoggedIn: 'Nepřihlášeno (funkce AI vyžadují účet ReveLith)',
   aiWaitingBrowserLogin: 'Čeká se na přihlášení v prohlížeči…',
-  aiLoginReveLith: 'Přihlásit se ke ReveLith',
   aiModel: 'Model',
   aiCancel: 'Zrušit',
   aiSave: 'Uložit',

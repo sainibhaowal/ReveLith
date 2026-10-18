@@ -1,12 +1,7 @@
 import type { AiPanelPrefs } from '@revelith/ui'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
-import type {
-  AiChatResponse,
-  AiSettings,
-  AiStreamChunk,
-  ReveLithAccountStatus,
-} from '@revelith/ai-provider'
+import type { AiChatResponse, AiSettings, AiStreamChunk } from '@revelith/ai-provider'
 import type { ProjectApi } from '@revelith/project-store'
 import type {
   AttachmentAddResult,
@@ -460,16 +455,6 @@ const desktopApi: DesktopApi = {
   async aiStreamCancel(requestId) {
     if (!requestId) throw new Error('Invalid AI stream request id.')
     await ipcRenderer.invoke(IPC_CHANNELS.aiStreamCancel, requestId)
-  },
-  async aiGskStatus(withEmail) {
-    const result: unknown = await ipcRenderer.invoke(IPC_CHANNELS.aiGskStatus, withEmail)
-    if (!isRecord(result) || typeof result.loggedIn !== 'boolean') {
-      throw new Error('Invalid ReveLith account status response.')
-    }
-    return result as unknown as ReveLithAccountStatus
-  },
-  async aiGskLogin() {
-    await ipcRenderer.invoke(IPC_CHANNELS.aiGskLogin)
   },
   async webSearch(query, maxResults) {
     if (typeof query !== 'string' || !query.trim() || query.length > 512) {

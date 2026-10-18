@@ -1,6 +1,6 @@
 <svg width="1280" height="360" viewBox="0 0 1280 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
   <title id="title">ReveLith</title>
-  <desc id="description">ReveLith, an offline-first intelligent office suite.</desc>
+  <desc id="description">ReveLith, a desktop workspace for documents, data, presentations, and visual work.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1280" y2="360" gradientUnits="userSpaceOnUse">
       <stop stop-color="#071426"/>
@@ -46,8 +46,8 @@
 
   <g fill="#F8FAFC">
     <text x="390" y="145" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700" letter-spacing="-2">ReveLith</text>
-    <text x="394" y="194" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="600" fill="#7DD3FC" letter-spacing="4">OFFLINE-FIRST INTELLIGENT OFFICE SUITE</text>
-    <text x="394" y="246" font-family="Arial, Helvetica, sans-serif" font-size="23" fill="#C7D2FE">Private by design. Powerful by default.</text>
+    <text x="394" y="194" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="600" fill="#7DD3FC" letter-spacing="3">DOCUMENTS · DATA · PRESENTATIONS · VISUAL WORK</text>
+    <text x="394" y="246" font-family="Arial, Helvetica, sans-serif" font-size="23" fill="#C7D2FE">Edit locally. Use AI with the provider you choose.</text>
   </g>
   <rect x="394" y="276" width="354" height="2" rx="1" fill="#38BDF8" fill-opacity="0.75"/>
 </svg>

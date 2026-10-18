@@ -251,8 +251,6 @@ export const pl = {
   appSettingsLoggedIn: 'Zalogowano',
   appSettingsLoggedInEmail: 'Zalogowano: {email}',
   appSettingsLoggedOut: 'Nie zalogowano (funkcje AI wymagają konta ReveLith)',
-  appSettingsLoginPending: 'Oczekiwanie na logowanie w przeglądarce…',
-  appSettingsLogin: 'Zaloguj się do ReveLith',
   appSettingsModel: 'Model',
   appSettingsCancel: 'Anuluj',
   appSettingsSave: 'Zapisz',

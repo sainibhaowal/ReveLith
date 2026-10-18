@@ -1,6 +1,6 @@
 import { imageSearchTool, webSearchTool } from '@revelith/ai-search'
 import { flagBool, flagString } from '../args'
-import { aiSettingsPath, prepareCloud } from '../cloud'
+import { aiSettingsPath, prepareNetwork } from '../cloud'
 import type { CommandDef } from '../registry'
 import { CliError, EXIT } from '../result'
 
@@ -18,7 +18,7 @@ export const searchCommand: CommandDef = {
     if (!query)
       throw new CliError(EXIT.usage, 'missing <query>', undefined, { reason: 'missing_argument' })
     const max = resultCount(flagString(args, 'max'))
-    await prepareCloud(ctx.env)
+    await prepareNetwork(ctx.env)
     const settings = aiSettingsPath(ctx.env)
     if (flagBool(args, 'images')) {
       const r = (await imageSearchTool(settings, query, max ?? 8)) as any

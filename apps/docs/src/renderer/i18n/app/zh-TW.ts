@@ -298,7 +298,6 @@ export const zhTW = {
   appLoggedInEmail: '已登入：{email}',
   appNotLoggedIn: '未登入（AI 功能需要登入 ReveLith 帳號）',
   appWaitingBrowserLogin: '等待瀏覽器登入…',
-  appLoginReveLith: '登入 ReveLith',
   appModel: '模型',
   appCut: '剪下',
   appCopy: '複製',

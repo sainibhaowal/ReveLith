@@ -9,7 +9,7 @@ vi.mock('electron', () => ({ app: { isPackaged: false, getVersion: () => '0.0.0'
 import { isEphemeralInstall, launcherFilePath, writeLauncherFile } from '../src/main/cli-link'
 
 describe('revelith launcher file', () => {
-  it('lives in the revelith auth directory, overridable like auth.json', () => {
+  it('lives in the Revelith CLI data directory, which can be overridden', () => {
     expect(launcherFilePath({})).toBe(join(process.env.HOME ?? '', '.revelith', 'launcher'))
     expect(launcherFilePath({ REVELITH_AUTH_DIR: '/tmp/x' })).toBe(join('/tmp/x', 'launcher'))
   })

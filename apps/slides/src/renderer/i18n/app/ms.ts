@@ -249,8 +249,6 @@ export const ms = {
   appSettingsLoggedIn: 'Telah log masuk',
   appSettingsLoggedInEmail: 'Telah log masuk: {email}',
   appSettingsLoggedOut: 'Belum log masuk (ciri AI memerlukan akaun ReveLith)',
-  appSettingsLoginPending: 'Menunggu log masuk pelayar…',
-  appSettingsLogin: 'Log masuk ke ReveLith',
   appSettingsModel: 'Model',
   appSettingsCancel: 'Batal',
   appSettingsSave: 'Simpan',

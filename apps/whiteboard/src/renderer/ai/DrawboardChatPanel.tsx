@@ -107,7 +107,6 @@ interface BoardChatApi {
     provider: AiMediaProviderId
     config: { apiKey: string; imageModel: string; analysisModel: string; baseUrl?: string }
   }): Promise<{ ok: boolean; error?: string }>
-  loginToReveLith?(): Promise<unknown>
   aiStream(request: AiStreamRequest): Promise<void>
   aiStreamCancel(requestId: string): Promise<void>
   onAiStream(handler: (chunk: AiStreamChunk) => void): () => void
@@ -140,7 +139,6 @@ interface BoardChatApi {
     prompt: string
     aspectRatio?: string
   }): Promise<{ base64: string; mime: string } | { error: string }>
-  getGskStatus(withEmail?: boolean): Promise<{ loggedIn: boolean; email?: string }>
   getAiPanelPrefs(): Promise<AiPanelPrefs>
   setAiPanelPrefs(patch: Partial<AiPanelPrefs>): Promise<AiPanelPrefs>
   onAiPanelPrefsChanged(handler: (prefs: AiPanelPrefs) => void): () => void
@@ -169,7 +167,7 @@ function boardChatApi(): BoardChatApi | undefined {
 
 /** Appended to the board prompt while no image provider can answer (same wording as the editors). */
 const IMAGE_GEN_OFF_NOTE =
-  '\n\nNote: generate_image is currently unavailable (no image provider: signed out of ReveLith or cloud tools off, and no media API key in Settings). Do not call or promise it; use image_search for real imagery, or draw it with add_vector_artwork.'
+  '\n\nNote: generate_image is currently unavailable because no image provider is configured in AI settings. Do not call or promise it; use image_search for real imagery, or draw it with add_vector_artwork.'
 const BOARD_VISION_OFF_NOTE =
   '\n\nNote: visual review is unavailable because neither the selected chat model nor a media analysis provider can inspect images. You can still inspect drawing metadata, but do not claim to have visually reviewed pixels.'
 
@@ -491,19 +489,14 @@ export function DrawboardChatPanel({
       setSettingsError('AI chat is available when this app is opened from ReveLith.')
       return
     }
-    void Promise.all([
-      api.getAiSettings(),
-      // Login state gates the ReveLith-hosted image backend, exactly as it does
-      // in docs/sheets/slides/pdf/markdown.
-      api.getGskStatus?.().catch(() => ({ loggedIn: false })) ??
-        Promise.resolve({ loggedIn: false }),
-    ])
-      .then(([settings, gsk]) => {
+    void api
+      .getAiSettings()
+      .then((settings) => {
         if (!alive) return
         settingsRef.current = settings
-        imageGenRef.current = imageGenerationAvailable(settings, gsk.loggedIn)
+        imageGenRef.current = imageGenerationAvailable(settings)
         boardVisionRef.current =
-          chatModelSupportsBoardVision(settings) || mediaAnalysisAvailable(settings, gsk.loggedIn)
+          chatModelSupportsBoardVision(settings) || mediaAnalysisAvailable(settings)
         setImageGenEnabled(imageGenRef.current)
         setBoardVisionEnabled(boardVisionRef.current)
         transportRef.current = createIpcTransport<AiSettings>({
@@ -984,16 +977,14 @@ export function DrawboardChatPanel({
     try {
       await api.setAiSettings(next)
       settingsRef.current = next
-      const gsk = await api.getGskStatus().catch(() => ({ loggedIn: false }))
-      imageGenRef.current = imageGenerationAvailable(next, gsk.loggedIn)
-      boardVisionRef.current =
-        chatModelSupportsBoardVision(next) || mediaAnalysisAvailable(next, gsk.loggedIn)
+      imageGenRef.current = imageGenerationAvailable(next)
+      boardVisionRef.current = chatModelSupportsBoardVision(next) || mediaAnalysisAvailable(next)
       setImageGenEnabled(imageGenRef.current)
       setBoardVisionEnabled(boardVisionRef.current)
       setImageSetupStatus(
         imageGenRef.current
           ? 'Image provider saved and ready.'
-          : 'Saved. Add a valid image API key or sign in to ReveLith cloud tools to enable image generation.',
+          : 'Saved. Add a valid image API key to enable image generation.',
       )
     } catch (error) {
       setImageSetupStatus(formatImageSetupError(error, 'save'))
@@ -1300,42 +1291,22 @@ export function DrawboardChatPanel({
                   <button
                     type="button"
                     onClick={() =>
-                      void boardChatApi()
-                        ?.loginToReveLith?.()
-                        .then(() =>
-                          setImageSetupStatus(
-                            'ReveLith sign-in started. Complete it in your browser, then select “Check availability”.',
-                          ),
-                        )
-                        .catch((error) =>
-                          setImageSetupStatus(formatImageSetupError(error, 'sign-in')),
-                        )
-                    }
-                  >
-                    Sign in to ReveLith
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
                       void (async () => {
                         try {
                           const api = boardChatApi()
                           if (!api) return
-                          const [settings, gsk] = await Promise.all([
-                            api.getAiSettings(),
-                            api.getGskStatus().catch(() => ({ loggedIn: false })),
-                          ])
+                          const settings = await api.getAiSettings()
                           settingsRef.current = settings
-                          imageGenRef.current = imageGenerationAvailable(settings, gsk.loggedIn)
+                          imageGenRef.current = imageGenerationAvailable(settings)
                           boardVisionRef.current =
                             chatModelSupportsBoardVision(settings) ||
-                            mediaAnalysisAvailable(settings, gsk.loggedIn)
+                            mediaAnalysisAvailable(settings)
                           setImageGenEnabled(imageGenRef.current)
                           setBoardVisionEnabled(boardVisionRef.current)
                           setImageSetupStatus(
                             imageGenRef.current
                               ? 'Image generation is ready.'
-                              : 'Still unavailable. Save a valid provider key or enable ReveLith cloud tools in AI Settings.',
+                              : 'Still unavailable. Save a valid media-provider API key in AI Settings.',
                           )
                         } catch (error) {
                           setImageSetupStatus(formatImageSetupError(error, 'check availability'))

@@ -305,7 +305,6 @@ export const ar = {
   appLoggedInEmail: 'تم تسجيل الدخول: {email}',
   appNotLoggedIn: 'لم يتم تسجيل الدخول (تتطلب ميزات الذكاء الاصطناعي حساب ReveLith)',
   appWaitingBrowserLogin: 'في انتظار تسجيل الدخول عبر المتصفح…',
-  appLoginReveLith: 'تسجيل الدخول إلى ReveLith',
   appModel: 'النموذج',
   appCut: 'قص',
   appCopy: 'نسخ',

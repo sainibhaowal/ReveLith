@@ -18,7 +18,6 @@ export const de = {
   aiQcPageSkipped: 'Seite {n}: automatische Layoutprüfung übersprungen',
   aiQcStopped: 'Layoutprüfung gestoppt',
   aiQcCapped: '{count} weitere Seite(n) nicht geprüft (Limit pro Lauf)',
-  aiGskLoginBtn: 'Bei ReveLith anmelden',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'KI-Assistenten öffnen',
   aiFactCheckBtn: 'KI-Faktencheck',
@@ -239,5 +238,4 @@ export const de = {
   aiSumSaveTemplate: 'Stilvorlage „{name}“ gespeichert',
   aiSumTemplatesEmpty: 'Stilvorlagen (leer)',
   aiSumListTemplates: '{count} Stilvorlagen aufgelistet',
-  aiPageCloudToLocal: 'Cloud nicht verfügbar — lokal generiert',
 } satisfies Record<keyof typeof zh, string>

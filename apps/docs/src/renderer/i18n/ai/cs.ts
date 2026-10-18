@@ -8,7 +8,6 @@ export const cs = {
   aiStarterPolishAll: 'Vylepšit celý dokument pro profesionálnější tón',
   aiStarterContinue: 'Pokračovat v psaní tam, kde dokument končí',
   aiStarterFillTemplate: 'Najít a vyplnit zástupné texty v tomto dokumentu',
-  aiGskLoginBtn: 'Přihlásit se ke ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'Otevřít asistenta AI',
   aiSummarizeBtn: 'Shrnutí AI',

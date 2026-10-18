@@ -44,7 +44,7 @@ function writeAppSettings(patch: Record<string, unknown>): void {
 }
 
 function registerStandaloneSharedHandlers(): void {
-  // Share model, account, and media provider settings with the ReveLith shell.
+  // Share model and media provider settings with the ReveLith shell.
   // This app has no Home window, so also expose the small shell settings used
   // by the renderer directly.
   app.setPath(

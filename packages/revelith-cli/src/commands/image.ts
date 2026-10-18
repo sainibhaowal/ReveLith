@@ -8,7 +8,7 @@ import {
   readBodyCapped,
 } from '@revelith/electron-utils/remote-image'
 import { flagBool, flagString } from '../args'
-import { aiSettingsPath, prepareCloud } from '../cloud'
+import { aiSettingsPath, prepareNetwork } from '../cloud'
 import { resolveInput, resolveOutput, writeOutput } from '../fs'
 import type { CommandDef } from '../registry'
 import { CliError, EXIT } from '../result'
@@ -89,7 +89,7 @@ export const imageCommand: CommandDef = {
     for (const ext of siblingExtensions(chosenExt)) {
       resolveOutput(`${base}${ext}`, ctx, { force, fresh: true })
     }
-    await prepareCloud(ctx.env)
+    await prepareNetwork(ctx.env)
     const r = await generateImageTool(aiSettingsPath(ctx.env), {
       prompt,
       aspectRatio: aspect,

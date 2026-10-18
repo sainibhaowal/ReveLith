@@ -252,8 +252,6 @@ export const pt = {
   appSettingsLoggedIn: 'Conectado',
   appSettingsLoggedInEmail: 'Conectado: {email}',
   appSettingsLoggedOut: 'Não conectado (os recursos de IA exigem uma conta ReveLith)',
-  appSettingsLoginPending: 'Aguardando o login no navegador…',
-  appSettingsLogin: 'Entrar no ReveLith',
   appSettingsModel: 'Modelo',
   appSettingsCancel: 'Cancelar',
   appSettingsSave: 'Salvar',

@@ -255,8 +255,6 @@ export const nl = {
   appSettingsLoggedIn: 'Aangemeld',
   appSettingsLoggedInEmail: 'Aangemeld: {email}',
   appSettingsLoggedOut: 'Niet aangemeld (AI-functies vereisen een ReveLith-account)',
-  appSettingsLoginPending: 'Wachten op aanmelding in de browser…',
-  appSettingsLogin: 'Aanmelden bij ReveLith',
   appSettingsModel: 'Model',
   appSettingsCancel: 'Annuleren',
   appSettingsSave: 'Opslaan',

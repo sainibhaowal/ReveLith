@@ -53,7 +53,7 @@ export function isEphemeralInstall(resourcesPath: string, env: NodeJS.ProcessEnv
   return /^\/Volumes\//.test(resourcesPath) || /\/\.mount_[^/]+\//.test(resourcesPath)
 }
 
-/** Same directory the revelith CLI uses for auth.json and its audit log. */
+/** Same directory the revelith CLI uses for its audit log. */
 export function launcherFilePath(env: NodeJS.ProcessEnv): string {
   return join(env.REVELITH_AUTH_DIR || join(homedir(), '.revelith'), 'launcher')
 }

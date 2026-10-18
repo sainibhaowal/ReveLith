@@ -140,22 +140,17 @@ describe('media settings', () => {
     ).toBe('openai')
   })
 
-  it('gates the tools on gsk login + toggle without BYOK, and on the BYOK model with it', () => {
-    const revelith = defaultAiSettings()
-    expect(imageGenerationAvailable(revelith, true)).toBe(true)
-    expect(imageGenerationAvailable(revelith, false)).toBe(false)
-    expect(imageGenerationAvailable({ ...revelith, gskToolsEnabled: false }, true)).toBe(false)
-    expect(mediaAnalysisAvailable({ ...revelith, gskToolsEnabled: false }, true)).toBe(false)
-
+  it('only enables media tools when the user configures a compatible provider', () => {
+    expect(imageGenerationAvailable(defaultAiSettings())).toBe(false)
+    expect(mediaAnalysisAvailable(defaultAiSettings())).toBe(false)
     const byok = openaiSettings()
-    expect(imageGenerationAvailable(byok, false)).toBe(true)
-    expect(imageGenerationAvailable({ ...byok, gskToolsEnabled: false }, false)).toBe(true)
-    expect(mediaAnalysisAvailable(byok, false)).toBe(true)
+    expect(imageGenerationAvailable(byok)).toBe(true)
+    expect(mediaAnalysisAvailable(byok)).toBe(true)
     // built-in vendors fall back to their default model; a custom endpoint
     // without a model for one capability disables that tool alone
     const noAnalysis = openaiSettings()
     noAnalysis.media!.providers.openai.analysisModel = ''
-    expect(mediaAnalysisAvailable(noAnalysis, false)).toBe(true)
+    expect(mediaAnalysisAvailable(noAnalysis)).toBe(true)
     const custom = defaultAiMediaSettings()
     custom.imageProvider = 'custom'
     custom.analysisProvider = 'custom'
@@ -165,9 +160,9 @@ describe('media settings', () => {
       imageModel: 'flux',
       analysisModel: '',
     }
-    expect(mediaAnalysisAvailable(withMedia(custom), false)).toBe(false)
-    expect(imageGenerationAvailable(withMedia(custom), false)).toBe(true)
-    expect(imageGenerationAvailable(null, true)).toBe(true)
+    expect(mediaAnalysisAvailable(withMedia(custom))).toBe(false)
+    expect(imageGenerationAvailable(withMedia(custom))).toBe(true)
+    expect(imageGenerationAvailable(null)).toBe(false)
   })
 })
 

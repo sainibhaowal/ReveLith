@@ -16,7 +16,6 @@ export const zh = {
   aiQcPageSkipped: '第 {n} 页:已跳过自动版式检查',
   aiQcStopped: '版式检查已停止',
   aiQcCapped: '其余 {count} 页未检查(单次上限)',
-  aiGskLoginBtn: '登录 ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: '打开 AI 助手',
   aiFactCheckBtn: 'AI 事实核查',
@@ -227,5 +226,4 @@ export const zh = {
   aiSumSaveTemplate: '保存风格模板"{name}"',
   aiSumTemplatesEmpty: '风格模板列表（空）',
   aiSumListTemplates: '列出 {count} 个风格模板',
-  aiPageCloudToLocal: '云端不可用,已本地生成',
 }

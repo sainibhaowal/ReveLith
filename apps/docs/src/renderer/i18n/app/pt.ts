@@ -311,7 +311,6 @@ export const pt = {
   appLoggedInEmail: 'Conectado: {email}',
   appNotLoggedIn: 'Não conectado (os recursos de IA exigem uma conta ReveLith)',
   appWaitingBrowserLogin: 'Aguardando login no navegador…',
-  appLoginReveLith: 'Entrar no ReveLith',
   appModel: 'Modelo',
   appCut: 'Recortar',
   appCopy: 'Copiar',
