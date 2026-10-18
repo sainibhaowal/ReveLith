@@ -225,7 +225,7 @@ export const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose, r
             Download ReveLith
           </h3>
           <p className="download-subtitle">
-            Pick your platform for a direct installer. No account, no telemetry.
+            Pick your platform for a direct installer. No account is required to download.
           </p>
 
           <button ref={closeRef} onClick={onClose} className="download-close" aria-label="Close">

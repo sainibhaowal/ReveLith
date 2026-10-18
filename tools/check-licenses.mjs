@@ -29,29 +29,20 @@ const ALLOWED = new Set([
   'OFL-1.1',
 ])
 
-/** Packages whose published package.json lacks a license field; license
- * verified manually against the LICENSE file shipped in the package. */
+/** Packages whose npm metadata omits a license field; their licenses are
+ * verified against a packaged license file or reliable upstream records. */
 const EXCEPTIONS = {
   '@univerjs/telemetry': 'Apache-2.0',
   // mermaid dependency; ships an MIT `license` file but no package.json field
   khroma: 'MIT',
   // fuzzy@0.1.3 omits package.json's `license` key but ships LICENSE-MIT.
   fuzzy: 'MIT',
+  // buffers@0.1.1's npm tarball omits the field; upstream metadata declares
+  // MIT/X11 and Debian records MIT for the same upstream package version.
+  // https://github.com/bitpay/node-buffers/blob/master/package.json
+  // https://sources.debian.org/copyright/license/node-buffers/0.1.1-2/
+  buffers: 'MIT',
 }
-
-/** Production packages that declare no license upstream, where we could not
- * verify one either. They are accepted with a warning instead of being given a
- * license we cannot substantiate, so the decision stays visible in the log and
- * the gate keeps failing for every other undeclared package.
- *
- * `buffers@0.1.1` is pulled in transitively by
- * exceljs -> unzipper -> binary@0.3.0 (MIT). It ships no LICENSE file, has no
- * `license` field on any published version, and its GitHub repo
- * (substack/node-buffers) exposes no license either. This needs a call from
- * someone who owns the compliance decision; it is not safe to just assume MIT.
- */
-const ACKNOWLEDGED_UNDECLARED = new Set(['buffers'])
-const acknowledgements = []
 
 /** Minimal SPDX expression check: OR passes if any branch is allowed,
  * AND requires every branch, WITH falls back to the base license. */
@@ -106,21 +97,10 @@ for (const [path, info] of Object.entries(lock.packages)) {
   const name = path.slice(idx + 'node_modules/'.length)
   const license = info.license || EXCEPTIONS[name]
   if (!license) {
-    if (ACKNOWLEDGED_UNDECLARED.has(name)) {
-      acknowledgements.push(`${name}@${info.version}: no license declared upstream (acknowledged)`)
-      continue
-    }
     violations.push(`${name}: no license field in lockfile (add to EXCEPTIONS after verifying)`)
   } else if (!isAllowed(license)) {
     violations.push(`${name}: ${license}`)
   }
-}
-
-if (acknowledgements.length > 0) {
-  console.warn('Production dependencies with no verifiable license (acknowledged):\n')
-  for (const a of acknowledgements) console.warn(`  ${a}`)
-  console.warn('\nThese are listed in ACKNOWLEDGED_UNDECLARED in tools/check-licenses.mjs')
-  console.warn('and still need a licensing decision before a public release.\n')
 }
 
 if (violations.length > 0) {

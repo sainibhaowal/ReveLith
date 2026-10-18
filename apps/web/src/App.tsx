@@ -83,7 +83,7 @@ export function App() {
         <span>
           <Zap size={13} /> ReveLith {release.version}
         </span>
-        <span>Local AI. Zero telemetry. Open source.</span>
+        <span>Local editing. Optional AI. Open source.</span>
         <a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer">
           View source <ArrowUpRight size={13} />
         </a>
@@ -307,22 +307,23 @@ export function App() {
           <div className="privacy-panel scroll-reveal-scale">
             <div>
               <span className="eyebrow">A better boundary</span>
-              <h2>Your documents never become our data.</h2>
+              <h2>Your files stay under your control.</h2>
             </div>
             <div className="privacy-copy">
               <p>
-                AI inference, rendering, and document processing happen on your machine. No account.
-                No upload queue. No invisible analytics.
+                Ordinary document editing happens on your device. Provider-backed AI and media
+                features may send the content you choose to the configured provider. Some packaged
+                desktop builds can send usage events; you can turn reporting off in Settings.
               </p>
               <div className="privacy-stats">
                 <span>
-                  <b>0</b> documents uploaded
+                  <b>Local</b> document editing
                 </span>
                 <span>
-                  <b>100%</b> local processing
+                  <b>Optional</b> provider requests
                 </span>
                 <span>
-                  <b>AES-256</b> encrypted
+                  <b>Settings</b> analytics control
                 </span>
               </div>
             </div>

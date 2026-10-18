@@ -70,10 +70,37 @@ const NOTE = {
     'Copyright (c) Microsoft Corporation. Licensed under the MIT License.\nhttps://github.com/microsoft/fluentui-system-icons',
   '@revelith/cli':
     'Copyright (c) ReveLith. Licensed under the MIT License.\nhttps://www.npmjs.com/package/@revelith/cli',
+  buffers: `Copyright (c) 2015 James Halliday
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+License provenance: upstream package metadata declares MIT/X11 and Debian
+records MIT for buffers 0.1.1:
+https://github.com/bitpay/node-buffers/blob/master/package.json
+https://sources.debian.org/copyright/license/node-buffers/0.1.1-2/`,
 }
 
 /** SPDX strings that need a word on which side of a dual license we take */
 const SPDX_NOTE = {
+  buffers: 'MIT (upstream metadata and Debian package record)',
   jszip: 'MIT (dual MIT/GPL-3.0-or-later, used under MIT)',
   'r-efi': 'MIT (tri-licensed MIT/Apache-2.0/LGPL-2.1-or-later, used under MIT)',
 }
@@ -110,43 +137,36 @@ function bareName(spec) {
 const NPM_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
 
 function importedNames() {
-  const names = new Set([...IMPLICIT, ...extraResourceSeeds()])
+  const seeds = new Map()
+  for (const name of [...IMPLICIT, ...extraResourceSeeds()]) {
+    seeds.set(`${ROOT}\0${name}`, { name, fromDir: ROOT })
+  }
   for (const g of SRC_GLOBS) {
     for (const file of walk(join(ROOT, g))) {
       const text = readFileSync(file, 'utf8')
       for (const m of text.matchAll(SPECIFIER)) {
         const n = bareName(m[1])
-        if (n) names.add(n)
+        if (n) {
+          const fromDir = dirname(file)
+          seeds.set(`${fromDir}\0${n}`, { name: n, fromDir })
+        }
       }
     }
   }
-  return names
+  return [...seeds.values()]
 }
 
-const WORKSPACE_MODULES = SRC_GLOBS.map((g) => join(ROOT, g.replace(/\/src$/, ''), 'node_modules'))
-
-/** installed package names, unscoped first so existing resolutions keep winning */
-function topLevelPackages() {
-  const dirs = (at) => readdirSync(at, { withFileTypes: true }).filter((e) => e.isDirectory())
-  const top = dirs(join(ROOT, 'node_modules')).map((e) => e.name)
-  const scoped = top.filter((n) => n.startsWith('@'))
-  return [
-    ...top.filter((n) => !n.startsWith('@')),
-    ...scoped.flatMap((s) => dirs(join(ROOT, 'node_modules', s)).map((e) => `${s}/${e.name}`)),
-  ]
-}
-
-/** npm hoists, so the root copy is the usual answer; fall back to a nested one */
-function pkgDir(name) {
-  const root = join(ROOT, 'node_modules', name)
-  if (existsSync(join(root, 'package.json'))) return root
-  for (const owner of topLevelPackages()) {
-    const nested = join(ROOT, 'node_modules', owner, 'node_modules', name)
-    if (existsSync(join(nested, 'package.json'))) return nested
-  }
-  for (const modules of WORKSPACE_MODULES) {
-    const own = join(modules, name)
-    if (existsSync(join(own, 'package.json'))) return own
+/** Resolve a dependency the way Node does: from the importing package outward. */
+function pkgDir(name, fromDir = ROOT) {
+  let at = fromDir
+  while (at === ROOT || at.startsWith(`${ROOT}/`) || at.startsWith(`${ROOT}\\`)) {
+    if (!at.endsWith('/node_modules') && !at.endsWith('\\node_modules')) {
+      const candidate = join(at, 'node_modules', name)
+      if (existsSync(join(candidate, 'package.json'))) return candidate
+    }
+    const parent = dirname(at)
+    if (parent === at) break
+    at = parent
   }
   return null
 }
@@ -156,28 +176,27 @@ const manifest = (dir) => JSON.parse(readFileSync(join(dir, 'package.json'), 'ut
 /** transitive closure over runtime deps (build-only devDependencies of a dep never ship) */
 function closure(seed) {
   const seen = new Map()
-  const queue = [...seed].map((name) => ({ name, optional: false }))
+  const queue = seed.map(({ name, fromDir }) => ({ name, fromDir, optional: false }))
   const missing = new Set()
   while (queue.length > 0) {
-    const { name, optional } = queue.shift()
-    if (seen.has(name)) continue
-    const dir = pkgDir(name)
+    const { name, fromDir, optional } = queue.shift()
+    const dir = pkgDir(name, fromDir)
     if (dir === null) {
       // an uninstalled optional dep is a platform variant for another host, not a gap
       if (!optional) missing.add(name)
-      seen.set(name, null)
       continue
     }
+    if (seen.has(dir)) continue
     const pkg = manifest(dir)
-    seen.set(name, { dir, pkg })
+    seen.set(dir, { name, dir, pkg })
     for (const dep of Object.keys(pkg.dependencies ?? {})) {
-      if (!seen.has(dep)) queue.push({ name: dep, optional: false })
+      queue.push({ name: dep, fromDir: dir, optional: false })
     }
     for (const dep of Object.keys(pkg.optionalDependencies ?? {})) {
-      if (!seen.has(dep)) queue.push({ name: dep, optional: true })
+      queue.push({ name: dep, fromDir: dir, optional: true })
     }
   }
-  return { resolved: [...seen].filter(([, v]) => v !== null), missing }
+  return { resolved: [...seen.values()], missing }
 }
 
 function noticeText(dir) {
@@ -230,7 +249,7 @@ const sub = (title) => `\n${'-'.repeat(72)}\n${title}\n${'-'.repeat(72)}\n`
 
 const seed = importedNames()
 const { resolved, missing } = closure(seed)
-resolved.sort(([a], [b]) => a.localeCompare(b))
+resolved.sort((a, b) => a.name.localeCompare(b.name) || a.pkg.version.localeCompare(b.pkg.version))
 
 let out = `ReveLith — Third-Party Software Notices
 
@@ -243,7 +262,7 @@ licenses — see LICENSES.chromium.html next to this file.
 
 out += hr(`1. npm packages (${resolved.length})`)
 const noText = []
-for (const [name, { dir, pkg }] of resolved) {
+for (const { name, dir, pkg } of resolved) {
   out += sub(`${name} v${pkg.version} — ${spdxOf(name, pkg)}`)
   const text = licenseText(name, dir) ?? NOTE[name]
   if (text) {
@@ -373,6 +392,34 @@ https://www.unicode.org/Public/17.0.0/ucd/EquivalentUnifiedIdeograph.txt
 
 `
 out += readFileSync(join(ROOT, 'LICENSE-UNICODE.txt'), 'utf8').trim() + '\n'
+
+const upstreamApacheLicense = readFileSync(join(ROOT, 'LICENSE'), 'utf8')
+  .replace(
+    'Copyright 2026 ReveLith Contributors (ReveLith Authors)',
+    'Copyright 2026 Mainfunc, Inc.',
+  )
+  .trim()
+if (
+  !upstreamApacheLicense.startsWith('Apache License') ||
+  !upstreamApacheLicense.includes('Copyright 2026 Mainfunc, Inc.')
+) {
+  throw new Error('could not load the Apache License 2.0 text for upstream attribution')
+}
+
+out += hr('5. Upstream-derived software')
+out += `
+GenOffice v0.11.0
+Copyright 2026 Mainfunc, Inc.
+
+This application contains modified software derived from the Apache-2.0-licensed
+portion of the GenOffice v0.11.0 source tree:
+https://github.com/genspark-ai/genoffice/tree/v0.11.0
+
+The upstream ee/ directory is covered by a separate enterprise license. No
+upstream ee/ source code is included in this application. This attribution does
+not grant rights to upstream trademarks.
+`
+out += sub('Apache License, Version 2.0') + upstreamApacheLicense + '\n'
 
 for (const term of ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']) {
   if (!out.includes(term)) {

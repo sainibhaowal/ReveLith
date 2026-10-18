@@ -27,7 +27,7 @@ _No compilation or terminal setup required for end users. Installed apps automat
 ## Key Capabilities
 
 - **Byte-Preserving Fidelity**: Edits Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) files by patching modified structures only. Untouched elements, layouts, and styles remain 100% byte-for-byte intact.
-- **100% Local and Private**: Document processing, editing, and on-device OCR run entirely on your local machine. Your files never leave your system.
+- **Local document editing**: Ordinary document processing, editing, and supported on-device OCR run on your computer. Provider-backed AI, search, image, and media features may send the prompt or selected content to the provider you configure; see [PRIVACY.md](PRIVACY.md).
 - **Native AI Copilot & BYOK**: Context-aware AI agents across all editors, supporting dedicated BYOK keys (Search, Image, Analysis) and custom local/server models (e.g. `codex-app-server`), with quote-aware prompt references and highlights.
 - **Unified Workspace Shell**: Seamless tabbed multi-document management for Docs, Sheets, Slides, PDF, Markdown, and ReveLith HTML in a single cohesive environment with collapsible ribbons (`Ctrl+F1`), Global AutoSave, and multi-language UI (including Czech).
 - **High-Performance Architecture**: Native Rust sidecars, WebAssembly text shaping, streaming large-deck PDF exports, and specialized parsing engines deliver instant startup and fluid performance on x64 and ARM64 hardware.
@@ -177,11 +177,11 @@ npm run dist:linux      # Linux (.AppImage, .deb, .rpm)
 
 ## Security & Privacy
 
-ReveLith is engineered with zero-trust local boundaries:
+ReveLith keeps ordinary document work local and makes optional network features explicit:
 
 - **Sandboxed Renderers**: Strict Electron process isolation and context segregation.
 - **Safe IPC Layer**: Fully validated remote schema communication between GUI layers and system sidecars.
-- **No Unsolicited Telemetry**: Your files, prompts, and edits stay strictly on your local hardware.
+- **Usage analytics**: Some packaged desktop builds can include GA4 credentials and send usage events by default. Turn reporting off in **Settings → General**. The event fields and provider-data behavior are documented in [PRIVACY.md](PRIVACY.md).
 
 ---
 
