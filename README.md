@@ -21,11 +21,23 @@ ReveLith is organized around nine desktop modules, shown below. The Shell hosts 
 
 ## Start here
 
+
 - **Want to use ReveLith?** Download the installer for your operating system from the [official website](https://revelith.averqel.com/) or the [GitHub Releases page](https://github.com/sainibhaowal/ReveLith/releases). The release page lists the assets available for that release.
 - **Want to see what's included?** Browse [Applications](#applications) and [What ReveLith is built around](#what-revelith-is-built-around).
 - **Want to use AI?** Follow [Configure AI](#configure-ai).
 - **Want to automate document work?** Start with [The ReveLith CLI](#the-revelith-cli) or [MCP for agents](#mcp-for-agents).
 - **Want to contribute or build from source?** See [Development setup](#development-setup).
+## Key Capabilities
+
+- **Byte-Preserving Fidelity**: Edits Word (`.docx`), Excel (`.xlsx`), and PowerPoint (`.pptx`) files by patching modified structures only. Untouched elements, layouts, and styles remain 100% byte-for-byte intact.
+- **Local document editing**: Ordinary document processing, editing, and supported on-device OCR run on your computer. Provider-backed AI, search, image, and media features may send the prompt or selected content to the provider you configure; see [PRIVACY.md](PRIVACY.md).
+- **Native AI Copilot & BYOK**: Context-aware AI agents across all editors, supporting dedicated BYOK keys (Search, Image, Analysis) and custom local/server models (e.g. `codex-app-server`), with quote-aware prompt references and highlights.
+- **Unified Workspace Shell**: Seamless tabbed multi-document management for Docs, Sheets, Slides, PDF, Markdown, and ReveLith HTML in a single cohesive environment with collapsible ribbons (`Ctrl+F1`), Global AutoSave, and multi-language UI (including Czech).
+- **High-Performance Architecture**: Native Rust sidecars, WebAssembly text shaping, streaming large-deck PDF exports, and specialized parsing engines deliver instant startup and fluid performance on x64 and ARM64 hardware.
+- **Modern Design System**: Polished Light, Dark, and System themes featuring Word-style dark page rendering in dark theme with accurate print, PDF export, and clipboard fidelity.
+
+---
+
 
 ## Applications
 
@@ -305,7 +317,7 @@ npm run precommit:check
 Some checks build native components or take longer than a single-app test. Run the command and review its complete result; this README does not imply that a particular checkout has passed them.
 
 ### Build and package
-
+Build the app modules and desktop shell with `npm run build:all`. Create a local installer on its supported build platform:
 Build the app modules and desktop shell with `npm run build:all`. Create a local installer on its supported build platform:
 
 - Windows: `npm run dist:win`

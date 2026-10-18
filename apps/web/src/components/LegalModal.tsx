@@ -30,36 +30,37 @@ const docs = (version: string): Record<LegalDoc, Doc> => ({
   privacy: {
     icon: <ShieldCheck size={14} />,
     title: 'Privacy Policy',
-    updated: `Applies to the ReveLith application and this website Â· ${version}`,
+    updated: `Applies to the ReveLith application and this website | ${version}`,
     intro:
-      'ReveLith is built on a simple boundary: your documents stay on your machine. This page states exactly what that means, including the few places where data does leave your device.',
+      'This policy covers the ReveLith desktop application and public website. Ordinary document editing happens on your device. Some optional features and external services make network requests, as described below.',
     sections: [
       {
-        heading: '1. Your documents never leave your device',
+        heading: '1. Local document work and provider requests',
         body: [
-          'All document parsing, rendering, editing and saving happens locally. ReveLith does not upload, replicate, mirror or cache your files on any server we operate.',
-          'Document content is not used to train models. No derived artefacts â€” embeddings, previews, thumbnails or extracted text â€” are transmitted anywhere.',
+          'Opening, rendering, editing and saving files are performed on your device. ReveLith does not upload or store your files on a ReveLith-operated server as part of ordinary document editing.',
+          'When you invoke a provider-backed AI, search, image or media feature, the request may include your prompt and the selected text, document context or media needed for that task. The request is sent to the provider configured for that feature. Review that provider’s terms and privacy policy before sending sensitive information.',
         ],
       },
       {
-        heading: '2. AI features run locally',
+        heading: '2. Local and online AI features',
         body: [
-          'The built-in AI copilot runs inference on your own hardware using a local model. Prompts, documents and responses stay in local memory and are written to disk only if you explicitly save them.',
-          'If you configure an optional third-party API key, requests go directly from your machine to that provider under their terms. We never proxy, log or observe that traffic. Leaving the key unset keeps everything fully offline.',
+          'Whether an AI request stays on your device depends on the model and endpoint you select. A locally hosted model can process requests locally; a hosted provider requires a network connection and receives the request content described above.',
+          'Provider requests are sent from your device to the configured provider, which can receive your IP address and standard request metadata as well as the request content. The provider’s handling, retention and use of those requests are governed by its own terms. Leaving an API key unset does not make the entire application or website offline.',
         ],
       },
       {
-        heading: '3. No telemetry or analytics',
+        heading: '3. Usage analytics in configured desktop builds',
         body: [
-          'The application contains no analytics SDK, no crash reporter, no usage counters and no advertising identifiers. It does not phone home on launch, on save or on exit.',
-          'This website loads no analytics, no tag managers and no advertising scripts. It is served as static files.',
+          'Some packaged desktop builds can include Google Analytics 4 credentials. When present, usage reporting is enabled by default and can be turned off in Settings > General > Send anonymous usage statistics. Reporting may begin on first launch before onboarding appears. Source builds and packages without those credentials do not send these analytics events.',
+          'When enabled, events can report app launch, first launch, file open (extension only), file creation (file type only), and login click or success. Event metadata includes app version, platform, operating-system version, interface language, a random installation ID, session information, engagement time and, when available, the country code from the device’s regional settings. It does not include document contents, file names or paths, account identity or email address.',
+          'Analytics requests go to Google Analytics over HTTPS. Google receives the connection’s public IP address and standard transport metadata. The public website currently has no ReveLith analytics tag in its source code.',
         ],
       },
       {
-        heading: '4. Network requests that do occur',
+        heading: '4. Other network requests',
         body: [
-          'The application contacts the network only for two things, both of which you control: checking for updates, and downloading an update you have chosen to install. Update checks send no document data and no identifiers beyond what is required to fetch a release manifest.',
-          'This website requests web fonts from Google Fonts and, on the download dialog, links to GitHub Releases. Those requests are subject to the respective providers\u2019 privacy policies.',
+          'The desktop application can also contact update services when checking for updates or downloading an update you choose. AI, search, image and media features may contact their configured providers when you invoke them.',
+          'The public website is hosted on a VPS, which receives your IP address and request metadata to serve the page; whether and how long access logs are retained depends on the server configuration. The site also requests fonts from Google Fonts and links to GitHub Releases. Those providers may receive your IP address and standard request metadata when your browser requests their resources or you follow those links.',
         ],
       },
       {
@@ -72,7 +73,7 @@ const docs = (version: string): Record<LegalDoc, Doc> => ({
       {
         heading: '6. Children and regulated data',
         body: [
-          'ReveLith is a general-purpose productivity tool and is not directed at children. Because processing is local, you remain the sole controller of any regulated data you open in it.',
+          'ReveLith is a general-purpose productivity tool and is not directed at children. Take particular care before using provider-backed features with confidential, personal or regulated information; your organization’s rules and the selected provider’s terms may apply.',
         ],
       },
       {
@@ -100,7 +101,7 @@ const docs = (version: string): Record<LegalDoc, Doc> => ({
       {
         heading: '2. Your content',
         body: [
-          'You retain all rights to the documents you open, edit or create with ReveLith. We claim no licence over your content, because your content never reaches us.',
+          'You retain all rights to the documents you open, edit or create with ReveLith. ReveLith claims no ownership of your content. If you choose to use a provider-backed feature, the content included in that request is sent to the configured provider and is subject to that provider’s terms.',
         ],
       },
       {

@@ -33,6 +33,16 @@ describe('third-party license aggregation', () => {
     expect(text).toContain('GenOffice v0.11.0')
     expect(text).toContain('Copyright 2026 Mainfunc, Inc.')
     expect(text).toContain('not grant rights to upstream trademarks.')
+    expect(text).toContain('buffers v0.1.1')
+    expect(text).toContain('Copyright (c) 2015 James Halliday')
+    expect(text).toContain('sources.debian.org/copyright/license/node-buffers/0.1.1-2/')
+    expect(text).toContain('unzipper v0.10.14')
+    expect(text).toContain('binary v0.3.0')
+    const upstreamSection = text.slice(text.indexOf('5. Upstream-derived software'))
+    expect(upstreamSection).toContain(
+      'TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION',
+    )
+    expect(upstreamSection).not.toContain('Copyright 2026 ReveLith Contributors')
 
     const shellPackage = JSON.parse(
       readFileSync(join(root, 'apps/shell/package.json'), 'utf8'),

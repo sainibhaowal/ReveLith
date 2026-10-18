@@ -613,15 +613,15 @@ export interface FaqItem {
 export const FAQ_ITEMS: FaqItem[] = [
   {
     q: 'Where does my data go?',
-    a: 'Nowhere. Parsing, rendering, editing and saving all happen on your own machine, so there is no upload queue and no server of ours holding your files. The app ships with no analytics SDK and no crash reporter, and document content is never used to train models.',
+    a: 'Ordinary file parsing, rendering, editing and saving happen on your device; ReveLith does not store those files on a ReveLith-operated server. When you invoke provider-backed AI, search, image or media features, the request may include your prompt and selected content and is sent to the configured provider. Some packaged desktop builds can also send usage events when analytics credentials are included; see the Privacy Policy for details and opt-out instructions.',
   },
   {
     q: 'Can I use a local model?',
-    a: 'Yes — that is the default. The built-in copilot runs inference on your own hardware with a locally hosted model. No API key, no account and no network round trip are required, so it keeps working with the network switched off entirely.',
+    a: 'Where supported, you can configure a local model endpoint. AI does not automatically run locally in every setup, so check the selected model and endpoint before sending sensitive material. Ordinary document editing does not require AI.',
   },
   {
     q: 'Can I bring my own API key?',
-    a: 'Yes, optionally. If you would rather use a hosted model, you can point ReveLith at a provider using your own key. Those requests travel directly from your machine to that provider under their terms, and we never proxy, log or observe them. Leave the key unset to stay fully local.',
+    a: 'Yes, where the feature supports it. Requests go from your device to the provider you configure, and that provider’s terms govern its handling of them. Leaving a key unset disables features that require it, but does not make the entire application or website offline.',
   },
   {
     q: 'Which file formats are supported?',
@@ -629,7 +629,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     q: 'Do the drawing, forms and task apps need a server?',
-    a: 'No. AI Draw, AI Forms and AI Tasks are local-first. Forms can be exported as a single offline HTML file that collects responses without a hosted service, and task boards live in local storage or a board file you control. Draw autosaves to your own device.',
+    a: 'Basic drawing, form editing and task-board work do not require a ReveLith-hosted service. Exported forms can collect responses in a standalone HTML file, and task boards can be stored locally or in a board file you control. Optional provider-backed AI features may require a network connection.',
   },
   {
     q: 'What is the license?',
@@ -646,7 +646,7 @@ export const COMPARISON_DATA = [
   },
   {
     feature: 'Data Privacy & Offline Independence',
-    revelith: '100% Local (Zero Telemetry)',
+    revelith: 'Local file editing; optional provider requests',
     traditional: 'Requires Account & Tracking',
     cloud: 'Stores All Files on Remote Servers',
   },
