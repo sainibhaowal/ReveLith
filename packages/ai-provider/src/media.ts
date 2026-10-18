@@ -319,38 +319,30 @@ function byokModel(
 }
 
 function capabilityAvailable(
-  settings: Pick<AiSettings, 'media' | 'gskToolsEnabled'> | null | undefined,
-  gskLoggedIn: boolean,
+  settings: Pick<AiSettings, 'media'> | null | undefined,
   capability: MediaCapability,
 ): boolean {
-  if (!settings) return gskLoggedIn
+  if (!settings) return false
   const model = byokModel(settings, capability)
-  if (model !== null) return model !== ''
-  return gskLoggedIn && settings.gskToolsEnabled !== false
+  return model !== null && model !== ''
 }
 
-/** live predicate for the generate_image tool: BYOK image model configured, or gsk login + cloud tools on */
+/** True when a user-configured media provider can generate images. */
 export function imageGenerationAvailable(
-  settings: Pick<AiSettings, 'media' | 'gskToolsEnabled'> | null | undefined,
-  gskLoggedIn: boolean,
+  settings: Pick<AiSettings, 'media'> | null | undefined,
 ): boolean {
-  return capabilityAvailable(settings, gskLoggedIn, 'image')
+  return capabilityAvailable(settings, 'image')
 }
 
 /** live predicate for the analyze_media tool: image analysis or video analysis reachable */
 export function mediaAnalysisAvailable(
-  settings: Pick<AiSettings, 'media' | 'gskToolsEnabled'> | null | undefined,
-  gskLoggedIn: boolean,
+  settings: Pick<AiSettings, 'media'> | null | undefined,
 ): boolean {
-  return (
-    capabilityAvailable(settings, gskLoggedIn, 'analysis') ||
-    capabilityAvailable(settings, gskLoggedIn, 'video')
-  )
+  return capabilityAvailable(settings, 'analysis') || capabilityAvailable(settings, 'video')
 }
 
 export function videoAnalysisAvailable(
-  settings: Pick<AiSettings, 'media' | 'gskToolsEnabled'> | null | undefined,
-  gskLoggedIn: boolean,
+  settings: Pick<AiSettings, 'media'> | null | undefined,
 ): boolean {
-  return capabilityAvailable(settings, gskLoggedIn, 'video')
+  return capabilityAvailable(settings, 'video')
 }

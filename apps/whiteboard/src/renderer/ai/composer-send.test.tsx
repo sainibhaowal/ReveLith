@@ -81,7 +81,6 @@ function installShellBridge(
     setAiPanelPrefs: async (patch: unknown) => patch,
     onAiPanelPrefsChanged: () => noop,
     webSearch: async () => ({ results: [], method: 'test' }),
-    getGskStatus: async () => ({ loggedIn: false }),
     imageSearch: async () => ({ images: [], method: 'test' }),
     fetchImage: async () => null,
     generateImage: async () => ({ error: 'not used' }),

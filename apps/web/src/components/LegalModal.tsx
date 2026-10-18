@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { X, ShieldCheck, FileText } from 'lucide-react'
-import { GITHUB_REPO_URL, LATEST_VERSION } from '../data/suite-data'
+import { GITHUB_REPO_URL } from '../data/suite-data'
+import { BUILD_RELEASE } from '../release-manifest'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
 export type LegalDoc = 'privacy' | 'terms'
@@ -143,7 +144,7 @@ const EXIT_MS = 200
 export const LegalModal: React.FC<LegalModalProps> = ({
   doc,
   onClose,
-  version = LATEST_VERSION,
+  version = BUILD_RELEASE.version,
 }) => {
   const isOpen = doc !== null
   const [shown, setShown] = useState<LegalDoc | null>(doc)

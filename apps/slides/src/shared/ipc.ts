@@ -11,12 +11,7 @@ import type { AiPanelPrefs } from '@revelith/ui'
 import type { RenderSlide } from '@revelith/pptx-render'
 import type { CustGeomPathCmd, SlideComment, SectionInfo } from '@revelith/pptx-engine'
 import type { FontSizeStep } from '@revelith/pptx-ops/font-size'
-import type {
-  AiSettings,
-  AiStreamChunk,
-  AiStreamRequest,
-  ReveLithAccountStatus,
-} from '@revelith/ai-provider'
+import type { AiSettings, AiStreamChunk, AiStreamRequest } from '@revelith/ai-provider'
 
 import type {
   EditRun,
@@ -49,7 +44,6 @@ export type {
   AiSettings,
   AiStreamChunk,
   AiStreamRequest,
-  ReveLithAccountStatus,
 } from '@revelith/ai-provider'
 export { AI_PROVIDERS } from '@revelith/ai-provider/browser'
 export type { AgentToolCall, AgentToolDef } from '@revelith/agent-core'
@@ -1343,19 +1337,7 @@ export interface SlidesApi {
       })
     | { error: string }
   >
-  /** Whether cloud single-page generation (gsk slide_generate) is available (REVELITH_CLOUD_SLIDE=1 + gsk login) */
-  cloudGenStatus: () => Promise<{ enabled: boolean }>
-  /** Cloud single-page generation: brief → one-slide pptx temp file; the marker goes into a landGeneratedPages pageMarkers slot */
-  cloudGeneratePage: (op: {
-    brief: string
-    title?: string
-    styleSkill?: string
-    deckContext?: Record<string, unknown>
-    images?: { url: string; caption?: string }[]
-    width?: number
-    height?: number
-  }) => Promise<{ ok: boolean; marker?: string; error?: string }>
-  /** Local single-page generation: a JSON slide spec (LLM output) built directly into a one-slide pptx; same marker kind as the cloud path */
+  /** Local single-page generation: a JSON slide spec (LLM output) built directly into a one-slide pptx. */
   localGeneratePage: (op: {
     specJson: string
   }) => Promise<{ ok: boolean; marker?: string; error?: string; imageFailures?: string[] }>
@@ -1696,10 +1678,6 @@ export interface SlidesApi {
   setAiSettings: (settings: AiSettings) => Promise<void>
   aiStream: (request: AiStreamRequest) => Promise<void>
   aiStreamCancel: (requestId: string) => Promise<void>
-  /** ReveLith account status (gsk login state); with withEmail also fetches the email (needs a network request, slower) */
-  aiGskStatus: (withEmail?: boolean) => Promise<ReveLithAccountStatus>
-  /** Open the browser to log into ReveLith (fire-and-forget; aiGskStatus turns logged-in once done) */
-  aiGskLogin: () => Promise<void>
   /** Record a run that ended without a usable reply, for post-mortem (fire-and-forget, never throws) */
   aiLogRunFailure: (entry: AiRunFailure) => Promise<void>
   webSearch: (
@@ -1750,7 +1728,7 @@ export interface SlidesApi {
     ext?: string
     keepSrcRect?: boolean
   }) => Promise<RenderSlide | null>
-  /** gsk (ReveLith) AI image generation/editing, returns the image URL (error prompts login when logged out) */
+  /** Generate or edit an image with the configured media provider. */
   generateImage: (op: {
     prompt: string
     model?: string
@@ -1759,13 +1737,11 @@ export interface SlidesApi {
     imageSize?: string
     transparentBackground?: boolean
   }) => Promise<{ url?: string; error?: string }>
-  /** gsk (ReveLith) media analysis: image/audio/video content understanding, returns analysis text */
+  /** Analyze image/audio/video content with the configured media provider. */
   analyzeMedia: (op: {
     mediaUrls: string[]
     requirements: string
   }) => Promise<{ text?: string; error?: string }>
-  /** gsk availability: installed and logged in (for UI/tools to prompt login) */
-  gskStatus: () => Promise<{ available: boolean; email?: string }>
   onAiStream: (handler: (chunk: AiStreamChunk) => void) => () => void
   /** Style Skill sidecar: write styleSkill to a same-named .styleskill.json next to the draft */
   saveStyleSidecar: (data: {

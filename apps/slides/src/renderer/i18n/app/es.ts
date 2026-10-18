@@ -251,8 +251,6 @@ export const es = {
   appSettingsLoggedIn: 'Sesión iniciada',
   appSettingsLoggedInEmail: 'Sesión iniciada: {email}',
   appSettingsLoggedOut: 'Sesión no iniciada (las funciones de IA requieren una cuenta de ReveLith)',
-  appSettingsLoginPending: 'Esperando el inicio de sesión en el navegador…',
-  appSettingsLogin: 'Iniciar sesión en ReveLith',
   appSettingsModel: 'Modelo',
   appSettingsCancel: 'Cancelar',
   appSettingsSave: 'Guardar',

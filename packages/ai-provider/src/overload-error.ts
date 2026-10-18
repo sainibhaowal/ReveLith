@@ -19,8 +19,7 @@ const OVERLOADED_PATTERN = new RegExp(
   'i',
 )
 
-// Credits-exhausted notices ("Your ReveLith credits have been exhausted…") are
-// a different failure class (errorCode 'credits', "top up" message) — never
+// Credits-exhausted notices are a different failure class (errorCode 'credits') — never
 // misreport them as a transient capacity problem.
 const CREDITS_PATTERN = /credit|pricing/i
 

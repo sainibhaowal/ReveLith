@@ -314,7 +314,6 @@ export const ms = {
   appLoggedInEmail: 'Sudah log masuk: {email}',
   appNotLoggedIn: 'Belum log masuk (ciri AI memerlukan akaun ReveLith)',
   appWaitingBrowserLogin: 'Menunggu log masuk pelayar…',
-  appLoginReveLith: 'Log masuk ke ReveLith',
   appModel: 'Model',
   appCut: 'Potong',
   appCopy: 'Salin',

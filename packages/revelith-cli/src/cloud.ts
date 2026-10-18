@@ -1,13 +1,9 @@
-import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { setGskProxyUrl } from '@revelith/ai-search'
 import { revelithUserDataDir } from './gui'
-import { packagedResourcesDir } from './resources'
 
 /**
- * The cloud commands (search / image / media) reuse the editors' provider
- * routing: ReveLith when signed in (~/.revelith/auth.json) and cloud tools
- * are on, otherwise the BYOK provider chosen in the app's AI settings. That
+ * The CLI's search / image / media commands reuse the providers chosen in
+ * the app's AI settings. That
  * settings file lives in the shell's Electron userData directory, which revelith
  * has to locate without Electron.
  */
@@ -31,19 +27,13 @@ export function proxyUrlFromEnv(env: NodeJS.ProcessEnv): string | null {
 
 let prepared = false
 
-/** Once per process: proxy for fetch and the gsk children, and the packaged gsk CLI location. */
-export async function prepareCloud(env: NodeJS.ProcessEnv): Promise<void> {
+/** Once per process: route user-configured provider requests through the configured proxy. */
+export async function prepareNetwork(env: NodeJS.ProcessEnv): Promise<void> {
   if (prepared) return
   prepared = true
   const proxy = proxyUrlFromEnv(env)
   if (proxy) {
-    setGskProxyUrl(proxy)
     const { ProxyAgent, setGlobalDispatcher } = await import('undici')
     setGlobalDispatcher(new ProxyAgent(proxy))
-  }
-  const packaged = packagedResourcesDir()
-  if (packaged && !env.GSK_CLI_PATH) {
-    const entry = join(packaged, 'gsk', 'node_modules', '@revelith', 'cli', 'dist', 'index.js')
-    if (existsSync(entry)) process.env.GSK_CLI_PATH = entry
   }
 }

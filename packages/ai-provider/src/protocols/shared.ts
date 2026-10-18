@@ -220,9 +220,8 @@ export function sseErrorText(error: unknown, fallback: string): string {
 }
 
 /**
- * Gateways can answer a `stream: true` request with a complete non-SSE JSON body —
- * observed on the ReveLith Anthropic route when credits are exhausted (HTTP 200,
- * Content-Type: application/json, the notice text inside a regular message). The SSE
+ * Gateways can answer a `stream: true` request with a complete non-SSE JSON body
+ * (HTTP 200, Content-Type: application/json, with the notice text inside a regular message). The SSE
  * parser would find no `data:` lines in such a body and dissolve it into an empty
  * "successful" turn. Returns the body text when that happens, else null.
  */
@@ -237,8 +236,7 @@ export async function jsonBodyInsteadOfSse(
 }
 
 /**
- * A non-SSE JSON reply whose text is the gateway's credits-exhausted notice
- * (ReveLith: "Your ReveLith credits have been exhausted…") surfaces as a typed
+ * A non-SSE JSON reply whose text is a provider's credits-exhausted notice surfaces as a typed
  * error so the apps show a localized "top up" message (errorCode 'credits')
  * instead of the English notice as a normal assistant reply.
  */
@@ -252,9 +250,12 @@ export class AiCreditsError extends Error {
 function creditsNoticeText(value: unknown): string | null {
   if (typeof value === 'string') {
     const t = value.toLowerCase()
-    const credits =
-      t.includes('revelith.ai/pricing') ||
-      (t.includes('credit') && (t.includes('exhausted') || t.includes('insufficient')))
+    const creditNotice =
+      t.includes('credit') && (t.includes('exhausted') || t.includes('insufficient'))
+    const quotaNotice =
+      t.includes('quota') &&
+      (t.includes('pricing') || t.includes('billing') || t.includes('top up'))
+    const credits = creditNotice || quotaNotice
     return credits ? value : null
   }
   if (Array.isArray(value) || (value && typeof value === 'object')) {

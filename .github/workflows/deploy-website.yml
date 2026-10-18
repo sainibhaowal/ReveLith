@@ -1,6 +1,13 @@
 name: Deploy Website to VPS
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-website.yml
+      - apps/web/**
+      - tools/select-latest-zero-tag.mjs
   workflow_dispatch:
     inputs:
       release_tag:
@@ -17,6 +24,13 @@ on:
         description: Release version created by the release workflow
         required: false
         type: string
+  workflow_run:
+    workflows:
+      - Release & Publish
+    types:
+      - completed
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -28,9 +42,13 @@ concurrency:
 jobs:
   deploy:
     name: Build and publish website
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Deploy the same source commit that produced the release.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -56,7 +74,17 @@ jobs:
             echo "Requested version $REQUESTED_VERSION does not match tag $TAG" >&2
             exit 1
           fi
-          ASSETS="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name]')"
+          RELEASE_JSON="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease,assets)"
+          ACTUAL_TAG="$(jq -r '.tagName // empty' <<< "$RELEASE_JSON")"
+          if [ "$ACTUAL_TAG" != "$TAG" ]; then
+            echo "GitHub returned release tag '$ACTUAL_TAG' instead of '$TAG'." >&2
+            exit 1
+          fi
+          if jq -e '.isDraft or .isPrerelease' <<< "$RELEASE_JSON" >/dev/null; then
+            echo "Release $TAG is a draft or prerelease; only stable published releases can be deployed." >&2
+            exit 1
+          fi
+          ASSETS="$(jq -c '[.assets[].name]' <<< "$RELEASE_JSON")"
           echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
           echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "RELEASE_ASSETS=$ASSETS" >> "$GITHUB_ENV"
@@ -72,14 +100,28 @@ jobs:
           npm run build --prefix apps/web
           test -s apps/web/dist/index.html
           test -s apps/web/dist/release.json
-          node --input-type=module -e "const m=JSON.parse(await (await import('node:fs/promises')).readFile('apps/web/dist/release.json','utf8')); if(m.version !== process.env.RELEASE_TAG || !m.downloads.length) process.exit(1)"
+          node --input-type=module -e '
+            import { readFile } from "node:fs/promises";
+            const manifest = JSON.parse(await readFile("apps/web/dist/release.json", "utf8"));
+            const prefix = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${process.env.RELEASE_TAG}/`;
+            if (manifest.version !== process.env.RELEASE_TAG || !manifest.downloads.length) {
+              throw new Error("Built release manifest has the wrong version or no downloads.");
+            }
+            for (const item of manifest.downloads) {
+              const url = new URL(item.url);
+              const filename = decodeURIComponent(url.pathname.split("/").at(-1));
+              if (!item.url.startsWith(prefix) || filename !== item.format) {
+                throw new Error(`Invalid direct download URL for ${item.format}.`);
+              }
+            }
+          '
 
       - name: Configure VPS SSH access
         uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
-      - name: Publish without removing the existing web root
+      - name: Replace website files and remove stale files in the web root
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -90,7 +132,8 @@ jobs:
           test "$VPS_WEB_PATH" = "/opt/revelith_web"
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          ssh "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_WEB_PATH'"
+          ssh "$VPS_USER@$VPS_HOST" "set -eu; mkdir -p '$VPS_WEB_PATH'; test ! -L '$VPS_WEB_PATH'; test -d '$VPS_WEB_PATH'; test -w '$VPS_WEB_PATH'"
+          # --delete-delay removes old files only inside /opt/revelith_web.
           rsync -az --delete-delay --delay-updates apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"
 
       - name: Verify the public site and deployed manifest
@@ -99,6 +142,21 @@ jobs:
           curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
             https://revelith.averqel.com/ -o "$RUNNER_TEMP/deployed-index.html"
           curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors \
-            https://revelith.averqel.com/release.json -o "$RUNNER_TEMP/deployed-release.json"
-          EXPECTED_VERSION="$RELEASE_TAG" node --input-type=module -e "const m=JSON.parse(await (await import('node:fs/promises')).readFile(process.argv[1],'utf8')); if(m.version !== process.env.EXPECTED_VERSION || !m.downloads.length) throw new Error('deployed release manifest failed verification')" \
+            -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+            "https://revelith.averqel.com/release.json?deploy=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/deployed-release.json"
+          EXPECTED_VERSION="$RELEASE_TAG" EXPECTED_REPOSITORY="$GITHUB_REPOSITORY" node --input-type=module -e '
+            import { readFile } from "node:fs/promises";
+            const manifest = JSON.parse(await readFile(process.argv[1], "utf8"));
+            const prefix = `https://github.com/${process.env.EXPECTED_REPOSITORY}/releases/download/${process.env.EXPECTED_VERSION}/`;
+            if (manifest.version !== process.env.EXPECTED_VERSION || !manifest.downloads.length) {
+              throw new Error("Deployed release manifest has the wrong version or no downloads.");
+            }
+            for (const item of manifest.downloads) {
+              const url = new URL(item.url);
+              const filename = decodeURIComponent(url.pathname.split("/").at(-1));
+              if (!item.url.startsWith(prefix) || filename !== item.format) {
+                throw new Error(`Invalid direct download URL for ${item.format}.`);
+              }
+            }
+          ' \
             "$RUNNER_TEMP/deployed-release.json"

@@ -5,7 +5,6 @@ export const de = {
   aiEmptyBuildTitle: 'Lass die KI diese Arbeitsmappe für dich aufbauen',
   aiEmptyBuildBody:
     'Beschreibe die gewünschte Tabelle, Daten oder Diagramme — die KI erstellt sie direkt.',
-  aiGskLoginBtn: 'Bei ReveLith anmelden',
   aiUndelivered: 'Nicht gesendet',
   aiRetry: 'Erneut versuchen',
   aiOpenAssistant: 'KI-Assistenten öffnen',
@@ -56,7 +55,6 @@ export const de = {
   aiLoggedInAs: 'Angemeldet: {email}',
   aiNotLoggedIn: 'Nicht angemeldet (KI-Funktionen erfordern ein ReveLith-Konto)',
   aiWaitingBrowserLogin: 'Warten auf Anmeldung im Browser…',
-  aiLoginReveLith: 'Bei ReveLith anmelden',
   aiModel: 'Modell',
   aiCancel: 'Abbrechen',
   aiSave: 'Speichern',

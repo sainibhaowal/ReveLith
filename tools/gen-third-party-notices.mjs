@@ -46,11 +46,7 @@ const SKIP_DIR = /^(node_modules|out|dist|release|tests|__tests__|target)$/
 /** Runtime that is always present but never imported by specifier */
 const IMPLICIT = ['electron']
 
-/**
- * Packages copied into the installer verbatim by electron-builder rather than
- * bundled — the gsk CLI and its runtime deps are spawned, never imported, so
- * they are invisible to the import scan.
- */
+/** Extra resources copied by electron-builder are invisible to the import scan. */
 function extraResourceSeeds() {
   // the electron-builder config lives in its own cjs module (not package.json
   // "build") so the publish URL can be injected from the environment
@@ -373,6 +369,29 @@ https://www.unicode.org/Public/17.0.0/ucd/EquivalentUnifiedIdeograph.txt
 
 `
 out += readFileSync(join(ROOT, 'LICENSE-UNICODE.txt'), 'utf8').trim() + '\n'
+
+const upstreamApacheLicense = readFileSync(join(ROOT, 'LICENSE'), 'utf8').replace(
+  'Copyright 2026 ReveLith Contributors (ReveLith Authors)',
+  'Copyright 2026 Mainfunc, Inc.',
+)
+if (!upstreamApacheLicense.includes('Copyright 2026 Mainfunc, Inc.')) {
+  throw new Error('could not prepare the upstream Apache-2.0 license attribution')
+}
+
+out += hr('5. Upstream-derived software')
+out += `
+GenOffice v0.11.0
+Copyright 2026 Mainfunc, Inc.
+
+This application contains modified software derived from the Apache-2.0-licensed
+portion of the GenOffice v0.11.0 source tree:
+https://github.com/genspark-ai/genoffice/tree/v0.11.0
+
+The upstream ee/ directory is covered by a separate enterprise license. No
+upstream ee/ source code is included in this application. This attribution does
+not grant rights to upstream trademarks.
+`
+out += sub('Apache License, Version 2.0') + upstreamApacheLicense.trim() + '\n'
 
 for (const term of ['@embedpdf/pdfium', 'Copyright 2014 PDFium Authors', 'Apache License']) {
   if (!out.includes(term)) {

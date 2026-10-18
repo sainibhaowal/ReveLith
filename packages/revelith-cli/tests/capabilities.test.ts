@@ -1,23 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as aiSearch from '@revelith/ai-search'
+import { describe, expect, it } from 'vitest'
 import { run, tempDir } from './helpers'
-
-// hasGskAuth reads process.env, not the command context: isolate the login state per test
-const saved: Record<string, string | undefined> = {}
-beforeEach(() => {
-  for (const k of ['REVELITH_AUTH_DIR', 'AI_SEARCH_DISABLE_GSK']) saved[k] = process.env[k]
-  process.env.REVELITH_AUTH_DIR = join(tempDir(), 'no-auth')
-  process.env.AI_SEARCH_DISABLE_GSK = '1'
-})
-afterEach(() => {
-  vi.restoreAllMocks()
-  for (const [k, v] of Object.entries(saved)) {
-    if (v === undefined) delete process.env[k]
-    else process.env[k] = v
-  }
-})
 
 // a real settings file always carries the chat provider block; without it every section resets to defaults
 function settingsFile(dir: string, settings: Record<string, unknown>): string {
@@ -101,24 +85,6 @@ describe('revelith capabilities', () => {
     expect(d.search).toEqual({ available: true, via: provider })
     expect(d.image_search.available).toBe(false)
   })
-
-  it.each(['tavily', 'parallel'])(
-    '%s does not advertise ReveLith image search when signed in',
-    async (provider) => {
-      vi.spyOn(aiSearch, 'hasGskAuth').mockReturnValue(true)
-      const settings = settingsFile(tempDir(), {
-        search: { provider, providers: { [provider]: { apiKey: 'test-key' } } },
-      })
-      const r = await run(['capabilities', '--json'], {
-        env: { ...process.env, REVELITH_AI_SETTINGS: settings },
-      })
-      const d = r.json().detail
-      expect(d.search).toEqual({ available: true, via: provider })
-      expect(d.image_search).toEqual({ available: false, via: null })
-      expect(d.image_generation).toEqual({ available: true, via: 'revelith' })
-      expect(d.media_analysis).toEqual({ available: true, via: 'revelith' })
-    },
-  )
 
   it('reports selected keyless Parallel as web search without requiring a login', async () => {
     const settings = settingsFile(tempDir(), {

@@ -17,7 +17,6 @@ export const ms = {
   aiQcPageSkipped: 'Halaman {n}: semakan susun atur automatik dilangkau',
   aiQcStopped: 'Semakan susun atur dihentikan',
   aiQcCapped: '{count} halaman lagi tidak disemak (had setiap larian)',
-  aiGskLoginBtn: 'Log masuk ke ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'Buka pembantu AI',
   aiFactCheckBtn: 'Semak Fakta AI',
@@ -235,5 +234,4 @@ export const ms = {
   aiSumSaveTemplate: 'Menyimpan templat gaya "{name}"',
   aiSumTemplatesEmpty: 'Templat gaya (kosong)',
   aiSumListTemplates: 'Menyenaraikan {count} templat gaya',
-  aiPageCloudToLocal: 'Awan tidak tersedia — dijana secara setempat',
 } satisfies Record<keyof typeof zh, string>

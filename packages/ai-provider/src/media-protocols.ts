@@ -5,8 +5,8 @@
  * Gemini native output / Imagen predict, DashScope multimodal-generation
  * (Qwen-Image) and MiniMax image_generation. Understanding speaks two: OpenAI
  * chat completions (video via a video_url part where the vendor accepts one)
- * and Gemini generateContent (inline or Files API). ReveLith is not here — its
- * tools go through the gsk CLI in @revelith/ai-search.
+ * and Gemini generateContent (inline or Files API). All media providers are
+ * selected and authenticated by the user in ReveLith's AI settings.
  */
 
 import { aiFetch } from './fetch'
@@ -485,7 +485,7 @@ async function analyzeMediaOpenAi(
       throw new Error(
         `${meta.label} cannot analyze ${m.name ?? m.mime} (${m.mime}) here; ${
           meta.videoAnalysis ? 'audio' : 'video and audio'
-        } analysis needs Gemini or ReveLith.`,
+        } analysis needs Gemini.`,
       )
     }
   }

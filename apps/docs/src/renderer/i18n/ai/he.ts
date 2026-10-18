@@ -8,7 +8,6 @@ export const he = {
   aiStarterPolishAll: 'לטש את כל המסמך לטון מקצועי יותר',
   aiStarterContinue: 'המשך לכתוב מהנקודה שבה המסמך נעצר',
   aiStarterFillTemplate: 'מצא ומלא את מצייני המיקום במסמך',
-  aiGskLoginBtn: 'התחבר ל-ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'פתיחת עוזר ה-AI',
   aiSummarizeBtn: 'סיכום AI',

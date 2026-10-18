@@ -4,7 +4,7 @@
  * to avoid renderer CORS), search tools, and the slides-only ai:* channels
  * (image generation, media analysis, style templates).
  */
-import { app, ipcMain, nativeImage, net, shell } from 'electron'
+import { app, ipcMain, nativeImage, net } from 'electron'
 import {
   appendFileSync,
   existsSync,
@@ -30,7 +30,6 @@ import {
   type AiSettings,
   type AiStreamChunk,
   type AiStreamRequest,
-  type ReveLithAccountStatus,
   type LegacyAiSettings,
 } from '@revelith/ai-provider'
 import { shutdownCodexAppServers } from '@revelith/ai-provider/codex-app-server'
@@ -43,11 +42,8 @@ import {
 import {
   webSearchTool,
   imageSearchTool,
-  ensureReveLithLogin,
   generateImageTool,
   analyzeMediaTool,
-  gskLoginInfo,
-  hasGskAuth,
 } from '@revelith/ai-search'
 import { addPicture, editPictureSrcRect, replacePictureBytes } from '@revelith/pptx-engine'
 import { matchesElementRef } from '@revelith/pptx-engine/identity'
@@ -116,21 +112,6 @@ export function registerAiIpc(): void {
 
   ipcMain.handle('ai:get-settings', (): AiSettings => {
     return currentAiSettings()
-  })
-
-  // ReveLith account (gsk login state): the auth source for AI features; when logged out the frontend uses this to guide login
-  ipcMain.handle(
-    'ai:gsk-status',
-    async (_event, withEmail?: boolean): Promise<ReveLithAccountStatus> => {
-      if (!hasGskAuth()) return { loggedIn: false }
-      if (!withEmail) return { loggedIn: true }
-      const info = await gskLoginInfo()
-      return info?.email ? { loggedIn: true, email: info.email } : { loggedIn: true }
-    },
-  )
-
-  ipcMain.handle('ai:gsk-login', () => {
-    ensureReveLithLogin((url) => void shell.openExternal(url))
   })
 
   ipcMain.handle('ai:set-settings', (_event, settings: AiSettings) => {
@@ -273,7 +254,7 @@ export function registerAiIpc(): void {
 // never called; docs does not have these channels, so putting them in the wrong place raises
 // "No handler registered".
 export function registerSlidesOnlyAiIpc(): void {
-  // gsk (ReveLith CLI) capabilities: AI image generation / media analysis. Returns an error prompt when not logged in.
+  // User-configured media-provider capabilities: AI image generation / media analysis.
   ipcMain.handle(
     'ai:generate-image',
     async (
@@ -287,34 +268,26 @@ export function registerSlidesOnlyAiIpc(): void {
         transparentBackground?: boolean
       },
     ) => {
-      return generateImageTool(
-        AI_SETTINGS_PATH(),
-        {
-          prompt: String(op.prompt),
-          model: op.model ? String(op.model) : undefined,
-          referenceImageUrls: Array.isArray(op.referenceImageUrls)
-            ? op.referenceImageUrls.map(String)
-            : undefined,
-          aspectRatio: op.aspectRatio ? String(op.aspectRatio) : undefined,
-          imageSize: op.imageSize ? String(op.imageSize) : undefined,
-          transparentBackground: op.transparentBackground === true,
-        },
-        { notLoggedInError: tm('errGskCli') },
-      )
+      return generateImageTool(AI_SETTINGS_PATH(), {
+        prompt: String(op.prompt),
+        model: op.model ? String(op.model) : undefined,
+        referenceImageUrls: Array.isArray(op.referenceImageUrls)
+          ? op.referenceImageUrls.map(String)
+          : undefined,
+        aspectRatio: op.aspectRatio ? String(op.aspectRatio) : undefined,
+        imageSize: op.imageSize ? String(op.imageSize) : undefined,
+        transparentBackground: op.transparentBackground === true,
+      })
     },
   )
 
   ipcMain.handle(
     'ai:analyze-media',
     async (_event, op: { mediaUrls: string[]; requirements: string }) => {
-      return analyzeMediaTool(
-        AI_SETTINGS_PATH(),
-        {
-          mediaUrls: (op.mediaUrls ?? []).map(String),
-          requirements: String(op.requirements ?? ''),
-        },
-        { notLoggedInError: tm('errGskCli') },
-      )
+      return analyzeMediaTool(AI_SETTINGS_PATH(), {
+        mediaUrls: (op.mediaUrls ?? []).map(String),
+        requirements: String(op.requirements ?? ''),
+      })
     },
   )
 

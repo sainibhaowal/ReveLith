@@ -10,7 +10,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAiSettings: () => ipcRenderer.invoke('ai:get-settings'),
   setAiSettings: (settings: unknown) => ipcRenderer.invoke('ai:set-settings', settings),
   testAiMediaSettings: (input: unknown) => ipcRenderer.invoke('ai:media-test', input),
-  loginToReveLith: () => ipcRenderer.invoke('ai:gsk-login'),
   getTheme: () => ipcRenderer.invoke('app:get-theme'),
   // Chat attachments read/parsed in the main process by the shared ReveLith
   // file bridges (registered once by the shell); the renderer never sees bytes
@@ -63,8 +62,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // like fetchImage, so the board places the result through the same path.
   generateImage: (op: { prompt: string; aspectRatio?: string }) =>
     ipcRenderer.invoke('drawboard:ai-generate-image', op),
-  // ReveLith login state: gates generate_image like every other editor.
-  getGskStatus: (withEmail?: boolean) => ipcRenderer.invoke('ai:gsk-status', withEmail),
   getDocument: () => ipcRenderer.invoke('new-app:get-document'),
   newDocument: (title: string) => ipcRenderer.invoke('new-app:new-document', title),
   openDocument: () => ipcRenderer.invoke('new-app:open-document'),

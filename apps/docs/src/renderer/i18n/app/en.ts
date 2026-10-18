@@ -306,7 +306,6 @@ export const en = {
   appLoggedInEmail: 'Signed in: {email}',
   appNotLoggedIn: 'Not signed in (AI features require a ReveLith account)',
   appWaitingBrowserLogin: 'Waiting for browser sign-in…',
-  appLoginReveLith: 'Sign in to ReveLith',
   appModel: 'Model',
   appCut: 'Cut',
   appCopy: 'Copy',

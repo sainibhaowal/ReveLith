@@ -8,7 +8,6 @@ export const nl = {
   aiStarterPolishAll: 'Werk het hele document bij naar een professionelere toon',
   aiStarterContinue: 'Schrijf verder waar het document ophoudt',
   aiStarterFillTemplate: 'Zoek en vul de tijdelijke aanduidingen in het document in',
-  aiGskLoginBtn: 'Aanmelden bij ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'AI-assistent openen',
   aiSummarizeBtn: 'AI-samenvatting',

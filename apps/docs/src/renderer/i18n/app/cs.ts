@@ -310,7 +310,6 @@ export const cs = {
   appLoggedInEmail: 'Přihlášeno: {email}',
   appNotLoggedIn: 'Nepřihlášeno (funkce AI vyžadují účet ReveLith)',
   appWaitingBrowserLogin: 'Čeká se na přihlášení v prohlížeči…',
-  appLoginReveLith: 'Přihlásit se ke ReveLith',
   appModel: 'Model',
   appCut: 'Vyjmout',
   appCopy: 'Kopírovat',

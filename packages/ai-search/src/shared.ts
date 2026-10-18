@@ -60,13 +60,3 @@ export function asRecord(v: unknown): Record<string, unknown> {
 export function firstItem(v: unknown): unknown {
   return Array.isArray(v) ? (v as unknown[])[0] : undefined
 }
-
-let explicitProxyUrl = ''
-
-export function setGskProxyUrl(url: string): void {
-  explicitProxyUrl = url
-}
-
-export function gskProxyUrl(): string {
-  return explicitProxyUrl
-}

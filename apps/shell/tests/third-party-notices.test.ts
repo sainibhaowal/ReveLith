@@ -30,6 +30,9 @@ describe('third-party license aggregation', () => {
     expect(text).toContain('@embedpdf/pdfium')
     expect(text).toContain('Copyright 2014 PDFium Authors')
     expect(text).toContain('Apache License')
+    expect(text).toContain('GenOffice v0.11.0')
+    expect(text).toContain('Copyright 2026 Mainfunc, Inc.')
+    expect(text).toContain('not grant rights to upstream trademarks.')
 
     const shellPackage = JSON.parse(
       readFileSync(join(root, 'apps/shell/package.json'), 'utf8'),

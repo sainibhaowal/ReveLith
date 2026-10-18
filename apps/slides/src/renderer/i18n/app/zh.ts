@@ -227,8 +227,6 @@ export const zh = {
   appSettingsLoggedIn: '已登录',
   appSettingsLoggedInEmail: '已登录：{email}',
   appSettingsLoggedOut: '未登录（AI 功能需要登录 ReveLith 账号）',
-  appSettingsLoginPending: '等待浏览器登录…',
-  appSettingsLogin: '登录 ReveLith',
   appSettingsModel: '模型',
   appSettingsCancel: '取消',
   appSettingsSave: '保存',

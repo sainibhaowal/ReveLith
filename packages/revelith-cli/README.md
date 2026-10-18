@@ -183,7 +183,7 @@ file store.
 
 `revelith install-cli` repeats the attempt and prints the manual command when it cannot finish. jsdom (for Word/Markdown) ships beside the bundle as `Resources/cli/node_modules`, collected by `collect-deps.mjs` at build time.
 
-Independently of the PATH, every launch of the packaged app writes the launcher directory to `~/.revelith/launcher` (`REVELITH_AUTH_DIR` overrides the directory, as for `auth.json`). The `revelith` agent skill (`skills/revelith/SKILL.md`) reads it when `revelith` is not on the PATH. `revelith --version` prints this package's version, inlined by `build.mjs`.
+Independently of the PATH, every launch of the packaged app writes the launcher directory to `~/.revelith/launcher` (`REVELITH_AUTH_DIR` overrides the directory used for both the launcher file and CLI audit log). The `revelith` agent skill (`skills/revelith/SKILL.md`) reads it when `revelith` is not on the PATH. `revelith --version` prints this package's version, inlined by `build.mjs`.
 
 ## Layout
 
@@ -218,20 +218,18 @@ Independently of the PATH, every launch of the packaged app writes the launcher 
   `~/.revelith/cli-audit.jsonl`, rotated at 2 MB. `REVELITH_AUDIT_LOG=<path>`
   redirects it, `REVELITH_AUDIT_LOG=off` disables it.
 
-## Cloud commands
+## Search and media commands
 
-`search`, `image` and `media` reuse the editors' provider routing. Search uses
-the selected Serper / Serply / Tavily / Parallel provider when its key is configured;
-otherwise ReveLith is the default when signed in (`~/.revelith/auth.json`)
-and cloud tools are on, then Parallel's free, rate-limited Search MCP, then
-DuckDuckGo. Parallel
-and Tavily provide web search only. Image generation and media analysis use
-the corresponding provider chosen in the app's AI settings
-(`ReveLith/ai-settings.json` in the platform config directory, override with
-`REVELITH_AI_SETTINGS`). `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` are honoured.
-Search results, image bytes and analysis text come back in the JSON `detail`;
-`image` also writes the file. These are the only commands that send data off
-the machine.
+`search`, `image` and `media` use the providers configured in ReveLith's AI
+settings (`ai-settings.json` in the platform config directory; override the
+path with `REVELITH_AI_SETTINGS`). Web and image search use a configured search
+provider when available and otherwise fall back to DuckDuckGo. Image generation
+and media analysis require a provider configured in AI settings. No ReveLith
+account login or hosted ReveLith service is required. `HTTPS_PROXY`,
+`HTTP_PROXY` and `ALL_PROXY` are honored. These commands make network requests;
+search queries go to the search service, and media is sent to the configured
+media provider. Results are returned in the JSON `detail`; `image` also writes
+the generated file locally.
 
 ## Build and run in a checkout
 

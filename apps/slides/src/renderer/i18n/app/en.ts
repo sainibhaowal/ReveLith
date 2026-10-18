@@ -240,8 +240,6 @@ export const en = {
   appSettingsLoggedIn: 'Signed in',
   appSettingsLoggedInEmail: 'Signed in: {email}',
   appSettingsLoggedOut: 'Not signed in (AI features require a ReveLith account)',
-  appSettingsLoginPending: 'Waiting for browser sign-in…',
-  appSettingsLogin: 'Sign in to ReveLith',
   appSettingsModel: 'Model',
   appSettingsCancel: 'Cancel',
   appSettingsSave: 'Save',

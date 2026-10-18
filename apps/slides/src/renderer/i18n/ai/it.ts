@@ -17,7 +17,6 @@ export const it = {
   aiQcPageSkipped: 'Pagina {n}: controllo automatico del layout saltato',
   aiQcStopped: 'Controllo del layout interrotto',
   aiQcCapped: 'Altre {count} pagina/e non controllate (limite per esecuzione)',
-  aiGskLoginBtn: 'Accedi a ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: "Apri l'assistente IA",
   aiFactCheckBtn: 'Fact-check IA',
@@ -237,5 +236,4 @@ export const it = {
   aiSumSaveTemplate: 'Modello di stile "{name}" salvato',
   aiSumTemplatesEmpty: 'Modelli di stile (vuoto)',
   aiSumListTemplates: '{count} modelli di stile elencati',
-  aiPageCloudToLocal: 'Cloud non disponibile — generato localmente',
 } satisfies Record<keyof typeof zh, string>

@@ -314,7 +314,6 @@ export const ru = {
   appLoggedInEmail: 'Выполнен вход: {email}',
   appNotLoggedIn: 'Вход не выполнен (для функций ИИ требуется учетная запись ReveLith)',
   appWaitingBrowserLogin: 'Ожидание входа через браузер…',
-  appLoginReveLith: 'Войти в ReveLith',
   appModel: 'Модель',
   appCut: 'Вырезать',
   appCopy: 'Копировать',

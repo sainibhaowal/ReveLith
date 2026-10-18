@@ -255,8 +255,6 @@ export const it = {
   appSettingsLoggedInEmail: 'Accesso effettuato: {email}',
   appSettingsLoggedOut:
     'Accesso non effettuato (le funzionalità IA richiedono un account ReveLith)',
-  appSettingsLoginPending: "In attesa dell'accesso dal browser…",
-  appSettingsLogin: 'Accedi a ReveLith',
   appSettingsModel: 'Modello',
   appSettingsCancel: 'Annulla',
   appSettingsSave: 'Salva',

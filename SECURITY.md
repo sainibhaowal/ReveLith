@@ -80,6 +80,6 @@ through `executeJavaScript` and destroys it under a watchdog timeout.
   service provider's channels.
 - Vulnerabilities that require an already-compromised machine or a modified
   binary. This includes the deliberate environment-variable override points
-  for local development (`GSK_CLI_PATH`, `XLSX_SIDECAR_PATH`): setting them
+  for local development (`XLSX_SIDECAR_PATH`): setting them
   requires control of the process environment, which is equivalent to code
   execution on the machine.

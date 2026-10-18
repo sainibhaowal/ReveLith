@@ -191,9 +191,8 @@ body.vib .home {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- bottom-left account entry (today = ReveLith login, later = signup/account system) ---- */
-/* clicking it opens the settings modal (settings.css) directly, which hosts
-   login/logout plus preferences (language / theme / save location / update channel) */
+/* ---- bottom-left settings entry ---- */
+/* Clicking it opens the settings modal (settings.css), which hosts app preferences. */
 
 .account-entry {
   position: relative;

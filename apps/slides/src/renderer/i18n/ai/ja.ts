@@ -17,7 +17,6 @@ export const ja = {
   aiQcPageSkipped: 'ページ {n}:自動レイアウトチェックをスキップ',
   aiQcStopped: 'レイアウトチェックを停止しました',
   aiQcCapped: '残り {count} ページは未チェック(1回の上限)',
-  aiGskLoginBtn: 'ReveLith にサインイン',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'AI アシスタントを開く',
   aiFactCheckBtn: 'AI ファクトチェック',
@@ -234,5 +233,4 @@ export const ja = {
   aiSumSaveTemplate: 'スタイル テンプレート「{name}」を保存',
   aiSumTemplatesEmpty: 'スタイル テンプレート一覧（空）',
   aiSumListTemplates: '{count} 個のスタイル テンプレートを一覧表示',
-  aiPageCloudToLocal: 'クラウド生成不可効 — ローカルで生成',
 } satisfies Record<keyof typeof zh, string>

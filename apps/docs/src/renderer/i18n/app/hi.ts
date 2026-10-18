@@ -310,7 +310,6 @@ export const hi = {
   appLoggedInEmail: 'साइन इन: {email}',
   appNotLoggedIn: 'साइन इन नहीं किया गया (AI सुविधाओं के लिए ReveLith खाता आवश्यक है)',
   appWaitingBrowserLogin: 'ब्राउज़र साइन-इन की प्रतीक्षा हो रही है…',
-  appLoginReveLith: 'ReveLith में साइन इन करें',
   appModel: 'मॉडल',
   appCut: 'काटें',
   appCopy: 'कॉपी करें',

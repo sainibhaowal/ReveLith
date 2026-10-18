@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { parseFileToText } from '@revelith/file-parse'
@@ -18,10 +18,7 @@ import {
   type AiStreamRequest,
 } from '@revelith/ai-provider'
 import {
-  ensureReveLithLogin,
   generateImageTool,
-  hasGskAuth,
-  gskLoginInfo,
   analyzeMediaTool,
   imageSearchTool,
   webSearchTool,
@@ -169,14 +166,6 @@ export function registerStandaloneAiIpc(): void {
       for (const controller of activeStreams.values()) controller.abort()
     }
   })
-
-  ipcMain.handle('ai:gsk-status', async (_event, withEmail?: boolean) => {
-    if (!hasGskAuth()) return { loggedIn: false }
-    if (!withEmail) return { loggedIn: true }
-    const info = await gskLoginInfo()
-    return info?.email ? { loggedIn: true, email: info.email } : { loggedIn: true }
-  })
-  ipcMain.handle('ai:gsk-login', () => ensureReveLithLogin((url) => void shell.openExternal(url)))
 
   ipcMain.handle('ai:stream', async (event, request: AiStreamRequest) => {
     const settings = currentSettings()

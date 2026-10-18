@@ -17,7 +17,6 @@ export const ko = {
   aiQcPageSkipped: '{n}페이지: 자동 레이아웃 검사 건너뜀',
   aiQcStopped: '레이아웃 검사를 중지했습니다',
   aiQcCapped: '나머지 {count}페이지는 검사하지 않음(회당 상한)',
-  aiGskLoginBtn: 'ReveLith 로그인',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'AI 도우미 열기',
   aiFactCheckBtn: 'AI 팩트체크',
@@ -235,5 +234,4 @@ export const ko = {
   aiSumSaveTemplate: '스타일 템플릿 "{name}" 저장',
   aiSumTemplatesEmpty: '스타일 템플릿 목록(비어 있음)',
   aiSumListTemplates: '스타일 템플릿 {count}개 나열',
-  aiPageCloudToLocal: '클라우드 생성 불가 — 로컬로 생성',
 } satisfies Record<keyof typeof zh, string>

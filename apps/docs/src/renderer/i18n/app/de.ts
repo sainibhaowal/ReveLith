@@ -322,7 +322,6 @@ export const de = {
   appLoggedInEmail: 'Angemeldet: {email}',
   appNotLoggedIn: 'Nicht angemeldet (KI-Funktionen erfordern ein ReveLith-Konto)',
   appWaitingBrowserLogin: 'Warten auf Anmeldung im Browser…',
-  appLoginReveLith: 'Bei ReveLith anmelden',
   appModel: 'Modell',
   appCut: 'Ausschneiden',
   appCopy: 'Kopieren',

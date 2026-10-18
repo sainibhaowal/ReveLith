@@ -58,7 +58,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         shell: bash
-
   build-desktop:
     name: Build Desktop (${{ matrix.os }}${{ matrix.arch }})
     needs: semantic-release
@@ -271,87 +270,3 @@ jobs:
           test "$ASSET_COUNT" -gt 0
           echo "Verified $ASSET_COUNT release assets on $TAG."
         shell: bash
-
-  deploy-web:
-    name: Deploy website with GitHub-hosted downloads
-    needs: [semantic-release, publish-release-assets]
-    if: needs.semantic-release.outputs.new_release_published == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Read this release's desktop installer names
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}
-        run: |
-          echo "RELEASE_ASSETS=$(gh release view \"$TAG\" --repo \"$GITHUB_REPOSITORY\" --json assets --jq '[.assets[].name]')" >> "$GITHUB_ENV"
-
-      - name: Build website with current release manifest
-        env:
-          VERSION: ${{ needs.semantic-release.outputs.new_release_version }}
-          TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}
-        run: |
-          npm ci --prefix apps/web
-          node - <<'NODE'
-          const fs = require('fs')
-          const assets = JSON.parse(process.env.RELEASE_ASSETS)
-          const releaseTag = process.env.TAG
-          const repo = process.env.GITHUB_REPOSITORY
-          if (!/^v0\.\d+\.\d+$/.test(releaseTag)) throw new Error(`Refusing non-0.x release ${releaseTag}`)
-          const installable = assets.filter((format) => /\.(exe|deb|appimage|rpm|dmg|zip)$/i.test(format))
-          if (!installable.length) throw new Error(`Release ${releaseTag} has no downloadable installers`)
-          const downloads = installable.map((format) => {
-            const lower = format.toLowerCase()
-            const isArm =
-              lower.includes('arm64') ||
-              lower.includes('aarch64') ||
-              (lower.includes('.deb') && lower.includes('arm64')) ||
-              (lower.includes('.rpm') && lower.includes('aarch64'))
-            const isIntelMac =
-              lower.endsWith('.dmg') && (lower.includes('x64') || lower.includes('intel'))
-            const os = lower.endsWith('.exe')
-              ? isArm
-                ? 'Windows 11 (ARM64)'
-                : 'Windows 10 / 11'
-              : lower.endsWith('.dmg')
-                ? isIntelMac
-                  ? 'macOS (Intel)'
-                  : 'macOS (Apple Silicon)'
-                : lower.endsWith('.appimage') || lower.endsWith('.deb') || lower.endsWith('.rpm')
-                  ? isArm
-                    ? 'Linux (ARM64)'
-                    : 'Linux'
-                  : 'Desktop archive'
-            const url = `https://github.com/${repo}/releases/download/${encodeURIComponent(releaseTag)}/${encodeURIComponent(format)}`
-            return { os, format, tag: 'Direct installer', emoji: '↓', url, recommended: lower.endsWith('.exe') }
-          })
-          fs.writeFileSync('apps/web/public/release.json', JSON.stringify({ version: `v${process.env.VERSION}`, downloads }, null, 2))
-          NODE
-          npm run build --prefix apps/web
-
-      - name: Configure VPS SSH access
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-
-      - name: Publish site to revelith.averqel.com
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_WEB_PATH: /opt/revelith_web
-          VERSION: ${{ needs.semantic-release.outputs.new_release_version }}
-        run: |
-          set -euo pipefail
-          test -n "$VPS_HOST" && test -n "$VPS_USER" && test -n "$VPS_WEB_PATH"
-          test "$VPS_WEB_PATH" = "/opt/revelith_web"
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
-          ssh "$VPS_USER@$VPS_HOST" "mkdir -p '$VPS_WEB_PATH'"
-          rsync -az --delete-delay --delay-updates apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"
-          curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors "https://revelith.averqel.com/release.json" -o "$RUNNER_TEMP/deployed-release.json"
-          EXPECTED_VERSION="v${VERSION}" node --input-type=module -e "const m=JSON.parse(await (await import('node:fs/promises')).readFile(process.argv[1],'utf8')); if(m.version !== process.env.EXPECTED_VERSION || !m.downloads.length) process.exit(1)" "$RUNNER_TEMP/deployed-release.json"

@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { analyzeMediaTool } from '@revelith/ai-search'
 import { flagString } from '../args'
-import { aiSettingsPath, prepareCloud } from '../cloud'
+import { aiSettingsPath, prepareNetwork } from '../cloud'
 import { resolveInput } from '../fs'
 import type { CommandDef } from '../registry'
 import { CliError, EXIT } from '../result'
@@ -25,7 +25,7 @@ export const mediaCommand: CommandDef = {
     const target = /^https?:\/\//i.test(ref)
       ? ref
       : resolveInput(ref.startsWith('file:') ? fileURLToPath(ref) : ref, ctx)
-    await prepareCloud(ctx.env)
+    await prepareNetwork(ctx.env)
     const r = await analyzeMediaTool(aiSettingsPath(ctx.env), {
       mediaUrls: [target],
       requirements: flagString(args, 'ask') ?? DEFAULT_ASK,

@@ -3,29 +3,6 @@ import { defaultAiSearchSettings, resolveAiSearchSettings } from './search-setti
 import type { AiProviderId, AiProviderMeta, AiSettings, LegacyAiSettings } from './types'
 
 /**
- * ReveLith server-side LLM proxy endpoints. All three protocols share the
- * api_key from the gsk login; model ids follow the proxy's own naming scheme,
- * which differs from the official vendor ids.
- */
-export const REVELITH_LLM_BASE_URLS = {
-  anthropic: 'https://www.revelith.ai/api/anthropic',
-  openai: 'https://www.revelith.ai/api/llm_proxy/v1',
-} as const
-
-/**
- * Splits ReveLith usage out of the proxy's default "Claw" billing bucket
- * (the backend attributes gsk-key traffic by X-Agent-Type). Only sent to the
- * ReveLith proxy — never to direct vendor APIs.
- */
-export const REVELITH_AGENT_TYPE = 'revelith'
-
-export function revelithAttributionHeaders(baseUrl?: string): Record<string, string> {
-  return baseUrl?.startsWith('https://www.revelith.ai')
-    ? { 'X-Agent-Type': REVELITH_AGENT_TYPE }
-    : {}
-}
-
-/**
  * OpenCode Zen / Go route and cache per conversation and answer 400
  * MissingSessionID without this header (revelith#331). The renderer's
  * transport id is stable for a chat; a one-shot call is its own conversation.
@@ -340,15 +317,9 @@ export function defaultAiSettings(
   return {
     provider: 'openai',
     providers,
-    gskToolsEnabled: true,
     media: defaultAiMediaSettings(),
     search: defaultAiSearchSettings(),
   }
-}
-
-/** false only on an explicit opt-out; absent (pre-toggle settings files) means on */
-export function cloudToolsEnabled(settings: Pick<AiSettings, 'gskToolsEnabled'>): boolean {
-  return settings.gskToolsEnabled !== false
 }
 
 /**
@@ -490,7 +461,6 @@ export function resolveAiSettings(stored: unknown, defaults: AiSettings): AiSett
     providers: migrateRetiredModels(
       trimConfigs(mergeProviderConfigs(defaults.providers, storedProviders)),
     ),
-    gskToolsEnabled: settings.gskToolsEnabled ?? defaults.gskToolsEnabled ?? true,
     media: resolveAiMediaSettings(settings.media ?? defaults.media),
     search: resolveAiSearchSettings(settings.search ?? defaults.search),
     // clamped on read: a hand-edited settings file with an absurd cap must not be

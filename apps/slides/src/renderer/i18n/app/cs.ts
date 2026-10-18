@@ -243,8 +243,6 @@ export const cs = {
   appSettingsLoggedIn: 'Přihlášeno',
   appSettingsLoggedInEmail: 'Přihlášeno: {email}',
   appSettingsLoggedOut: 'Nepřihlášeno (funkce AI vyžadují účet ReveLith)',
-  appSettingsLoginPending: 'Čeká se na přihlášení v prohlížeči…',
-  appSettingsLogin: 'Přihlásit se ke ReveLithu',
   appSettingsModel: 'Model',
   appSettingsCancel: 'Zrušit',
   appSettingsSave: 'Uložit',

@@ -5,6 +5,7 @@ import type { RenderSlide } from '@revelith/pptx-render'
 import type { AgentToolCall } from '../src/shared/ipc'
 
 const page = { widthPx: 1280, heightPx: 720, nodes: [] } as unknown as RenderSlide
+const marker = 'generatedpptx:/tmp/p.pptx'
 
 function mkAccess(
   slides: RenderSlide[],
@@ -18,7 +19,6 @@ function mkAccess(
     applySlide: () => {},
     applyDeck,
     fitWidthPx: 1280,
-    isCloudPageGenEnabled: async () => true,
     ...overrides,
   } as unknown as DeckAccess & { applyDeck: ReturnType<typeof vi.fn> }
 }
@@ -33,14 +33,12 @@ beforeEach(() => {
   ;(window as any).slidesApi = { deleteSlide: vi.fn(async () => [page, page]) }
 })
 
-const cloudOk = () => vi.fn(async () => ({ ok: true, marker: 'cloudpptx:/tmp/p.pptx' }))
-
 describe('regenerate_slide', () => {
-  it('brief → cloud generates marker → calls access.regenerateSlide to land it', async () => {
+  it('generates a page with the configured provider and lands its marker', async () => {
     const regenerateSlide = vi.fn(async () => ({ ok: true }))
-    const generatePageCloud = cloudOk()
+    const generatePageLocal = vi.fn(async () => ({ ok: true, marker }))
     const skill = createSlidesSkill(
-      mkAccess([page, page], { regenerateSlide, generatePageCloud, retryBackoffMs: 0 }),
+      mkAccess([page, page], { regenerateSlide, generatePageLocal, retryBackoffMs: 0 }),
     )
     const r = await skill.executeTool!(
       call('regenerate_slide', {
@@ -50,94 +48,49 @@ describe('regenerate_slide', () => {
     )
     expect(r.isError).toBeUndefined()
     expect(r.mutated).toBe(true)
-    expect(generatePageCloud).toHaveBeenCalledOnce()
-    expect(regenerateSlide).toHaveBeenCalledWith(1, 'cloudpptx:/tmp/p.pptx')
+    expect(generatePageLocal).toHaveBeenCalledOnce()
+    expect(regenerateSlide).toHaveBeenCalledWith(1, marker)
     expect(r.output).toContain('page 2')
   })
 
-  it('slideIndex out of range → errors without invoking the pipeline', async () => {
+  it('slideIndex out of range errors without invoking the pipeline', async () => {
     const regenerateSlide = vi.fn(async () => ({ ok: true }))
+    const generatePageLocal = vi.fn(async () => ({ ok: true, marker }))
     const skill = createSlidesSkill(
-      mkAccess([page], { regenerateSlide, generatePageCloud: cloudOk(), retryBackoffMs: 0 }),
+      mkAccess([page], { regenerateSlide, generatePageLocal, retryBackoffMs: 0 }),
     )
     const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 3, brief: 'x' }))
     expect(r.isError).toBe(true)
+    expect(generatePageLocal).not.toHaveBeenCalled()
     expect(regenerateSlide).not.toHaveBeenCalled()
   })
 
-  it('empty brief → errors', async () => {
-    const skill = createSlidesSkill(
+  it('requires a non-empty brief and a local generation pipeline', async () => {
+    const noPipeline = createSlidesSkill(
+      mkAccess([page], { regenerateSlide: vi.fn(async () => ({ ok: true })) }),
+    )
+    const missingPipeline = await noPipeline.executeTool!(
+      call('regenerate_slide', { slideIndex: 0, brief: 'redo' }),
+    )
+    expect(missingPipeline.isError).toBe(true)
+
+    const emptyBrief = createSlidesSkill(
       mkAccess([page], {
         regenerateSlide: vi.fn(async () => ({ ok: true })),
-        generatePageCloud: cloudOk(),
-        retryBackoffMs: 0,
+        generatePageLocal: vi.fn(async () => ({ ok: true, marker })),
       }),
     )
-    const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 0, brief: '' }))
-    expect(r.isError).toBe(true)
-  })
-
-  it('cloud generation fails (after 1 retry) → error passed through', async () => {
-    const generatePageCloud = vi.fn(async () => ({ ok: false, error: 'cloud timeout' }))
-    const skill = createSlidesSkill(
-      mkAccess([page], {
-        regenerateSlide: vi.fn(async () => ({ ok: true })),
-        generatePageCloud,
-        retryBackoffMs: 0,
-      }),
+    const empty = await emptyBrief.executeTool!(
+      call('regenerate_slide', { slideIndex: 0, brief: '' }),
     )
-    const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 0, brief: 'x' }))
-    expect(r.isError).toBe(true)
-    expect(r.output).toContain('cloud timeout')
-    expect(generatePageCloud).toHaveBeenCalledTimes(2)
+    expect(empty.isError).toBe(true)
   })
 
-  it('cloud generation fails but local is available → falls back to the local pipeline', async () => {
-    const regenerateSlide = vi.fn(async () => ({ ok: true }))
-    const generatePageCloud = vi.fn(async () => ({ ok: false, error: 'free plan' }))
-    const generatePageLocal = vi.fn(async () => ({ ok: true, marker: 'localpptx:/tmp/p.pptx' }))
-    const skill = createSlidesSkill(
-      mkAccess([page], {
-        regenerateSlide,
-        generatePageCloud,
-        generatePageLocal,
-        retryBackoffMs: 0,
-      }),
-    )
-    const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 0, brief: 'x' }))
-    expect(r.isError).toBeUndefined()
-    expect(generatePageCloud).toHaveBeenCalledTimes(2)
-    expect(generatePageLocal).toHaveBeenCalledOnce()
-    expect(regenerateSlide).toHaveBeenCalledWith(0, 'localpptx:/tmp/p.pptx')
-  })
-
-  it('cloud unavailable → the local spec builder produces the marker and lands it', async () => {
-    const regenerateSlide = vi.fn(async () => ({ ok: true }))
-    const generatePageLocal = vi.fn(async () => ({ ok: true, marker: 'localpptx:/tmp/p.pptx' }))
-    const skill = createSlidesSkill(
-      mkAccess([page, page], {
-        regenerateSlide,
-        generatePageLocal,
-        isCloudPageGenEnabled: async () => false,
-        retryBackoffMs: 0,
-      }),
-    )
-    const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 1, brief: 'redo' }))
-    expect(r.isError).toBeUndefined()
-    expect(generatePageLocal).toHaveBeenCalledOnce()
-    expect(regenerateSlide).toHaveBeenCalledWith(1, 'localpptx:/tmp/p.pptx')
-  })
-
-  it('local generation fails twice → error passed through, page untouched', async () => {
+  it('retries local generation once and leaves the slide untouched when both attempts fail', async () => {
     const generatePageLocal = vi.fn(async () => ({ ok: false, error: 'spec rejected' }))
     const regenerateSlide = vi.fn(async () => ({ ok: true }))
     const skill = createSlidesSkill(
-      mkAccess([page], {
-        regenerateSlide,
-        generatePageLocal,
-        isCloudPageGenEnabled: async () => false,
-        retryBackoffMs: 0,
-      }),
+      mkAccess([page], { regenerateSlide, generatePageLocal, retryBackoffMs: 0 }),
     )
     const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 0, brief: 'x' }))
     expect(r.isError).toBe(true)
@@ -146,43 +99,43 @@ describe('regenerate_slide', () => {
     expect(regenerateSlide).not.toHaveBeenCalled()
   })
 
-  it('local image failures show up in the redo report', async () => {
-    const skill = createSlidesSkill(
+  it('reports generated-image failures and errors returned by the landing step', async () => {
+    const imageFailure = createSlidesSkill(
       mkAccess([page], {
         regenerateSlide: vi.fn(async () => ({ ok: true })),
         generatePageLocal: vi.fn(async () => ({
           ok: true,
-          marker: 'localpptx:/tmp/p.pptx',
+          marker,
           imageFailures: ['https://img.example/broken.jpg'],
         })),
-        isCloudPageGenEnabled: async () => false,
         retryBackoffMs: 0,
       }),
     )
-    const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 0, brief: 'x' }))
-    expect(r.isError).toBeUndefined()
-    expect(r.output).toContain('Missing images')
-    expect(r.output).toContain('https://img.example/broken.jpg')
-  })
+    const imageResult = await imageFailure.executeTool!(
+      call('regenerate_slide', { slideIndex: 0, brief: 'x' }),
+    )
+    expect(imageResult.output).toContain('Missing images')
+    expect(imageResult.output).toContain('https://img.example/broken.jpg')
 
-  it('landing fails → error passed through with a retry hint', async () => {
-    const skill = createSlidesSkill(
+    const landingFailure = createSlidesSkill(
       mkAccess([page], {
         regenerateSlide: vi.fn(async () => ({ ok: false, error: 'conversion timeout' })),
-        generatePageCloud: cloudOk(),
+        generatePageLocal: vi.fn(async () => ({ ok: true, marker })),
         retryBackoffMs: 0,
       }),
     )
-    const r = await skill.executeTool!(call('regenerate_slide', { slideIndex: 0, brief: 'x' }))
-    expect(r.isError).toBe(true)
-    expect(r.output).toContain('conversion timeout')
+    const landingResult = await landingFailure.executeTool!(
+      call('regenerate_slide', { slideIndex: 0, brief: 'x' }),
+    )
+    expect(landingResult.isError).toBe(true)
+    expect(landingResult.output).toContain('conversion timeout')
   })
 
-  it('htmlGenerated=true after success (insert ops no longer blocked by the anti-handcrafting gate)', async () => {
+  it('marks the deck generated after success so later fine-tuning is allowed', async () => {
     const skill = createSlidesSkill(
       mkAccess([page], {
         regenerateSlide: vi.fn(async () => ({ ok: true })),
-        generatePageCloud: cloudOk(),
+        generatePageLocal: vi.fn(async () => ({ ok: true, marker })),
         retryBackoffMs: 0,
       }),
     )

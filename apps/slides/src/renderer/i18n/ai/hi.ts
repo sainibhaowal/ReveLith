@@ -17,7 +17,6 @@ export const hi = {
   aiQcPageSkipped: 'पेज {n}: स्वचालित लेआउट जाँच छोड़ दी गई',
   aiQcStopped: 'लेआउट जाँच रोक दी गई',
   aiQcCapped: 'शेष {count} पेज नहीं जाँचे गए (प्रति रन सीमा)',
-  aiGskLoginBtn: 'ReveLith में साइन इन करें',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'AI सहायक खोलें',
   aiFactCheckBtn: 'AI तथ्य जाँच',
@@ -235,5 +234,4 @@ export const hi = {
   aiSumSaveTemplate: 'स्टाइल टेम्पलेट "{name}" सहेजा गया',
   aiSumTemplatesEmpty: 'स्टाइल टेम्पलेट (खाली)',
   aiSumListTemplates: '{count} स्टाइल टेम्पलेट सूचीबद्ध किए गए',
-  aiPageCloudToLocal: 'क्लाउड अनुपलब्ध — स्थानीय रूप से जनरेट',
 } satisfies Record<keyof typeof zh, string>

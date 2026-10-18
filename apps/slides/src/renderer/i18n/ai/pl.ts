@@ -17,7 +17,6 @@ export const pl = {
   aiQcPageSkipped: 'Strona {n}: pominięto automatyczne sprawdzanie układu',
   aiQcStopped: 'Sprawdzanie układu zatrzymane',
   aiQcCapped: 'Pozostałe {count} stron(y) nie sprawdzono (limit na uruchomienie)',
-  aiGskLoginBtn: 'Zaloguj się do ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'Otwórz asystenta AI',
   aiFactCheckBtn: 'Weryfikacja AI',
@@ -235,5 +234,4 @@ export const pl = {
   aiSumSaveTemplate: 'Zapisano szablon stylu „{name}”',
   aiSumTemplatesEmpty: 'Szablony stylu (pusto)',
   aiSumListTemplates: 'Wyświetlono szablony stylu: {count}',
-  aiPageCloudToLocal: 'Chmura niedostępna — wygenerowano lokalnie',
 } satisfies Record<keyof typeof zh, string>

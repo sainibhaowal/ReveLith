@@ -239,8 +239,6 @@ export const ar = {
   appSettingsLoggedIn: 'تم تسجيل الدخول',
   appSettingsLoggedInEmail: 'تم تسجيل الدخول: {email}',
   appSettingsLoggedOut: 'لم يتم تسجيل الدخول (تتطلب ميزات الذكاء الاصطناعي حساب ReveLith)',
-  appSettingsLoginPending: 'في انتظار تسجيل الدخول عبر المتصفح…',
-  appSettingsLogin: 'تسجيل الدخول إلى ReveLith',
   appSettingsModel: 'النموذج',
   appSettingsCancel: 'إلغاء',
   appSettingsSave: 'حفظ',

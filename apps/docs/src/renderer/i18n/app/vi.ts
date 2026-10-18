@@ -306,7 +306,6 @@ export const vi = {
   appLoggedInEmail: 'Đã đăng nhập: {email}',
   appNotLoggedIn: 'Chưa đăng nhập (tính năng AI yêu cầu tài khoản ReveLith)',
   appWaitingBrowserLogin: 'Đang chờ đăng nhập trên trình duyệt…',
-  appLoginReveLith: 'Đăng nhập ReveLith',
   appModel: 'Mô hình',
   appCut: 'Cắt',
   appCopy: 'Sao chép',

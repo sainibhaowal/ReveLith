@@ -8,7 +8,6 @@ export const ms = {
   aiStarterPolishAll: 'Perhalusi keseluruhan dokumen dengan nada lebih profesional',
   aiStarterContinue: 'Teruskan menulis dari bahagian akhir dokumen',
   aiStarterFillTemplate: 'Cari dan isi ruang letak dalam dokumen ini',
-  aiGskLoginBtn: 'Log masuk ke ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'Buka pembantu AI',
   aiSummarizeBtn: 'Ringkasan AI',

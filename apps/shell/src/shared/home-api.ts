@@ -237,16 +237,6 @@ export interface HomeApi {
   getUpdateChannel(): Promise<UpdateChannel>
   /** switch + persist the update channel; triggers an immediate update check */
   setUpdateChannel(channel: UpdateChannel): Promise<void>
-  /** ReveLith account status (gsk login state; to be upgraded to a signup/account system later) */
-  accountStatus(): Promise<AccountStatus>
-  /** start ReveLith login (opens the browser; accountStatus flips to logged-in on completion); returns whether the launch succeeded */
-  accountLogin(): Promise<boolean>
-  /** progress events for the login started via accountLogin; returns an unsubscribe */
-  onAccountLogin(handler: (ev: AccountLoginEvent) => void): () => void
-  /** re-open the pending login auth URL in the default browser (rescue when auto-open failed) */
-  openLoginUrl(): Promise<void>
-  /** log out (clears the saved API key; the login state is shared globally with the gsk CLI) */
-  accountLogout(): Promise<void>
   /** app version (from package.json / electron app.getVersion) */
   getAppVersion(): Promise<string>
   /** whether the first-run onboarding has been completed or skipped (persisted in userData/app-settings.json) */
@@ -296,8 +286,6 @@ export interface HomeApi {
   onThemeChanged(handler: (theme: UiTheme) => void): () => void
   /** open the GenTeam community page in the default browser */
   openGenTeam(): Promise<void>
-  /** open the ReveLith credit-usage page in the default browser */
-  openCreditUsage(): Promise<void>
   /** open the public GitHub repository in the default browser */
   openGitHubRepo(): Promise<void>
   /** current stargazer count of the public repo (null while offline / rate-limited) */
@@ -307,12 +295,6 @@ export interface HomeApi {
   starPromptShouldShow(): Promise<StarPromptShow>
   /** user reacted to the star prompt; 'starred' resolves it permanently */
   starPromptAction(action: StarPromptAction): Promise<void>
-  /** locally stored full cloud project list (instant; null when no store or logged out) */
-  cloudProjectsCached(): Promise<CloudProjectsSnapshot | null>
-  /** sync the full list from ReveLith and return it (1 request when nothing changed); null when the sync failed */
-  cloudProjectsSync(): Promise<CloudProjectsSnapshot | null>
-  /** open a cloud project (relative '/agents?id=...' URL) in the default browser */
-  openCloudProject(projectUrl: string): Promise<void>
   /** AI settings (userData/ai-settings.json, shared by every editor); the revelith key never appears here */
   getAiSettings(): Promise<AiSettings>
   /** persist AI settings; open editors pick the change up on their next settings read */
@@ -327,14 +309,14 @@ export interface HomeApi {
   testAiSettings(settings: AiSettings): Promise<AiChatResponse>
   /** image generation / media analysis provider catalog */
   getAiMediaProviders(): AiMediaProviderMeta[]
-  /** credential check for a (possibly unsaved) media provider; revelith reports the gsk login state */
+  /** credential check for a (possibly unsaved) media provider */
   testAiMediaSettings(input: {
     provider: AiMediaProviderId
     config: AiMediaProviderConfig
   }): Promise<{ ok: boolean; error?: string }>
   /** web search provider catalog */
   getAiSearchProviders(): AiSearchProviderMeta[]
-  /** one minimal query against the given key (revelith reports the gsk login state) */
+  /** one minimal query against the given key */
   testAiSearchSettings(input: {
     provider: AiSearchProviderId
     apiKey: string
@@ -355,47 +337,6 @@ export interface StarPromptShow {
   show: boolean
   /** lifetime documents opened — drives the personalized card title */
   docOpens: number
-}
-
-export type CloudProjectKind = 'docs' | 'sheets' | 'slides'
-
-/** a ReveLith web project shown in the home cloud section */
-export interface CloudProjectEntry {
-  projectId: string
-  title: string
-  /** module kind derived from the API project type ('docs_agent' → 'docs') */
-  kind: CloudProjectKind | 'other'
-  /** creation time, ms since epoch (0 when unparsable) */
-  ctimeMs: number
-  /** relative revelith.ai URL ('/agents?id=...') */
-  projectUrl: string
-}
-
-/** full local copy of the cloud project list; filtering/paging are client-side */
-export interface CloudProjectsSnapshot {
-  /** false when gsk is unavailable (CLI missing or not logged in) */
-  available: boolean
-  /** all projects, newest first */
-  projects: CloudProjectEntry[]
-  /** ms epoch of the last successful sync (0 when never synced) */
-  syncedAt: number
-}
-
-export interface AccountStatus {
-  /** gsk is installed and logged in */
-  loggedIn: boolean
-  email?: string
-  /** remaining ReveLith credits (absent when the balance query failed) */
-  creditBalance?: number
-}
-
-/** login flow progress pushed from main (gsk login CLI output) */
-export interface AccountLoginEvent {
-  phase: 'launched' | 'url' | 'success' | 'error'
-  url?: string
-  expiresInSec?: number
-  /** 'network' | 'expired' | raw CLI error text */
-  error?: string
 }
 
 export interface RenameResult {
@@ -507,11 +448,6 @@ export const HOME_CHANNELS = {
   setLanguage: 'home:set-language',
   getUpdateChannel: 'home:get-update-channel',
   setUpdateChannel: 'home:set-update-channel',
-  accountStatus: 'home:account-status',
-  accountLogin: 'home:account-login',
-  accountLoginEvent: 'home:account-login-event',
-  accountLoginOpenUrl: 'home:account-login-open-url',
-  accountLogout: 'home:account-logout',
   getAppVersion: 'home:get-app-version',
   onboardingSeen: 'home:onboarding-seen',
   setOnboardingSeen: 'home:set-onboarding-seen',
@@ -533,12 +469,8 @@ export const HOME_CHANNELS = {
   setDefaultApp: 'home:set-default-app',
   pickDefaultSaveDir: 'home:pick-default-save-dir',
   openGenTeam: 'home:open-genteam',
-  openCreditUsage: 'home:open-credit-usage',
   openGitHubRepo: 'home:open-github-repo',
   githubStars: 'home:github-stars',
   starPromptShouldShow: 'home:star-prompt-should-show',
   starPromptAction: 'home:star-prompt-action',
-  cloudProjects: 'home:cloud-projects',
-  cloudProjectsCached: 'home:cloud-projects-cached',
-  openCloudProject: 'home:open-cloud-project',
 } as const

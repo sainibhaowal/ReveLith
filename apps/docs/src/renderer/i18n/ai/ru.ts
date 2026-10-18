@@ -8,7 +8,6 @@ export const ru = {
   aiStarterPolishAll: 'Отшлифуй весь документ, сделав тон более профессиональным',
   aiStarterContinue: 'Продолжи текст с того места, где он обрывается',
   aiStarterFillTemplate: 'Найди и заполни местозаполнители в документе',
-  aiGskLoginBtn: 'Войти в ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: 'Открыть ИИ-помощника',
   aiSummarizeBtn: 'ИИ-резюме',

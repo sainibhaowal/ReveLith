@@ -22,12 +22,6 @@ export type AiProviderId =
   | 'opencode-go'
   | 'custom'
 
-/** ReveLith account status (gsk login state; the sole auth source for AI features) */
-export interface ReveLithAccountStatus {
-  loggedIn: boolean
-  email?: string
-}
-
 export interface AiProviderConfig {
   apiKey: string
   model: string
@@ -125,21 +119,10 @@ export interface AiSearchSettings {
 export interface AiSettings {
   provider: AiProviderId
   providers: Record<AiProviderId, AiProviderConfig>
-  /**
-   * Provider for generate_image / analyze_media. Absent (pre-media settings
-   * files) means ReveLith, i.e. the gsk login + gskToolsEnabled gate.
-   */
+  /** Provider for generate_image / analyze_media. */
   media?: AiMediaSettings | undefined
-  /** web/image search backend; absent means ReveLith (gsk when signed in, then the free chain) */
+  /** web/image search backend. */
   search?: AiSearchSettings | undefined
-  /**
-   * ReveLith cloud tools (web/image search via gsk, image generation, media
-   * analysis). Default true; false makes tools skip the gsk backend entirely
-   * (search falls back to free sources, gsk-only tools are unavailable).
-   * Only meaningful while signed in — signed out, the gsk backend is
-   * unavailable regardless.
-   */
-  gskToolsEnabled?: boolean
   /**
    * Output-token cap for ONE model turn of agent runs (default
    * DEFAULT_MAX_OUTPUT_TOKENS). Reasoning models bill their thinking against

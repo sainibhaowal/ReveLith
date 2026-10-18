@@ -316,7 +316,6 @@ export const es = {
   appLoggedInEmail: 'Sesión iniciada: {email}',
   appNotLoggedIn: 'Sesión no iniciada (las funciones de IA requieren una cuenta de ReveLith)',
   appWaitingBrowserLogin: 'Esperando el inicio de sesión en el navegador…',
-  appLoginReveLith: 'Iniciar sesión en ReveLith',
   appModel: 'Modelo',
   appCut: 'Cortar',
   appCopy: 'Copiar',

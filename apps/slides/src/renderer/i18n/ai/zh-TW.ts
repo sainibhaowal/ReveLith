@@ -17,7 +17,6 @@ export const zhTW = {
   aiQcPageSkipped: '第 {n} 頁:已略過自動版式檢查',
   aiQcStopped: '版式檢查已停止',
   aiQcCapped: '其餘 {count} 頁未檢查(單次上限)',
-  aiGskLoginBtn: '登入 ReveLith',
   aiPanelTitle: 'ReveLith',
   aiOpenAssistant: '開啟 AI 助手',
   aiFactCheckBtn: 'AI 事實核查',
@@ -228,5 +227,4 @@ export const zhTW = {
   aiSumSaveTemplate: '儲存風格範本"{name}"',
   aiSumTemplatesEmpty: '風格範本清單（空）',
   aiSumListTemplates: '列出 {count} 個風格範本',
-  aiPageCloudToLocal: '雲端不可用,已本地生成',
 } satisfies Record<keyof typeof zh, string>

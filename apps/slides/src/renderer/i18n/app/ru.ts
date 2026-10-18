@@ -247,8 +247,6 @@ export const ru = {
   appSettingsLoggedIn: 'Выполнен вход',
   appSettingsLoggedInEmail: 'Выполнен вход: {email}',
   appSettingsLoggedOut: 'Вход не выполнен (для функций ИИ требуется учетная запись ReveLith)',
-  appSettingsLoginPending: 'Ожидание входа в браузере…',
-  appSettingsLogin: 'Войти в ReveLith',
   appSettingsModel: 'Модель',
   appSettingsCancel: 'Отмена',
   appSettingsSave: 'Сохранить',
