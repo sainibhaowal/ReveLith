@@ -1,4 +1,4 @@
-name: Deploy Website to VPS
+name: Update Website Release Manifest
 
 on:
   push:
@@ -6,8 +6,12 @@ on:
       - main
     paths:
       - .github/workflows/deploy-website.yml
-      - apps/web/**
+      - .github/workflows/release.yml
+      - apps/web/scripts/create-release-manifest.mjs
       - tools/select-latest-zero-tag.mjs
+  release:
+    types:
+      - published
   workflow_dispatch:
     inputs:
       release_tag:
@@ -41,24 +45,27 @@ concurrency:
 
 jobs:
   deploy:
-    name: Build and publish website
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    name: Publish release manifest
+    # The app's release workflow creates the GitHub release before its build
+    # jobs upload installers. Its workflow_run event handles that completed
+    # release; this release event is for releases published with assets ready.
+    if: >-
+      ${{
+        (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
+        (github.event_name != 'release' || github.event.release.assets[0] != null)
+      }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          # Deploy the same source commit that produced the release.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+          # Use the release commit for release events, or the source commit that
+          # produced the release workflow run.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'release' && github.event.release.tag_name || github.sha }}
 
       - name: Select and validate a stable 0.x release
         env:
           GH_TOKEN: ${{ github.token }}
-          REQUESTED_TAG: ${{ inputs.release_tag }}
+          REQUESTED_TAG: ${{ inputs.release_tag || (github.event_name == 'release' && github.event.release.tag_name) || '' }}
           REQUESTED_VERSION: ${{ inputs.release_version }}
         run: |
           set -euo pipefail
@@ -91,21 +98,18 @@ jobs:
           echo "Deploying website manifest for $TAG."
         shell: bash
 
-      - name: Install dependencies, generate the real download manifest, and build
+      - name: Generate and validate the release manifest
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          npm ci --prefix apps/web
           node apps/web/scripts/create-release-manifest.mjs
-          npm run build --prefix apps/web
-          test -s apps/web/dist/index.html
-          test -s apps/web/dist/release.json
+          test -s apps/web/public/release.json
           node --input-type=module -e '
             import { readFile } from "node:fs/promises";
-            const manifest = JSON.parse(await readFile("apps/web/dist/release.json", "utf8"));
+            const manifest = JSON.parse(await readFile("apps/web/public/release.json", "utf8"));
             const prefix = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${process.env.RELEASE_TAG}/`;
             if (manifest.version !== process.env.RELEASE_TAG || !manifest.downloads.length) {
-              throw new Error("Built release manifest has the wrong version or no downloads.");
+              throw new Error("Generated release manifest has the wrong version or no downloads.");
             }
             for (const item of manifest.downloads) {
               const url = new URL(item.url);
@@ -115,26 +119,34 @@ jobs:
               }
             }
           '
+          while IFS= read -r url; do
+            curl --fail --location --silent --show-error --head --retry 2 --retry-delay 2 "$url" >/dev/null
+          done < <(node --input-type=module -e '
+            import { readFile } from "node:fs/promises";
+            const manifest = JSON.parse(await readFile("apps/web/public/release.json", "utf8"));
+            for (const item of manifest.downloads) console.log(item.url);
+          ')
 
       - name: Configure VPS SSH access
         uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
-      - name: Replace website files and remove stale files in the web root
+      - name: Publish the release manifest to the live site
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_WEB_PATH: /opt/revelith_web
+          VPS_WEB_PATH: /var/www/revelith
         run: |
           set -euo pipefail
           test -n "$VPS_HOST" && test -n "$VPS_USER"
-          test "$VPS_WEB_PATH" = "/opt/revelith_web"
+          test "$VPS_WEB_PATH" = "/var/www/revelith"
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
           ssh "$VPS_USER@$VPS_HOST" "set -eu; mkdir -p '$VPS_WEB_PATH'; test ! -L '$VPS_WEB_PATH'; test -d '$VPS_WEB_PATH'; test -w '$VPS_WEB_PATH'"
-          # --delete-delay removes old files only inside /opt/revelith_web.
-          rsync -az --delete-delay --delay-updates apps/web/dist/ "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/"
+          # Update only the manifest; the independently hosted website bundle stays in place.
+          rsync -az --delay-updates apps/web/public/release.json "$VPS_USER@$VPS_HOST:$VPS_WEB_PATH/release.json"
+          ssh "$VPS_USER@$VPS_HOST" "chmod 644 '$VPS_WEB_PATH/release.json'"
 
       - name: Verify the public site and deployed manifest
         run: |
